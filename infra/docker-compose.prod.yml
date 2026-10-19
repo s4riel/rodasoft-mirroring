@@ -1,0 +1,84 @@
+# Producción en un VPS (4 vCPU / 8 GB). Uso:
+#   cp infra/env.prod.example infra/.env.prod   # completar
+#   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --build
+#   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod run --rm migrate
+name: rodasoft
+
+x-app-env: &app-env
+  env_file: .env.prod
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_started }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init/01-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes: [redisdata:/data]
+
+  migrate:
+    <<: *app-env
+    build: { context: .., dockerfile: infra/docker/Dockerfile, target: migrate }
+    restart: 'no'
+    profiles: [tools]
+
+  api:
+    <<: *app-env
+    build: { context: .., dockerfile: infra/docker/Dockerfile, target: api }
+
+  worker:
+    <<: *app-env
+    build: { context: .., dockerfile: infra/docker/Dockerfile, target: worker }
+
+  web:
+    build: { context: .., dockerfile: infra/docker/Dockerfile, target: web }
+    restart: unless-stopped
+
+  gateway:
+    build: { context: .., dockerfile: infra/docker/Dockerfile, target: gateway }
+    restart: unless-stopped
+    env_file: .env.prod
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on: [api, web]
+
+  # Respaldo diario de PostgreSQL (retención 14 días, 4 semanas, 6 meses).
+  # Copiar ./backups fuera del servidor (rclone a R2/S3) con infra/scripts/backup-offsite.sh
+  backup:
+    image: prodrigestivill/postgres-backup-local:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: '0 3 * * *'
+      BACKUP_KEEP_DAYS: 14
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 6
+      TZ: America/La_Paz
+    volumes: ['./backups:/backups']
+    depends_on: [postgres]
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:

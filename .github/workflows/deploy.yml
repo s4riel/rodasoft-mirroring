@@ -1,0 +1,33 @@
+name: Deploy
+
+# Despliegue manual al VPS. Requiere secretos: VPS_HOST, VPS_USER, VPS_SSH_KEY.
+# En el VPS: repo clonado en /opt/rodasoft con infra/.env.prod completo.
+on:
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: staging o production
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente }}
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/rodasoft
+            git fetch --tags && git checkout ${{ github.sha }}
+            docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod build
+            docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod run --rm migrate
+            docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --remove-orphans
+            docker image prune -f

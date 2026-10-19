@@ -1,0 +1,11 @@
+node_modules
+dist
+tmp
+coverage
+.angular
+.nx
+.git
+.env
+.env.*
+secrets
+**/*.p12

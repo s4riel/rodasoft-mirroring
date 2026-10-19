@@ -1,0 +1,163 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tokens del Design System Rodalaser (claude/design-system.md, dirección visual v2).
+// Espejo de las colecciones de variables de Figma: Primitives, Color (Light/Dark),
+// Brand (Empresa 1 / Empresa 2), Spacing, Radius y Typography.
+// Modo de marca: <html data-brand="rodalaser|empresa2">  ·  Tema: <html data-theme="light|dark">
+// Cuando se exporten las variables de Figma (Style Dictionary), este archivo se regenera.
+// ─────────────────────────────────────────────────────────────────────────────
+
+:root {
+  // ── Primitives ──
+  --gray-50: #f2f4f6;
+  --gray-100: #e8ecf0;
+  --gray-200: #d5dce3;
+  --gray-300: #c9d1d9;
+  --gray-400: #8e9aa6;
+  --gray-500: #5d6975;
+  --gray-600: #5a6672;
+  --gray-900: #17202a;
+  --ink-950: #0f1419;
+  --ink-900: #161d24;
+  --ink-800: #1f2831;
+  --ink-700: #2a3540;
+  --ink-600: #4a5663;
+  --ink-400: #98a6b4;
+  --ink-100: #e6ecf2;
+  --black: #111111;
+  --white: #ffffff;
+  --red-700: #b4181e;
+  --red-600: #e21f26;
+  --red-500: #e84d52;
+  --red-100: #fad4d5;
+  --green-700: #2d6a3e;
+  --green-600: #3a7f4e;
+  --green-400: #6cc283;
+  --green-100: #dceedf;
+  --blue-700: #1d4f86;
+  --blue-400: #6fa3dd;
+
+  // ── Color (Light) ──
+  --bg-page: var(--gray-50);
+  --bg-surface: var(--white);
+  --bg-surface-2: var(--gray-100);
+  --bg-canvas: var(--white);
+  --bg-section-alt: #f5f5f7;
+  --bg-section-dark: #0b0b0c;
+  --text-primary: var(--gray-900);
+  --text-muted: var(--gray-600);
+  --text-on-dark: var(--white);
+  --border-default: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --action-primary: var(--black);
+  --action-on-primary: var(--white);
+  --action-primary-soft: #e8e8e8;
+  --status-success: #2e7d32;
+  --status-success-soft: #e1f1e2;
+  --status-warning: #946200;
+  --status-warning-soft: #f7ebcb;
+  --status-danger: #b4380f;
+  --status-danger-soft: #f8e1d6;
+  --status-info: var(--blue-700);
+  --status-info-soft: #dde8f4;
+  --status-idle: #7c8fa3;
+  --focus-ring: var(--blue-700);
+
+  // ── Brand (Empresa 1 · Rodalaser) — solo acentos: precio, badges, foco de marca, logo ──
+  --brand-primary: var(--red-600);
+  --brand-primary-hover: var(--red-500);
+  --brand-primary-strong: var(--red-700); // texto blanco AA sobre botón de marca
+  --brand-primary-soft: var(--red-100);
+  --brand-on-primary: var(--white);
+
+  // ── Spacing (base 4) ──
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  // ── Radius ──
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-3xl: 32px;
+  --radius-full: 999px;
+
+  // ── Effects ──
+  --shadow-card: 0 1px 2px rgba(15, 25, 35, 0.06), 0 4px 16px rgba(15, 25, 35, 0.06);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-featured: 0 24px 48px rgba(0, 0, 0, 0.14);
+  --shadow-modal: 0 12px 40px rgba(15, 25, 35, 0.18);
+  --motion-fast: 160ms;
+  --motion-base: 240ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  // ── Typography ──
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --text-xs: 11.5px;
+  --text-sm: 12px;
+  --text-md: 14px; // base ERP
+  --text-lg: 16px; // base web/tienda
+  --text-h3: 17px;
+  --text-h2: 22px;
+  --text-h1: 30px;
+  --text-display-xl: 56px;
+  --text-display-hero: 80px;
+  --tracking-tight: -0.02em;
+  --tracking-eyebrow: 0.08em;
+  --tracking-logo: 0.2em;
+
+  // ── Layout ──
+  --sidebar-width: 248px;
+  --content-max: 1440px;
+  --container-web: 1260px;
+
+  color-scheme: light;
+}
+
+// ── Brand: Empresa 2 (verde) ──
+[data-brand='empresa2'] {
+  --brand-primary: var(--green-700);
+  --brand-primary-hover: var(--green-600);
+  --brand-primary-strong: var(--green-700);
+  --brand-primary-soft: var(--green-100);
+  --brand-on-primary: var(--white);
+}
+
+// ── Color (Dark) ──
+[data-theme='dark'] {
+  --bg-page: var(--ink-950);
+  --bg-surface: var(--ink-900);
+  --bg-surface-2: var(--ink-800);
+  --bg-canvas: var(--ink-900);
+  --bg-section-alt: #1d1d1f;
+  --bg-section-dark: #000000;
+  --text-primary: var(--ink-100);
+  --text-muted: var(--ink-400);
+  --border-default: var(--ink-700);
+  --border-strong: var(--ink-600);
+  --action-primary: var(--white);
+  --action-on-primary: var(--black);
+  --action-primary-soft: #2a2a2c;
+  --status-success: #71c977;
+  --status-success-soft: #1a3020;
+  --status-warning: #e2b54a;
+  --status-warning-soft: #352a12;
+  --status-danger: #f08a5d;
+  --status-danger-soft: #3a2016;
+  --status-info: var(--blue-400);
+  --status-info-soft: #1a2d44;
+  --status-idle: #8fa2b6;
+  --focus-ring: var(--blue-400);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}

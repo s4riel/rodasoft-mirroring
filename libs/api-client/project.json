@@ -1,0 +1,20 @@
+{
+  "name": "api-client",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api-client/src",
+  "projectType": "library",
+  "tags": ["scope:frontend", "type:data-access"],
+  "targets": {
+    "generate": {
+      "executor": "nx:run-commands",
+      "dependsOn": [{ "projects": ["api"], "target": "build" }],
+      "options": {
+        "commands": [
+          "node dist/apps/api/main.js --export-openapi dist/openapi.json",
+          "openapi-typescript dist/openapi.json -o libs/api-client/src/generated/schema.ts"
+        ],
+        "parallel": false
+      }
+    }
+  }
+}

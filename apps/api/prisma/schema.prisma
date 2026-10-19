@@ -1,0 +1,335 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Rodasoft — esquema base (S0): multiempresa, acceso, permisos, auditoría y outbox.
+// Convenciones:
+//  - Tablas y columnas en snake_case (@@map / @map); modelos en PascalCase.
+//  - Toda tabla de negocio lleva empresa_id (multi-tenant en esquema compartido).
+//  - Dinero: Decimal(14,2); costos y tipo de cambio: Decimal(14,4). Nunca Float.
+//  - IDs: UUID v7 generados por Prisma (orden temporal, buenos para índices).
+// Los módulos (inventario, ventas, facturación…) se agregan sprint a sprint.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm, unaccent, citext]
+}
+
+enum BrandMode {
+  rodalaser
+  empresa2
+}
+
+enum EstadoRegistro {
+  ACTIVO
+  INACTIVO
+}
+
+enum AmbienteSiat {
+  PRODUCCION // 1
+  PRUEBAS // 2
+}
+
+enum ModalidadSiat {
+  ELECTRONICA_EN_LINEA // 1
+  COMPUTARIZADA_EN_LINEA // 2
+}
+
+// ── Multiempresa ────────────────────────────────────────────────────────────
+
+model Empresa {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  slug            String         @unique // define la URL: <slug>.erp.<dominio>
+  razonSocial     String         @map("razon_social")
+  nombreComercial String         @map("nombre_comercial")
+  nit             String         @unique
+  brand           BrandMode      @default(rodalaser)
+  estado          EstadoRegistro @default(ACTIVO)
+  moneda          String         @default("BOB") @db.Char(3)
+  zonaHoraria     String         @default("America/La_Paz") @map("zona_horaria")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sucursales     Sucursal[]
+  almacenes      Almacen[]
+  membresias     Membresia[]
+  roles          Rol[]
+  siatConfig     SiatConfiguracion?
+  puntosVenta    PuntoVentaSiat[]
+  auditoria      AuditLog[]
+  outbox         OutboxEvent[]
+
+  @@map("empresa")
+}
+
+model Sucursal {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  empresaId  String         @map("empresa_id") @db.Uuid
+  codigo     Int // código de sucursal del SIN (0 = casa matriz)
+  nombre     String
+  direccion  String?
+  ciudad     String         @default("Cochabamba")
+  telefono   String?
+  latitud    Decimal?       @db.Decimal(9, 6)
+  longitud   Decimal?       @db.Decimal(9, 6)
+  estado     EstadoRegistro @default(ACTIVO)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  empresa     Empresa              @relation(fields: [empresaId], references: [id])
+  almacenes   Almacen[]
+  puntosVenta PuntoVentaSiat[]
+  accesos     MembresiaSucursal[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@map("sucursal")
+}
+
+/// Cada sucursal tiene más de un almacén (decisión del cliente).
+model Almacen {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  empresaId  String         @map("empresa_id") @db.Uuid
+  sucursalId String         @map("sucursal_id") @db.Uuid
+  codigo     String // p. ej. HK-01
+  nombre     String
+  esPrincipal Boolean       @default(false) @map("es_principal")
+  /// la tienda en línea vende solo desde almacenes publicados
+  visibleEnTienda Boolean   @default(true) @map("visible_en_tienda")
+  estado     EstadoRegistro @default(ACTIVO)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  empresa  Empresa  @relation(fields: [empresaId], references: [id])
+  sucursal Sucursal @relation(fields: [sucursalId], references: [id])
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, sucursalId])
+  @@map("almacen")
+}
+
+// ── Usuarios, acceso y permisos ─────────────────────────────────────────────
+
+/// Usuario global: una persona puede tener membresía en las dos empresas.
+model Usuario {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  email         String         @unique @db.Citext
+  nombre        String
+  passwordHash  String?        @map("password_hash") // null = solo Google o invitación pendiente
+  googleSub     String?        @unique @map("google_sub")
+  avatarUrl     String?        @map("avatar_url")
+  estado        EstadoRegistro @default(ACTIVO)
+  ultimoAcceso  DateTime?      @map("ultimo_acceso") @db.Timestamptz(3)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  membresias    Membresia[]
+  refreshTokens RefreshToken[]
+  resets        PasswordReset[]
+
+  @@map("usuario")
+}
+
+/// Pertenencia de un usuario a una empresa, con un rol y las sucursales que puede operar.
+model Membresia {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  empresaId     String         @map("empresa_id") @db.Uuid
+  usuarioId     String         @map("usuario_id") @db.Uuid
+  rolId         String         @map("rol_id") @db.Uuid
+  /// true = puede operar todas las sucursales (ContextBar Branch=All)
+  todasSucursales Boolean      @default(false) @map("todas_sucursales")
+  estado        EstadoRegistro @default(ACTIVO)
+  invitadoPor   String?        @map("invitado_por") @db.Uuid
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  empresa    Empresa             @relation(fields: [empresaId], references: [id])
+  usuario    Usuario             @relation(fields: [usuarioId], references: [id])
+  rol        Rol                 @relation(fields: [rolId], references: [id])
+  sucursales MembresiaSucursal[]
+
+  @@unique([empresaId, usuarioId])
+  @@index([usuarioId])
+  @@map("membresia")
+}
+
+model MembresiaSucursal {
+  membresiaId String @map("membresia_id") @db.Uuid
+  sucursalId  String @map("sucursal_id") @db.Uuid
+
+  membresia Membresia @relation(fields: [membresiaId], references: [id], onDelete: Cascade)
+  sucursal  Sucursal  @relation(fields: [sucursalId], references: [id])
+
+  @@id([membresiaId, sucursalId])
+  @@map("membresia_sucursal")
+}
+
+model Rol {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  clave       String // admin, gerencia, cajero, almacen, contador…
+  nombre      String
+  descripcion String?
+  esSistema   Boolean  @default(false) @map("es_sistema") // los de sistema no se borran
+  /// límite de descuento sin aprobación (%), lo usa la regla de VP-13
+  descuentoMaximo Decimal @default(0) @map("descuento_maximo") @db.Decimal(5, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  empresa    Empresa      @relation(fields: [empresaId], references: [id])
+  permisos   RolPermiso[]
+  membresias Membresia[]
+
+  @@unique([empresaId, clave])
+  @@map("rol")
+}
+
+/// Catálogo global de permisos; la fuente de verdad es libs/domain/src/lib/permissions.ts.
+model Permiso {
+  clave       String       @id
+  descripcion String
+  modulo      String
+
+  roles RolPermiso[]
+
+  @@map("permiso")
+}
+
+model RolPermiso {
+  rolId        String @map("rol_id") @db.Uuid
+  permisoClave String @map("permiso_clave")
+
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso Permiso @relation(fields: [permisoClave], references: [clave])
+
+  @@id([rolId, permisoClave])
+  @@map("rol_permiso")
+}
+
+/// Refresh tokens con rotación: cada uso crea uno nuevo de la misma familia.
+/// Si se reutiliza uno ya rotado, se revoca toda la familia (posible robo).
+model RefreshToken {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  usuarioId  String    @map("usuario_id") @db.Uuid
+  empresaId  String    @map("empresa_id") @db.Uuid
+  familia    String    @db.Uuid
+  tokenHash  String    @unique @map("token_hash") // sha256 del token
+  expiraEn   DateTime  @map("expira_en") @db.Timestamptz(3)
+  usadoEn    DateTime? @map("usado_en") @db.Timestamptz(3)
+  revocadoEn DateTime? @map("revocado_en") @db.Timestamptz(3)
+  userAgent  String?   @map("user_agent")
+  ip         String?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([familia])
+  @@index([usuarioId])
+  @@map("refresh_token")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  usuarioId String    @map("usuario_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiraEn  DateTime  @map("expira_en") @db.Timestamptz(3)
+  usadoEn   DateTime? @map("usado_en") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset")
+}
+
+// ── Facturación SIAT: configuración por empresa (detalle en S2/S3) ──────────
+
+model SiatConfiguracion {
+  empresaId        String        @id @map("empresa_id") @db.Uuid
+  ambiente         AmbienteSiat  @default(PRUEBAS)
+  modalidad        ModalidadSiat @default(ELECTRONICA_EN_LINEA)
+  codigoSistema    String?       @map("codigo_sistema")
+  /// token delegado del SIAT, cifrado con AES-256-GCM (SecretsService)
+  tokenCifrado     String?       @map("token_cifrado")
+  tokenVence       DateTime?     @map("token_vence") @db.Timestamptz(3)
+  /// .p12 de firma digital cifrado (base64) y su contraseña cifrada
+  firmaP12Cifrada  String?       @map("firma_p12_cifrada")
+  firmaPassCifrada String?       @map("firma_pass_cifrada")
+  firmaVence       DateTime?     @map("firma_vence") @db.Timestamptz(3)
+  firmaTitular     String?       @map("firma_titular")
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@map("siat_configuracion")
+}
+
+model PuntoVentaSiat {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  empresaId        String    @map("empresa_id") @db.Uuid
+  sucursalId       String    @map("sucursal_id") @db.Uuid
+  codigo           Int // código de punto de venta del SIN
+  nombre           String
+  cuis             String?
+  cuisVence        DateTime? @map("cuis_vence") @db.Timestamptz(3)
+  cufd             String?
+  cufdCodigoControl String?  @map("cufd_codigo_control")
+  cufdDireccion    String?   @map("cufd_direccion")
+  cufdVence        DateTime? @map("cufd_vence") @db.Timestamptz(3)
+  ultimaSincronizacion DateTime? @map("ultima_sincronizacion") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  empresa  Empresa  @relation(fields: [empresaId], references: [id])
+  sucursal Sucursal @relation(fields: [sucursalId], references: [id])
+
+  @@unique([empresaId, sucursalId, codigo])
+  @@map("punto_venta_siat")
+}
+
+// ── Transversal ─────────────────────────────────────────────────────────────
+
+/// Registro de auditoría: quién hizo qué, sobre qué entidad, antes y después.
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  empresaId  String?  @map("empresa_id") @db.Uuid
+  usuarioId  String?  @map("usuario_id") @db.Uuid
+  accion     String // auth.login, ventas.anular.aprobar…
+  entidad    String?
+  entidadId  String?  @map("entidad_id")
+  antes      Json?
+  despues    Json?
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  empresa Empresa? @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId, createdAt(sort: Desc)])
+  @@index([entidad, entidadId])
+  @@map("audit_log")
+}
+
+/// Outbox transaccional: los eventos de dominio se escriben en la MISMA transacción
+/// que el cambio de negocio; el worker los publica (asientos, SIAT, correos).
+model OutboxEvent {
+  id          BigInt    @id @default(autoincrement())
+  empresaId   String?   @map("empresa_id") @db.Uuid
+  tipo        String // venta.confirmada, factura.emitida, auth.password-reset…
+  payload     Json
+  /// clave para deduplicar consumidores (p. ej. factura:<id>:emitir)
+  idempotencyKey String? @unique @map("idempotency_key")
+  intentos    Int       @default(0)
+  disponibleEn DateTime @default(now()) @map("disponible_en") @db.Timestamptz(3)
+  procesadoEn DateTime? @map("procesado_en") @db.Timestamptz(3)
+  error       String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  empresa Empresa? @relation(fields: [empresaId], references: [id])
+
+  @@index([procesadoEn, disponibleEn])
+  @@map("outbox_event")
+}

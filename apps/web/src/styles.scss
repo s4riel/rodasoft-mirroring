@@ -1,0 +1,10 @@
+@use 'rodasoft-ui';
+
+body {
+  background: var(--bg-page);
+}
+
+.rs-container {
+  width: min(100% - 32px, var(--container-web));
+  margin-inline: auto;
+}
