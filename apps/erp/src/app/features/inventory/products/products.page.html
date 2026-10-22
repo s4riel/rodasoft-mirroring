@@ -84,19 +84,12 @@
     <div class="chips" role="list" aria-label="Filtros aplicados">
       @for (chip of chips(); track chip.key) {
         <rs-filter-chip role="listitem" [selected]="true" [label]="chip.label" (selectedChange)="removeChip(chip.key)">
-          @switch (chip.media.type) {
-            @case ('flag') {
-              @if (chip.media.country) {
-                <rs-chip-media type="flag" [country]="chip.media.country" />
-              }
+          <!-- one unconditional rs-chip-media so it lands in the chip's media slot -->
+          <rs-chip-media [type]="chip.mediaType" [country]="chip.country ?? 'DE'" [text]="chip.text">
+            @if (chip.mediaType === 'icon') {
+              <rs-icon [name]="chip.icon" [size]="16" />
             }
-            @case ('brand') {
-              <rs-chip-media type="brand" [text]="chip.media.text" />
-            }
-            @case ('icon') {
-              <rs-chip-media type="icon"><rs-icon [name]="chip.media.icon" [size]="16" /></rs-chip-media>
-            }
-          }
+          </rs-chip-media>
         </rs-filter-chip>
       }
       <button type="button" class="clear-all" (click)="clearAll()">Limpiar todo</button>

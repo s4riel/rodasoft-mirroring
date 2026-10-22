@@ -13,7 +13,10 @@ import {
   ButtonComponent,
   CanDirective,
   ChipMediaComponent,
+  ChipMediaType,
   EmptyStateIllustratedComponent,
+  FlagCountry,
+  IconName,
   FilterBarProductsComponent,
   FilterChipComponent,
   IconComponent,
@@ -50,10 +53,10 @@ interface Filters {
 interface FilterChip {
   key: FilterKey;
   label: string;
-  media:
-    | { type: 'flag'; country: ReturnType<typeof flagOf> }
-    | { type: 'brand'; text: string }
-    | { type: 'icon'; icon: 'category' | 'subcategory' | 'check' };
+  mediaType: ChipMediaType;
+  country: FlagCountry | null;
+  text: string;
+  icon: IconName;
 }
 
 const STATUS_LABELS: Record<ProductStatusFilter, string> = { ACTIVE: 'Activo', INACTIVE: 'Inactivo' };
@@ -206,15 +209,20 @@ export class ProductsPage {
     const f = this.filters();
     const o = this.options();
     const chips: FilterChip[] = [];
+    const base = { country: null, text: '', icon: 'check' } as const;
     const country = o.countries.find((c) => c.id === f.countryId);
-    if (country) chips.push({ key: 'countryId', label: country.name, media: { type: 'flag', country: flagOf(country.code) } });
+    if (country) {
+      const flag = flagOf(country.code);
+      // a country without a flag falls back to its code
+      chips.push({ ...base, key: 'countryId', label: country.name, mediaType: flag ? 'flag' : 'brand', country: flag, text: country.code });
+    }
     const brand = o.brands.find((b) => b.id === f.brandId);
-    if (brand) chips.push({ key: 'brandId', label: brand.name, media: { type: 'brand', text: brand.name.slice(0, 3).toUpperCase() } });
+    if (brand) chips.push({ ...base, key: 'brandId', label: brand.name, mediaType: 'brand', text: brand.name.slice(0, 3).toUpperCase() });
     const category = o.categories.find((c) => c.id === f.categoryId);
-    if (category) chips.push({ key: 'categoryId', label: category.name, media: { type: 'icon', icon: 'category' } });
+    if (category) chips.push({ ...base, key: 'categoryId', label: category.name, mediaType: 'icon', icon: 'category' });
     const sub = o.categories.flatMap((c) => c.subcategories).find((s) => s.id === f.subcategoryId);
-    if (sub) chips.push({ key: 'subcategoryId', label: sub.name, media: { type: 'icon', icon: 'subcategory' } });
-    if (f.status) chips.push({ key: 'status', label: STATUS_LABELS[f.status], media: { type: 'icon', icon: 'check' } });
+    if (sub) chips.push({ ...base, key: 'subcategoryId', label: sub.name, mediaType: 'icon', icon: 'subcategory' });
+    if (f.status) chips.push({ ...base, key: 'status', label: STATUS_LABELS[f.status], mediaType: 'icon', icon: 'check' });
     return chips;
   });
 

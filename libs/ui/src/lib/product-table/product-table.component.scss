@@ -11,7 +11,7 @@
 .row {
   /* Column widths measured from Figma ProductTable (1128): photo, code, product (fluid), description, stocks, price, status, action */
   display: grid;
-  grid-template-columns: 72px 104px minmax(160px, 1fr) 188px 96px 112px 108px 144px 56px;
+  grid-template-columns: 72px 104px minmax(160px, 1fr) 188px 112px 112px 108px 144px 56px;
   align-items: center;
   min-height: 72px; /* Figma Table/Row: 72 */
   border-bottom: var(--stroke-default) solid var(--border-default);
@@ -39,6 +39,7 @@
     font-size: var(--label-md-size);
     font-weight: 500;
     line-height: var(--label-md-line-height);
+    white-space: nowrap;
   }
 }
 .num {
