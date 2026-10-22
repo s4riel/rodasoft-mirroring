@@ -1,0 +1,77 @@
+@if (store.product(); as p) {
+  <rs-product-kpis [product]="p" [equivalents]="data()?.summary ?? null" priceStyle="plain" />
+}
+
+<section class="section" aria-labelledby="equivalents-title">
+  <h2 id="equivalents-title" class="section-title">Equivalentes por marca</h2>
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="skeleton" role="status" aria-busy="true" aria-label="Cargando equivalentes">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      </div>
+    }
+    @case ('error') {
+      <div class="state" role="alert">
+        <rs-empty-state-illustrated
+          illustration="error"
+          heading="No pudimos cargar los equivalentes"
+          [description]="errorMessage()"
+        >
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </div>
+    }
+    @default {
+      @if (isEmpty()) {
+        <div class="state">
+          <rs-empty-state-illustrated
+            illustration="no-equivalents"
+            heading="Sin equivalentes registrados"
+            description="Cuando se vincule un producto de otra marca con las mismas medidas, aparecerá aquí."
+            [showAction]="false"
+          />
+        </div>
+      } @else {
+        <rs-doc-table size="md" tableLabel="Equivalentes por marca" [columns]="columns" [rows]="rows()" [totals]="totals()">
+          <ng-template rsDocCell="industry" let-row>
+            @if (industryOf(row.id); as industry) {
+              <span class="industry">
+                @if (industry.flag; as code) {
+                  <rs-flag [country]="code" />
+                }
+                {{ industry.name }}
+              </span>
+            } @else {
+              –
+            }
+          </ng-template>
+          <ng-template rsDocCell="stock" let-row>
+            @if (stockOf(row.id); as stock) {
+              <span class="stock">
+                @if (stock.out) {
+                  <rs-stock-flag level="out" label="Agotado" />
+                }
+                {{ stock.quantity }}
+              </span>
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeLabel() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="page()"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+</section>

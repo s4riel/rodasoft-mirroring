@@ -1,0 +1,80 @@
+:host {
+  --_row: 4.5rem; /* Figma DocTable row: 72 px, no token */
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+:host([data-size='md']) {
+  --_row: var(--size-control-lg); /* Figma Table/Cell: 52 px */
+}
+.scroll {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  letter-spacing: var(--body-md-tracking);
+}
+th,
+td {
+  padding: 0 var(--space-4);
+  text-align: start;
+  vertical-align: middle;
+}
+thead th {
+  height: var(--size-control-lg);
+  background: var(--bg-surface-2);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  letter-spacing: var(--body-md-strong-tracking);
+  font-weight: var(--body-md-strong-weight);
+}
+tbody td {
+  height: var(--_row);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+tfoot td,
+tfoot th {
+  height: var(--size-control-lg);
+  background: var(--bg-surface-2);
+  font-weight: var(--body-md-strong-weight);
+}
+.num {
+  text-align: end;
+}
+.code,
+td.num {
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  letter-spacing: var(--mono-md-tracking);
+  font-weight: var(--mono-md-weight);
+}
+thead th.num {
+  font-family: var(--font-family-ui);
+}
+td.empty {
+  height: var(--_row);
+  color: var(--text-muted);
+  font-family: var(--font-family-ui);
+  font-weight: var(--body-md-weight);
+  text-align: center;
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  color: var(--text-muted);
+}
+.footer:empty {
+  display: none;
+}

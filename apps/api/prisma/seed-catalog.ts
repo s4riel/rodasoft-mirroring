@@ -3,6 +3,7 @@
  * name as text, no logos). Idempotent. Display names (categories, products) are Spanish content.
  */
 import type { PrismaClient } from '@prisma/client';
+import { normalizePair } from '@rodasoft/domain';
 
 const COUNTRIES = [
   { code: 'SE', name: 'Suecia' },
@@ -59,6 +60,17 @@ const BEARINGS: [string, string, number, number, number][] = [
 
 /** Units other than the default `UN` (piece) for the demo products that are not sold by the piece. */
 const UNIT_OF: Record<string, string> = { 'CAD-80': 'M', 'KIT-INST': 'JGO' };
+
+/**
+ * Equivalents of the 6205-2RS (25 × 52 × 15, same type): code, brand and the specifications that differ from the
+ * original. The load capacities are pinned so a link is EXACT unless a seal or cage differs (HU-INV-04).
+ */
+const EQUIVALENT_BASE = { dynamicLoad: 17.8, staticLoad: 10.8 };
+const EQUIVALENTS_OF_6205: { code: string; brand: string; attrs: Record<string, unknown> }[] = [
+  { code: '6205-2RSR', brand: 'NTN', attrs: {} },
+  { code: '6205-DDU', brand: 'NSK', attrs: { seal: 'DDU (goma, sin contacto)' } },
+  { code: '6205-2Z', brand: 'SKF', attrs: { seal: '2Z (metálico)', cage: 'Poliamida' } },
+];
 
 const OTHERS: [string, string, string][] = [
   ['Retenes y sellos', 'RET-3052', 'Retén 30x52x7'],
@@ -170,9 +182,13 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
 
   let n = 0;
   const countryOfBrand = new Map(BRANDS.map((b) => [b.name, countryId.get(b.country)!]));
-  const upsertProduct = async (r: (typeof rows)[number], brand: string) => {
+  const upsertProduct = async (
+    r: (typeof rows)[number],
+    brand: string,
+    opts: { sku?: string; attrs?: Record<string, unknown> } = {},
+  ) => {
     n += 1;
-    const sku = pad(n);
+    const sku = opts.sku ?? pad(n);
     const price = (20 + ((n * 37) % 480)).toFixed(2);
     const product = await prisma.product.upsert({
       where: { companyId_brandId_manufacturerCode: { companyId, brandId: brandId.get(brand)!, manufacturerCode: r.code } },
@@ -215,6 +231,8 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
             tariffCode: '8482.10.00',
             supplierName: 'Proveedor DEMO',
             sectors: 'Minería, Industria',
+            ...(r.code === '6205-2RS' ? EQUIVALENT_BASE : {}),
+            ...(opts.attrs ?? {}),
           },
         },
       });
@@ -242,6 +260,28 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
   };
 
   for (const [i, r] of rows.entries()) await upsertProduct(r, brandNames[i % brandNames.length]);
+
+  // Equivalents of the 6205-2RS from other brands, linked as direct pairs. New SKUs continue after the highest one.
+  const original = await prisma.product.findFirst({ where: { companyId, manufacturerCode: '6205-2RS' }, select: { id: true } });
+  if (original) {
+    for (const eq of EQUIVALENTS_OF_6205) {
+      const row = { code: eq.code, category: 'Rígidos de bolas', name: `Rodamiento ${eq.code}`, dims: [25, 52, 15] as [number, number, number] };
+      const existing = await prisma.product.findFirst({ where: { companyId, brandId: brandId.get(eq.brand)!, manufacturerCode: eq.code } });
+      let sku = existing?.sku;
+      if (!sku) {
+        const last = await prisma.product.findFirst({ where: { companyId, sku: { startsWith: 'RL-' } }, orderBy: { sku: 'desc' }, select: { sku: true } });
+        sku = pad(Number(last?.sku.slice(3) ?? 0) + 1);
+      }
+      await upsertProduct(row, eq.brand, { sku, attrs: { ...EQUIVALENT_BASE, ...eq.attrs } });
+      const other = await prisma.product.findFirstOrThrow({ where: { companyId, brandId: brandId.get(eq.brand)!, manufacturerCode: eq.code }, select: { id: true } });
+      const [productAId, productBId] = normalizePair(original.id, other.id);
+      await prisma.equivalence.upsert({
+        where: { companyId_productAId_productBId: { companyId, productAId, productBId } },
+        update: {},
+        create: { companyId, productAId, productBId },
+      });
+    }
+  }
 
   // Performance fixture: SEED_BULK_PRODUCTS=5000 pnpm db:seed
   if (bulk > 0) {

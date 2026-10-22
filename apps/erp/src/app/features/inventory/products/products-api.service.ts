@@ -4,6 +4,7 @@ import type {
   DuplicateProductRequest,
   DuplicateProductResponse,
   ProductDetail,
+  ProductEquivalentsResponse,
   ProductFilterOptions,
   ProductListQuery,
   ProductListResponse,
@@ -28,6 +29,12 @@ export class ProductsApi {
 
   detail(id: string): Observable<ProductDetail> {
     return this.http.get<ProductDetail>(`/api/v1/inventory/products/${id}`);
+  }
+
+  equivalents(id: string, query: { page?: number; pageSize?: number } = {}): Observable<ProductEquivalentsResponse> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) if (value !== undefined) params = params.set(key, String(value));
+    return this.http.get<ProductEquivalentsResponse>(`/api/v1/inventory/products/${id}/equivalents`, { params });
   }
 
   duplicate(id: string, body: DuplicateProductRequest): Observable<DuplicateProductResponse> {

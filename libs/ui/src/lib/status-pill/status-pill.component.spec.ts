@@ -22,3 +22,48 @@ describe('StatusPillComponent', () => {
     expect(pills[0].querySelector('.dot')).not.toBeNull();
   });
 });
+
+@Component({
+  imports: [StatusPillComponent],
+  template: `<rs-status-pill status="warning" icon="alert">Con diferencias</rs-status-pill>`,
+})
+class IconHostComponent {}
+
+@Component({
+  imports: [StatusPillComponent],
+  template: `
+    <rs-status-pill id="with" status="warning" tooltip="Sello: 2RS → DDU">Con diferencias</rs-status-pill>
+    <rs-status-pill id="without" status="success">Exacta</rs-status-pill>
+  `,
+})
+class TooltipHostComponent {}
+
+describe('StatusPillComponent with a tooltip', () => {
+  it('is a keyboard stop only when it has a tooltip', async () => {
+    const fixture = TestBed.createComponent(TooltipHostComponent);
+    await fixture.whenStable();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('#with')?.getAttribute('tabindex')).toBe('0');
+    expect(el.querySelector('#without')?.getAttribute('tabindex')).toBeNull();
+  });
+
+  it('opens the tooltip on focus', async () => {
+    const fixture = TestBed.createComponent(TooltipHostComponent);
+    await fixture.whenStable();
+    const pill = fixture.nativeElement.querySelector('#with') as HTMLElement;
+    pill.dispatchEvent(new Event('focusin'));
+    expect(document.body.textContent).toContain('Sello: 2RS → DDU');
+    pill.dispatchEvent(new Event('focusout'));
+  });
+});
+
+describe('StatusPillComponent with a leading icon', () => {
+  it('shows the glyph instead of the dot', async () => {
+    const fixture = TestBed.createComponent(IconHostComponent);
+    await fixture.whenStable();
+    const pill: HTMLElement = fixture.nativeElement.querySelector('rs-status-pill');
+    expect(pill.querySelector('rs-icon')?.getAttribute('aria-hidden')).toBe('true');
+    expect(pill.querySelector('.dot')).toBeNull();
+    expect(pill.textContent).toContain('Con diferencias');
+  });
+});

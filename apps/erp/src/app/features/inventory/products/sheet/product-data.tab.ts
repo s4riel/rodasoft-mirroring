@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { fieldIconOf, SPEC_STEP_DIMENSIONS } from '@rodasoft/domain';
 import {
   ChipMediaComponent,
@@ -6,13 +7,16 @@ import {
   FlagComponent,
   IconComponent,
   IconName,
-  KpiCardComponent,
+  StatusPillComponent,
   StockFlagComponent,
 } from '@rodasoft/ui';
 import { ContextStore } from '../../../../core/context.store';
 import { flagOf, thumbIconOf } from '../product-list.mapper';
+import { equivalencePill } from './equivalents/equivalence-pill';
+import { ProductKpisComponent } from './product-kpis.component';
 import {
   fileNameOf,
+  plural,
   formatDate,
   formatKilograms,
   formatMillimeters,
@@ -33,7 +37,9 @@ import { ProductSheetStore } from './product-sheet.store';
     DataFieldComponent,
     FlagComponent,
     IconComponent,
-    KpiCardComponent,
+    ProductKpisComponent,
+    RouterLink,
+    StatusPillComponent,
     StockFlagComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,7 +48,14 @@ import { ProductSheetStore } from './product-sheet.store';
 })
 export class ProductDataTab {
   private readonly ctx = inject(ContextStore);
-  protected readonly product = inject(ProductSheetStore).product;
+  private readonly store = inject(ProductSheetStore);
+  protected readonly product = this.store.product;
+  protected readonly equivalents = this.store.equivalents;
+  protected readonly equivalentsFailed = this.store.equivalentsFailed;
+  /** The first equivalents with their short pill, for the Equivalencias card. */
+  protected readonly equivalentItems = computed(() =>
+    (this.equivalents()?.items ?? []).map((item) => ({ item, pill: equivalencePill(item, 'short') })),
+  );
 
   protected readonly flag = computed(() => flagOf(this.product()?.country?.code));
   protected readonly thumbIcon = computed<IconName>(() => thumbIconOf(this.product()?.category.icon ?? ''));
@@ -77,12 +90,6 @@ export class ProductDataTab {
     ].filter(Boolean);
     return parts.join(' · ');
   });
-  protected readonly stockSummary = computed(() => {
-    const n = this.branches().length;
-    const min = this.minStock();
-    const base = `${n} ${n === 1 ? 'sucursal' : 'sucursales'}`;
-    return typeof min === 'number' ? `${base} · mínimo ${min}` : base;
-  });
   protected readonly stockMinLabel = computed(() => this.limitLabel(this.minStock()));
   protected readonly stockMaxLabel = computed(() => this.limitLabel(this.maxStock()));
   protected readonly locationLabel = computed(() => this.limitLabel(this.location()));
@@ -92,9 +99,6 @@ export class ProductDataTab {
   protected readonly salePrice = computed(() => formatMoney(this.product()?.pricing.salePrice));
   protected readonly cost = computed(() => formatMoney(this.product()?.pricing.cost));
   protected readonly margin = computed(() => formatPercent(this.product()?.pricing.marginPercent));
-  protected readonly priceNote = computed(() =>
-    this.hasCost() ? `Costo ${this.cost()} · margen ${this.margin()}` : '',
-  );
   protected readonly unit = computed(() => formatUnit(this.product()?.unit ?? ''));
 
   // ── dimensions and specifications ──
@@ -119,6 +123,11 @@ export class ProductDataTab {
 
   // ── media and record ──
   protected readonly datasheetName = computed(() => fileNameOf(this.product()?.datasheetUrl ?? ''));
+  protected readonly referenceLabel = computed(() => {
+    const n = this.equivalents()?.total ?? 0;
+    return `${n} ${plural(n, 'referencia', 'referencias')} de otras marcas`;
+  });
+
   protected readonly createdAt = computed(() => formatDate(this.product()?.createdAt ?? ''));
   protected readonly updatedAt = computed(() => formatDate(this.product()?.updatedAt ?? ''));
   protected readonly createdLine = computed(() => this.recordLine(this.product()?.createdBy?.name, this.createdAt()));

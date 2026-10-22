@@ -1,8 +1,8 @@
 import { toObservable, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import type { ProductDetail } from '@rodasoft/domain';
-import { catchError, map, of, switchMap, tap } from 'rxjs';
+import type { ProductDetail, ProductEquivalentsResponse } from '@rodasoft/domain';
+import { catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../../core/api-error';
 import { ProductsApi } from '../products-api.service';
 
@@ -23,14 +23,21 @@ export class ProductSheetStore {
   readonly state = signal<SheetLoadState>('loading');
   readonly errorMessage = signal('');
   readonly product = signal<ProductDetail | null>(null);
+  /** First equivalents (card and KPI of the sheet); null while loading or when they could not be loaded. */
+  readonly equivalents = signal<ProductEquivalentsResponse | null>(null);
+  /** True when the equivalents request failed: the sheet cannot claim there are none. */
+  readonly equivalentsFailed = signal(false);
 
   constructor() {
     toObservable(computed(() => ({ id: this.id(), reload: this.reload() })))
       .pipe(
         tap(() => this.state.set('loading')),
         switchMap(({ id }) =>
-          this.api.detail(id).pipe(
-            map((product) => ({ product })),
+          forkJoin({
+            product: this.api.detail(id),
+            // the sheet still works without the equivalents
+            equivalents: this.api.equivalents(id, { page: 1, pageSize: 3 }).pipe(catchError(() => of(null))),
+          }).pipe(
             catchError((err) => of({ error: problemOf(err) })),
           ),
         ),
@@ -44,6 +51,8 @@ export class ProductSheetStore {
           return;
         }
         this.product.set(result.product);
+        this.equivalents.set(result.equivalents);
+        this.equivalentsFailed.set(result.equivalents === null);
         this.state.set('ready');
       });
   }

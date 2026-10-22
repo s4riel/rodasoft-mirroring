@@ -124,12 +124,7 @@
   }
 }
 
-/* kpis and columns */
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: var(--space-4);
-}
+/* columns */
 .columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22.5rem; /* Figma IN-02a: 360 px side column, no token */
@@ -230,6 +225,50 @@
   border-top: var(--stroke-default) solid var(--border-default);
   color: var(--text-primary);
   font-weight: var(--body-md-strong-weight);
+}
+
+/* equivalents card */
+.eq-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+}
+.eq-text {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.eq-code {
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  font-weight: var(--mono-md-weight);
+}
+.eq-brand {
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+.eq-link {
+  color: var(--text-primary);
+  font-size: var(--body-md-size);
+  font-weight: var(--body-md-strong-weight);
+  text-decoration: underline;
+
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: var(--focus-offset);
+    border-radius: var(--radius-xs);
+  }
 }
 
 /* photos, file and record */

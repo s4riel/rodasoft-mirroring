@@ -15,6 +15,7 @@ import {
   ToastService,
 } from '@rodasoft/ui';
 import { filter, map, startWith } from 'rxjs';
+import { formatMeasure } from '../product-list.mapper';
 import { formatDate } from './product-sheet.mapper';
 import { ProductSheetStore } from './product-sheet.store';
 
@@ -78,6 +79,11 @@ export class ProductSheetPage {
     const p = this.store.product();
     if (!p) return '';
     const kind = (p.subcategory ?? p.category).name;
+    if (this.tab() === 'equivalents') {
+      const m = p.dimensions;
+      const measure = m ? `${[m.innerDiameter, m.outerDiameter, m.width].map(formatMeasure).join('×')} mm` : null;
+      return [p.brand.name, measure, kind].filter(Boolean).join(' · ');
+    }
     const who = p.createdBy ? ` por ${p.createdBy.name}` : '';
     return `${kind} · ${p.brand.name} · registrado el ${formatDate(p.createdAt)}${who}`;
   });

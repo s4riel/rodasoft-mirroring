@@ -5,3 +5,4 @@ export * from './lib/state-machine';
 export * from './lib/nit';
 export * from './lib/api-contracts';
 export * from './lib/product-catalog';
+export * from './lib/equivalence';

@@ -1,6 +1,6 @@
 import { Route } from '@angular/router';
 
-/** Product sheet at `/inventory/products/:id`: "Datos" by default, plus the two placeholder tabs. */
+/** Product sheet at `/inventory/products/:id`: "Datos" by default, "Equivalentes" and the Movimientos placeholder. */
 export const PRODUCT_SHEET_ROUTE: Route = {
   path: 'products/:id',
   title: 'Producto · ERP',
@@ -9,8 +9,7 @@ export const PRODUCT_SHEET_ROUTE: Route = {
     { path: '', loadComponent: () => import('./product-data.tab').then((m) => m.ProductDataTab) },
     {
       path: 'equivalents',
-      data: { kind: 'equivalents' },
-      loadComponent: () => import('./product-placeholder.tab').then((m) => m.ProductPlaceholderTab),
+      loadComponent: () => import('./equivalents/product-equivalents.tab').then((m) => m.ProductEquivalentsTab),
     },
     {
       path: 'movements',

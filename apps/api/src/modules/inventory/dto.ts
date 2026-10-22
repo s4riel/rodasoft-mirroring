@@ -96,3 +96,20 @@ export class ListProductsQueryDto {
   @Max(PRODUCT_PAGE_SIZE_MAX)
   pageSize?: number;
 }
+
+export class ListEquivalentsQueryDto {
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 25, maximum: PRODUCT_PAGE_SIZE_MAX })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(PRODUCT_PAGE_SIZE_MAX)
+  pageSize?: number;
+}
