@@ -3,37 +3,33 @@
 }
 .tablist {
   display: flex;
-  gap: var(--space-2);
-  border-bottom: var(--stroke-default) solid var(--border-default);
 }
 .tab {
   display: inline-flex;
   align-items: center;
-  height: var(--size-control-md);
-  padding: 0 var(--space-4);
-  margin-bottom: calc(-1 * var(--stroke-default));
+  padding: var(--space-3) var(--space-4);
   border: 0;
-  border-bottom: var(--stroke-focus) solid transparent;
+  border-bottom: var(--stroke-focus) solid var(--border-default); /* Figma: 2px indicator per tab */
   border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-primary);
   font-family: var(--font-family-ui);
-  font-size: var(--body-md-size);
-  line-height: var(--body-md-line-height);
-  font-weight: var(--body-md-weight);
+  font-size: var(--label-md-size);
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
   cursor: pointer;
   white-space: nowrap;
 }
+/* Figma has no hover/pressed style for Tabs; the indicator darkens as an affordance. */
 .tab:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-surface-2);
+  border-bottom-color: var(--border-control);
 }
 .tab:active:not(:disabled) {
-  background: var(--action-primary-soft);
+  border-bottom-color: var(--text-muted);
 }
-.tab[aria-selected='true'] {
-  color: var(--text-primary);
-  font-weight: var(--body-md-strong-weight);
+.tab[aria-selected='true'],
+.tab[aria-selected='true']:hover:not(:disabled),
+.tab[aria-selected='true']:active:not(:disabled) {
   border-bottom-color: var(--action-primary);
 }
 .tab:focus-visible {

@@ -9,8 +9,8 @@
   color: var(--text-primary);
   overflow: hidden;
 }
-:host(:hover:not(.is-disabled)) {
-  border-color: var(--text-primary);
+:host(:has(.btn:active:not(:disabled))) {
+  background: var(--action-primary-soft); /* Figma Pressed: whole container */
 }
 :host(:focus-within) {
   outline: var(--stroke-focus) solid var(--focus-control);
@@ -31,13 +31,16 @@
   border: 0;
   background: transparent;
   color: inherit;
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  font-weight: var(--mono-md-weight);
   cursor: pointer;
 }
 .btn:hover:not(:disabled) {
   background: var(--bg-surface-2);
 }
 .btn:active:not(:disabled) {
-  background: var(--action-primary-soft);
+  background: transparent;
 }
 .btn:disabled {
   color: var(--text-muted);
@@ -52,8 +55,8 @@
   outline: none;
   background: transparent;
   text-align: center;
-  font-family: var(--font-family-ui);
-  font-size: var(--body-md-strong-size);
-  font-weight: var(--body-md-strong-weight);
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  font-weight: var(--mono-md-weight);
   font-variant-numeric: tabular-nums;
 }

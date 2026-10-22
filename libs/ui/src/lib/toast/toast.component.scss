@@ -5,13 +5,11 @@
   align-items: flex-start;
   gap: var(--space-3);
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  box-shadow:
-    var(--shadow-modal),
-    inset 0 0 0 var(--stroke-default) var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--_bg);
+  box-shadow: var(--shadow-card);
   color: var(--text-primary);
   font-size: var(--body-md-size);
   line-height: var(--body-md-line-height);
@@ -36,7 +34,6 @@
   height: 28px;
   margin: -2px 0;
   border-radius: var(--radius-full);
-  background: var(--_bg);
   color: var(--_c);
 }
 .body {
@@ -50,7 +47,7 @@ strong {
   font-weight: var(--body-md-strong-weight);
 }
 .text {
-  color: var(--text-muted);
+  color: var(--text-primary);
 }
 .close {
   flex: none;

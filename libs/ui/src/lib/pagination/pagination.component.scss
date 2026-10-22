@@ -13,11 +13,11 @@ nav {
   min-width: var(--size-control-md);
   height: var(--size-control-md);
   padding: 0 var(--space-3);
-  border: var(--stroke-default) solid transparent;
+  border: var(--stroke-default) solid var(--border-control);
   border-radius: var(--radius-full);
   background: transparent;
   color: var(--text-primary);
-  font-family: var(--font-family-ui);
+  font-family: var(--font-family-mono);
   font-size: var(--body-md-size);
   line-height: var(--body-md-line-height);
   font-weight: var(--label-md-weight);
@@ -40,6 +40,7 @@ nav {
   cursor: not-allowed;
 }
 .btn.selected {
+  border-color: transparent;
   background: var(--action-primary);
   color: var(--action-on-primary);
   font-weight: var(--body-md-strong-weight);

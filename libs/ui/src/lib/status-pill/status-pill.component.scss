@@ -10,7 +10,7 @@
   font-size: var(--body-sm-size);
   line-height: var(--body-sm-line-height);
   font-weight: 600;
-  color: var(--_c);
+  color: var(--text-primary);
   background: var(--_bg);
   white-space: nowrap;
 }
@@ -34,6 +34,6 @@
   width: 6px;
   height: 6px;
   border-radius: var(--radius-full);
-  background: currentColor;
+  background: var(--_c);
   flex: none;
 }

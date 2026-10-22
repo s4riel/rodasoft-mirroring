@@ -14,7 +14,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   max-height: calc(100dvh - 2 * var(--space-4));
   border-radius: var(--radius-2xl);
   background: var(--bg-surface);
@@ -23,7 +23,7 @@
   outline: none;
 }
 .panel[data-variant='form'] {
-  max-width: 640px;
+  max-width: 520px;
 }
 .header {
   display: flex;
