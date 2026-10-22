@@ -222,6 +222,17 @@ describe('ProductsService (integration, real Postgres)', () => {
     expect(res.items.map((i) => i.manufacturerCode)).toEqual(['NU206']);
   });
 
+  it('searches by code, brand, name and measurement', async () => {
+    const codes = async (search: string) =>
+      (await service.list({ search })).items.map((i) => i.manufacturerCode).sort();
+    expect(await codes('6205')).toEqual(['6205']);
+    expect(await codes('nsk')).toEqual(['6206', 'NU206']);
+    expect(await codes('Producto RET')).toEqual(['RET1']);
+    expect(await codes('25x52x15')).toEqual(['6205']);
+    expect(await codes('25 × 52 × 15 mm')).toEqual(['6205']);
+    expect(await codes('99x99x99')).toEqual([]);
+  });
+
   it('reports no results without claiming the catalog is empty', async () => {
     const res = await service.list({ brandId: randomUUID() });
     expect(res).toMatchObject({ total: 0, items: [], catalogEmpty: false });

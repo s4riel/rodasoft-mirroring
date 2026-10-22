@@ -12,6 +12,8 @@ export interface ProductListFilters {
   subcategoryId?: string;
   brandId?: string;
   status?: ProductStatusFilter;
+  /** Free text: code, SKU, name, brand or a measurement such as "25x52x15". */
+  search?: string;
 }
 
 export interface ProductListQuery extends ProductListFilters {
@@ -68,6 +70,23 @@ export interface ProductFilterOptions {
   categories: { id: string; name: string; icon: string; subcategories: { id: string; name: string }[] }[];
 }
 
+export interface Measurement {
+  innerDiameter: string;
+  outerDiameter: string;
+  width: string;
+}
+
+const MEASUREMENT_RE =
+  /^\s*(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(?:mm)?\s*$/i;
+
+/** Reads "25x52x15" (also "25×52×15 mm", "17,5x40x12") as d × D × B; null when the text is not a measurement. */
+export function parseMeasurement(term: string): Measurement | null {
+  const m = MEASUREMENT_RE.exec(term);
+  if (!m) return null;
+  const [d, D, B] = [m[1], m[2], m[3]].map((v) => v.replace(',', '.'));
+  return { innerDiameter: d, outerDiameter: D, width: B };
+}
+
 export function clampPageSize(value: number | undefined): number {
   if (!value || !Number.isFinite(value) || value < 1) return PRODUCT_PAGE_SIZE_DEFAULT;
   return Math.min(Math.floor(value), PRODUCT_PAGE_SIZE_MAX);
@@ -80,6 +99,11 @@ export function clampPage(value: number | undefined): number {
 
 export function hasActiveFilters(filters: ProductListFilters): boolean {
   return Boolean(
-    filters.countryId || filters.categoryId || filters.subcategoryId || filters.brandId || filters.status,
+    filters.countryId ||
+      filters.categoryId ||
+      filters.subcategoryId ||
+      filters.brandId ||
+      filters.status ||
+      filters.search?.trim(),
   );
 }

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import {
   clampPage,
   clampPageSize,
+  parseMeasurement,
   type ProductFilterOptions,
   type ProductListItem,
   type ProductListResponse,
@@ -137,6 +138,19 @@ export class ProductsService {
     // a root category also matches the products of its subcategories
     if (q.categoryId) and.push({ OR: [{ categoryId: q.categoryId }, { category: { parentId: q.categoryId } }] });
     if (q.subcategoryId) and.push({ categoryId: q.subcategoryId });
+    const search = q.search?.trim();
+    if (search) {
+      const measurement = parseMeasurement(search);
+      and.push({
+        OR: [
+          { manufacturerCode: { contains: search, mode: 'insensitive' } },
+          { sku: { contains: search, mode: 'insensitive' } },
+          { name: { contains: search, mode: 'insensitive' } },
+          { brand: { name: { contains: search, mode: 'insensitive' } } },
+          ...(measurement ? [{ dimensions: { is: measurement } }] : []),
+        ],
+      });
+    }
     return and.length ? { AND: and } : {};
   }
 

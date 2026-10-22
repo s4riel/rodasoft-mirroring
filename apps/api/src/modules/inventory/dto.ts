@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { PRODUCT_PAGE_SIZE_MAX } from '@rodasoft/domain';
 
 export class ListProductsQueryDto {
@@ -28,6 +28,12 @@ export class ListProductsQueryDto {
   @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE'])
   status?: 'ACTIVE' | 'INACTIVE';
+
+  @ApiPropertyOptional({ description: 'Code, SKU, name, brand or measurement (25x52x15)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 
   @ApiPropertyOptional({ description: 'Branch whose stock is shown in branchStock (not a filter)' })
   @IsOptional()
