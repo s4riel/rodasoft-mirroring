@@ -1,136 +1,136 @@
 # Rodasoft
 
-Plataforma de **Rodalaser S.R.L.**: ERP multiempresa (2 empresas, multisucursal), facturación electrónica **SIAT**, tienda en línea y sitio web.
+**Rodalaser S.R.L.** platform: multi-company ERP (2 companies, multi-branch), **SIAT** electronic invoicing, online store and website.
 
-| Capa | Tecnología |
+| Layer | Technology |
 |---|---|
 | ERP | Angular 20 (standalone, signals, zoneless) + NgRx SignalStore |
-| Sitio web y tienda | Angular 20 SSR (una sola app para las dos marcas) |
-| API | NestJS 11 (monolito modular) + Prisma 6 + PostgreSQL 16 |
-| Tareas en segundo plano | Worker NestJS + BullMQ + Redis 7 (SIAT, correos, asientos) |
+| Website and store | Angular 20 SSR (a single app for both brands) |
+| API | NestJS 11 (modular monolith) + Prisma 6 + PostgreSQL 16 |
+| Background jobs | NestJS worker + BullMQ + Redis 7 (SIAT, emails, journal entries) |
 | Monorepo | Nx 21 + pnpm |
-| Producción | Docker Compose en un VPS + Caddy (TLS automático) |
+| Production | Docker Compose on a VPS + Caddy (automatic TLS) |
 
-Plan completo: [`docs/implementation-plan.md`](docs/implementation-plan.md). Reglas de nombres del código (todo en inglés): [`docs/naming-conventions.md`](docs/naming-conventions.md). Librería UI y Figma: [`docs/ui-library.md`](docs/ui-library.md).
+Full plan: [`docs/implementation-plan.md`](docs/implementation-plan.md). Code naming rules (everything in English): [`docs/naming-conventions.md`](docs/naming-conventions.md). UI library and Figma: [`docs/ui-library.md`](docs/ui-library.md).
 
 ---
 
-## 1. Requisitos
+## 1. Requirements
 
-- **Node.js 22.12+** (`nvm use` lee `.nvmrc`) y **pnpm 10** (`corepack enable`).
-- **Docker Desktop** (PostgreSQL, Redis y Mailpit en local).
-- En Windows: usar Git Bash o PowerShell; recomendado clonar en una ruta corta (p. ej. `D:\Rodalaser\coding\rodasoft`).
+- **Node.js 22.12+** (`nvm use` reads `.nvmrc`) and **pnpm 10** (`corepack enable`).
+- **Docker Desktop** (PostgreSQL, Redis and Mailpit locally).
+- On Windows: use Git Bash or PowerShell; cloning into a short path is recommended (e.g. `D:\Rodalaser\coding\rodasoft`).
 
-## 2. Primeros pasos
+## 2. Getting started
 
 ```bash
 corepack enable
-pnpm install                       # instala y genera el cliente de Prisma
-cp .env.example .env               # completar JWT_ACCESS_SECRET y SECRETS_KEY (ver comentarios)
+pnpm install                       # installs and generates the Prisma client
+cp .env.example .env               # fill in JWT_ACCESS_SECRET and SECRETS_KEY (see comments)
 pnpm dev:infra                     # PostgreSQL :5432, Redis :6379, Mailpit :8025
-pnpm db:migrate --name init        # crea la primera migración (commitearla)
-pnpm db:seed                       # 2 empresas, 3 sucursales, roles y admin
-pnpm dev                           # api + worker + erp en paralelo
-pnpm dev:web                       # sitio web (aparte)
+pnpm db:migrate --name init        # creates the first migration (commit it)
+pnpm db:seed                       # 2 companies, 3 branches, roles and admin
+pnpm dev                           # api + worker + erp in parallel
+pnpm dev:web                       # website (separate)
 ```
 
-Después de `pnpm install` por primera vez, **commitear `pnpm-lock.yaml`** (la CI instala con `--frozen-lockfile`).
+After the first `pnpm install`, **commit `pnpm-lock.yaml`** (CI installs with `--frozen-lockfile`).
 
-### URLs en desarrollo
+### Development URLs
 
-| Qué | URL |
+| What | URL |
 |---|---|
 | ERP · Rodalaser | http://rodalaser.localhost:4200 |
-| ERP · Empresa 2 / `company2` (marca verde) | http://company2.localhost:4200 |
-| Sitio web | http://rodalaser.localhost:4300 · http://company2.localhost:4300 |
+| ERP · Company 2 / `company2` (green brand) | http://company2.localhost:4200 |
+| Website | http://rodalaser.localhost:4300 · http://company2.localhost:4300 |
 | API | http://localhost:3000/api/v1 |
-| Documentación de la API (Swagger) | http://localhost:3000/api/docs |
-| Correos de prueba (Mailpit) | http://localhost:8025 |
+| API documentation (Swagger) | http://localhost:3000/api/docs |
+| Test emails (Mailpit) | http://localhost:8025 |
 
-Usuario inicial: `admin@rodalaser.local` / `Rodalaser.2026` (cambiar con `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`).
+Initial user: `admin@rodalaser.local` / `Rodalaser.2026` (change with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`).
 
-> `*.localhost` resuelve a 127.0.0.1 en Chrome, Edge y Firefox sin tocar el archivo `hosts`.
+> `*.localhost` resolves to 127.0.0.1 in Chrome, Edge and Firefox without touching the `hosts` file.
 
-## 3. Estructura
+## 3. Structure
 
 ```
 apps/
-  api/        NestJS: auth, companies, permisos, context, health (+ módulos por sprint)
-    prisma/   schema.prisma, migraciones y seed
-  worker/     NestJS sin HTTP: outbox → BullMQ → correo / SIAT / contabilidad
-  erp/        Angular: login (correo y Google), shell, inicio y marcadores de módulos
-  web/        Angular SSR: sitio + tienda, marca según el dominio
+  api/        NestJS: auth, companies, permissions, context, health (+ modules per sprint)
+    prisma/   schema.prisma, migrations and seed
+  worker/     NestJS without HTTP: outbox → BullMQ → email / SIAT / accounting
+  erp/        Angular: login (email and Google), shell, home and module placeholders
+  web/        Angular SSR: website + store, brand depending on the domain
 libs/
-  domain/     TS puro compartido: Decimal (dinero), permisos, máquinas de estado, NIT, contratos
-  siat/       Integración SIAT: CUF + módulo 11, firma XMLDSig, paquetes, cliente SOAP de códigos
-  ui/         Design System en Angular (tokens de Figma + componentes)
-  api-client/ Tipos generados desde OpenAPI (pnpm api:client)
+  domain/     Shared pure TS: Decimal (money), permissions, state machines, NIT, contracts
+  siat/       SIAT integration: CUF + modulo 11, XMLDSig signing, packages, SOAP codes client
+  ui/         Design System in Angular (Figma tokens + components)
+  api-client/ Types generated from OpenAPI (pnpm api:client)
 tools/
-  siat-spike/ Prueba contra el ambiente piloto del SIN (S0)
-infra/        Docker, Caddy, compose de producción, respaldos
+  siat-spike/ Test against the SIN pilot environment (S0)
+infra/        Docker, Caddy, production compose, backups
 ```
 
-### Reglas de dependencias (las hace cumplir ESLint)
+### Dependency rules (enforced by ESLint)
 
-| Etiqueta | Puede usar |
+| Tag | May use |
 |---|---|
-| `scope:shared` (domain) | solo `scope:shared` |
+| `scope:shared` (domain) | only `scope:shared` |
 | `scope:backend` (api, worker, siat) | `scope:backend` + `scope:shared` |
 | `scope:frontend` (erp, web, ui, api-client) | `scope:frontend` + `scope:shared` |
 
-## 4. Decisiones de arquitectura clave
+## 4. Key architecture decisions
 
-- **Empresa por URL.** El subdominio (`rodalaser.erp.<dominio>`) define la empresa; no hay selector. El ERP manda además `X-Company`. El token de acceso está atado a una empresa y `TenantGuard` rechaza usarlo en la otra URL.
-- **Multi-tenant en esquema compartido.** Toda tabla de negocio tiene `company_id`. Usar **`prisma.tenant.<modelo>`** en los módulos: filtra y completa `companyId` solo. Al crear un modelo de negocio, agregarlo a `TENANT_MODELS` (`apps/api/src/common/prisma/tenant.extension.ts`).
-- **Sesión.** Token de acceso JWT de 15 min en memoria + refresh en cookie httpOnly con rotación y detección de reutilización. Google OAuth: la API valida y entrega un código de un solo uso que el ERP canjea en `/auth/google/exchange`. Solo entran correos **invitados** (pendiente de confirmar con el cliente).
-- **Permisos.** Catálogo en `libs/domain/src/lib/permissions.ts` (fuente de verdad). Backend: `@RequirePermissions('sales.cancellations.approve')`. ERP: `*rsCan="'sales.cancellations.approve'"` (solo UX).
-- **Dinero.** Nunca `number`: `Decimal` de `@rodasoft/domain` (bigint, redondeo HALF_UP) y `Decimal(14,2)` / `Decimal(14,4)` en BD.
-- **Outbox transaccional.** Los efectos secundarios (SIAT, correos, asientos) se publican con `OutboxService.publish(..., { tx })` dentro de la transacción del cambio; el worker los entrega a BullMQ con reintentos.
-- **Errores.** Toda respuesta de error es `{ status, code, message, details }` (`ApiProblem`) con `code` y `message` en inglés. El ERP traduce `code` a mensajes en español (`apps/erp/src/app/core/api-error.ts`).
-- **Secretos SIAT** (token, .p12 y contraseña) cifrados con AES-256-GCM (`SecretsService`), clave en `SECRETS_KEY`.
+- **Company by URL.** The subdomain (`rodalaser.erp.<domain>`) defines the company; there is no selector. The ERP also sends `X-Company`. The access token is bound to one company and `TenantGuard` rejects using it on the other URL.
+- **Multi-tenant on a shared schema.** Every business table has `company_id`. Use **`prisma.tenant.<model>`** in modules: it filters and fills in `companyId` automatically. When creating a business model, add it to `TENANT_MODELS` (`apps/api/src/common/prisma/tenant.extension.ts`).
+- **Session.** 15-minute JWT access token in memory + refresh in an httpOnly cookie with rotation and reuse detection. Google OAuth: the API validates and hands out a one-time code that the ERP redeems at `/auth/google/exchange`. Only **invited** emails get in (pending confirmation with the client).
+- **Permissions.** Catalog in `libs/domain/src/lib/permissions.ts` (source of truth). Backend: `@RequirePermissions('sales.cancellations.approve')`. ERP: `*rsCan="'sales.cancellations.approve'"` (UX only).
+- **Money.** Never `number`: `Decimal` from `@rodasoft/domain` (bigint, HALF_UP rounding) and `Decimal(14,2)` / `Decimal(14,4)` in the DB.
+- **Transactional outbox.** Side effects (SIAT, emails, journal entries) are published with `OutboxService.publish(..., { tx })` inside the change's transaction; the worker delivers them to BullMQ with retries.
+- **Errors.** Every error response is `{ status, code, message, details }` (`ApiProblem`) with `code` and `message` in English. The ERP translates `code` into Spanish messages (`apps/erp/src/app/core/api-error.ts`).
+- **SIAT secrets** (token, .p12 and password) encrypted with AES-256-GCM (`SecretsService`), key in `SECRETS_KEY`.
 
-### Catálogo de componentes UI
+### UI component catalog
 
-Con `pnpm dev`, abrir http://rodalaser.localhost:4200/design-system (solo en desarrollo): muestra cada componente de `libs/ui`
-con sus variantes y estados, con selector de modo Claro/Oscuro y Empresa 1/Empresa 2, para compararlo con el Figma.
+With `pnpm dev`, open http://rodalaser.localhost:4200/design-system (development only): it shows every `libs/ui` component
+with its variants and states, with a Light/Dark mode and Company 1/Company 2 switcher, to compare it against Figma.
 
-## 5. Comandos útiles
+## 5. Useful commands
 
-| Comando | Qué hace |
+| Command | What it does |
 |---|---|
-| `pnpm test` / `pnpm lint` / `pnpm typecheck` | Pruebas, lint y tipos de todo el monorepo |
-| `pnpm affected` | Solo lo que cambió respecto a `main` |
-| `pnpm db:studio` | Explorador de la BD |
-| `pnpm api:client` | Exporta OpenAPI y regenera `libs/api-client` |
-| `pnpm siat:spike [--sign]` | Prueba CUIS, CUFD, CUF y firma contra el SIAT piloto (ver `tools/siat-spike/README.md`) |
-| `pnpm nx graph` | Grafo de dependencias del monorepo |
-| `pnpm nx migrate latest` | Actualizar Nx/Angular/Nest a la última versión compatible |
+| `pnpm test` / `pnpm lint` / `pnpm typecheck` | Tests, lint and types for the whole monorepo |
+| `pnpm affected` | Only what changed relative to `main` |
+| `pnpm db:studio` | DB explorer |
+| `pnpm api:client` | Exports OpenAPI and regenerates `libs/api-client` |
+| `pnpm siat:spike [--sign]` | Tests CUIS, CUFD, CUF and signing against the SIAT pilot (see `tools/siat-spike/README.md`) |
+| `pnpm nx graph` | Monorepo dependency graph |
+| `pnpm nx migrate latest` | Update Nx/Angular/Nest to the latest compatible version |
 
-## 6. Producción
+## 6. Production
 
 ```bash
-cp infra/env.prod.example infra/.env.prod      # completar
+cp infra/env.prod.example infra/.env.prod      # fill in
 docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod build
 docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod run --rm migrate
 docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d
 ```
 
-DNS: `api.`, `rodalaser.erp.`, `company2.erp.`, el dominio raíz y `www.` apuntando al VPS. Respaldos diarios en `infra/backups` + `infra/scripts/backup-offsite.sh`; probar restauración cada mes con `infra/scripts/restore.sh`.
+DNS: `api.`, `rodalaser.erp.`, `company2.erp.`, the root domain and `www.` pointing to the VPS. Daily backups in `infra/backups` + `infra/scripts/backup-offsite.sh`; test the restore every month with `infra/scripts/restore.sh`.
 
-## 7. Checklist de la semana S0 (19 oct – 1 nov)
+## 7. Week S0 checklist (19 Oct – 1 Nov)
 
-- [x] Monorepo Nx con api, worker, erp, web y librerías
-- [x] Multiempresa por URL, sucursales y almacenes, roles y permisos
-- [x] Login con correo, refresh con rotación, recuperación de contraseña, Google OAuth
-- [x] Shell del ERP (Sidebar, ContextBar, PageHeader) con tokens del Design System
-- [x] Sitio web SSR con marca por dominio
-- [x] Outbox + worker + colas; CI y despliegue con Docker
-- [ ] `pnpm install`, primera migración y `pnpm-lock.yaml` commiteados
-- [ ] Credenciales de Google OAuth (Cloud Console) en `.env`
-- [ ] **Spike SIAT** en piloto: CUIS + CUFD + firma (necesita token, código de sistema y .p12 del cliente)
-- [ ] VPS de staging con el compose de producción
-- [ ] Validar el CUF contra el ejemplo oficial del SIN (`libs/siat/src/lib/cuf.spec.ts`)
+- [x] Nx monorepo with api, worker, erp, web and libraries
+- [x] Multi-company by URL, branches and warehouses, roles and permissions
+- [x] Email login, refresh with rotation, password recovery, Google OAuth
+- [x] ERP shell (Sidebar, ContextBar, PageHeader) with Design System tokens
+- [x] SSR website with brand per domain
+- [x] Outbox + worker + queues; CI and Docker deployment
+- [ ] `pnpm install`, first migration and `pnpm-lock.yaml` committed
+- [ ] Google OAuth credentials (Cloud Console) in `.env`
+- [ ] **SIAT spike** on pilot: CUIS + CUFD + signing (needs the client's token, system code and .p12)
+- [ ] Staging VPS with the production compose
+- [ ] Validate the CUF against the SIN's official example (`libs/siat/src/lib/cuf.spec.ts`)
 
-## 8. Pendientes que dependen del cliente (Fase 0)
+## 8. Pending items that depend on the client (Phase 0)
 
-NIT y datos reales de ambas empresas · nombre, sucursales y dominio de la 2.ª empresa · Google: solo Workspace o también Gmail, y solo invitados · firma digital y credenciales SIAT · pasarela de pago · límites de aprobación por rol.
+NIT and real data of both companies · name, branches and domain of the 2nd company · Google: Workspace only or also Gmail, and invited users only · digital signature and SIAT credentials · payment gateway · approval limits per role.

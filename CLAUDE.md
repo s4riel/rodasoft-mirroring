@@ -1,17 +1,17 @@
-# Guía para agentes (Claude Code / Cowork)
+# Agent guide (Claude Code / Cowork)
 
-Proyecto Rodasoft: ERP + SIAT + tienda + web de Rodalaser S.R.L. Leer `README.md` primero.
+Rodasoft project: ERP + SIAT + store + website for Rodalaser S.R.L. Read `README.md` first.
 
-## Convenciones
-- **Código en inglés, UI en español (Bolivia).** Identificadores, archivos, tablas/columnas, campos de DTO y respuestas, códigos de error, claves de permisos, rutas del ERP, logs, tests y **comentarios** van en inglés. Solo el contenido visible para el usuario (etiquetas, botones, mensajes, correos) va en español, tal como en el diseño de Figma. Detalle y glosario: `docs/naming-conventions.md`. Excepción: términos oficiales del SIAT/SIN (`SIAT`, `NIT`, `CUF`, `CUFD`, `CUIS`) y los nombres de campos del contrato SOAP del SIN.
-- Angular: componentes standalone, `ChangeDetectionStrategy.OnPush`, `input()`/`model()`/`signal()`, control flow `@if/@for`, selector con prefijo `rs-`. Nada de `NgModule`.
-- UI: todo componente visual vive en `libs/ui` y corresponde 1:1 a un componente del Figma "Design System" (file key `O7gJBRq4bMcWBGP1DMUKkw`). Solo tokens (`var(--…)`, espejo de las variables de Figma), sin hex ni espaciados sueltos. Estados (hover/pressed/focus) son CSS, no inputs. Ver `docs/ui-library.md`.
-- Componentes de `libs/ui`: **lógica, HTML y estilos van en archivos separados** — `<name>.component.ts` (solo lógica), `<name>.component.html` (`templateUrl`) y `<name>.component.scss` (`styleUrl`), más `<name>.component.spec.ts`. Nada de `template:` ni `styles:` inline en el decorador (los specs pueden usar `template` inline para sus hosts de prueba). Si un archivo define varios componentes, cada uno lleva sus archivos con el nombre de su selector (`radio-group.component.html`). Todos esos archivos, sus nombres, clases y comentarios van en inglés; solo el texto visible de la plantilla va en español.
-- NestJS: un módulo por dominio en `apps/api/src/modules/<module>`; consultas de negocio con `prisma.tenant`; permisos con `@RequirePermissions`; efectos secundarios con `OutboxService.publish(…, { tx })`.
-- Base de datos: tablas en plural snake_case, columnas snake_case (`@map`), modelos en singular PascalCase.
-- Dinero con `Decimal` de `@rodasoft/domain`, nunca `number`. Fechas en BD con `timestamptz`; zona de negocio `America/La_Paz`.
-- Cambios de estado de documentos solo mediante las máquinas de `libs/domain/src/lib/state-machine.ts`, auditados con `AuditService`.
-- Cada historia del backlog (HU-xxx) que se implementa se menciona en el commit.
+## Conventions
+- **Code in English, UI in Spanish (Bolivia).** Identifiers, files, tables/columns, DTO and response fields, error codes, permission keys, ERP routes, logs, tests and **comments** are in English. Only user-visible content (labels, buttons, messages, emails) is in Spanish, as in the Figma design. Details and glossary: `docs/naming-conventions.md`. Exception: official SIAT/SIN terms (`SIAT`, `NIT`, `CUF`, `CUFD`, `CUIS`) and the field names of the SIN SOAP contract.
+- Angular: standalone components, `ChangeDetectionStrategy.OnPush`, `input()`/`model()`/`signal()`, `@if/@for` control flow, selector with `rs-` prefix. No `NgModule`.
+- UI: every visual component lives in `libs/ui` and maps 1:1 to a component of the Figma "Design System" (file key `O7gJBRq4bMcWBGP1DMUKkw`). Tokens only (`var(--…)`, mirroring the Figma variables), no loose hex values or spacing. States (hover/pressed/focus) are CSS, not inputs. See `docs/ui-library.md`.
+- `libs/ui` components: **logic, HTML and styles go in separate files** — `<name>.component.ts` (logic only), `<name>.component.html` (`templateUrl`) and `<name>.component.scss` (`styleUrl`), plus `<name>.component.spec.ts`. No inline `template:` or `styles:` in the decorator (specs may use an inline `template` for their test hosts). If a file defines several components, each gets its own files named after its selector (`radio-group.component.html`). All those files, their names, classes and comments are in English; only the visible template text is in Spanish.
+- NestJS: one module per domain in `apps/api/src/modules/<module>`; business queries through `prisma.tenant`; permissions with `@RequirePermissions`; side effects with `OutboxService.publish(…, { tx })`.
+- Database: tables in plural snake_case, columns in snake_case (`@map`), models in singular PascalCase.
+- Money with `Decimal` from `@rodasoft/domain`, never `number`. Dates in the DB as `timestamptz`; business timezone `America/La_Paz`.
+- Document state changes only through the machines in `libs/domain/src/lib/state-machine.ts`, audited with `AuditService`.
+- Every backlog story (HU-xxx) that is implemented is mentioned in the commit.
 
-## Antes de terminar una tarea
-`pnpm nx affected -t lint typecheck test` sin errores.
+## Before finishing a task
+`pnpm nx affected -t lint typecheck test` with no errors.
