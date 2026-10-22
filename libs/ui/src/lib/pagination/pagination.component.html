@@ -2,11 +2,17 @@
   <button
     type="button"
     class="btn"
+    [class.wide]="showLabels()"
     [attr.aria-label]="previousLabel() || null"
     [disabled]="disabled() || page() <= 1"
     (click)="go(page() - 1)"
   >
-    <rs-icon name="chevron-down" class="prev" [size]="16" />
+    @if (showLabels()) {
+      <rs-icon name="arrow" class="flip" [size]="16" />
+      {{ previousLabel() }}
+    } @else {
+      <rs-icon name="chevron-down" class="prev" [size]="16" />
+    }
   </button>
   @for (item of items(); track $index) {
     @if (item === null) {
@@ -27,10 +33,16 @@
   <button
     type="button"
     class="btn"
+    [class.wide]="showLabels()"
     [attr.aria-label]="nextLabel() || null"
     [disabled]="disabled() || page() >= pageCount()"
     (click)="go(page() + 1)"
   >
-    <rs-icon name="chevron-down" class="next" [size]="16" />
+    @if (showLabels()) {
+      <rs-icon name="arrow" [size]="16" />
+      {{ nextLabel() }}
+    } @else {
+      <rs-icon name="chevron-down" class="next" [size]="16" />
+    }
   </button>
 </nav>

@@ -25,3 +25,7 @@ Thumbs.db
 *.log
 infra/backups/
 infra/.env.prod
+
+# Playwright
+test-results/
+playwright-report/

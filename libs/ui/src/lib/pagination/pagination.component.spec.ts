@@ -30,6 +30,18 @@ describe('PaginationComponent', () => {
     expect(buttons[6].disabled).toBe(false);
   });
 
+  it('shows the previous / next text next to an arrow when showLabels is set', async () => {
+    const fixture = setup(2, 5);
+    fixture.componentRef.setInput('showLabels', true);
+    fixture.componentRef.setInput('previousLabel', 'Anterior');
+    fixture.componentRef.setInput('nextLabel', 'Siguiente');
+    await fixture.whenStable();
+    const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('button'));
+    expect(buttons[0].textContent).toContain('Anterior');
+    expect(buttons[0].classList).toContain('wide');
+    expect(buttons[buttons.length - 1].textContent).toContain('Siguiente');
+  });
+
   it('goes to the next page and to a clicked page', async () => {
     const fixture = setup(2, 5);
     await fixture.whenStable();

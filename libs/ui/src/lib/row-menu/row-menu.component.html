@@ -1,0 +1,9 @@
+@for (item of items(); track item.key) {
+  @if (item.separated) {
+    <div class="divider" role="separator"></div>
+  }
+  <button type="button" class="item" role="menuitem" tabindex="-1" [class.danger]="item.danger" (click)="selected.emit(item.key)">
+    <rs-icon [name]="item.icon" [size]="20" />
+    <span>{{ item.label }}</span>
+  </button>
+}

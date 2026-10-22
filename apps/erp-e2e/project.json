@@ -1,0 +1,18 @@
+{
+  "name": "erp-e2e",
+  "$schema": "../../node_modules/nx/schemas/nx-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/erp-e2e/src",
+  "tags": ["scope:frontend", "type:e2e"],
+  "implicitDependencies": ["erp", "api"],
+  "targets": {
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "apps/erp-e2e", "command": "playwright test" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "tsc -p apps/erp-e2e/tsconfig.json --noEmit" }
+    }
+  }
+}

@@ -41,6 +41,8 @@ export class PaginationComponent {
   readonly label = input('');
   readonly previousLabel = input('');
   readonly nextLabel = input('');
+  /** Figma ERP pager: previous / next show an arrow and their text instead of a bare chevron. */
+  readonly showLabels = input(false, { transform: booleanAttribute });
 
   protected readonly items = computed(() => buildPageList(this.page(), this.pageCount()));
 

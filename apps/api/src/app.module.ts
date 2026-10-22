@@ -14,6 +14,7 @@ import { PermissionsGuard } from './modules/access/permissions.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 import { resolveCompanySlug } from './modules/tenancy/tenant-resolver';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 import { TenantGuard } from './modules/tenancy/tenant.guard';
@@ -50,6 +51,7 @@ import { TenantGuard } from './modules/tenancy/tenant.guard';
     AuthModule,
     AccessModule,
     HealthModule,
+    InventoryModule,
   ],
   providers: [
     // order: rate limit -> token -> company -> permissions

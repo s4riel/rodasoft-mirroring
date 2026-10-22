@@ -61,7 +61,8 @@ Written without a compiler and partly without Figma access (the Figma MCP quota 
 | | RadioCard, StatusPill, Note, Toast, Tooltip, Modal, EmptyState (+Illustrated, 14 illustrations), Skeleton, Avatar, Badge | **estimated** (existing code + design-system.md + tokens) | re-check vs Figma |
 | Navigation & content | Sidebar, ContextBar, PageHeader (List), SubNav (Inventory), Stepper | Figma page 03 (read) | review |
 | | Tabs, Steps, Breadcrumb, Pagination, QtyStepper, Accordion, PriceRange | **estimated** (only frame sizes read) | re-check vs Figma |
-| ERP components | KPI card, DocTable, ProductTable, FilterBar, CategoryCard, ProductThumb… | not started | next |
+| ERP components | ProductTable, FilterBarProducts, RowMenu, ProductThumb | implemented (HU-INV-01) | re-check vs Figma |
+| | KPI card, DocTable, CategoryCard… | not started | next |
 | Store & Web | header, product card, footer… | not started | next |
 
 Known gaps: dark values of `action/primary-hover|pressed` are assumed (`TODO(figma)` in `_tokens.scss`); illustrations and

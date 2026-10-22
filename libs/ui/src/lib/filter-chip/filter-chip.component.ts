@@ -29,6 +29,8 @@ export class FilterChipComponent {
   readonly showMedia = input(true, { transform: booleanAttribute });
   /** Figma Label. Alternatively project the text. */
   readonly label = input<string>('');
+  /** Accessible name while selected, e.g. "Quitar filtro: SKF" (the chip then removes the filter). */
+  readonly removeLabel = input<string>('');
 
   protected toggle(): void {
     if (!this.disabled()) {

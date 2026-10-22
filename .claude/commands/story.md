@@ -7,6 +7,7 @@ You are going to implement story **$ARGUMENTS** from the Rodasoft backlog.
 
 ## 0. Context (read before writing code)
 
+0. If `$ARGUMENTS` is empty or the ID does not exist in `docs/backlog/`, stop and ask me which story to implement.
 1. `CLAUDE.md`, `docs/naming-conventions.md`, `docs/ui-library.md`.
 2. The story in `docs/backlog/` (grep for the ID). If it is an Inventory story, also `docs/inventory/design-notes.md` and `docs/backlog/decisions.md`.
 3. If the story is marked RETIRED, stop and tell me.
@@ -16,6 +17,7 @@ You are going to implement story **$ARGUMENTS** from the Rodasoft backlog.
 ## 1. Plan (stop and wait for my OK)
 
 Deliver a short plan with:
+
 - Acceptance criteria translated into concrete checks.
 - Model (Prisma) changes and migration.
 - Endpoints (method, route, permission, errors with `code`).
@@ -25,7 +27,9 @@ Deliver a short plan with:
 
 Do not write code until I approve the plan.
 
-## 2. Implementation (in this order, one commit per step)
+## 2. Implementation (in this order; do NOT commit)
+
+Before changing anything, check the current branch with `git branch --show-current`. If it is `main`, stop and ask me to create a branch (suggested name: `feat/<hu-id-lowercase>`).
 
 1. **Model:** `apps/api/prisma/schema.prisma` + migration (`pnpm db:migrate --name <description>`). Plural snake_case tables, columns with `@map`, `company_id` on business tables and registered in `TENANT_MODELS`.
 2. **Domain:** pure rules and state machines in `libs/domain` (money always with `Decimal`).
@@ -41,11 +45,12 @@ Do not write code until I approve the plan.
 - Document states only with the `libs/domain` machines and audited.
 - No loose hex or px in components; hover/pressed/focus states in CSS.
 - Do not touch files outside the story's scope. If you need a cross-cutting change, say so in the plan.
+- Never run `git add`, `git commit` or `git push` unless I explicitly ask. Leave all changes uncommitted.
 
 ## 4. Verification and closing
 
 1. `pnpm nx affected -t lint typecheck test` with no errors. If it fails, fix it; do not disable rules or tests.
 2. Run the `reviewer`, `stock-auditor` (if it touches stock) and `ui-checker` (if it touches screens) subagents on the diff and fix what they report.
 3. Walk through the acceptance criteria one by one and mark which are covered and by which test.
-4. Final commit: `feat(<module>): <summary> (<HU-ID>)` with the story ID.
+4. Do NOT commit. Propose the commit message `feat(<module>): <summary> (<HU-ID>)` and wait for my approval.
 5. Reply with: what was done, which tests cover each criterion, open decisions you used with a default value, and what is missing (honestly, no sugarcoating).

@@ -5,3 +5,4 @@ export * from './lib/actions-forms';
 export * from './lib/selection-feedback';
 export * from './lib/navigation-content';
 export * from './lib/can/can.directive';
+export * from './lib/erp-components';

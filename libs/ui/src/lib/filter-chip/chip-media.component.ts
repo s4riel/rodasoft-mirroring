@@ -21,4 +21,6 @@ export class ChipMediaComponent {
   readonly country = input<FlagCountry>('DE');
   /** Brand text (SKF), initials (RA) or count (12). */
   readonly text = input<string>('');
+  /** Brand logo; when set, a `brand` media shows it instead of `text`. */
+  readonly logoUrl = input<string | null>(null);
 }
