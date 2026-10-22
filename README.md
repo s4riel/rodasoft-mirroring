@@ -11,7 +11,7 @@ Plataforma de **Rodalaser S.R.L.**: ERP multiempresa (2 empresas, multisucursal)
 | Monorepo | Nx 21 + pnpm |
 | Producción | Docker Compose en un VPS + Caddy (TLS automático) |
 
-Plan completo: documento `claude/plan-implementacion-codigo.md` del proyecto. Reglas de nombres del código (todo en inglés): [`docs/naming-conventions.md`](docs/naming-conventions.md). Librería UI y Figma: [`docs/ui-library.md`](docs/ui-library.md).
+Plan completo: [`docs/implementation-plan.md`](docs/implementation-plan.md). Reglas de nombres del código (todo en inglés): [`docs/naming-conventions.md`](docs/naming-conventions.md). Librería UI y Figma: [`docs/ui-library.md`](docs/ui-library.md).
 
 ---
 
