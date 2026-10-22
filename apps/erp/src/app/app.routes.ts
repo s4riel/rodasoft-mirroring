@@ -42,7 +42,10 @@ export const routes: Route[] = [
       { path: '', title: t('Inicio'), loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage) },
       modulePlaceholder('sales', 'Ventas y POS', 'S2 (16–29 nov)'),
       modulePlaceholder('invoicing', 'Facturación SIAT', 'S2–S3 (16 nov–13 dic)'),
-      modulePlaceholder('inventory', 'Inventario', 'S1 (2–15 nov)'),
+      {
+        path: 'inventory',
+        loadChildren: () => import('./features/inventory/inventory.routes').then((m) => m.INVENTORY_ROUTES),
+      },
       modulePlaceholder('purchasing', 'Compras', 'S4 (5–18 ene)'),
       modulePlaceholder('crm', 'CRM', 'S4 (5–18 ene)'),
       modulePlaceholder('accounting', 'Contabilidad', 'S5 (19 ene–1 feb)'),

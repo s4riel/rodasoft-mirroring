@@ -1,0 +1,182 @@
+<rs-page-header
+  title="Productos"
+  description="Catálogo maestro por empresa: código, marca, medidas y equivalencias."
+  type="list-import"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button *rsCan="'inventory.import'" rsButton variant="secondary" type="button" (click)="comingSoon()">
+      <rs-icon name="import" [size]="16" /> Importar
+    </button>
+    <button *rsCan="'inventory.products.export'" rsButton variant="secondary" type="button" (click)="comingSoon()">
+      <rs-icon name="export" [size]="16" /> Exportar
+    </button>
+    <button *rsCan="'inventory.products.edit'" rsButton variant="brand" type="button" (click)="comingSoon()">
+      <rs-icon name="plus" [size]="16" /> Nuevo producto
+    </button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" aria-live="polite">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver productos"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <rs-filter-bar-products
+    searchPlaceholder="Buscar por código, medida o marca"
+    searchLabel="Buscar productos"
+    clearLabel="Limpiar"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select
+        leadingIcon="industry"
+        placeholder="Industria (país)"
+        ariaLabel="Industria (país)"
+        [options]="countryOptions()"
+        [value]="filters().countryId"
+        (valueChange)="setFilter('countryId', $event)"
+      />
+      <rs-select
+        leadingIcon="category"
+        placeholder="Categoría"
+        ariaLabel="Categoría"
+        [options]="categoryOptions()"
+        [value]="filters().categoryId"
+        (valueChange)="setFilter('categoryId', $event)"
+      />
+      <rs-select
+        leadingIcon="subcategory"
+        placeholder="Subcategoría"
+        ariaLabel="Subcategoría"
+        [options]="subcategoryOptions()"
+        [value]="filters().subcategoryId"
+        (valueChange)="setFilter('subcategoryId', $event)"
+      />
+      <rs-select
+        leadingIcon="tag"
+        placeholder="Marca"
+        ariaLabel="Marca"
+        [options]="brandOptions()"
+        [value]="filters().brandId"
+        (valueChange)="setFilter('brandId', $event)"
+      />
+      <rs-select
+        leadingIcon="check"
+        placeholder="Estado"
+        ariaLabel="Estado"
+        [options]="statusOptions"
+        [value]="filters().status"
+        (valueChange)="setFilter('status', $event)"
+      />
+    </div>
+  </rs-filter-bar-products>
+
+  @if (chips().length) {
+    <div class="chips" role="list" aria-label="Filtros aplicados">
+      @for (chip of chips(); track chip.key) {
+        <rs-filter-chip role="listitem" [selected]="true" [label]="chip.label" (selectedChange)="removeChip(chip.key)">
+          @switch (chip.media.type) {
+            @case ('flag') {
+              @if (chip.media.country) {
+                <rs-chip-media type="flag" [country]="chip.media.country" />
+              }
+            }
+            @case ('brand') {
+              <rs-chip-media type="brand" [text]="chip.media.text" />
+            }
+            @case ('icon') {
+              <rs-chip-media type="icon"><rs-icon [name]="chip.media.icon" [size]="16" /></rs-chip-media>
+            }
+          }
+        </rs-filter-chip>
+      }
+      <button type="button" class="clear-all" (click)="clearAll()">Limpiar todo</button>
+    </div>
+  }
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" aria-busy="true" aria-label="Cargando productos">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="rect" width="40px" height="40px" />
+            <rs-skeleton shape="text" width="12%" height="14px" />
+            <rs-skeleton shape="text" width="28%" height="14px" />
+            <rs-skeleton shape="text" width="24%" height="14px" />
+            <rs-skeleton shape="text" width="10%" height="14px" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated
+          illustration="error"
+          heading="No pudimos cargar los productos"
+          [description]="errorMessage()"
+        >
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showCatalogEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="empty-catalog"
+            heading="Tu catálogo está vacío"
+            description="Aún no hay productos. Crea el primero o importa tu lista desde Excel."
+          >
+            <button *rsCan="'inventory.products.edit'" rsButton variant="brand" type="button" (click)="comingSoon()">
+              <rs-icon name="plus" [size]="16" /> Nuevo producto
+            </button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No encontramos productos"
+            description="Prueba con otros filtros o con otro código, medida o marca."
+          >
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <section class="list" aria-label="Listado de productos">
+          <rs-product-table
+            [rows]="rows()"
+            [labels]="labels"
+            [menuItems]="menuItems()"
+            [footerLabel]="subtotal() === null ? '' : 'Subtotal'"
+            [footerNote]="footerNote()"
+            [footerBranchStock]="subtotal()"
+            (rowAction)="comingSoon()"
+          />
+          <footer class="pager">
+            <span class="range">{{ rangeLabel() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </footer>
+        </section>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />
