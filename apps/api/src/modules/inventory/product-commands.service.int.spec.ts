@@ -11,14 +11,19 @@ import { tenantExtension } from '../../common/prisma/tenant.extension';
 import { ProductCommandsService } from './product-commands.service';
 import { ProductsService } from './products.service';
 
-const base = new PrismaClient();
 const run = randomUUID().slice(0, 8);
 
 let current: string | null = null;
-const tenant = base.$extends(tenantExtension(() => current));
-const prisma = Object.assign(Object.create(base), { tenant, $transaction: base.$transaction.bind(base) }) as PrismaService;
-const cls = { get: (k: string) => (k === 'companyId' ? current : null) } as never;
-const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls));
+/** Same shape as PrismaService: the client itself plus a tenant-scoped extension of it. */
+class TestPrisma extends PrismaClient {
+  readonly tenant = this.$extends(tenantExtension(() => current));
+}
+const base = new TestPrisma();
+const prisma = base as unknown as PrismaService;
+let grantedPermissions: string[] = ['inventory.costs.view'];
+const cls = { get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? 'm1' : null) } as never;
+const membership = { permissions: async () => new Set(grantedPermissions) } as never;
+const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls), membership);
 const products = new ProductsService(prisma, cls);
 
 interface Fixture {
@@ -130,6 +135,7 @@ describe('ProductCommandsService (integration, real Postgres)', () => {
 
   beforeEach(() => {
     current = a.companyId;
+    grantedPermissions = ['inventory.costs.view'];
   });
 
   describe('duplicate', () => {
@@ -162,6 +168,17 @@ describe('ProductCommandsService (integration, real Postgres)', () => {
       expect(audit).toMatchObject({ action: 'inventory.product.duplicate', entity: 'Product', before: { sourceId: source } });
     });
 
+    it('copies the cost with the price only for users who can view costs', async () => {
+      const withCost = await dup('COST-YES', { copy: ['price'] });
+      expect((await base.product.findUniqueOrThrow({ where: { id: withCost.id } })).cost?.toFixed(4)).toBe('70.0000');
+
+      grantedPermissions = [];
+      const withoutCost = await dup('COST-NO', { copy: ['price'] });
+      const row = await base.product.findUniqueOrThrow({ where: { id: withoutCost.id } });
+      expect(row.salePrice.toFixed(2)).toBe('120.50');
+      expect(row.cost).toBeNull();
+    });
+
     it('copies dimensions, specifications and media when asked and zeroes the price otherwise', async () => {
       const copy = await dup('6205-FULL', { copy: ['dimensions', 'specifications', 'media'] });
       const row = await base.product.findUniqueOrThrow({ where: { id: copy.id }, include: { dimensions: true } });
@@ -184,6 +201,11 @@ describe('ProductCommandsService (integration, real Postgres)', () => {
       await expect(commands.duplicate(randomUUID(), { manufacturerCode: 'Z', brandId: a.brandSKF, countryId: null, copy: [] })).rejects.toBeInstanceOf(NotFoundException);
       await expect(dup('Z-1', { brandId: randomUUID() })).rejects.toMatchObject({ response: { code: 'BRAND_NOT_FOUND' } });
       await expect(dup('Z-2', { countryId: randomUUID() })).rejects.toMatchObject({ response: { code: 'COUNTRY_NOT_FOUND' } });
+    });
+
+    it('keeps the tenant filter inside the transaction', async () => {
+      const seen = await prisma.tenant.$transaction((tx) => tx.product.findMany({ where: { id: foreign } }));
+      expect(seen).toHaveLength(0);
     });
 
     it('cannot duplicate or use data of another company', async () => {

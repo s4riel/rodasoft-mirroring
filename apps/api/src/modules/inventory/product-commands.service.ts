@@ -11,6 +11,7 @@ import {
 import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AppClsStore } from '../../common/cls';
+import { MembershipService } from '../access/membership.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { DuplicateProductDto } from './dto';
 
@@ -27,11 +28,14 @@ export class ProductCommandsService {
     private readonly prisma: PrismaService,
     private readonly cls: ClsService<AppClsStore>,
     private readonly audit: AuditService,
+    private readonly membership: MembershipService,
   ) {}
 
   async duplicate(id: string, dto: DuplicateProductDto): Promise<DuplicateProductResponse> {
     const companyId = this.companyId();
-    // Inside interactive transactions the tenant extension is not applied, so every query filters by `companyId` itself.
+    const canCopyCost = await this.canViewCosts();
+    // The tenant extension also applies inside the transaction; `companyId` is repeated on every query as defense
+    // in depth (and because raw SQL and create payloads need it explicitly).
     try {
       return await this.prisma.tenant.$transaction(async (tx) => {
         const source = await tx.product.findFirst({ where: { id, companyId }, include: { dimensions: true } });
@@ -56,7 +60,7 @@ export class ProductCommandsService {
           ORDER BY length(sku) DESC, sku DESC LIMIT 1`;
         const sku = formatSku(SKU_PREFIX, (last[0] ? (parseSkuNumber(last[0].sku, SKU_PREFIX) ?? 0) : 0) + 1);
 
-        const { dimensions, ...payload } = buildDuplicate(toDuplicateSource(source), dto);
+        const { dimensions, ...payload } = buildDuplicate(toDuplicateSource(source, canCopyCost), dto);
         const created = await tx.product.create({
           data: {
             companyId,
@@ -146,6 +150,13 @@ export class ProductCommandsService {
     });
   }
 
+  /** Cost is only visible with `inventory.costs.view`, so a copy by anyone else must not inherit it. */
+  private async canViewCosts(): Promise<boolean> {
+    const membershipId = this.cls.get('membershipId');
+    if (!membershipId) return false;
+    return (await this.membership.permissions(membershipId)).has('inventory.costs.view');
+  }
+
   private companyId(): string {
     const companyId = this.cls.get('companyId');
     if (!companyId) throw new Error('Missing company in context');
@@ -153,14 +164,17 @@ export class ProductCommandsService {
   }
 }
 
-function toDuplicateSource(p: Prisma.ProductGetPayload<{ include: { dimensions: true } }>): DuplicateSource {
+function toDuplicateSource(
+  p: Prisma.ProductGetPayload<{ include: { dimensions: true } }>,
+  includeCost: boolean,
+): DuplicateSource {
   const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
   return {
     name: p.name,
     categoryId: p.categoryId,
     unit: p.unit,
     salePrice: p.salePrice.toFixed(2),
-    cost: p.cost ? p.cost.toFixed(4) : null,
+    cost: includeCost && p.cost ? p.cost.toFixed(4) : null,
     attributes: isRecord(p.attributes) ? p.attributes : {},
     photos: Array.isArray(p.photos) ? (p.photos as string[]) : [],
     datasheetUrl: p.datasheetUrl,
