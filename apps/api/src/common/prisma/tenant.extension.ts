@@ -13,6 +13,13 @@ export const TENANT_MODELS = new Set<Prisma.ModelName>([
   'Membership',
   'Role',
   'SiatPointOfSale',
+  'Country',
+  'Brand',
+  'Category',
+  'AttributeDefinition',
+  'Product',
+  'ProductDimension',
+  'StockLevel',
 ]);
 
 /** Models with company_id that are intentionally queried WITHOUT a filter (system / authentication). */

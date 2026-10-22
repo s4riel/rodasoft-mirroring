@@ -63,6 +63,13 @@ model Company {
   pointsOfSale  SiatPointOfSale[]
   auditLogs     AuditLog[]
   outboxEvents  OutboxEvent[]
+  countries            Country[]
+  brands               Brand[]
+  categories           Category[]
+  attributeDefinitions AttributeDefinition[]
+  products             Product[]
+  productDimensions    ProductDimension[]
+  stockLevels          StockLevel[]
 
   @@map("companies")
 }
@@ -105,8 +112,9 @@ model Warehouse {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company Company @relation(fields: [companyId], references: [id])
-  branch  Branch  @relation(fields: [branchId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  branch      Branch       @relation(fields: [branchId], references: [id])
+  stockLevels StockLevel[]
 
   @@unique([companyId, code])
   @@index([companyId, branchId])
@@ -289,6 +297,166 @@ model SiatPointOfSale {
 
   @@unique([companyId, branchId, code])
   @@map("siat_points_of_sale")
+}
+
+// ── Inventory: product catalog (HU-INV-01, block A foundations) ─────────────
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  ENUM
+  BOOLEAN
+}
+
+/// "Industry" in the UI: the country of origin, shown with its flag.
+model Country {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  code      String   @db.Char(2) // ISO 3166-1 alpha-2, e.g. SE
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  brands  Brand[]
+
+  @@unique([companyId, code])
+  @@map("countries")
+}
+
+model Brand {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  companyId String       @map("company_id") @db.Uuid
+  countryId String?      @map("country_id") @db.Uuid
+  name      String
+  /// optional (decision #38): without a logo the UI shows the name
+  logoUrl   String?      @map("logo_url")
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  country  Country?  @relation(fields: [countryId], references: [id])
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId, countryId])
+  @@map("brands")
+}
+
+/// Two levels: a root category (parentId null) and its subcategories.
+model Category {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  companyId String       @map("company_id") @db.Uuid
+  parentId  String?      @map("parent_id") @db.Uuid
+  name      String
+  icon      String       @default("box")
+  sortOrder Int          @default(0) @map("sort_order")
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company              Company               @relation(fields: [companyId], references: [id])
+  parent               Category?             @relation("CategoryTree", fields: [parentId], references: [id])
+  children             Category[]            @relation("CategoryTree")
+  attributeDefinitions AttributeDefinition[]
+  products             Product[]
+
+  @@unique([companyId, parentId, name])
+  @@index([companyId, parentId])
+  @@map("categories")
+}
+
+model AttributeDefinition {
+  id         String        @id @default(uuid(7)) @db.Uuid
+  companyId  String        @map("company_id") @db.Uuid
+  categoryId String        @map("category_id") @db.Uuid
+  key        String
+  label      String
+  type       AttributeType
+  unit       String?
+  options    Json?
+  required   Boolean       @default(false)
+  step       Int           @default(0)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([categoryId, key])
+  @@index([companyId])
+  @@map("attribute_definitions")
+}
+
+model Product {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  companyId        String       @map("company_id") @db.Uuid
+  sku              String // sequential internal SKU per company (RL-000001), decision #32
+  manufacturerCode String       @map("manufacturer_code")
+  brandId          String       @map("brand_id") @db.Uuid
+  /// leaf category (a subcategory when the product has one)
+  categoryId       String       @map("category_id") @db.Uuid
+  name             String
+  salePrice        Decimal      @map("sale_price") @db.Decimal(14, 2)
+  /// only visible with inventory.costs.view
+  cost             Decimal?     @db.Decimal(14, 4)
+  unit             String       @default("UN")
+  status           RecordStatus @default(ACTIVE)
+  attributes       Json         @default("{}")
+  photos           Json         @default("[]")
+  datasheetUrl     String?      @map("datasheet_url")
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company           @relation(fields: [companyId], references: [id])
+  brand       Brand             @relation(fields: [brandId], references: [id])
+  category    Category          @relation(fields: [categoryId], references: [id])
+  dimensions  ProductDimension?
+  stockLevels StockLevel[]
+
+  @@unique([companyId, sku])
+  @@unique([companyId, brandId, manufacturerCode])
+  @@index([companyId, status])
+  @@index([companyId, brandId])
+  @@index([companyId, categoryId])
+  @@index([companyId, createdAt(sort: Desc), id])
+  @@map("products")
+}
+
+/// Measurements in mm / kg; indexed for the equivalence search (HU-INV-11).
+model ProductDimension {
+  productId     String   @id @map("product_id") @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  innerDiameter Decimal? @map("inner_diameter") @db.Decimal(10, 3) // d
+  outerDiameter Decimal? @map("outer_diameter") @db.Decimal(10, 3) // D
+  width         Decimal? @db.Decimal(10, 3) // B (T for tapered bearings)
+  weight        Decimal? @db.Decimal(10, 3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, innerDiameter, outerDiameter, width])
+  @@map("product_dimensions")
+}
+
+/// Current stock per warehouse. Only the movements service writes it (HU-INV-16);
+/// this story only reads it.
+model StockLevel {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  quantity    Int      @default(0)
+  reserved    Int      @default(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId])
+  @@index([companyId, warehouseId])
+  @@map("stock_levels")
 }
 
 // ── Cross-cutting ───────────────────────────────────────────────────────────
