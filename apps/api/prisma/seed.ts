@@ -11,6 +11,8 @@ import { PrismaClient, BrandMode } from '@prisma/client';
 import { hash } from 'argon2';
 import { DEFAULT_ROLES, PERMISSIONS, type Permission } from '@rodasoft/domain';
 
+import { seedCatalog } from './seed-catalog';
+
 const prisma = new PrismaClient();
 
 const COMPANIES = [
@@ -114,7 +116,10 @@ async function main() {
       });
     }
 
-    // 4. Administrator with access to every branch
+    // 4. Demo product catalog (Rodalaser only)
+    if (c.slug === 'rodalaser') await seedCatalog(prisma, company.id, Number(process.env.SEED_BULK_PRODUCTS ?? 0));
+
+    // 5. Administrator with access to every branch
     const adminRole = await prisma.role.findUniqueOrThrow({
       where: { companyId_key: { companyId: company.id, key: 'admin' } },
     });

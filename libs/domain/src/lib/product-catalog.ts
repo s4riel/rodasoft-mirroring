@@ -15,6 +15,8 @@ export interface ProductListFilters {
 }
 
 export interface ProductListQuery extends ProductListFilters {
+  /** Branch whose stock is shown in `branchStock`. It is not a filter. */
+  branchId?: string;
   page: number;
   pageSize: number;
 }
@@ -44,8 +46,8 @@ export interface ProductListItem {
   /** d × D × B in mm, as strings to avoid float rounding. */
   dimensions: { innerDiameter: string | null; outerDiameter: string | null; width: string | null } | null;
   totalStock: number;
-  /** Stock in the warehouses of the current branch. */
-  branchStock: number;
+  /** Stock in the warehouses of the selected branch; null when no branch is selected ("all branches"). */
+  branchStock: number | null;
   /** Decimal string, scale 2. */
   salePrice: string;
   status: ProductStatusFilter;
