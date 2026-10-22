@@ -1,5 +1,5 @@
 import type { ProductListItem } from '@rodasoft/domain';
-import { FLAG_COUNTRIES, FlagCountry, ProductAvailability, ProductTableRow } from '@rodasoft/ui';
+import { FLAG_COUNTRIES, FlagCountry, ICON_NAMES, IconName, ProductAvailability, ProductTableRow } from '@rodasoft/ui';
 
 /** Product list rows per page (Figma ProductTable10). */
 export const PRODUCTS_PAGE_SIZE = 10;
@@ -33,10 +33,16 @@ export function flagOf(code: string | undefined): FlagCountry | null {
   return code && (FLAG_COUNTRIES as readonly string[]).includes(code) ? (code as FlagCountry) : null;
 }
 
+/** Category glyph for the photo placeholder; an unknown name falls back to the bearing. */
+export function thumbIconOf(name: string): IconName {
+  return (ICON_NAMES as readonly string[]).includes(name) ? (name as IconName) : 'bearing';
+}
+
 export function toTableRow(item: ProductListItem): ProductTableRow {
   return {
     id: item.id,
     photoUrl: item.photoUrl,
+    thumbIcon: thumbIconOf(item.category.icon),
     code: item.manufacturerCode,
     name: item.name,
     brandName: item.brand.name,

@@ -1,4 +1,4 @@
-<div class="table" role="table">
+<div class="table" role="table" [attr.aria-label]="tableLabel()">
   <div class="row header" role="row">
     <div class="cell" role="columnheader">{{ labels().photo }}</div>
     <div class="cell" role="columnheader">{{ labels().code }}</div>
@@ -8,12 +8,12 @@
     <div class="cell num" role="columnheader">{{ labels().branchStock }}</div>
     <div class="cell num" role="columnheader">{{ labels().price }}</div>
     <div class="cell" role="columnheader">{{ labels().status }}</div>
-    <div class="cell" role="columnheader"></div>
+    <div class="cell" role="columnheader" aria-hidden="true"></div>
   </div>
 
   @for (row of rows(); track row.id) {
     <div class="row" role="row">
-      <div class="cell" role="cell"><rs-product-thumb [src]="row.photoUrl" [alt]="row.name" /></div>
+      <div class="cell" role="cell"><rs-product-thumb [src]="row.photoUrl" [icon]="row.thumbIcon ?? 'bearing'" [alt]="row.name" /></div>
       <div class="cell code" role="cell">{{ row.code }}</div>
       <div class="cell product" role="cell">
         <span class="name">{{ row.name }}</span>
@@ -45,13 +45,19 @@
       </div>
       <div class="cell num price" role="cell">{{ price(row.price) }}</div>
       <div class="cell" role="cell">
-        <rs-status-pill [status]="statusOf(row.availability)">{{ labels().availability[row.availability] }}</rs-status-pill>
+        <span class="status" [attr.data-availability]="row.availability">
+          @if (statusIcon(row.availability); as icon) {
+            <rs-icon [name]="icon" [size]="16" />
+          }
+          {{ labels().availability[row.availability] }}
+        </span>
       </div>
       <div class="cell action" role="cell">
         @if (menuItems().length) {
           <button
             type="button"
             class="kebab"
+            [attr.data-kebab]="row.id"
             aria-haspopup="menu"
             [attr.aria-expanded]="openRowId() === row.id"
             [attr.aria-label]="labels().rowActions + ' ' + row.code"
@@ -69,15 +75,15 @@
 
   @if (footerLabel()) {
     <div class="row footer" role="row">
-      <div class="cell" role="cell"></div>
+      <div class="cell" role="cell" aria-hidden="true"></div>
       <div class="cell strong" role="cell">{{ footerLabel() }}</div>
       <div class="cell note" role="cell">{{ footerNote() }}</div>
-      <div class="cell" role="cell"></div>
+      <div class="cell" role="cell" aria-hidden="true"></div>
       <div class="cell num" role="cell">–</div>
       <div class="cell num strong" role="cell">{{ footerBranchStock() ?? '–' }}</div>
       <div class="cell num" role="cell">–</div>
       <div class="cell" role="cell">–</div>
-      <div class="cell" role="cell"></div>
+      <div class="cell" role="cell" aria-hidden="true"></div>
     </div>
   }
 </div>

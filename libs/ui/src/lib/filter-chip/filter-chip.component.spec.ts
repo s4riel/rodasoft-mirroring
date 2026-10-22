@@ -13,6 +13,9 @@ import { FilterChipComponent } from './filter-chip.component';
     <rs-filter-chip [disabled]="true" label="SKF" />
     <rs-chip-media type="count" text="12" />
     <rs-field-media type="brand" text="SKF" />
+    <rs-filter-chip [selected]="true" label="SKF" removeLabel="Quitar filtro: SKF">
+      <rs-chip-media type="brand" text="SKF" logoUrl="https://img.test/skf.svg" />
+    </rs-filter-chip>
   `,
 })
 class HostComponent {
@@ -46,6 +49,18 @@ describe('FilterChipComponent', () => {
       .querySelectorAll('rs-filter-chip')[1]
       .querySelector('button') as HTMLButtonElement;
     expect(disabled.disabled).toBe(true);
+  });
+
+  it('names the remove action while selected and shows the brand logo instead of its text', async () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    await fixture.whenStable();
+    const root: HTMLElement = fixture.nativeElement;
+    const chips = root.querySelectorAll('rs-filter-chip');
+    expect(chips[0].querySelector('button')?.getAttribute('aria-label')).toBeNull();
+    const selected = chips[2];
+    expect(selected.querySelector('button')?.getAttribute('aria-label')).toBe('Quitar filtro: SKF');
+    expect(selected.querySelector('rs-chip-media img.logo')).not.toBeNull();
+    expect(selected.querySelector('rs-chip-media .text')).toBeNull();
   });
 
   it('renderiza los medios de chip y de campo', async () => {

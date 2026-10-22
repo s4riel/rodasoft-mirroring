@@ -18,4 +18,34 @@ describe('RowMenuComponent', () => {
     (el.querySelectorAll('[role="menuitem"]')[1] as HTMLButtonElement).click();
     expect(emitted).toEqual(['delete']);
   });
+
+  it('focuses the first item on open and moves with the arrow keys, Home and End', async () => {
+    const fixture = TestBed.createComponent(RowMenuComponent);
+    fixture.componentRef.setInput('items', [
+      { key: 'view', label: 'Ver', icon: 'eye' },
+      { key: 'edit', label: 'Editar', icon: 'edit' },
+      { key: 'delete', label: 'Borrar', icon: 'trash', separated: true },
+    ]);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const el: HTMLElement = fixture.nativeElement;
+    const items = Array.from(el.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+    const press = (key: string) => el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+    expect(document.activeElement).toBe(items[0]);
+    press('ArrowDown');
+    expect(document.activeElement).toBe(items[1]);
+    press('End');
+    expect(document.activeElement).toBe(items[2]);
+    press('ArrowDown');
+    expect(document.activeElement).toBe(items[0]);
+    press('ArrowUp');
+    expect(document.activeElement).toBe(items[2]);
+    press('Home');
+    expect(document.activeElement).toBe(items[0]);
+
+    el.remove();
+  });
 });

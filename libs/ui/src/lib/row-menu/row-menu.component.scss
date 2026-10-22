@@ -30,7 +30,7 @@
     background: var(--bg-surface-2);
   }
   &:active {
-    background: var(--gray-100);
+    background: var(--bg-page); /* Figma: gray-100 in Light */
   }
   &:focus-visible {
     outline: var(--stroke-focus) solid var(--focus-control);

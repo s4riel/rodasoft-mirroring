@@ -34,7 +34,7 @@ import {
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
 import { ContextStore } from '../../../core/context.store';
-import { branchStockSubtotal, flagOf, PRODUCTS_PAGE_SIZE, toTableRow } from './product-list.mapper';
+import { branchStockSubtotal, flagOf, PRODUCTS_PAGE_SIZE, thumbIconOf, toTableRow } from './product-list.mapper';
 import { ProductsApi } from './products-api.service';
 
 type FilterKey = 'countryId' | 'categoryId' | 'subcategoryId' | 'brandId' | 'status';
@@ -56,6 +56,8 @@ interface FilterChip {
   mediaType: ChipMediaType;
   country: FlagCountry | null;
   text: string;
+  /** Brand logo for a brand chip; without it the chip shows `text`. */
+  logoUrl: string | null;
   icon: IconName;
 }
 
@@ -177,6 +179,8 @@ export class ProductsPage {
     () => this.state() === 'ready' && !this.data()?.catalogEmpty && this.total() === 0,
   );
 
+  protected readonly hasFilters = computed(() => this.chips().length > 0 || this.searchText().trim() !== '');
+
   protected readonly rangeLabel = computed(() => {
     const total = this.total();
     if (!total) return '';
@@ -186,7 +190,17 @@ export class ProductsPage {
     return `${fmt(from)}–${fmt(to)} de ${fmt(total)} registros`;
   });
 
-  protected readonly footerNote = computed(() => `Página ${this.filters().page} de ${this.pageCount()}`);
+  /** Figma IN-01a vs IN-01d: a single page shows the "Total" of the list, several pages a per-page "Subtotal". */
+  protected readonly footerLabel = computed(() => {
+    if (!this.rows().length) return '';
+    return this.pageCount() > 1 ? 'Subtotal' : 'Total';
+  });
+
+  protected readonly footerNote = computed(() => {
+    if (this.pageCount() > 1) return `Página ${this.filters().page} de ${this.pageCount()}`;
+    const total = this.total();
+    return `${total.toLocaleString('es-BO')} ${total === 1 ? 'producto' : 'productos'}`;
+  });
 
   protected readonly countryOptions = computed<SelectOption[]>(() =>
     this.options().countries.map((c) => ({ value: c.id, label: c.name })),
@@ -209,7 +223,7 @@ export class ProductsPage {
     const f = this.filters();
     const o = this.options();
     const chips: FilterChip[] = [];
-    const base = { country: null, text: '', icon: 'check' } as const;
+    const base = { country: null, text: '', logoUrl: null, icon: 'check' } as const;
     const country = o.countries.find((c) => c.id === f.countryId);
     if (country) {
       const flag = flagOf(country.code);
@@ -217,9 +231,9 @@ export class ProductsPage {
       chips.push({ ...base, key: 'countryId', label: country.name, mediaType: flag ? 'flag' : 'brand', country: flag, text: country.code });
     }
     const brand = o.brands.find((b) => b.id === f.brandId);
-    if (brand) chips.push({ ...base, key: 'brandId', label: brand.name, mediaType: 'brand', text: brand.name.slice(0, 3).toUpperCase() });
+    if (brand) chips.push({ ...base, key: 'brandId', label: brand.name, mediaType: 'brand', text: brand.name.slice(0, 3).toUpperCase(), logoUrl: brand.logoUrl });
     const category = o.categories.find((c) => c.id === f.categoryId);
-    if (category) chips.push({ ...base, key: 'categoryId', label: category.name, mediaType: 'icon', icon: 'category' });
+    if (category) chips.push({ ...base, key: 'categoryId', label: category.name, mediaType: 'icon', icon: thumbIconOf(category.icon) });
     const sub = o.categories.flatMap((c) => c.subcategories).find((s) => s.id === f.subcategoryId);
     if (sub) chips.push({ ...base, key: 'subcategoryId', label: sub.name, mediaType: 'icon', icon: 'subcategory' });
     if (f.status) chips.push({ ...base, key: 'status', label: STATUS_LABELS[f.status], mediaType: 'icon', icon: 'check' });
@@ -261,7 +275,10 @@ export class ProductsPage {
       this.api
         .filterOptions()
         .pipe(
-          catchError(() => of(null)),
+          catchError(() => {
+            this.toast.danger('No pudimos cargar las opciones de filtro.');
+            return of(null);
+          }),
           takeUntilDestroyed(),
         )
         .subscribe((options) => options && this.options.set(options));

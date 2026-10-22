@@ -106,6 +106,36 @@
 .description {
   color: var(--text-primary);
 }
+.status {
+  --_c: var(--status-idle);
+  --_bg: var(--bg-surface-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-primary);
+  white-space: nowrap;
+  background: var(--_bg);
+  border-radius: var(--radius-full);
+
+  rs-icon {
+    color: var(--_c);
+  }
+  &[data-availability='available'] {
+    --_c: var(--status-success);
+    --_bg: var(--status-success-soft);
+  }
+  &[data-availability='low'] {
+    --_c: var(--status-warning);
+    --_bg: var(--status-warning-soft);
+  }
+  &[data-availability='out'] {
+    --_c: var(--status-danger);
+    --_bg: var(--status-danger-soft);
+  }
+}
 .action {
   position: relative;
   display: flex;
@@ -124,10 +154,10 @@
   cursor: pointer;
 
   &:hover {
-    background: var(--gray-100);
+    background: var(--bg-page); /* Figma: gray-100 in Light */
   }
   &:active {
-    background: var(--gray-200);
+    background: var(--border-default); /* Figma: gray-200 in Light */
   }
   &:focus-visible {
     outline: var(--stroke-focus) solid var(--focus-control);

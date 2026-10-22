@@ -24,14 +24,15 @@ const BRANDS = [
 ];
 
 const CATEGORIES: { name: string; icon: string; children: string[] }[] = [
-  { name: 'Rodamientos', icon: 'circle', children: ['Rígidos de bolas', 'Rodillos cilíndricos', 'Rodillos cónicos', 'Esféricos de rodillos'] },
-  { name: 'Retenes y sellos', icon: 'circle', children: [] },
-  { name: 'Correas y poleas', icon: 'circle', children: ['Correas en V', 'Correas dentadas'] },
-  { name: 'Cadenas y piñones', icon: 'circle', children: [] },
-  { name: 'Lubricantes y grasas', icon: 'circle', children: [] },
-  { name: 'Herramientas', icon: 'circle', children: [] },
-  { name: 'Accesorios', icon: 'circle', children: [] },
-  { name: 'Acoples', icon: 'circle', children: [] },
+  // `icon` is a name from the ERP icon set (libs/ui icons.ts)
+  { name: 'Rodamientos', icon: 'bearing', children: ['Rígidos de bolas', 'Rodillos cilíndricos', 'Rodillos cónicos', 'Esféricos de rodillos'] },
+  { name: 'Retenes y sellos', icon: 'seal', children: [] },
+  { name: 'Correas y poleas', icon: 'pulley', children: ['Correas en V', 'Correas dentadas'] },
+  { name: 'Cadenas y piñones', icon: 'link', children: [] },
+  { name: 'Lubricantes y grasas', icon: 'droplet', children: [] },
+  { name: 'Herramientas', icon: 'wrench', children: [] },
+  { name: 'Accesorios', icon: 'package', children: [] },
+  { name: 'Acoples', icon: 'transfer', children: [] },
 ];
 
 /** Bearings: code, subcategory, d, D, B (mm) */
@@ -98,10 +99,13 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
 
   // The (companyId, parentId, name) unique key has a nullable part, so roots use find-or-create.
   const categoryId = new Map<string, string>();
-  const ensureCategory = async (name: string, parentId: string | null, sortOrder: number, icon = 'circle') => {
+  const ensureCategory = async (name: string, parentId: string | null, sortOrder: number, icon = 'package') => {
     const existing = await prisma.category.findFirst({ where: { companyId, parentId, name } });
-    const row =
-      existing ?? (await prisma.category.create({ data: { companyId, parentId, name, icon, sortOrder } }));
+    const row = existing
+      ? existing.icon === icon || parentId
+        ? existing
+        : await prisma.category.update({ where: { id: existing.id }, data: { icon } })
+      : await prisma.category.create({ data: { companyId, parentId, name, icon, sortOrder } });
     categoryId.set(name, row.id);
     return row.id;
   };

@@ -27,9 +27,8 @@ export class ProductsService {
     if (query.branchId) await this.assertBranchAccess(query.branchId);
 
     const where = this.buildWhere(query);
-    const [total, anyProduct, rows] = await Promise.all([
+    const [total, rows] = await Promise.all([
       this.prisma.tenant.product.count({ where }),
-      this.prisma.tenant.product.findFirst({ select: { id: true } }),
       this.prisma.tenant.product.findMany({
         where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -46,11 +45,16 @@ export class ProductsService {
           brand: {
             select: { id: true, name: true, logoUrl: true, country: { select: { id: true, code: true, name: true } } },
           },
-          category: { select: { id: true, name: true, parent: { select: { id: true, name: true } } } },
+          category: {
+            select: { id: true, name: true, icon: true, parent: { select: { id: true, name: true, icon: true } } },
+          },
           dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true } },
         },
       }),
     ]);
+
+    // only an empty result can mean an empty catalog; otherwise the company has products
+    const catalogEmpty = total === 0 && !(await this.prisma.tenant.product.findFirst({ select: { id: true } }));
 
     const ids = rows.map((r) => r.id);
     const [totals, branchTotals] = await Promise.all([
@@ -81,7 +85,9 @@ export class ProductsService {
         photoUrl: photos[0] ?? null,
         brand: { id: r.brand.id, name: r.brand.name, logoUrl: r.brand.logoUrl },
         country: r.brand.country,
-        category: parent ? { id: parent.id, name: parent.name } : { id: r.category.id, name: r.category.name },
+        category: parent
+          ? { id: parent.id, name: parent.name, icon: parent.icon }
+          : { id: r.category.id, name: r.category.name, icon: r.category.icon },
         subcategory: parent ? { id: r.category.id, name: r.category.name } : null,
         dimensions: r.dimensions
           ? {
@@ -97,7 +103,7 @@ export class ProductsService {
       };
     });
 
-    return { items, page, pageSize, total, catalogEmpty: !anyProduct };
+    return { items, page, pageSize, total, catalogEmpty };
   }
 
   async filterOptions(): Promise<ProductFilterOptions> {

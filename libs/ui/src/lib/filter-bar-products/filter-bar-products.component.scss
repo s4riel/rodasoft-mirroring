@@ -17,10 +17,6 @@
   flex: 1 1 0;
   min-width: 0;
 }
-.filters > ::ng-deep * {
-  flex: 1 1 0;
-  min-width: 0;
-}
 .clear {
   padding: var(--space-3) var(--space-5);
   font-family: var(--font-family-ui);
@@ -37,7 +33,12 @@
     background: var(--bg-surface-2);
   }
   &:active {
-    background: var(--gray-100);
+    background: var(--bg-page); /* Figma: gray-100 in Light */
+  }
+  &:disabled {
+    color: var(--text-muted);
+    background: transparent;
+    cursor: default;
   }
   &:focus-visible {
     outline: var(--stroke-focus) solid var(--focus-control);

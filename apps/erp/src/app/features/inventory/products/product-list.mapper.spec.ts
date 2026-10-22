@@ -5,6 +5,7 @@ import {
   describeProduct,
   flagOf,
   formatMeasure,
+  thumbIconOf,
   toTableRow,
 } from './product-list.mapper';
 
@@ -16,7 +17,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   photoUrl: null,
   brand: { id: 'b1', name: 'SKF', logoUrl: null },
   country: { id: 'c1', code: 'SE', name: 'Suecia' },
-  category: { id: 'k1', name: 'Rodamientos' },
+  category: { id: 'k1', name: 'Rodamientos', icon: 'bearing' },
   subcategory: { id: 'k2', name: 'Rígidos de bolas' },
   dimensions: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000' },
   totalStock: 60,
@@ -51,6 +52,12 @@ describe('product list mapper', () => {
     expect(flagOf('SE')).toBe('SE');
     expect(flagOf('ZZ')).toBeNull();
     expect(flagOf(undefined)).toBeNull();
+  });
+
+  it('uses the category glyph for the photo placeholder and falls back to the bearing', () => {
+    expect(thumbIconOf('droplet')).toBe('droplet');
+    expect(thumbIconOf('not-an-icon')).toBe('bearing');
+    expect(toTableRow(item({ category: { id: 'k3', name: 'Lubricantes', icon: 'droplet' } })).thumbIcon).toBe('droplet');
   });
 
   it('builds the table row', () => {

@@ -6,6 +6,10 @@
     <ng-content />
   }
   @default {
-    <span class="text">{{ text() }}</span>
+    @if (type() === 'brand' && logoUrl()) {
+      <img class="logo" [src]="logoUrl()" alt="" />
+    } @else {
+      <span class="text">{{ text() }}</span>
+    }
   }
 }

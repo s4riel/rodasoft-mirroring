@@ -26,7 +26,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   photoUrl: null,
   brand: { id: 'b-skf', name: 'SKF', logoUrl: null },
   country: { id: 'c-se', code: 'SE', name: 'Suecia' },
-  category: { id: 'k-1', name: 'Rodamientos' },
+  category: { id: 'k-1', name: 'Rodamientos', icon: 'bearing' },
   subcategory: { id: 'k-2', name: 'Rígidos de bolas' },
   dimensions: { innerDiameter: '25', outerDiameter: '52', width: '15' },
   totalStock: 60,
@@ -50,7 +50,7 @@ describe('ProductsPage', () => {
   let permissions: Set<string>;
   let branchId: ReturnType<typeof signal<string>>;
 
-  async function open(url = '/products', granted = ['inventory.products.view', 'inventory.import', 'inventory.products.export', 'inventory.products.edit']) {
+  async function open(url = '/products', granted = ['inventory.products.view', 'inventory.products.import','inventory.products.export', 'inventory.products.edit']) {
     permissions = new Set(granted);
     branchId = signal('branch-1');
     TestBed.configureTestingModule({

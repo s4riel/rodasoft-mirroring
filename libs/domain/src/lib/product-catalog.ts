@@ -43,7 +43,8 @@ export interface ProductListItem {
   photoUrl: string | null;
   brand: ProductBrandSummary;
   country: ProductCountrySummary | null;
-  category: { id: string; name: string };
+  /** Root category; `icon` is the glyph name the ERP draws when the product has no photo. */
+  category: { id: string; name: string; icon: string };
   subcategory: { id: string; name: string } | null;
   /** d × D × B in mm, as strings to avoid float rounding. */
   dimensions: { innerDiameter: string | null; outerDiameter: string | null; width: string | null } | null;

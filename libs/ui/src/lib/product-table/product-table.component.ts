@@ -3,13 +3,15 @@ import { FlagComponent, FlagCountry } from '../flag/flag.component';
 import { IconComponent } from '../icon/icon.component';
 import { ProductThumbComponent } from '../product-thumb/product-thumb.component';
 import { RowMenuComponent, RowMenuItem } from '../row-menu/row-menu.component';
-import { StatusPillComponent, Status } from '../status-pill/status-pill.component';
+import type { IconName } from '../icon/icons';
 
 export type ProductAvailability = 'available' | 'low' | 'out' | 'inactive';
 
 export interface ProductTableRow {
   id: string;
   photoUrl: string | null;
+  /** Glyph of the photo placeholder (category icon); defaults to the bearing. */
+  thumbIcon?: IconName;
   code: string;
   name: string;
   brandName: string;
@@ -39,11 +41,12 @@ export interface ProductTableLabels {
   availability: Record<ProductAvailability, string>;
 }
 
-const STATUS_OF: Record<ProductAvailability, Status> = {
-  available: 'success',
-  low: 'warning',
-  out: 'danger',
-  inactive: 'idle',
+/** Figma ProductTable Cell/Status: tinted pill with a glyph (check / warning); inactive has none. */
+const STATUS_ICON: Record<ProductAvailability, IconName | null> = {
+  available: 'check',
+  low: 'alert',
+  out: 'alert',
+  inactive: null,
 };
 
 /** "1150.5" -> "1.150,50" (es-BO). Works on the decimal string so no amount goes through `number`. */
@@ -60,7 +63,7 @@ export function formatBoliviano(amount: string): string {
  */
 @Component({
   selector: 'rs-product-table',
-  imports: [FlagComponent, IconComponent, ProductThumbComponent, RowMenuComponent, StatusPillComponent],
+  imports: [FlagComponent, IconComponent, ProductThumbComponent, RowMenuComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './product-table.component.html',
   styleUrl: './product-table.component.scss',
@@ -73,6 +76,8 @@ export class ProductTableComponent {
   readonly footerLabel = input('');
   readonly footerNote = input('');
   readonly footerBranchStock = input<number | null>(null);
+  /** Accessible name of the table. */
+  readonly tableLabel = input<string | null>(null);
 
   /** Emits `{ id, key }` of the chosen row menu item. */
   readonly rowAction = output<{ id: string; key: string }>();
@@ -80,8 +85,8 @@ export class ProductTableComponent {
   protected readonly openRowId = signal<string | null>(null);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  protected statusOf(a: ProductAvailability): Status {
-    return STATUS_OF[a];
+  protected statusIcon(a: ProductAvailability): IconName | null {
+    return STATUS_ICON[a];
   }
 
   protected price(amount: string) {
@@ -98,8 +103,17 @@ export class ProductTableComponent {
   }
 
   protected choose(id: string, key: string) {
-    this.openRowId.set(null);
+    this.closeMenu(id);
     this.rowAction.emit({ id, key });
+  }
+
+  /** Closes the open menu and gives focus back to its kebab button. */
+  private closeMenu(id: string | null) {
+    this.openRowId.set(null);
+    if (!id) return;
+    Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('[data-kebab]'))
+      .find((kebab) => kebab.dataset['kebab'] === id)
+      ?.focus();
   }
 
   @HostListener('document:click', ['$event'])
@@ -109,6 +123,7 @@ export class ProductTableComponent {
 
   @HostListener('keydown.escape')
   protected onEscape() {
-    this.openRowId.set(null);
+    const open = this.openRowId();
+    if (open) this.closeMenu(open);
   }
 }

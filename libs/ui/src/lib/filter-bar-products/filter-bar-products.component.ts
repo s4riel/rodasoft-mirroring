@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, model, output } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, input, model, output } from '@angular/core';
 import { IconComponent } from '../icon/icon.component';
 import { InputDirective, InputGroupComponent } from '../input/input.component';
 
@@ -19,6 +19,8 @@ export class FilterBarProductsComponent {
   readonly searchPlaceholder = input('');
   readonly searchLabel = input('');
   readonly clearLabel = input('');
+  /** Disables the clear action while nothing is applied. */
+  readonly clearDisabled = input(false, { transform: booleanAttribute });
   /** Emits when the user presses the clear action. */
   readonly cleared = output<void>();
 

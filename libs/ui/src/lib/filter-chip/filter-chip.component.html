@@ -3,6 +3,7 @@
   class="chip"
   [disabled]="disabled()"
   [attr.aria-pressed]="selected()"
+  [attr.aria-label]="selected() && removeLabel() ? removeLabel() : null"
   (click)="toggle()"
 >
   @if (showMedia()) {

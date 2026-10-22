@@ -9,6 +9,8 @@
 }
 .filters {
   display: flex;
+  flex: 1 1 0; /* fills the filter bar's filter row */
+  min-width: 0;
   align-items: center;
   gap: var(--space-3);
 }
@@ -33,7 +35,7 @@
     background: var(--bg-surface-2);
   }
   &:active {
-    background: var(--gray-100);
+    background: var(--bg-page); /* Figma: gray-100 in Light */
   }
   &:focus-visible {
     outline: var(--stroke-focus) solid var(--focus-control);

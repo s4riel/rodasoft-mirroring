@@ -10,6 +10,6 @@
       (input)="onSearch($event)"
     />
   </rs-input-group>
-  <button type="button" class="clear" (click)="cleared.emit()">{{ clearLabel() }}</button>
+  <button type="button" class="clear" [disabled]="clearDisabled()" (click)="cleared.emit()">{{ clearLabel() }}</button>
 </div>
 <div class="filters"><ng-content select="[rsFilters]" /></div>

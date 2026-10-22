@@ -58,6 +58,20 @@ describe('ProductTableComponent', () => {
     expect(el.querySelectorAll('.alert.danger')).toHaveLength(1);
   });
 
+  it('draws the status with a glyph (check / warning), none for inactive, and the category glyph on the thumb', () => {
+    const el: HTMLElement = setup([
+      row({ id: 'a' }),
+      row({ id: 'b', availability: 'out', thumbIcon: 'droplet' }),
+      row({ id: 'c', availability: 'inactive' }),
+    ]).nativeElement;
+    const pills = Array.from(el.querySelectorAll('.status'));
+    expect(pills[0].querySelector('rs-icon')).not.toBeNull();
+    expect(pills[1].getAttribute('data-availability')).toBe('out');
+    expect(pills[1].querySelector('rs-icon')).not.toBeNull();
+    expect(pills[2].querySelector('rs-icon')).toBeNull();
+    expect(el.querySelectorAll('rs-product-thumb')[1].querySelector('rs-icon')).not.toBeNull();
+  });
+
   it('shows the brand logo instead of the initials when there is one', () => {
     const el: HTMLElement = setup([row({ brandLogoUrl: 'https://img.test/skf.svg' })]).nativeElement;
     expect(el.querySelector('img.logo')).not.toBeNull();
@@ -93,6 +107,28 @@ describe('ProductTableComponent', () => {
     document.body.click();
     fixture.detectChanges();
     expect(el.querySelector('rs-row-menu')).toBeNull();
+  });
+
+  it('closes the menu with Escape and returns focus to the kebab button', () => {
+    const fixture = setup([row({})], { menuItems: [{ key: 'view', label: 'Ver detalles', icon: 'eye' }] });
+    const el: HTMLElement = fixture.nativeElement;
+    document.body.appendChild(el);
+    const kebab = el.querySelector('.kebab') as HTMLButtonElement;
+    kebab.click();
+    fixture.detectChanges();
+    expect(el.querySelector('rs-row-menu')).not.toBeNull();
+
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('rs-row-menu')).toBeNull();
+    expect(document.activeElement).toBe(kebab);
+    el.remove();
+  });
+
+  it('names the table and hides the empty header cell from assistive tech', () => {
+    const el: HTMLElement = setup([row({})], { tableLabel: 'Productos' }).nativeElement;
+    expect(el.querySelector('[role="table"]')?.getAttribute('aria-label')).toBe('Productos');
+    expect(el.querySelector('.header .cell:last-child')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('shows the footer only when it has a label', () => {

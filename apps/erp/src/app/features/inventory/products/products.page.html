@@ -6,7 +6,7 @@
   breadcrumbLabel="Ruta de navegación"
 >
   <div rsActions class="header-actions">
-    <button *rsCan="'inventory.import'" rsButton variant="secondary" type="button" (click)="comingSoon()">
+    <button *rsCan="'inventory.products.import'" rsButton variant="secondary" type="button" (click)="comingSoon()">
       <rs-icon name="import" [size]="16" /> Importar
     </button>
     <button *rsCan="'inventory.products.export'" rsButton variant="secondary" type="button" (click)="comingSoon()">
@@ -32,6 +32,7 @@
     searchPlaceholder="Buscar por código, medida o marca"
     searchLabel="Buscar productos"
     clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
     [search]="searchText()"
     (searchChange)="onSearch($event)"
     (cleared)="clearAll()"
@@ -83,9 +84,15 @@
   @if (chips().length) {
     <div class="chips" role="list" aria-label="Filtros aplicados">
       @for (chip of chips(); track chip.key) {
-        <rs-filter-chip role="listitem" [selected]="true" [label]="chip.label" (selectedChange)="removeChip(chip.key)">
+        <rs-filter-chip
+          role="listitem"
+          [selected]="true"
+          [label]="chip.label"
+          [removeLabel]="'Quitar filtro: ' + chip.label"
+          (selectedChange)="removeChip(chip.key)"
+        >
           <!-- one unconditional rs-chip-media so it lands in the chip's media slot -->
-          <rs-chip-media [type]="chip.mediaType" [country]="chip.country ?? 'DE'" [text]="chip.text">
+          <rs-chip-media [type]="chip.mediaType" [country]="chip.country ?? 'DE'" [text]="chip.text" [logoUrl]="chip.logoUrl">
             @if (chip.mediaType === 'icon') {
               <rs-icon [name]="chip.icon" [size]="16" />
             }
@@ -147,10 +154,11 @@
       } @else {
         <section class="list" aria-label="Listado de productos">
           <rs-product-table
+            tableLabel="Productos"
             [rows]="rows()"
             [labels]="labels"
             [menuItems]="menuItems()"
-            [footerLabel]="subtotal() === null ? '' : 'Subtotal'"
+            [footerLabel]="footerLabel()"
             [footerNote]="footerNote()"
             [footerBranchStock]="subtotal()"
             (rowAction)="comingSoon()"
@@ -161,6 +169,7 @@
               label="Paginación"
               previousLabel="Anterior"
               nextLabel="Siguiente"
+              [showLabels]="true"
               [page]="filters().page"
               [pageCount]="pageCount()"
               (pageChange)="goToPage($event)"

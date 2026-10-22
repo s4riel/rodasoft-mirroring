@@ -8,6 +8,7 @@ import { FilterBarProductsComponent } from './filter-bar-products.component';
     <rs-filter-bar-products
       searchPlaceholder="Buscar"
       clearLabel="Limpiar"
+      [clearDisabled]="clearOff"
       [(search)]="term"
       (cleared)="clears = clears + 1"
     >
@@ -18,6 +19,7 @@ import { FilterBarProductsComponent } from './filter-bar-products.component';
 class HostComponent {
   term = '';
   clears = 0;
+  clearOff = false;
 }
 
 describe('FilterBarProductsComponent', () => {
@@ -33,5 +35,15 @@ describe('FilterBarProductsComponent', () => {
     (el.querySelector('.clear') as HTMLButtonElement).click();
     expect(fixture.componentInstance.clears).toBe(1);
     expect(el.querySelector('[data-test="slot"]')).not.toBeNull();
+  });
+
+  it('disables the clear action while nothing is applied', () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.componentInstance.clearOff = true;
+    fixture.detectChanges();
+    const clear = fixture.nativeElement.querySelector('.clear') as HTMLButtonElement;
+    expect(clear.disabled).toBe(true);
+    clear.click();
+    expect(fixture.componentInstance.clears).toBe(0);
   });
 });
