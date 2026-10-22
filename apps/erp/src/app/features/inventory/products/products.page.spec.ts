@@ -189,4 +189,111 @@ describe('ProductsPage', () => {
     h.detectChanges();
     expect(text(h)).toContain('6205-2RS');
   });
+
+  describe('row actions (HU-INV-02)', () => {
+    const VIEW = ['inventory.products.view'];
+    const el = (h: RouterTestingHarness) => h.routeNativeElement as HTMLElement;
+
+    async function openMenu(granted: string[]) {
+      const h = await open('/products', granted);
+      flushList(response([item()]));
+      flushOptions();
+      h.detectChanges();
+      await h.fixture.whenStable();
+      h.detectChanges();
+      (el(h).querySelector('[data-kebab]') as HTMLButtonElement).click();
+      h.detectChanges();
+      return h;
+    }
+    const menuLabels = (h: RouterTestingHarness) =>
+      Array.from(el(h).querySelectorAll('rs-row-menu button')).map((b) => b.textContent?.trim());
+    const choose = async (h: RouterTestingHarness, label: string) => {
+      const button = Array.from(el(h).querySelectorAll('rs-row-menu button')).find((b) =>
+        b.textContent?.includes(label),
+      ) as HTMLButtonElement;
+      button.click();
+      h.detectChanges();
+      await h.fixture.whenStable();
+      h.detectChanges();
+    };
+
+    it('offers each action only to the roles that have its permission', async () => {
+      expect(menuLabels(await openMenu(VIEW))).toEqual(['Ver detalles']);
+      TestBed.resetTestingModule();
+      expect(menuLabels(await openMenu([...VIEW, 'inventory.products.edit']))).toEqual([
+        'Ver detalles',
+        'Editar',
+        'Duplicar',
+      ]);
+      TestBed.resetTestingModule();
+      expect(
+        menuLabels(await openMenu([...VIEW, 'inventory.products.edit', 'inventory.adjustments.create', 'inventory.products.delete'])),
+      ).toEqual(['Ver detalles', 'Editar', 'Duplicar', 'Ajustar stock', 'Eliminar']);
+    });
+
+    it.each(['Ver detalles', 'Editar', 'Ajustar stock'])('shows the coming-soon toast for %s', async (label) => {
+      const h = await openMenu([...VIEW, 'inventory.products.edit', 'inventory.adjustments.create']);
+      await choose(h, label);
+      expect(text(h)).toContain('Esta acción estará disponible próximamente.');
+      expect(el(h).querySelector('rs-duplicate-product-dialog [role=dialog]')).toBeNull();
+    });
+
+    it('opens the duplicate dialog for the chosen row', async () => {
+      const h = await openMenu([...VIEW, 'inventory.products.edit']);
+      await choose(h, 'Duplicar');
+      const dialog = el(h).querySelector('rs-duplicate-product-dialog [role=dialog]');
+      expect(dialog?.textContent).toContain('Crea una copia de 6205-2RS · SKF');
+    });
+
+    it('reloads the list and confirms with the new SKU after duplicating', async () => {
+      const h = await openMenu([...VIEW, 'inventory.products.edit']);
+      await choose(h, 'Duplicar');
+      const input = el(h).querySelector('#duplicate-code') as HTMLInputElement;
+      input.value = '6205-2RS-B';
+      input.dispatchEvent(new Event('input'));
+      (el(h).querySelector('button[type=submit]') as HTMLButtonElement).click();
+      await h.fixture.whenStable();
+      http.expectOne('/api/v1/inventory/products/p1/duplicate').flush({ id: 'p2', sku: 'RL-000002' });
+      await h.fixture.whenStable();
+      flushList(response([item(), item({ id: 'p2', manufacturerCode: '6205-2RS-B' })]));
+      h.detectChanges();
+      expect(text(h)).toContain('Copia creada: RL-000002');
+    });
+
+    it('asks for confirmation, deletes and reloads', async () => {
+      const h = await openMenu([...VIEW, 'inventory.products.delete']);
+      await choose(h, 'Eliminar');
+      expect(text(h)).toContain('¿Eliminar 6205-2RS?');
+      http.expectNone('/api/v1/inventory/products/p1');
+
+      const confirm = Array.from(el(h).querySelectorAll('[role=dialog] button')).find(
+        (b) => b.textContent?.trim() === 'Eliminar',
+      ) as HTMLButtonElement;
+      confirm.click();
+      await h.fixture.whenStable();
+      const req = http.expectOne('/api/v1/inventory/products/p1');
+      expect(req.request.method).toBe('DELETE');
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await h.fixture.whenStable();
+      flushList(response([], { catalogEmpty: true }));
+      h.detectChanges();
+      expect(text(h)).toContain('Producto eliminado: 6205-2RS');
+    });
+
+    it('explains that a product with stock cannot be deleted', async () => {
+      const h = await openMenu([...VIEW, 'inventory.products.delete']);
+      await choose(h, 'Eliminar');
+      const confirm = Array.from(el(h).querySelectorAll('[role=dialog] button')).find(
+        (b) => b.textContent?.trim() === 'Eliminar',
+      ) as HTMLButtonElement;
+      confirm.click();
+      await h.fixture.whenStable();
+      http
+        .expectOne('/api/v1/inventory/products/p1')
+        .flush({ code: 'PRODUCT_HAS_STOCK', message: 'has stock' }, { status: 409, statusText: 'Conflict' });
+      await h.fixture.whenStable();
+      h.detectChanges();
+      expect(text(h)).toContain('No se puede eliminar: tiene stock registrado. Desactívalo en su lugar.');
+    });
+  });
 });

@@ -11,13 +11,22 @@ import {
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { FieldMediaComponent, FieldMediaType } from '../filter-chip/field-media.component';
+import { FlagCountry } from '../flag/flag.component';
 import { IconComponent } from '../icon/icon.component';
 import { IconName } from '../icon/icons';
+
+/** Figma FieldMedia of an option: a flag, or the brand text. */
+export type SelectOptionMedia =
+  | { type: Extract<FieldMediaType, 'flag'>; country: FlagCountry }
+  | { type: Extract<FieldMediaType, 'brand'>; text: string };
 
 export interface SelectOption<T = unknown> {
   value: T;
   label: string;
   disabled?: boolean;
+  /** Shown before the label, in the list and in the closed trigger. */
+  media?: SelectOptionMedia;
 }
 
 let nextSelectId = 0;
@@ -34,7 +43,7 @@ let nextSelectId = 0;
  */
 @Component({
   selector: 'rs-select',
-  imports: [IconComponent],
+  imports: [FieldMediaComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => SelectComponent), multi: true }],
   host: {

@@ -1,7 +1,48 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
-import { PRODUCT_PAGE_SIZE_MAX } from '@rodasoft/domain';
+import {
+  ArrayUnique,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+import { type DuplicateProductRequest, PRODUCT_PAGE_SIZE_MAX, type ProductCopyPart } from '@rodasoft/domain';
+
+/** Parts the API accepts for a copy; `equivalences` is not supported until HU-INV-13. */
+export const DUPLICATE_COPY_PARTS = ['dimensions', 'specifications', 'price', 'media'] as const;
+
+export class DuplicateProductDto implements DuplicateProductRequest {
+  @ApiProperty({ description: 'Manufacturer code of the copy; unique per brand' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  @Matches(/\S/)
+  manufacturerCode!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  brandId!: string;
+
+  @ApiProperty({ nullable: true, type: String, description: 'Industry (country of origin) of the copy' })
+  @ValidateIf((o: DuplicateProductDto) => o.countryId !== null)
+  @IsUUID()
+  countryId!: string | null;
+
+  @ApiProperty({ enum: DUPLICATE_COPY_PARTS, isArray: true })
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(DUPLICATE_COPY_PARTS, { each: true })
+  copy!: ProductCopyPart[];
+}
 
 export class ListProductsQueryDto {
   @ApiPropertyOptional({ description: 'Industry (country of origin) of the brand' })

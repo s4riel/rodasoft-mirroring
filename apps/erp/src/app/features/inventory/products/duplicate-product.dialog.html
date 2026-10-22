@@ -1,0 +1,67 @@
+<rs-modal variant="form" heading="Duplicar producto" closeLabel="Cerrar" [(open)]="open">
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()" id="duplicate-product-form" novalidate>
+    <p class="subtitle">{{ subtitle() }}</p>
+
+    <rs-field
+      label="Código nuevo"
+      forId="duplicate-code"
+      hint="Debe ser único para la marca."
+      required
+      [error]="codeMessage()"
+    >
+      <rs-input-group [invalid]="codeInvalid()">
+        <rs-icon rsInputLeading name="barcode" [size]="16" />
+        <input
+          rsInput
+          id="duplicate-code"
+          formControlName="manufacturerCode"
+          autocomplete="off"
+          required
+          maxlength="60"
+          placeholder="Ej. 6205-2RS-B"
+        />
+      </rs-input-group>
+    </rs-field>
+
+    <rs-field label="Marca" forId="duplicate-brand" required>
+      <rs-select inputId="duplicate-brand" formControlName="brandId" placeholder="Selecciona una marca" [options]="brandOptions()" />
+    </rs-field>
+
+    <rs-field label="Industria (país de origen)" forId="duplicate-country">
+      <rs-select
+        inputId="duplicate-country"
+        formControlName="countryId"
+        placeholder="Selecciona una industria"
+        [options]="countryOptions()"
+      />
+    </rs-field>
+
+    <fieldset class="copy">
+      <legend class="copy-legend">Qué copiar</legend>
+      <div class="chips">
+        @for (chip of chips; track chip.part) {
+          <rs-filter-chip
+            [label]="chip.label"
+            [disabled]="chip.disabled"
+            [selected]="isCopied(chip.part)"
+            [showMedia]="false"
+            (selectedChange)="setCopied(chip.part, $event)"
+          />
+        }
+      </div>
+    </fieldset>
+
+    <rs-note type="info" title="El stock no se copia">La copia empieza en 0 unidades en todos los almacenes.</rs-note>
+
+    @if (submitError(); as message) {
+      <rs-note type="danger">{{ message }}</rs-note>
+    }
+  </form>
+
+  <div slot="footer" class="actions">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button rsButton variant="brand" type="submit" form="duplicate-product-form" [loading]="saving()">
+      <rs-icon name="plus" [size]="16" /> Crear copia
+    </button>
+  </div>
+</rs-modal>

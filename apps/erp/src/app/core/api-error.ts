@@ -15,6 +15,12 @@ const MESSAGES: Record<string, string> = {
   INVALID_LINK: 'El enlace expiró o ya fue usado. Pide uno nuevo.',
   THROTTLED: 'Demasiados intentos. Espera un minuto.',
   NETWORK: 'No hay conexión con el servidor. Revisa tu internet.',
+  DUPLICATE_MANUFACTURER_CODE: 'Ya existe un producto con este código para la marca.',
+  PRODUCT_HAS_STOCK: 'No se puede eliminar: tiene stock registrado. Desactívalo en su lugar.',
+  PRODUCT_NOT_FOUND: 'El producto ya no existe. Actualiza el listado.',
+  BRAND_NOT_FOUND: 'La marca elegida ya no existe.',
+  COUNTRY_NOT_FOUND: 'La industria elegida ya no existe.',
+  VALIDATION_FAILED: 'Revisa los datos ingresados.',
 };
 
 export function problemOf(err: unknown): ApiProblem {

@@ -318,7 +318,8 @@ model Country {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company Company @relation(fields: [companyId], references: [id])
-  brands  Brand[]
+  brands   Brand[]
+  products Product[]
 
   @@unique([companyId, code])
   @@map("countries")
@@ -396,6 +397,8 @@ model Product {
   brandId          String       @map("brand_id") @db.Uuid
   /// leaf category (a subcategory when the product has one)
   categoryId       String       @map("category_id") @db.Uuid
+  /// industry (country of origin) of the product; falls back to the brand's country when null
+  countryId        String?      @map("country_id") @db.Uuid
   name             String
   salePrice        Decimal      @map("sale_price") @db.Decimal(14, 2)
   /// only visible with inventory.costs.view
@@ -411,6 +414,7 @@ model Product {
   company     Company           @relation(fields: [companyId], references: [id])
   brand       Brand             @relation(fields: [brandId], references: [id])
   category    Category          @relation(fields: [categoryId], references: [id])
+  country     Country?          @relation(fields: [countryId], references: [id], onDelete: SetNull)
   dimensions  ProductDimension?
   stockLevels StockLevel[]
 
@@ -419,6 +423,7 @@ model Product {
   @@index([companyId, status])
   @@index([companyId, brandId])
   @@index([companyId, categoryId])
+  @@index([companyId, countryId])
   @@index([companyId, createdAt(sort: Desc), id])
   @@map("products")
 }

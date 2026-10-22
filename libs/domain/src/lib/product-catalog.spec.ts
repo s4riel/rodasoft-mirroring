@@ -1,7 +1,12 @@
 import {
+  buildDuplicate,
   clampPage,
   clampPageSize,
+  DEFAULT_COPY_PARTS,
+  DuplicateSource,
+  formatSku,
   hasActiveFilters,
+  parseSkuNumber,
   parseMeasurement,
   PRODUCT_PAGE_SIZE_DEFAULT,
   PRODUCT_PAGE_SIZE_MAX,
@@ -44,5 +49,77 @@ describe('product catalog rules', () => {
     expect(hasActiveFilters({ status: 'ACTIVE' })).toBe(true);
     expect(hasActiveFilters({ search: '  ' })).toBe(false);
     expect(hasActiveFilters({ search: '6205' })).toBe(true);
+  });
+});
+
+describe('SKU helpers', () => {
+  it('formats and parses RL-000001', () => {
+    expect(formatSku('RL-', 1)).toBe('RL-000001');
+    expect(formatSku('RL-', 1234567)).toBe('RL-1234567');
+    expect(parseSkuNumber('RL-000042', 'RL-')).toBe(42);
+  });
+
+  it('ignores SKUs that do not follow the pattern', () => {
+    expect(parseSkuNumber('BULK-000001', 'RL-')).toBeNull();
+    expect(parseSkuNumber('RL-12', 'RL-')).toBeNull();
+    expect(parseSkuNumber('RL-ABC123', 'RL-')).toBeNull();
+  });
+});
+
+describe('buildDuplicate', () => {
+  const source: DuplicateSource = {
+    name: 'Rodamiento 6205-2RS',
+    categoryId: 'cat-1',
+    unit: 'UN',
+    salePrice: '120.50',
+    cost: '70.0000',
+    attributes: { seal: '2RS' },
+    photos: ['a.jpg'],
+    datasheetUrl: 'https://x/d.pdf',
+    dimensions: { innerDiameter: '25', outerDiameter: '52', width: '15', weight: '0.13' },
+  };
+  const request = (copy: Parameters<typeof buildDuplicate>[1]['copy']) => ({
+    manufacturerCode: ' 6205-2RS-B ',
+    brandId: 'brand-2',
+    countryId: 'jp',
+    copy,
+  });
+
+  it('always copies name, category and unit, trims the new code and starts ACTIVE', () => {
+    const copy = buildDuplicate(source, request([]));
+    expect(copy).toMatchObject({
+      manufacturerCode: '6205-2RS-B',
+      brandId: 'brand-2',
+      countryId: 'jp',
+      categoryId: 'cat-1',
+      name: 'Rodamiento 6205-2RS',
+      unit: 'UN',
+      status: 'ACTIVE',
+    });
+  });
+
+  it('copies nothing else when no part is chosen', () => {
+    expect(buildDuplicate(source, request([]))).toMatchObject({
+      salePrice: '0.00',
+      cost: null,
+      attributes: {},
+      photos: [],
+      datasheetUrl: null,
+      dimensions: null,
+    });
+  });
+
+  it('copies each part independently', () => {
+    expect(buildDuplicate(source, request(['price']))).toMatchObject({ salePrice: '120.50', cost: '70.0000', dimensions: null });
+    expect(buildDuplicate(source, request(['specifications'])).attributes).toEqual({ seal: '2RS' });
+    expect(buildDuplicate(source, request(['dimensions'])).dimensions).toEqual(source.dimensions);
+    expect(buildDuplicate(source, request(['media']))).toMatchObject({ photos: ['a.jpg'], datasheetUrl: 'https://x/d.pdf' });
+  });
+
+  it('copies the default parts as in Figma and tolerates a source without dimensions', () => {
+    const copy = buildDuplicate({ ...source, dimensions: null }, request([...DEFAULT_COPY_PARTS]));
+    expect(copy.dimensions).toBeNull();
+    expect(copy.salePrice).toBe('120.50');
+    expect(copy.photos).toEqual([]);
   });
 });

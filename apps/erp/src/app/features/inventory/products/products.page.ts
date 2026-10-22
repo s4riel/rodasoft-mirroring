@@ -2,6 +2,7 @@ import { toObservable, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-i
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import type {
+  DuplicateProductResponse,
   ProductFilterOptions,
   ProductListItem,
   ProductListQuery,
@@ -20,6 +21,7 @@ import {
   FilterBarProductsComponent,
   FilterChipComponent,
   IconComponent,
+  ModalComponent,
   PageHeaderComponent,
   PaginationComponent,
   ProductTableComponent,
@@ -35,6 +37,7 @@ import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
 import { ContextStore } from '../../../core/context.store';
 import { branchStockSubtotal, flagOf, PRODUCTS_PAGE_SIZE, thumbIconOf, toTableRow } from './product-list.mapper';
+import { DuplicateProductDialog } from './duplicate-product.dialog';
 import { ProductsApi } from './products-api.service';
 
 type FilterKey = 'countryId' | 'categoryId' | 'subcategoryId' | 'brandId' | 'status';
@@ -70,10 +73,12 @@ const STATUS_LABELS: Record<ProductStatusFilter, string> = { ACTIVE: 'Activo', I
     ButtonComponent,
     CanDirective,
     ChipMediaComponent,
+    DuplicateProductDialog,
     EmptyStateIllustratedComponent,
     FilterBarProductsComponent,
     FilterChipComponent,
     IconComponent,
+    ModalComponent,
     PageHeaderComponent,
     PaginationComponent,
     ProductTableComponent,
@@ -116,14 +121,14 @@ export class ProductsPage {
 
   protected readonly canView = computed(() => this.ctx.can('inventory.products.view'));
 
-  /** Row menu items by permission (Figma RowMenu). Actions arrive with HU-INV-02. */
+  /** Row menu items by permission (Figma RowMenu). View, edit and adjust arrive with HU-INV-03, 07 and 16. */
   protected readonly menuItems = computed<RowMenuItem[]>(() => {
     const items: RowMenuItem[] = [{ key: 'view', label: 'Ver detalles', icon: 'eye' }];
     if (this.ctx.can('inventory.products.edit')) {
       items.push({ key: 'edit', label: 'Editar', icon: 'edit' }, { key: 'duplicate', label: 'Duplicar', icon: 'copy' });
     }
     if (this.ctx.can('inventory.adjustments.create')) items.push({ key: 'adjust', label: 'Ajustar stock', icon: 'inventory' });
-    if (this.ctx.can('inventory.products.edit')) {
+    if (this.ctx.can('inventory.products.delete')) {
       items.push({ key: 'delete', label: 'Eliminar', icon: 'trash', danger: true, separated: true });
     }
     return items;
@@ -144,6 +149,12 @@ export class ProductsPage {
       page: Math.max(1, Number(q.get('page')) || 1),
     };
   });
+
+  protected readonly duplicateOpen = signal(false);
+  protected readonly duplicateTarget = signal<ProductListItem | null>(null);
+  protected readonly deleteOpen = signal(false);
+  protected readonly deleteTarget = signal<ProductListItem | null>(null);
+  protected readonly deleting = signal(false);
 
   protected readonly searchText = signal('');
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -328,6 +339,52 @@ export class ProductsPage {
         this.data.set(result.data);
         this.state.set('ready');
       });
+  }
+
+  /** IN-01c · Row menu: duplicate and delete are built here; the other actions arrive with their own stories. */
+  protected onRowAction(event: { id: string; key: string }) {
+    const product = this.items().find((p) => p.id === event.id);
+    if (!product) return;
+    switch (event.key) {
+      case 'duplicate':
+        this.duplicateTarget.set(product);
+        this.duplicateOpen.set(true);
+        return;
+      case 'delete':
+        this.deleteTarget.set(product);
+        this.deleteOpen.set(true);
+        return;
+      default:
+        this.comingSoon();
+    }
+  }
+
+  protected onDuplicated(result: DuplicateProductResponse) {
+    this.toast.success(`Copia creada: ${result.sku}`);
+    this.retry();
+  }
+
+  protected cancelDelete() {
+    if (!this.deleting()) this.deleteOpen.set(false);
+  }
+
+  protected confirmDelete() {
+    const product = this.deleteTarget();
+    if (!product || this.deleting()) return;
+    this.deleting.set(true);
+    this.api.remove(product.id).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        this.deleteOpen.set(false);
+        this.toast.success(`Producto eliminado: ${product.manufacturerCode}`);
+        this.retry();
+      },
+      error: (err: unknown) => {
+        this.deleting.set(false);
+        this.deleteOpen.set(false);
+        this.toast.danger(problemOf(err).message);
+      },
+    });
   }
 
   /** Actions of the header and the row menu arrive with their own stories. */
