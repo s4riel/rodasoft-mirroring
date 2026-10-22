@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { problemOf } from '../../core/api-error';
 import { AuthService } from '../../core/auth/auth.service';
 
-/** Destino después de Google: canjea el código de un solo uso por la sesión del ERP. */
+/** Landing after Google: exchanges the one-time code for the ERP session. */
 @Component({
   selector: 'rs-google-callback-page',
   changeDetection: ChangeDetectionStrategy.OnPush,

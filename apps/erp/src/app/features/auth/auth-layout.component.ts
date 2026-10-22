@@ -1,21 +1,21 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { TenantService } from '../../core/tenant.service';
 
-/** Marco de las pantallas de acceso (BC-01 a BC-04): panel de marca + formulario. */
+/** Frame for the access screens (BC-01 to BC-04): brand panel + form. */
 @Component({
   selector: 'rs-auth-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <aside class="brand-panel">
       <div class="logo">
-        <span>{{ tenant.nombre() }}</span>
+        <span>{{ tenant.name() }}</span>
         <span class="bar" aria-hidden="true"></span>
       </div>
       <div class="claim">
         <p class="rs-eyebrow">Sistema de gestión</p>
         <h2>Inventario, ventas y facturación en un solo lugar.</h2>
       </div>
-      <p class="foot">© {{ year }} {{ tenant.nombre() }}</p>
+      <p class="foot">© {{ year }} {{ tenant.name() }}</p>
     </aside>
     <main class="form-panel">
       <div class="form-wrap"><ng-content /></div>

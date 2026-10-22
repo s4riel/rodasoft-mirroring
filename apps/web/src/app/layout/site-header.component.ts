@@ -2,21 +2,21 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { IconComponent } from '@rodasoft/ui';
 
-/** Site/Header: enlaces a la izquierda, logotipo centrado, búsqueda, carrito y cuenta a la derecha. */
+/** Site/Header: links on the left, centered logo, search, cart and account on the right. */
 @Component({
   selector: 'rs-site-header',
   imports: [RouterLink, RouterLinkActive, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <a class="skip" href="#contenido">Saltar al contenido</a>
+    <a class="skip" href="#main-content">Saltar al contenido</a>
     <div class="bar rs-container">
       <nav aria-label="Principal">
         @for (l of links; track l.path) {
           <a [routerLink]="l.path" routerLinkActive="active">{{ l.label }}</a>
         }
       </nav>
-      <a class="logo" routerLink="/" [attr.aria-label]="marca() + ', inicio'">
-        <span>{{ marca() }}</span><span class="logo-bar" aria-hidden="true"></span>
+      <a class="logo" routerLink="/" [attr.aria-label]="brand() + ', inicio'">
+        <span>{{ brand() }}</span><span class="logo-bar" aria-hidden="true"></span>
       </a>
       <div class="tools">
         <a routerLink="/productos" aria-label="Buscar por código de rodamiento"><rs-icon name="search" /></a>
@@ -43,13 +43,13 @@ import { IconComponent } from '@rodasoft/ui';
     .skip { position: absolute; left: -999px; } .skip:focus { left: 16px; top: 12px; background: var(--bg-surface); padding: 8px 12px; border-radius: 8px; }
     @media (max-width: 960px) {
       .bar { grid-template-columns: auto 1fr; }
-      nav { display: none; } /* S3: barra inferior fija en móvil (plantillas móviles de Figma) */
+      nav { display: none; } /* S3: fixed bottom bar on mobile (Figma mobile templates) */
       .logo { justify-items: start; }
     }
   `,
 })
 export class SiteHeaderComponent {
-  readonly marca = input('Rodalaser');
+  readonly brand = input('Rodalaser');
   protected readonly links = [
     { path: '/productos', label: 'Productos' },
     { path: '/marcas', label: 'Marcas' },

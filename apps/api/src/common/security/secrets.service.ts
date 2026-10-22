@@ -4,8 +4,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import type { Env } from '../../config/env';
 
 /**
- * Cifrado AES-256-GCM para secretos guardados en BD (token SIAT, .p12 de firma y su contraseña).
- * Formato: v1.<iv>.<tag>.<datos> en base64url. La clave vive solo en SECRETS_KEY.
+ * AES-256-GCM encryption for secrets stored in the DB (SIAT token, signing .p12 and its password).
+ * Format: v1.<iv>.<tag>.<data> in base64url. The key lives only in SECRETS_KEY.
  */
 @Injectable()
 export class SecretsService {
@@ -13,9 +13,9 @@ export class SecretsService {
 
   private key(): Buffer {
     const raw = this.config.get('SECRETS_KEY', { infer: true });
-    if (!raw) throw new InternalServerErrorException('SECRETS_KEY no está configurada');
+    if (!raw) throw new InternalServerErrorException('SECRETS_KEY is not configured');
     const key = Buffer.from(raw, 'base64');
-    if (key.length !== 32) throw new InternalServerErrorException('SECRETS_KEY debe ser de 32 bytes (base64)');
+    if (key.length !== 32) throw new InternalServerErrorException('SECRETS_KEY must be 32 bytes (base64)');
     return key;
   }
 
@@ -29,7 +29,7 @@ export class SecretsService {
 
   decrypt(payload: string): Buffer {
     const [v, iv, tag, data] = payload.split('.');
-    if (v !== 'v1') throw new InternalServerErrorException('Formato de secreto desconocido');
+    if (v !== 'v1') throw new InternalServerErrorException('Unknown secret format');
     const decipher = createDecipheriv('aes-256-gcm', this.key(), Buffer.from(iv, 'base64url'));
     decipher.setAuthTag(Buffer.from(tag, 'base64url'));
     return Buffer.concat([decipher.update(Buffer.from(data, 'base64url')), decipher.final()]);

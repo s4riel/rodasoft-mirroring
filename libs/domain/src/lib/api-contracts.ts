@@ -1,29 +1,29 @@
-/** Contratos compartidos API ↔ ERP que no dependen del cliente generado por OpenAPI. */
-import type { EmpresaContexto, SucursalContexto } from './tenancy';
+/** API <-> ERP contracts that do not depend on the OpenAPI-generated client. */
+import type { BranchContext, CompanyContext } from './tenancy';
 import type { Permission } from './permissions';
 
-export interface UsuarioActual {
+export interface CurrentUser {
   id: string;
   email: string;
-  nombre: string;
+  name: string;
   avatarUrl: string | null;
 }
 
-export interface SesionResponse {
+export interface SessionResponse {
   accessToken: string;
   expiresIn: number;
-  usuario: UsuarioActual;
+  user: CurrentUser;
 }
 
-export interface ContextoResponse {
-  usuario: UsuarioActual;
-  empresa: EmpresaContexto;
-  sucursales: SucursalContexto[];
-  rol: { clave: string; nombre: string };
-  permisos: Permission[];
+export interface ContextResponse {
+  user: CurrentUser;
+  company: CompanyContext;
+  branches: BranchContext[];
+  role: { key: string; name: string };
+  permissions: Permission[];
 }
 
-/** Forma única de error de la API (ver ProblemFilter en apps/api). */
+/** Single error shape of the API (see ProblemFilter in apps/api). */
 export interface ApiProblem {
   status: number;
   code: string;

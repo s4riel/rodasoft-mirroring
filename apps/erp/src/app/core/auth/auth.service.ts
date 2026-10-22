@@ -1,16 +1,16 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import type { SesionResponse, UsuarioActual } from '@rodasoft/domain';
+import type { SessionResponse, CurrentUser } from '@rodasoft/domain';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ContextStore } from '../context.store';
 import { TenantService } from '../tenant.service';
 
 /**
- * Sesión del ERP.
- * - El token de acceso vive solo en memoria (no en localStorage).
- * - La cookie httpOnly de refresh la maneja el navegador; al recargar se llama a /auth/refresh.
+ * ERP session.
+ * - The access token lives only in memory (not in localStorage).
+ * - The httpOnly refresh cookie is handled by the browser; on reload /auth/refresh is called.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -20,7 +20,7 @@ export class AuthService {
   private readonly context = inject(ContextStore);
 
   private readonly token = signal<string | null>(null);
-  readonly usuario = signal<UsuarioActual | null>(null);
+  readonly user = signal<CurrentUser | null>(null);
   readonly isAuthenticated = computed(() => !!this.token());
   private refreshing: Promise<boolean> | null = null;
 
@@ -29,21 +29,21 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<void> {
-    const s = await firstValueFrom(this.http.post<SesionResponse>('/api/v1/auth/login', { email, password }));
+    const s = await firstValueFrom(this.http.post<SessionResponse>('/api/v1/auth/login', { email, password }));
     await this.start(s);
   }
 
   async exchangeGoogleCode(code: string): Promise<void> {
-    const s = await firstValueFrom(this.http.post<SesionResponse>('/api/v1/auth/google/exchange', { code }));
+    const s = await firstValueFrom(this.http.post<SessionResponse>('/api/v1/auth/google/exchange', { code }));
     await this.start(s);
   }
 
-  /** Navegación completa a la API → Google → API → /auth/callback del ERP. */
+  /** Full-page navigation to the API → Google → API → the ERP's /auth/callback. */
   googleLoginUrl(): string {
-    return `${environment.apiPublicUrl}/api/v1/auth/google?empresa=${encodeURIComponent(this.tenant.slug)}`;
+    return `${environment.apiPublicUrl}/api/v1/auth/google?company=${encodeURIComponent(this.tenant.slug)}`;
   }
 
-  /** Renueva la sesión con la cookie. Una sola solicitud aunque varias llamadas fallen a la vez. */
+  /** Renews the session with the cookie. A single request even if several calls fail at once. */
   refresh(): Promise<boolean> {
     this.refreshing ??= this.postRefresh()
       .then(async (s) => {
@@ -58,9 +58,9 @@ export class AuthService {
     return this.refreshing;
   }
 
-  /** 409 REFRESH_CONCURRENTE = otra pestaña ya renovó la cookie: reintentar una vez con la cookie nueva. */
-  private async postRefresh(): Promise<SesionResponse> {
-    const call = () => firstValueFrom(this.http.post<SesionResponse>('/api/v1/auth/refresh', {}));
+  /** 409 CONCURRENT_REFRESH = another tab already renewed the cookie: retry once with the new cookie. */
+  private async postRefresh(): Promise<SessionResponse> {
+    const call = () => firstValueFrom(this.http.post<SessionResponse>('/api/v1/auth/refresh', {}));
     try {
       return await call();
     } catch (e) {
@@ -78,17 +78,17 @@ export class AuthService {
     await this.router.navigate(['/login']);
   }
 
-  solicitarRecuperacion(email: string) {
-    return firstValueFrom(this.http.post<void>('/api/v1/auth/recuperar', { email }));
+  requestPasswordReset(email: string) {
+    return firstValueFrom(this.http.post<void>('/api/v1/auth/forgot-password', { email }));
   }
 
-  restablecer(token: string, password: string) {
-    return firstValueFrom(this.http.post<void>('/api/v1/auth/restablecer', { token, password }));
+  resetPassword(token: string, password: string) {
+    return firstValueFrom(this.http.post<void>('/api/v1/auth/reset-password', { token, password }));
   }
 
-  private async start(s: SesionResponse) {
+  private async start(s: SessionResponse) {
     this.token.set(s.accessToken);
-    this.usuario.set(s.usuario);
+    this.user.set(s.user);
     try {
       await this.context.load();
     } catch (e) {
@@ -99,7 +99,7 @@ export class AuthService {
 
   private clear() {
     this.token.set(null);
-    this.usuario.set(null);
+    this.user.set(null);
     this.context.reset();
   }
 }

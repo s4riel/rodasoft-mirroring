@@ -8,9 +8,9 @@ export interface GoogleUser {
   sub: string;
   email: string;
   emailVerified: boolean;
-  nombre: string;
+  name: string;
   avatarUrl: string | null;
-  /** dominio de Google Workspace (vacío en cuentas @gmail.com) */
+  /** Google Workspace domain (empty for @gmail.com accounts) */
   hd: string | null;
 }
 
@@ -18,13 +18,13 @@ export interface GoogleUser {
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(config: ConfigService<Env, true>) {
     const options: StrategyOptions = {
-      // si no hay credenciales, el guard responde 503 antes de llegar aquí
-      clientID: config.get('GOOGLE_CLIENT_ID') || 'no-configurado',
-      clientSecret: config.get('GOOGLE_CLIENT_SECRET') || 'no-configurado',
+      // without credentials, the guard answers 503 before getting here
+      clientID: config.get('GOOGLE_CLIENT_ID') || 'not-configured',
+      clientSecret: config.get('GOOGLE_CLIENT_SECRET') || 'not-configured',
       callbackURL: config.get('GOOGLE_CALLBACK_URL'),
       scope: ['openid', 'email', 'profile'],
     };
-    // @nestjs/passport 11 tipa el constructor con la última sobrecarga (con request); estas opciones son la otra
+    // @nestjs/passport 11 types the constructor with the last overload (with request); these options are the other one
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     super(options as any);
   }
@@ -35,7 +35,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       sub: profile.id,
       email: (profile.emails?.[0]?.value ?? json['email'] ?? '').toLowerCase(),
       emailVerified: json['email_verified'] === true || json['email_verified'] === 'true',
-      nombre: profile.displayName ?? json['name'] ?? '',
+      name: profile.displayName ?? json['name'] ?? '',
       avatarUrl: profile.photos?.[0]?.value ?? null,
       hd: json['hd'] ?? null,
     };

@@ -1,10 +1,7 @@
+// @rodasoft/ui — Angular implementation of the Figma Design System (see docs/ui-library.md)
 export * from './lib/icon/icons';
 export * from './lib/icon/icon.component';
-export * from './lib/button/button.component';
-export * from './lib/status-pill/status-pill.component';
-export * from './lib/note/note.component';
-export * from './lib/field/field.component';
-export * from './lib/page-header/page-header.component';
-export * from './lib/sidebar/sidebar.component';
-export * from './lib/context-bar/context-bar.component';
+export * from './lib/actions-forms';
+export * from './lib/selection-feedback';
+export * from './lib/navigation-content';
 export * from './lib/can/can.directive';

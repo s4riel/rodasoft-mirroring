@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { ButtonComponent, IconComponent } from '@rodasoft/ui';
 import { BearingHeroComponent } from './bearing-hero.component';
 
-/** Inicio: producto como héroe (estilo Apple), cifras grandes y ritmo de secciones blanco / gris / negro. */
+/** Home: product as hero (Apple style), big numbers and a white / gray / black section rhythm. */
 @Component({
   selector: 'rs-home-page',
   imports: [RouterLink, ButtonComponent, IconComponent, BearingHeroComponent],
@@ -58,7 +58,7 @@ import { BearingHeroComponent } from './bearing-hero.component';
   `,
 })
 export class HomePage {
-  // Cifras PROVISIONALES: confirmar con el cliente (Fase 0)
+  // PROVISIONAL figures: confirm with the client (Phase 0)
   protected readonly stats = [
     { value: '3', label: 'sucursales en Cochabamba' },
     { value: '5', label: 'marcas importadas' },

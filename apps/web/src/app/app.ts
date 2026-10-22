@@ -9,9 +9,9 @@ import { SiteHeaderComponent } from './layout/site-header.component';
   imports: [RouterOutlet, SiteHeaderComponent, SiteFooterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <rs-site-header [marca]="brand.brand.nombre" />
-    <main id="contenido"><router-outlet /></main>
-    <rs-site-footer [marca]="brand.brand.nombre" />
+    <rs-site-header [brand]="brand.brand.name" />
+    <main id="main-content"><router-outlet /></main>
+    <rs-site-footer [brand]="brand.brand.name" />
   `,
 })
 export class App {

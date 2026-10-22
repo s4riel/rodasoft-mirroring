@@ -4,15 +4,15 @@ import { ClsService } from 'nestjs-cls';
 import type { AppClsStore } from '../cls';
 import { tenantExtension } from './tenant.extension';
 
-const createTenantClient = (base: PrismaClient, getEmpresaId: () => string | null | undefined) =>
-  base.$extends(tenantExtension(getEmpresaId));
+const createTenantClient = (base: PrismaClient, getCompanyId: () => string | null | undefined) =>
+  base.$extends(tenantExtension(getCompanyId));
 
 export type TenantClient = ReturnType<typeof createTenantClient>;
 
 /**
- * - `prisma.<modelo>`: acceso sin filtro (auth, seed, tareas del sistema). Usar con cuidado.
- * - `prisma.tenant.<modelo>`: acceso filtrado por la empresa de la solicitud. Es el que usan los módulos.
- * La conexión es perezosa: no se abre hasta la primera consulta (permite exportar OpenAPI sin BD).
+ * - `prisma.<model>`: unfiltered access (auth, seed, system tasks). Use with care.
+ * - `prisma.tenant.<model>`: access filtered by the request's company. This is what modules use.
+ * The connection is lazy: it is not opened until the first query (allows exporting OpenAPI without a DB).
  */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
@@ -20,7 +20,7 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
 
   constructor(private readonly cls: ClsService<AppClsStore>) {
     super({ log: process.env['NODE_ENV'] === 'development' ? ['warn', 'error'] : ['error'] });
-    this.tenant = createTenantClient(this, () => this.cls.get('empresaId'));
+    this.tenant = createTenantClient(this, () => this.cls.get('companyId'));
   }
 
   async onModuleDestroy() {

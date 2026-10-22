@@ -1,37 +1,37 @@
 import { DOCUMENT } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
-import { BrandMode, empresaSlugFromHost } from '@rodasoft/domain';
+import { BrandMode, companySlugFromHost } from '@rodasoft/domain';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-interface EmpresaPublica {
+interface PublicCompany {
   slug: string;
-  nombreComercial: string;
+  tradeName: string;
   brand: BrandMode;
 }
 
 /**
- * Empresa activa = subdominio de la URL (rodalaser.localhost, empresa2.erp.<dominio>).
- * No hay selector de empresa: para cambiar de empresa se abre la otra URL.
+ * Active company = URL subdomain (rodalaser.localhost, company2.erp.<domain>).
+ * There is no company selector: to switch company, open the other URL.
  */
 @Injectable({ providedIn: 'root' })
 export class TenantService {
   private readonly http = inject(HttpClient);
   private readonly document = inject(DOCUMENT);
 
-  readonly slug = empresaSlugFromHost(this.document.location.hostname) ?? environment.defaultEmpresa;
-  readonly nombre = signal('Rodalaser');
+  readonly slug = companySlugFromHost(this.document.location.hostname) ?? environment.defaultCompany;
+  readonly name = signal('Rodalaser');
   readonly brand = signal<BrandMode>('rodalaser');
 
   async init(): Promise<void> {
     try {
-      const e = await firstValueFrom(this.http.get<EmpresaPublica>(`/api/v1/empresas/${this.slug}/publico`));
-      this.nombre.set(e.nombreComercial);
-      this.setBrand(e.brand);
+      const c = await firstValueFrom(this.http.get<PublicCompany>(`/api/v1/companies/${this.slug}/public`));
+      this.name.set(c.tradeName);
+      this.setBrand(c.brand);
     } catch {
-      // API caída o empresa inexistente: se muestra la marca por defecto y el login informará el error
-      this.setBrand(this.slug === 'empresa2' ? 'empresa2' : 'rodalaser');
+      // API down or unknown company: show the default brand; the login screen will report the error
+      this.setBrand(this.slug === 'company2' ? 'company2' : 'rodalaser');
     }
   }
 

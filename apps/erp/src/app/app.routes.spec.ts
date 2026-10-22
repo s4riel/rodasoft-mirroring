@@ -1,17 +1,17 @@
 import { routes } from './app.routes';
 
-describe('rutas del ERP', () => {
-  it('protege el shell con authGuard y expone las pantallas de acceso', () => {
+describe('ERP routes', () => {
+  it('guards the shell with authGuard and exposes the access screens', () => {
     const shell = routes.find((r) => r.path === '' && r.children);
     expect(shell?.canActivate?.length).toBe(1);
     expect(routes.map((r) => r.path)).toEqual(
-      expect.arrayContaining(['login', 'recuperar', 'recuperar/restablecer', 'auth/callback']),
+      expect.arrayContaining(['login', 'forgot-password', 'reset-password', 'auth/callback']),
     );
   });
 
-  it('tiene una ruta por cada ítem del menú', () => {
+  it('has one route per menu item', () => {
     const children = routes.find((r) => r.path === '' && r.children)?.children?.map((c) => c.path) ?? [];
-    for (const p of ['', 'ventas', 'facturacion', 'inventario', 'compras', 'crm', 'contabilidad', 'tienda', 'reportes', 'configuracion']) {
+    for (const p of ['', 'sales', 'invoicing', 'inventory', 'purchasing', 'crm', 'accounting', 'store', 'reports', 'settings']) {
       expect(children).toContain(p);
     }
   });

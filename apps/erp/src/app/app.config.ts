@@ -30,7 +30,7 @@ export const appConfig: ApplicationConfig = {
     ),
     provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
     { provide: LOCALE_ID, useValue: 'es-BO' },
-    { provide: RS_PERMISSIONS, useFactory: () => inject(ContextStore).permisos },
+    { provide: RS_PERMISSIONS, useFactory: () => inject(ContextStore).permissions },
     provideAppInitializer(() => inject(TenantService).init()),
   ],
 };

@@ -1,77 +1,78 @@
 /**
- * Catálogo de permisos del ERP. Formato `<modulo>.<recurso>.<accion>`.
- * La fuente de verdad es este archivo: el seed los inserta en BD, el backend los exige
- * con @RequirePermissions() y el ERP oculta botones con *rsCan.
+ * ERP permission catalog. Key format: `<module>.<resource>.<action>`.
+ * This file is the source of truth: the seed inserts the keys into the DB, the backend enforces
+ * them with @RequirePermissions() and the ERP hides actions with *rsCan.
+ * Values are the Spanish labels shown in the Roles screen (UI content).
  */
 export const PERMISSIONS = {
-  // Base común / configuración
-  'config.empresa.ver': 'Ver datos de la empresa',
-  'config.empresa.editar': 'Editar datos de la empresa',
-  'config.usuarios.ver': 'Ver usuarios',
-  'config.usuarios.gestionar': 'Invitar, desactivar y asignar roles',
-  'config.roles.gestionar': 'Crear y editar roles',
-  'config.sucursales.gestionar': 'Gestionar sucursales y almacenes',
-  'auditoria.ver': 'Ver registro de auditoría',
+  // Settings and audit
+  'settings.company.view': 'Ver datos de la empresa',
+  'settings.company.edit': 'Editar datos de la empresa',
+  'settings.users.view': 'Ver usuarios',
+  'settings.users.manage': 'Invitar, desactivar y asignar roles',
+  'settings.roles.manage': 'Crear y editar roles',
+  'settings.branches.manage': 'Gestionar sucursales y almacenes',
+  'audit.view': 'Ver registro de auditoría',
 
-  // Inventario
-  'inventario.productos.ver': 'Ver productos y stock',
-  'inventario.productos.editar': 'Crear y editar productos',
-  'inventario.costos.ver': 'Ver costos',
-  'inventario.ajustes.crear': 'Registrar ajustes de inventario',
-  'inventario.ajustes.aprobar': 'Aprobar ajustes de inventario',
-  'inventario.transferencias.crear': 'Crear transferencias',
-  'inventario.transferencias.aprobar': 'Aprobar transferencias sobre el límite',
-  'inventario.transferencias.recibir': 'Recibir transferencias',
-  'inventario.importar': 'Importar productos desde Excel',
+  // Inventory
+  'inventory.products.view': 'Ver productos y stock',
+  'inventory.products.edit': 'Crear y editar productos',
+  'inventory.costs.view': 'Ver costos',
+  'inventory.adjustments.create': 'Registrar ajustes de inventario',
+  'inventory.adjustments.approve': 'Aprobar ajustes de inventario',
+  'inventory.transfers.create': 'Crear transferencias',
+  'inventory.transfers.approve': 'Aprobar transferencias sobre el límite',
+  'inventory.transfers.receive': 'Recibir transferencias',
+  'inventory.import': 'Importar productos desde Excel',
 
-  // Ventas y POS
-  'ventas.pos.usar': 'Vender en el punto de venta',
-  'ventas.caja.abrir': 'Abrir y cerrar caja',
-  'ventas.caja.revisar': 'Revisar diferencias de caja',
-  'ventas.cotizaciones.gestionar': 'Gestionar cotizaciones',
-  'ventas.pedidos.gestionar': 'Gestionar pedidos',
-  'ventas.descuentos.aplicar': 'Aplicar descuentos dentro del límite del rol',
-  'ventas.descuentos.aprobar': 'Aprobar descuentos fuera del límite',
-  'ventas.anulaciones.solicitar': 'Solicitar anulación de una venta',
-  'ventas.anulaciones.aprobar': 'Aprobar anulaciones',
-  'ventas.devoluciones.gestionar': 'Registrar devoluciones',
-  'ventas.precios.editar': 'Editar precios',
+  // Sales and POS
+  'sales.pos.use': 'Vender en el punto de venta',
+  'sales.cash-register.open': 'Abrir y cerrar caja',
+  'sales.cash-register.review': 'Revisar diferencias de caja',
+  'sales.quotes.manage': 'Gestionar cotizaciones',
+  'sales.orders.manage': 'Gestionar pedidos',
+  'sales.discounts.apply': 'Aplicar descuentos dentro del límite del rol',
+  'sales.discounts.approve': 'Aprobar descuentos fuera del límite',
+  'sales.cancellations.request': 'Solicitar anulación de una venta',
+  'sales.cancellations.approve': 'Aprobar anulaciones',
+  'sales.returns.manage': 'Registrar devoluciones',
+  'sales.prices.edit': 'Editar precios',
 
-  // Facturación SIAT
-  'facturacion.facturas.ver': 'Ver facturas',
-  'facturacion.facturas.emitir': 'Emitir facturas',
-  'facturacion.notas.emitir': 'Emitir notas de crédito y débito',
-  'facturacion.contingencia.gestionar': 'Activar contingencia y regularizar',
-  'facturacion.excepcion-nit.aprobar': 'Aprobar emisión con excepción de NIT',
-  'facturacion.configuracion.gestionar': 'Firma, credenciales, puntos de venta y homologación',
-  'facturacion.libros.ver': 'Ver libros IVA',
-  'facturacion.libros.cerrar': 'Cerrar períodos',
+  // SIAT invoicing
+  'invoicing.invoices.view': 'Ver facturas',
+  'invoicing.invoices.issue': 'Emitir facturas',
+  'invoicing.notes.issue': 'Emitir notas de crédito y débito',
+  'invoicing.contingency.manage': 'Activar contingencia y regularizar',
+  'invoicing.nit-exception.approve': 'Aprobar emisión con excepción de NIT',
+  'invoicing.settings.manage': 'Firma, credenciales, puntos de venta y homologación',
+  'invoicing.vat-books.view': 'Ver libros IVA',
+  'invoicing.vat-books.close': 'Cerrar períodos',
 
-  // Compras
-  'compras.proveedores.gestionar': 'Gestionar proveedores',
-  'compras.ordenes.crear': 'Crear órdenes de compra',
-  'compras.ordenes.aprobar': 'Aprobar órdenes de compra',
-  'compras.recepcion.registrar': 'Registrar recepciones',
-  'compras.importaciones.gestionar': 'Gestionar importaciones y prorrateo',
-  'compras.facturas.registrar': 'Registrar facturas de compra',
-  'compras.pagos.gestionar': 'Programar y registrar pagos',
+  // Purchasing
+  'purchasing.suppliers.manage': 'Gestionar proveedores',
+  'purchasing.orders.create': 'Crear órdenes de compra',
+  'purchasing.orders.approve': 'Aprobar órdenes de compra',
+  'purchasing.receipts.record': 'Registrar recepciones',
+  'purchasing.imports.manage': 'Gestionar importaciones y prorrateo',
+  'purchasing.invoices.record': 'Registrar facturas de compra',
+  'purchasing.payments.manage': 'Programar y registrar pagos',
 
   // CRM
-  'crm.clientes.ver': 'Ver clientes',
-  'crm.clientes.gestionar': 'Crear y editar clientes',
-  'crm.creditos.aprobar': 'Aprobar líneas de crédito',
-  'crm.oportunidades.gestionar': 'Gestionar oportunidades y seguimiento',
+  'crm.customers.view': 'Ver clientes',
+  'crm.customers.manage': 'Crear y editar clientes',
+  'crm.credit.approve': 'Aprobar líneas de crédito',
+  'crm.opportunities.manage': 'Gestionar oportunidades y seguimiento',
 
-  // Contabilidad
-  'contabilidad.asientos.ver': 'Ver asientos y libros',
-  'contabilidad.asientos.crear': 'Registrar asientos manuales',
-  'contabilidad.bancos.conciliar': 'Conciliar bancos',
-  'contabilidad.cierres.gestionar': 'Cerrar períodos contables',
+  // Accounting
+  'accounting.entries.view': 'Ver asientos y libros',
+  'accounting.entries.create': 'Registrar asientos manuales',
+  'accounting.banks.reconcile': 'Conciliar bancos',
+  'accounting.closings.manage': 'Cerrar períodos contables',
 
-  // Tienda y reportes
-  'tienda.pedidos.gestionar': 'Gestionar pedidos en línea',
-  'tienda.contenido.gestionar': 'Gestionar catálogo y contenido web',
-  'reportes.ver': 'Ver reportes',
+  // Store and reports
+  'store.orders.manage': 'Gestionar pedidos en línea',
+  'store.content.manage': 'Gestionar catálogo y contenido web',
+  'reports.view': 'Ver reportes',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -80,45 +81,45 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
 const byPrefix = (...prefixes: string[]): Permission[] =>
   ALL_PERMISSIONS.filter((p) => prefixes.some((prefix) => p.startsWith(prefix)));
 
-/** Roles iniciales (se pueden editar en Configuración → Roles). Pendiente de validar con el cliente. */
-export const DEFAULT_ROLES: Record<string, { nombre: string; permisos: Permission[] }> = {
-  admin: { nombre: 'Administrador', permisos: ALL_PERMISSIONS },
-  gerencia: {
-    nombre: 'Gerencia',
-    permisos: ALL_PERMISSIONS.filter((p) => !p.startsWith('config.roles')),
+/** Default roles (editable in Settings → Roles). Pending validation with the client. `name` is the Spanish display name. */
+export const DEFAULT_ROLES: Record<string, { name: string; permissions: Permission[] }> = {
+  admin: { name: 'Administrador', permissions: ALL_PERMISSIONS },
+  management: {
+    name: 'Gerencia',
+    permissions: ALL_PERMISSIONS.filter((p) => !p.startsWith('settings.roles')),
   },
-  cajero: {
-    nombre: 'Cajero',
-    permisos: [
-      'inventario.productos.ver',
-      'ventas.pos.usar',
-      'ventas.caja.abrir',
-      'ventas.cotizaciones.gestionar',
-      'ventas.pedidos.gestionar',
-      'ventas.descuentos.aplicar',
-      'ventas.anulaciones.solicitar',
-      'ventas.devoluciones.gestionar',
-      'facturacion.facturas.ver',
-      'facturacion.facturas.emitir',
-      'crm.clientes.ver',
+  cashier: {
+    name: 'Cajero',
+    permissions: [
+      'inventory.products.view',
+      'sales.pos.use',
+      'sales.cash-register.open',
+      'sales.quotes.manage',
+      'sales.orders.manage',
+      'sales.discounts.apply',
+      'sales.cancellations.request',
+      'sales.returns.manage',
+      'invoicing.invoices.view',
+      'invoicing.invoices.issue',
+      'crm.customers.view',
     ],
   },
-  almacen: {
-    nombre: 'Almacén',
-    permisos: ([...byPrefix('inventario.'), 'compras.recepcion.registrar'] as Permission[]).filter(
-      (p) => !['inventario.costos.ver', 'inventario.ajustes.aprobar', 'inventario.transferencias.aprobar'].includes(p),
+  warehouse: {
+    name: 'Almacén',
+    permissions: ([...byPrefix('inventory.'), 'purchasing.receipts.record'] as Permission[]).filter(
+      (p) => !['inventory.costs.view', 'inventory.adjustments.approve', 'inventory.transfers.approve'].includes(p),
     ),
   },
-  contador: {
-    nombre: 'Contador',
-    permisos: [
-      ...byPrefix('contabilidad.', 'facturacion.'),
-      'compras.facturas.registrar',
-      'compras.pagos.gestionar',
-      'ventas.caja.revisar',
-      'inventario.productos.ver',
-      'inventario.costos.ver',
-      'reportes.ver',
+  accountant: {
+    name: 'Contador',
+    permissions: [
+      ...byPrefix('accounting.', 'invoicing.'),
+      'purchasing.invoices.record',
+      'purchasing.payments.manage',
+      'sales.cash-register.review',
+      'inventory.products.view',
+      'inventory.costs.view',
+      'reports.view',
     ],
   },
 };

@@ -1,7 +1,7 @@
 import { HttpErrorResponse, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { EMPRESA_HEADER } from '@rodasoft/domain';
+import { COMPANY_HEADER } from '@rodasoft/domain';
 import { catchError, from, switchMap, throwError } from 'rxjs';
 import { SKIP_AUTH_RETRY } from './http-context';
 import { TenantService } from '../tenant.service';
@@ -10,7 +10,7 @@ import { AuthService } from './auth.service';
 const isApi = (req: HttpRequest<unknown>) => req.url.startsWith('/api/');
 const isAuthEndpoint = (req: HttpRequest<unknown>) => req.url.startsWith('/api/v1/auth/');
 
-/** Agrega empresa y token; ante un 401 renueva la sesión una vez y reintenta. */
+/** Adds the company and token; on a 401 it renews the session once and retries. */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   if (!isApi(req)) return next(req);
   const auth = inject(AuthService);
@@ -20,7 +20,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const withHeaders = (r: HttpRequest<unknown>) => {
     const token = auth.accessToken();
     return r.clone({
-      setHeaders: { [EMPRESA_HEADER]: tenant.slug, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      setHeaders: { [COMPANY_HEADER]: tenant.slug, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
   };
 
@@ -37,7 +37,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       return from(auth.refresh()).pipe(
         switchMap((ok) => {
           if (ok) return next(withHeaders(req));
-          void router.navigate(['/login'], { queryParams: { error: 'SESION_INVALIDA', returnUrl: router.url } });
+          void router.navigate(['/login'], { queryParams: { error: 'INVALID_SESSION', returnUrl: router.url } });
           return throwError(() => err);
         }),
       );

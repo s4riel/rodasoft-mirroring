@@ -8,8 +8,8 @@ import express from 'express';
 import { join } from 'node:path';
 
 /**
- * Servidor SSR del sitio y la tienda. Un solo despliegue atiende las dos marcas:
- * la marca se decide por el Host (BrandService), por eso las páginas se renderizan por solicitud.
+ * SSR server for the site and the store. A single deployment serves both brands:
+ * the brand is decided by the Host (BrandService), so pages are rendered per request.
  */
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -39,7 +39,7 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const port = process.env['PORT'] || 4000;
   app.listen(port, (error?: Error) => {
     if (error) throw error;
-    console.log(`Sitio web (SSR) en http://localhost:${port}`);
+    console.log(`Web site (SSR) listening on http://localhost:${port}`);
   });
 }
 

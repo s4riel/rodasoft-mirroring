@@ -1,25 +1,25 @@
-# Spike SIAT (S0)
+# SIAT spike (S0)
 
-Prueba de punta a punta contra el **ambiente piloto** del SIN antes de construir Facturación.
+End-to-end test against the SIN **pilot environment** before building Invoicing.
 
-## Requisitos (los entrega el cliente / el contador)
-1. Sistema registrado en el SIAT en línea (Mis sistemas) para la modalidad **Electrónica en Línea** → `SIAT_CODIGO_SISTEMA`.
-2. **Token delegado** del ambiente piloto → `SIAT_TOKEN`.
-3. NIT de la empresa → `SIAT_NIT`; sucursal 0 y punto de venta 0 para empezar.
-4. Certificado de **firma digital** `.p12` y su contraseña (se copia a `./secrets/firma.p12`, carpeta ignorada por git).
+## Requirements (provided by the client / the accountant)
+1. System registered in the online SIAT (Mis sistemas) for the **Electronic Online** modality → `SIAT_SYSTEM_CODE`.
+2. **Delegated token** of the pilot environment → `SIAT_TOKEN`.
+3. Company NIT → `SIAT_NIT`; branch 0 and point of sale 0 to start (`SIAT_BRANCH_CODE`, `SIAT_POINT_OF_SALE_CODE`).
+4. **Digital signature** certificate `.p12` and its password (copied to `./secrets/firma.p12`, git-ignored folder).
 
-## Ejecutar
+## Run
 ```bash
-cp .env.example .env   # completar las variables SIAT_*
-pnpm siat:spike          # comunicación + CUIS + CUFD + CUF
-pnpm siat:spike --firmar # además firma un XML con el .p12
+cp .env.example .env   # fill in the SIAT_* variables
+pnpm siat:spike          # communication + CUIS + CUFD + CUF
+pnpm siat:spike --sign   # also signs an XML with the .p12
 ```
 
-## Criterio de "hecho"
-- [ ] `verificarComunicacion` responde `transaccion: true`.
-- [ ] Se obtiene CUIS y CUFD para el punto de venta 0.
-- [ ] Se firma un XML con la firma de la empresa.
-- [ ] (S1) `recepcionFactura` acepta una factura de compra-venta y `verificacionEstadoFactura` la devuelve válida.
-- [ ] Caso del ejemplo oficial del SIN agregado a `libs/siat/src/lib/cuf.spec.ts`.
+## Definition of done
+- [ ] `verificarComunicacion` answers `transaccion: true`.
+- [ ] A CUIS and a CUFD are obtained for point of sale 0.
+- [ ] An XML is signed with the company's signature.
+- [ ] (S1) `recepcionFactura` accepts a purchase-sale invoice and `verificacionEstadoFactura` returns it as valid.
+- [ ] The SIN's official example case is added to `libs/siat/src/lib/cuf.spec.ts`.
 
-> Las URLs, los nombres de métodos y los parámetros de firma salen de la especificación técnica del SIN; si el SIN publica una versión nueva, ajustar `libs/siat` y sus pruebas.
+> URLs, method names and signature parameters come from the SIN technical specification; if the SIN publishes a new version, adjust `libs/siat` and its tests.

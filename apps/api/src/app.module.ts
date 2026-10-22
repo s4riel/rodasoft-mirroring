@@ -14,7 +14,7 @@ import { PermissionsGuard } from './modules/access/permissions.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
-import { resolveEmpresaSlug } from './modules/tenancy/tenant-resolver';
+import { resolveCompanySlug } from './modules/tenancy/tenant-resolver';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 import { TenantGuard } from './modules/tenancy/tenant.guard';
 
@@ -35,10 +35,10 @@ import { TenantGuard } from './modules/tenancy/tenant.guard';
         mount: true,
         setup: (cls, req) => {
           const c = cls as unknown as import('nestjs-cls').ClsService<AppClsStore>;
-          c.set('empresaSlug', resolveEmpresaSlug(req));
-          c.set('empresaId', null);
-          c.set('usuarioId', null);
-          c.set('membresiaId', null);
+          c.set('companySlug', resolveCompanySlug(req));
+          c.set('companyId', null);
+          c.set('userId', null);
+          c.set('membershipId', null);
           c.set('ip', (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null);
           c.set('userAgent', (req.headers['user-agent'] as string) ?? null);
         },
@@ -52,7 +52,7 @@ import { TenantGuard } from './modules/tenancy/tenant.guard';
     HealthModule,
   ],
   providers: [
-    // orden: límite de solicitudes → token → empresa → permisos
+    // order: rate limit -> token -> company -> permissions
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useExisting: JwtAuthGuard },
     { provide: APP_GUARD, useExisting: TenantGuard },

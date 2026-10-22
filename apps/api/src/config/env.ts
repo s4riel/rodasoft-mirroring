@@ -13,7 +13,7 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
-  JWT_ACCESS_SECRET: z.string().min(16, 'JWT_ACCESS_SECRET debe tener al menos 16 caracteres'),
+  JWT_ACCESS_SECRET: z.string().min(16, 'JWT_ACCESS_SECRET must be at least 16 characters'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(7),
   COOKIE_DOMAIN: z.string().optional(),
@@ -23,7 +23,7 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().default(''),
   GOOGLE_CALLBACK_URL: z.string().default('http://localhost:3000/api/v1/auth/google/callback'),
   GOOGLE_ALLOWED_HD: z.string().default(''),
-  ERP_PUBLIC_URL: z.string().default('http://{empresa}.localhost:4200'),
+  ERP_PUBLIC_URL: z.string().default('http://{company}.localhost:4200'),
 
   SECRETS_KEY: z.string().default(''),
   SMTP_URL: z.string().default('smtp://localhost:1025'),
@@ -36,7 +36,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   const parsed = envSchema.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
-    throw new Error(`Variables de entorno inválidas:\n${issues}\nRevisa .env (copia de .env.example).`);
+    throw new Error(`Invalid environment variables:\n${issues}\nCheck .env (copy of .env.example).`);
   }
   return parsed.data;
 }

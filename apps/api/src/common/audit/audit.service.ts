@@ -5,13 +5,13 @@ import type { AppClsStore } from '../cls';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface AuditEntry {
-  accion: string;
-  entidad?: string;
-  entidadId?: string;
-  antes?: unknown;
-  despues?: unknown;
-  empresaId?: string | null;
-  usuarioId?: string | null;
+  action: string;
+  entity?: string;
+  entityId?: string;
+  before?: unknown;
+  after?: unknown;
+  companyId?: string | null;
+  userId?: string | null;
 }
 
 type Tx = Prisma.TransactionClient | PrismaService;
@@ -25,26 +25,26 @@ export class AuditService {
     private readonly cls: ClsService<AppClsStore>,
   ) {}
 
-  /** Registrar dentro de la transacción del cambio cuando sea posible (`tx`). */
+  /** Log inside the change's transaction whenever possible (`tx`). */
   async log(entry: AuditEntry, tx: Tx = this.prisma): Promise<void> {
     try {
       await tx.auditLog.create({
         data: {
-          accion: entry.accion,
-          entidad: entry.entidad,
-          entidadId: entry.entidadId,
-          antes: (entry.antes ?? undefined) as Prisma.InputJsonValue | undefined,
-          despues: (entry.despues ?? undefined) as Prisma.InputJsonValue | undefined,
-          empresaId: entry.empresaId ?? this.cls.get('empresaId'),
-          usuarioId: entry.usuarioId ?? this.cls.get('usuarioId'),
+          action: entry.action,
+          entity: entry.entity,
+          entityId: entry.entityId,
+          before: (entry.before ?? undefined) as Prisma.InputJsonValue | undefined,
+          after: (entry.after ?? undefined) as Prisma.InputJsonValue | undefined,
+          companyId: entry.companyId ?? this.cls.get('companyId'),
+          userId: entry.userId ?? this.cls.get('userId'),
           ip: this.cls.get('ip'),
           userAgent: this.cls.get('userAgent'),
         },
       });
     } catch (err) {
-      // la auditoría nunca debe tumbar una operación fuera de transacción
+      // auditing must never bring down an operation outside a transaction
       if (tx !== this.prisma) throw err;
-      this.logger.error(`No se pudo auditar ${entry.accion}`, err as Error);
+      this.logger.error(`Could not audit ${entry.action}`, err as Error);
     }
   }
 }

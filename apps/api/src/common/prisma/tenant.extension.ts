@@ -1,22 +1,22 @@
 import { Prisma } from '@prisma/client';
 
 /**
- * Modelos con columna empresa_id. Toda consulta a estos modelos hecha con `prisma.tenant`
- * se filtra por la empresa del contexto y las altas reciben empresaId automáticamente.
- * ⚠ Al crear un modelo de negocio nuevo, agregarlo aquí (tenant.extension.spec.ts falla si se olvida).
- * ⚠ En altas, usar claves foráneas planas (`sucursalId: …`), no `sucursal: { connect }`:
- *   Prisma no permite mezclar ambos estilos y la extensión agrega `empresaId` plano.
+ * Models with a company_id column. Every query on these models made through `prisma.tenant`
+ * is filtered by the context's company and creates receive companyId automatically.
+ * WARNING: when adding a new business model, add it here (tenant.extension.spec.ts fails if forgotten).
+ * WARNING: on creates, use flat foreign keys (`branchId: ...`), not `branch: { connect }`:
+ *   Prisma does not allow mixing both styles and the extension adds a flat `companyId`.
  */
 export const TENANT_MODELS = new Set<Prisma.ModelName>([
-  'Sucursal',
-  'Almacen',
-  'Membresia',
-  'Rol',
-  'PuntoVentaSiat',
+  'Branch',
+  'Warehouse',
+  'Membership',
+  'Role',
+  'SiatPointOfSale',
 ]);
 
-/** Modelos con empresa_id que se consultan SIN filtro a propósito (sistema / autenticación). */
-export const UNSCOPED_MODELS = new Set<string>(['AuditLog', 'OutboxEvent', 'RefreshToken', 'SiatConfiguracion', 'Empresa']);
+/** Models with company_id that are intentionally queried WITHOUT a filter (system / authentication). */
+export const UNSCOPED_MODELS = new Set<string>(['AuditLog', 'OutboxEvent', 'RefreshToken', 'SiatSettings', 'Company']);
 
 const WHERE_OPS = new Set([
   'findFirst',
@@ -37,27 +37,27 @@ const WHERE_OPS = new Set([
 
 export class MissingTenantError extends Error {
   constructor(model: string) {
-    super(`Consulta a ${model} sin empresa en el contexto (usar prisma.tenant dentro de una solicitud autenticada)`);
+    super(`Query on ${model} without a company in context (use prisma.tenant inside an authenticated request)`);
   }
 }
 
-export function tenantExtension(getEmpresaId: () => string | null | undefined) {
+export function tenantExtension(getCompanyId: () => string | null | undefined) {
   return Prisma.defineExtension({
     name: 'tenant-scope',
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
           if (!model || !TENANT_MODELS.has(model as Prisma.ModelName)) return query(args);
-          const empresaId = getEmpresaId();
-          if (!empresaId) throw new MissingTenantError(model);
+          const companyId = getCompanyId();
+          if (!companyId) throw new MissingTenantError(model);
           const a = (args ?? {}) as Record<string, any>;
-          if (WHERE_OPS.has(operation)) a.where = { ...(a.where ?? {}), empresaId };
-          if (operation === 'create') a.data = { ...(a.data ?? {}), empresaId };
+          if (WHERE_OPS.has(operation)) a.where = { ...(a.where ?? {}), companyId };
+          if (operation === 'create') a.data = { ...(a.data ?? {}), companyId };
           if (operation === 'createMany' || operation === 'createManyAndReturn') {
             const rows = Array.isArray(a.data) ? a.data : [a.data];
-            a.data = rows.map((r: object) => ({ ...r, empresaId }));
+            a.data = rows.map((r: object) => ({ ...r, companyId }));
           }
-          if (operation === 'upsert') a.create = { ...(a.create ?? {}), empresaId };
+          if (operation === 'upsert') a.create = { ...(a.create ?? {}), companyId };
           return query(a);
         },
       },

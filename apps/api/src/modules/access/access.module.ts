@@ -1,11 +1,11 @@
 import { Global, Module } from '@nestjs/common';
-import { ContextoController } from './contexto.controller';
+import { ContextController } from './context.controller';
 import { MembershipService } from './membership.service';
 import { PermissionsGuard } from './permissions.guard';
 
 @Global()
 @Module({
-  controllers: [ContextoController],
+  controllers: [ContextController],
   providers: [MembershipService, PermissionsGuard],
   exports: [MembershipService, PermissionsGuard],
 })

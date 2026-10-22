@@ -38,7 +38,7 @@
       "options": {
         "port": 4300,
         "proxyConfig": "apps/erp/proxy.conf.json",
-        "allowedHosts": ["rodalaser.localhost", "empresa2.localhost", "localhost"]
+        "allowedHosts": ["rodalaser.localhost", "company2.localhost", "localhost"]
       },
       "configurations": {
         "production": { "buildTarget": "web:build:production" },

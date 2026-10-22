@@ -4,7 +4,10 @@ import type { IconName } from '../icon/icons';
 
 export type NoteType = 'info' | 'success' | 'warning' | 'danger';
 
-/** Aviso en línea (Figma: Note Type=Info|Success|Warning|Danger). */
+/**
+ * Aviso en línea (Figma: Note Type=Info|Success|Warning|Danger).
+ * `title` is optional; the message is the default slot.
+ */
 @Component({
   selector: 'rs-note',
   imports: [IconComponent],
@@ -16,24 +19,32 @@ export type NoteType = 'info' | 'success' | 'warning' | 'danger';
       @if (title()) {
         <strong>{{ title() }}</strong>
       }
-      <div><ng-content /></div>
+      <div class="text"><ng-content /></div>
     </div>
   `,
   styles: `
     :host {
-      --_c: var(--status-info); --_bg: var(--status-info-soft);
-      display: flex; gap: var(--space-3); padding: var(--space-3) var(--space-4);
-      border-radius: var(--radius-lg); background: var(--_bg); color: var(--text-primary);
+      --_c: var(--status-info);
+      --_bg: var(--status-info-soft);
+      display: flex;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--_bg);
+      color: var(--text-primary);
+      font-size: var(--body-md-size);
+      line-height: var(--body-md-line-height);
     }
     :host([data-type='success']) { --_c: var(--status-success); --_bg: var(--status-success-soft); }
     :host([data-type='warning']) { --_c: var(--status-warning); --_bg: var(--status-warning-soft); }
     :host([data-type='danger']) { --_c: var(--status-danger); --_bg: var(--status-danger-soft); }
     rs-icon { color: var(--_c); margin-top: 1px; }
-    .body { display: grid; gap: 2px; }
+    .body { display: grid; gap: 2px; min-width: 0; }
+    strong { font-weight: var(--body-md-strong-weight); }
   `,
 })
 export class NoteComponent {
   readonly type = input<NoteType>('info');
   readonly title = input<string>();
-  protected readonly icon = computed<IconName>(() => (this.type() === 'success' ? 'check' : this.type() === 'info' ? 'bell' : 'alert'));
+  protected readonly icon = computed<IconName>(() => (this.type() === 'success' ? 'check' : this.type() === 'info' ? 'info' : 'alert'));
 }

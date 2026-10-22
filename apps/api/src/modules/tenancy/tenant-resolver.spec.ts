@@ -1,17 +1,17 @@
-import { resolveEmpresaSlug } from './tenant-resolver';
+import { resolveCompanySlug } from './tenant-resolver';
 
-describe('resolveEmpresaSlug', () => {
-  it('prefiere el encabezado X-Empresa', () => {
-    expect(resolveEmpresaSlug({ headers: { 'x-empresa': 'empresa2', host: 'rodalaser.localhost:4200' } })).toBe('empresa2');
+describe('resolveCompanySlug', () => {
+  it('prefers the X-Company header', () => {
+    expect(resolveCompanySlug({ headers: { 'x-company': 'company2', host: 'rodalaser.localhost:4200' } })).toBe('company2');
   });
-  it('usa el subdominio del host', () => {
-    expect(resolveEmpresaSlug({ headers: { host: 'rodalaser.erp.rodalaser.com.bo' } })).toBe('rodalaser');
-    expect(resolveEmpresaSlug({ headers: { 'x-forwarded-host': 'empresa2.localhost:4200', host: 'localhost:3000' } })).toBe('empresa2');
+  it('uses the host subdomain', () => {
+    expect(resolveCompanySlug({ headers: { host: 'rodalaser.erp.rodalaser.com.bo' } })).toBe('rodalaser');
+    expect(resolveCompanySlug({ headers: { 'x-forwarded-host': 'company2.localhost:4200', host: 'localhost:3000' } })).toBe('company2');
   });
-  it('acepta ?empresa= como último recurso', () => {
-    expect(resolveEmpresaSlug({ headers: { host: 'localhost:3000' }, query: { empresa: 'rodalaser' } })).toBe('rodalaser');
+  it('accepts ?company= as a last resort', () => {
+    expect(resolveCompanySlug({ headers: { host: 'localhost:3000' }, query: { company: 'rodalaser' } })).toBe('rodalaser');
   });
-  it('ignora valores inválidos', () => {
-    expect(resolveEmpresaSlug({ headers: { 'x-empresa': '../etc', host: 'localhost' } })).toBeNull();
+  it('ignores invalid values', () => {
+    expect(resolveCompanySlug({ headers: { 'x-company': '../etc', host: 'localhost' } })).toBeNull();
   });
 });

@@ -4,29 +4,29 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 const TTL_MS = 30_000;
 
-/** Permisos efectivos de una membresía, con caché corta (un cambio de rol se nota en ≤ 30 s). */
+/** Effective permissions of a membership, with a short cache (a role change shows up within 30 s). */
 @Injectable()
 export class MembershipService {
-  private cache = new Map<string, { at: number; permisos: Set<Permission> }>();
+  private cache = new Map<string, { at: number; permissions: Set<Permission> }>();
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async permisos(membresiaId: string): Promise<Set<Permission>> {
-    const hit = this.cache.get(membresiaId);
-    if (hit && Date.now() - hit.at < TTL_MS) return hit.permisos;
-    const m = await this.prisma.membresia.findUnique({
-      where: { id: membresiaId },
-      select: { estado: true, rol: { select: { permisos: { select: { permisoClave: true } } } } },
+  async permissions(membershipId: string): Promise<Set<Permission>> {
+    const hit = this.cache.get(membershipId);
+    if (hit && Date.now() - hit.at < TTL_MS) return hit.permissions;
+    const m = await this.prisma.membership.findUnique({
+      where: { id: membershipId },
+      select: { status: true, role: { select: { permissions: { select: { permissionKey: true } } } } },
     });
-    const permisos = new Set<Permission>(
-      m && m.estado === 'ACTIVO' ? m.rol.permisos.map((p) => p.permisoClave as Permission) : [],
+    const permissions = new Set<Permission>(
+      m && m.status === 'ACTIVE' ? m.role.permissions.map((p) => p.permissionKey as Permission) : [],
     );
-    this.cache.set(membresiaId, { at: Date.now(), permisos });
-    return permisos;
+    this.cache.set(membershipId, { at: Date.now(), permissions });
+    return permissions;
   }
 
-  invalidate(membresiaId?: string) {
-    if (membresiaId) this.cache.delete(membresiaId);
+  invalidate(membershipId?: string) {
+    if (membershipId) this.cache.delete(membershipId);
     else this.cache.clear();
   }
 }

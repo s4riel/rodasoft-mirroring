@@ -1,49 +1,94 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { BreadcrumbComponent, BreadcrumbItem } from '../breadcrumb/breadcrumb.component';
 
-export interface Breadcrumb {
-  label: string;
-  link?: string;
-}
+/** Kept for backwards compatibility: same shape as `BreadcrumbItem`. */
+export type Breadcrumb = BreadcrumbItem;
 
-/** Encabezado de página (Figma: PageHeader Type=List|Detail|Form). Acciones vía <ng-content select="[rsActions]">. */
+export type PageHeaderType = 'list' | 'detail' | 'form' | 'list-import';
+
+/**
+ * Figma: PageHeader Type=List|Detail|Form|ListImport: breadcrumb, title (display/h3), description and actions.
+ * The Type decides which buttons the screen projects into `[rsActions]`:
+ * List: Export + primary action; Detail: status pill in `[rsStatus]` + actions; Form: Cancel + Save;
+ * ListImport: Import + Export + New. The component only provides the slots and the `data-type` hook.
+ */
 @Component({
   selector: 'rs-page-header',
-  imports: [RouterLink],
+  imports: [BreadcrumbComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[attr.data-type]': 'type()' },
   template: `
-    @if (breadcrumbs().length) {
-      <nav class="crumbs" aria-label="Migas de pan">
-        @for (b of breadcrumbs(); track b.label; let last = $last) {
-          @if (b.link && !last) {
-            <a [routerLink]="b.link">{{ b.label }}</a><span aria-hidden="true">/</span>
-          } @else {
-            <span [attr.aria-current]="last ? 'page' : null">{{ b.label }}</span>
-          }
-        }
-      </nav>
-    }
-    <div class="row">
-      <div class="titles">
-        <h1>{{ title() }}</h1>
-        @if (subtitle()) {
-          <p class="rs-muted">{{ subtitle() }}</p>
-        }
+    <div class="heading">
+      @if (breadcrumbs().length) {
+        <rs-breadcrumb [items]="breadcrumbs()" [label]="breadcrumbLabel()" />
+      }
+      <div class="title-row">
+        <h1 class="title">{{ title() }}</h1>
+        <ng-content select="[rsStatus]" />
       </div>
-      <div class="actions"><ng-content select="[rsActions]" /></div>
+      @if (text()) {
+        <p class="description">{{ text() }}</p>
+      }
     </div>
+    <div class="actions"><ng-content select="[rsActions]" /></div>
   `,
   styles: `
-    :host { display: grid; gap: var(--space-2); margin-bottom: var(--space-6); }
-    .crumbs { display: flex; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
-    .crumbs a { text-decoration: none; } .crumbs a:hover { text-decoration: underline; }
-    .row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
-    .titles { display: grid; gap: var(--space-1); }
-    .actions { display: flex; gap: var(--space-2); }
+    :host {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      padding-bottom: var(--space-6);
+    }
+    .heading {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .title {
+      margin: 0;
+      font-family: var(--font-family-ui);
+      font-size: var(--display-h3-size);
+      line-height: var(--display-h3-line-height);
+      font-weight: var(--display-h3-weight);
+      letter-spacing: var(--display-h3-tracking);
+      color: var(--text-primary);
+    }
+    .description {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--body-md-size);
+      line-height: var(--body-md-line-height);
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .actions:empty {
+      display: none;
+    }
   `,
 })
 export class PageHeaderComponent {
   readonly title = input.required<string>();
-  readonly subtitle = input<string>();
-  readonly breadcrumbs = input<Breadcrumb[]>([]);
+  /** Figma `Description`. */
+  readonly description = input('');
+  /** @deprecated use `description`. */
+  readonly subtitle = input('');
+  readonly breadcrumbs = input<readonly BreadcrumbItem[]>([]);
+  /** Accessible name of the breadcrumb landmark. */
+  readonly breadcrumbLabel = input('');
+  /** Figma `Type`. */
+  readonly type = input<PageHeaderType>('list');
+
+  protected readonly text = computed(() => this.description() || this.subtitle());
 }

@@ -1,22 +1,22 @@
-import { facturaMachine, InvalidTransitionError, transferenciaMachine } from './state-machine';
+import { InvalidTransitionError, invoiceMachine, transferMachine } from './state-machine';
 
-describe('máquinas de estado', () => {
-  it('transferencia sobre el límite pasa por aprobación', () => {
-    let s = transferenciaMachine.next('BORRADOR', 'pedirAprobacion');
-    s = transferenciaMachine.next(s, 'aprobar');
-    s = transferenciaMachine.next(s, 'despachar');
-    s = transferenciaMachine.next(s, 'recibirParcial');
-    expect(transferenciaMachine.next(s, 'recibirTodo')).toBe('RECIBIDA');
+describe('state machines', () => {
+  it('a transfer over the limit goes through approval', () => {
+    let s = transferMachine.next('DRAFT', 'requestApproval');
+    s = transferMachine.next(s, 'approve');
+    s = transferMachine.next(s, 'dispatch');
+    s = transferMachine.next(s, 'receivePartial');
+    expect(transferMachine.next(s, 'receiveAll')).toBe('RECEIVED');
   });
 
-  it('no se puede anular una transferencia en tránsito', () => {
-    expect(() => transferenciaMachine.next('EN_TRANSITO', 'anular')).toThrow(InvalidTransitionError);
+  it('an in-transit transfer cannot be cancelled', () => {
+    expect(() => transferMachine.next('IN_TRANSIT', 'cancel')).toThrow(InvalidTransitionError);
   });
 
-  it('la factura sigue válida hasta que Gerencia aprueba la anulación', () => {
-    const s = facturaMachine.next('VALIDA', 'solicitarAnulacion');
-    expect(s).toBe('ANULACION_PENDIENTE');
-    expect(facturaMachine.next(s, 'rechazarAnulacion')).toBe('VALIDA');
-    expect(facturaMachine.events('ANULADA')).toEqual([]);
+  it('an invoice stays valid until management approves the cancellation', () => {
+    const s = invoiceMachine.next('VALID', 'requestCancellation');
+    expect(s).toBe('CANCELLATION_PENDING');
+    expect(invoiceMachine.next(s, 'rejectCancellation')).toBe('VALID');
+    expect(invoiceMachine.events('CANCELLED')).toEqual([]);
   });
 });

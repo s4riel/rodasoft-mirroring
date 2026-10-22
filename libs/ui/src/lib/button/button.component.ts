@@ -1,12 +1,16 @@
-import { booleanAttribute, ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'brand';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'brand' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 /**
- * Botón pill (Figma: Button Variant=Primary|Secondary|Ghost|Danger, Size=SM|MD|LG, Width=Hug|Fill).
- * Uso: <button rsButton variant="primary">Ingresar</button> · <a rsButton variant="ghost" routerLink="…">
- * `brand` = pill roja/verde de la marca (Cotizar / Comprar en la tienda).
+ * Figma: Button (Variant = Primary | Secondary | Ghost | Brand | Danger, State = Default | Hover | Pressed | Focus | Disabled)
+ * + Button/Content (Size = SM | MD | LG, Icon = None | Left | Right).
+ *
+ * States are CSS only (:hover, :active, :focus-visible, :disabled / [aria-disabled='true']).
+ * Icons are projected: `<button rsButton><rs-icon name="plus" [size]="16" /> Label</button>` (icon left)
+ * or `<button rsButton>Label <rs-icon name="arrow" [size]="16" /></button>` (icon right).
+ * `brand` is the red/green accent button (Cotizar, Comprar); the main action is monochrome (`primary`).
  */
 @Component({
   // eslint-disable-next-line @angular-eslint/component-selector
@@ -14,14 +18,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'rs-button',
-    '[class.rs-button--secondary]': "variant() === 'secondary'",
-    '[class.rs-button--ghost]': "variant() === 'ghost'",
-    '[class.rs-button--danger]': "variant() === 'danger'",
-    '[class.rs-button--brand]': "variant() === 'brand'",
-    '[class.rs-button--sm]': "size() === 'sm'",
-    '[class.rs-button--lg]': "size() === 'lg'",
-    '[class.rs-button--fill]': 'fill()',
-    '[class.rs-button--loading]': 'loading()',
+    '[class]': 'modifiers()',
     '[attr.aria-busy]': 'loading() || null',
   },
   template: `
@@ -32,49 +29,134 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
   `,
   styles: `
     :host {
+      /* Variant tokens (Primary by default) */
       --_bg: var(--action-primary);
+      --_bg-hover: var(--action-primary-hover);
+      --_bg-active: var(--action-primary-pressed);
       --_fg: var(--action-on-primary);
+      --_fg-hover: var(--_fg);
+      --_fg-active: var(--_fg);
       --_border: transparent;
+      /* Content padding: Figma px 16/20/24 minus the 1px border (the border sits inside the Figma frame) */
+      --_pad: calc(var(--space-5) - var(--stroke-default));
+
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: var(--space-2);
-      height: 40px;
-      padding: 0 var(--space-5);
+      height: var(--size-control-md);
+      padding: 0 var(--_pad);
+      border: var(--stroke-default) solid var(--_border);
       border-radius: var(--radius-full);
-      border: 1px solid var(--_border);
       background: var(--_bg);
       color: var(--_fg);
-      font-weight: 600;
-      font-size: var(--text-md);
+      font-family: var(--font-family-ui);
+      font-size: var(--label-md-size);
+      line-height: var(--label-md-line-height);
+      font-weight: var(--label-md-weight);
+      letter-spacing: var(--label-md-tracking);
       text-decoration: none;
       white-space: nowrap;
       cursor: pointer;
-      transition: filter var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out);
       user-select: none;
+      transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
     }
-    :host(:hover) { filter: brightness(1.15); }
-    :host(:active) { filter: brightness(0.92); }
-    :host([disabled]), :host(.rs-button--loading) { opacity: 0.5; pointer-events: none; }
-    :host(.rs-button--secondary) { --_bg: var(--bg-surface); --_fg: var(--text-primary); --_border: var(--border-strong); }
-    :host(.rs-button--secondary:hover), :host(.rs-button--ghost:hover) { filter: none; background: var(--bg-surface-2); }
-    :host(.rs-button--ghost) { --_bg: transparent; --_fg: var(--text-primary); }
-    :host(.rs-button--danger) { --_bg: var(--status-danger); --_fg: var(--white); }
-    :host(.rs-button--brand) { --_bg: var(--brand-primary-strong); --_fg: var(--brand-on-primary); }
-    :host(.rs-button--sm) { height: 32px; padding: 0 var(--space-3); font-size: var(--text-sm); }
-    :host(.rs-button--lg) { height: 48px; padding: 0 var(--space-6); font-size: var(--text-lg); }
-    :host(.rs-button--fill) { display: flex; width: 100%; }
+    :host(.rs-button--sm) {
+      height: var(--size-control-sm);
+      --_pad: calc(var(--space-4) - var(--stroke-default));
+    }
+    :host(.rs-button--lg) {
+      height: var(--size-control-lg);
+      --_pad: calc(var(--space-6) - var(--stroke-default));
+    }
+    :host(.rs-button--fill) {
+      display: flex;
+      width: 100%;
+    }
+
+    :host(.rs-button--secondary) {
+      --_bg: var(--bg-surface);
+      --_bg-hover: var(--bg-surface-2);
+      --_bg-active: var(--action-primary-soft);
+      --_fg: var(--text-primary);
+      --_border: var(--border-control);
+    }
+    :host(.rs-button--ghost) {
+      --_bg: transparent;
+      --_bg-hover: var(--bg-surface-2);
+      --_bg-active: var(--action-primary-soft);
+      --_fg: var(--text-primary);
+    }
+    :host(.rs-button--brand) {
+      --_bg: var(--brand-primary);
+      --_bg-hover: var(--brand-primary-hover);
+      --_bg-active: var(--brand-accent-on-page);
+      --_fg: var(--brand-on-primary);
+      --_fg-hover: var(--brand-on-hover);
+      --_fg-active: var(--brand-on-primary);
+      --_border: var(--border-control);
+    }
+    /* Figma: Danger keeps the same fill in Hover and Pressed */
+    :host(.rs-button--danger) {
+      --_bg: var(--status-danger);
+      --_bg-hover: var(--status-danger);
+      --_bg-active: var(--status-danger);
+      --_fg: var(--action-on-danger);
+    }
+
+    :host(:hover:not(:disabled):not([aria-disabled='true']):not(.rs-button--loading)) {
+      background: var(--_bg-hover);
+      color: var(--_fg-hover);
+    }
+    :host(:active:not(:disabled):not([aria-disabled='true']):not(.rs-button--loading)) {
+      background: var(--_bg-active);
+      color: var(--_fg-active);
+    }
+    :host(:focus-visible) {
+      outline: var(--stroke-focus) solid var(--focus-control);
+      outline-offset: var(--focus-offset);
+    }
+    /* Figma: Disabled = soft fill + muted text, no border; never authorizes an action */
+    :host(:disabled),
+    :host([aria-disabled='true']) {
+      background: var(--action-primary-soft);
+      color: var(--text-muted);
+      border-color: transparent;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    :host(.rs-button--loading) {
+      cursor: progress;
+      pointer-events: none;
+    }
+
     .rs-button__spinner {
-      width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid currentColor; border-right-color: transparent;
-      animation: rs-spin 0.7s linear infinite;
+      flex: none;
+      width: 14px; /* spinner geometry, no Figma token */
+      height: 14px;
+      border-radius: var(--radius-full);
+      border: var(--stroke-focus) solid currentColor;
+      border-right-color: transparent;
+      animation: rs-button-spin 0.7s linear infinite;
     }
-    @keyframes rs-spin { to { transform: rotate(360deg); } }
+    @keyframes rs-button-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
   `,
 })
 export class ButtonComponent {
   readonly variant = input<ButtonVariant>('primary');
   readonly size = input<ButtonSize>('md');
+  /** Figma Width=Fill. */
   readonly fill = input(false, { transform: booleanAttribute });
   readonly loading = input(false, { transform: booleanAttribute });
+
+  protected readonly modifiers = computed(
+    () =>
+      `rs-button rs-button--${this.variant()} rs-button--${this.size()}` +
+      (this.fill() ? ' rs-button--fill' : '') +
+      (this.loading() ? ' rs-button--loading' : ''),
+  );
 }

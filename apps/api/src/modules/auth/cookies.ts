@@ -4,10 +4,10 @@ import type { Env } from '../../config/env';
 export const REFRESH_COOKIE = 'rs_refresh';
 export const GOOGLE_STATE_COOKIE = 'rs_gstate';
 
-/** La cookie de refresh solo viaja a /api/v1/auth y nunca es legible desde JavaScript. */
+/** The refresh cookie only travels to /api/v1/auth and is never readable from JavaScript. */
 export function refreshCookieOptions(env: Pick<Env, 'COOKIE_SECURE'>, maxAgeMs?: number): CookieOptions {
-  // Sin `domain`: la cookie queda en el host del ERP (rodalaser.localhost / rodalaser.erp.<dominio>),
-  // así cada empresa tiene su propia sesión.
+  // Without `domain`: the cookie stays on the ERP host (rodalaser.localhost / rodalaser.erp.<domain>),
+  // so each company has its own session.
   return {
     httpOnly: true,
     secure: env.COOKIE_SECURE,

@@ -2,7 +2,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 export type Status = 'success' | 'warning' | 'danger' | 'info' | 'idle';
 
-/** Estado = color + punto + texto (nunca solo color). Figma: StatusPill Status=… */
+/**
+ * Estado = color + punto + texto (nunca solo color).
+ * Figma: StatusPill Status=Success|Warning|Danger|Info|Idle. Text via the default slot.
+ */
 @Component({
   selector: 'rs-status-pill',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -10,16 +13,26 @@ export type Status = 'success' | 'warning' | 'danger' | 'info' | 'idle';
   template: `<span class="dot" aria-hidden="true"></span><ng-content />`,
   styles: `
     :host {
-      --_c: var(--status-idle); --_bg: var(--bg-surface-2);
-      display: inline-flex; align-items: center; gap: 6px;
-      height: 24px; padding: 0 10px; border-radius: var(--radius-full);
-      font-size: var(--text-sm); font-weight: 600; color: var(--_c); background: var(--_bg);
+      --_c: var(--status-idle);
+      --_bg: var(--bg-surface-2);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px; /* Figma: dot to text 6 */
+      height: 24px; /* Figma StatusPill: 24 */
+      padding: 0 10px;
+      border-radius: var(--radius-full);
+      font-size: var(--body-sm-size);
+      line-height: var(--body-sm-line-height);
+      font-weight: 600;
+      color: var(--_c);
+      background: var(--_bg);
+      white-space: nowrap;
     }
     :host([data-status='success']) { --_c: var(--status-success); --_bg: var(--status-success-soft); }
     :host([data-status='warning']) { --_c: var(--status-warning); --_bg: var(--status-warning-soft); }
     :host([data-status='danger']) { --_c: var(--status-danger); --_bg: var(--status-danger-soft); }
     :host([data-status='info']) { --_c: var(--status-info); --_bg: var(--status-info-soft); }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; flex: none; }
   `,
 })
 export class StatusPillComponent {

@@ -6,26 +6,30 @@ import { ContextStore } from '../core/context.store';
 import { TenantService } from '../core/tenant.service';
 import { ERP_NAV } from './navigation';
 
-/** Plantilla base 1 · Shell: Sidebar 248 px + ContextBar + contenido (máx. 1440 px). */
+/** Base template 1 · Shell: Sidebar 248 px + ContextBar + content (max 1440 px). */
 @Component({
   selector: 'rs-shell',
   imports: [RouterOutlet, SidebarComponent, ContextBarComponent, IconComponent, StatusPillComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <rs-sidebar [groups]="nav" [brandName]="tenant.nombre()">
+    <rs-sidebar [groups]="nav" [brandName]="tenant.name()" navLabel="Módulos">
       <div rsSidebarFooter class="siat">
         <span class="rs-eyebrow">SIAT</span>
-        <!-- S2: estado real (en línea / contingencia) desde /facturacion/estado -->
+        <!-- S2: real status (online / contingency) from /invoicing/status -->
         <rs-status-pill status="idle">Sin configurar</rs-status-pill>
       </div>
     </rs-sidebar>
     <div class="main">
       <rs-context-bar
-        [empresa]="ctx.empresa()?.nombreComercial ?? tenant.nombre()"
-        [sucursales]="sucursales()"
-        [allowAll]="ctx.puedeVerTodas()"
-        [sucursalId]="ctx.sucursalId()"
-        (sucursalIdChange)="ctx.setSucursal($event)">
+        [company]="ctx.company()?.tradeName ?? tenant.name()"
+        [branches]="ctx.branches()"
+        [allowAll]="ctx.canViewAll()"
+        [branchId]="ctx.branchId()"
+        (branchIdChange)="ctx.setBranch($event)"
+        companyLabel="Empresa"
+        branchLabel="Sucursal"
+        allLabel="Todas las sucursales"
+        description="Empresa definida por la URL&#10;Sucursal según el usuario">
         <div rsContextActions class="actions">
           <button type="button" class="icon-btn" aria-label="Buscar (Ctrl + K)" title="Buscar (Ctrl + K)">
             <rs-icon name="search" />
@@ -34,8 +38,8 @@ import { ERP_NAV } from './navigation';
           <div class="user">
             <span class="avatar" aria-hidden="true">{{ initials() }}</span>
             <span class="who">
-              <strong>{{ auth.usuario()?.nombre }}</strong>
-              <small class="rs-muted">{{ ctx.contexto()?.rol?.nombre }}</small>
+              <strong>{{ auth.user()?.name }}</strong>
+              <small class="rs-muted">{{ ctx.context()?.role?.name }}</small>
             </span>
             <button type="button" class="icon-btn" aria-label="Cerrar sesión" title="Cerrar sesión" (click)="auth.logout()">
               <rs-icon name="logout" />
@@ -71,9 +75,8 @@ export class ShellComponent {
   protected readonly auth = inject(AuthService);
   protected readonly ctx = inject(ContextStore);
   protected readonly tenant = inject(TenantService);
-  protected readonly sucursales = computed(() => this.ctx.sucursales().map((s) => ({ id: s.id, nombre: s.nombre })));
   protected readonly initials = computed(() =>
-    (this.auth.usuario()?.nombre ?? '?')
+    (this.auth.user()?.name ?? '?')
       .split(/\s+/)
       .slice(0, 2)
       .map((w) => w[0]?.toUpperCase())

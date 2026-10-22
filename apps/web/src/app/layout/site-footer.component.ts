@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
   template: `
     <div class="rs-container grid">
       <div>
-        <p class="logo">{{ marca() }}</p>
+        <p class="logo">{{ brand() }}</p>
         <p class="muted">Importación y distribución de rodamientos. Cochabamba, Bolivia.</p>
       </div>
       <nav aria-label="Pie de página">
@@ -16,7 +16,7 @@ import { RouterLink } from '@angular/router';
         <a routerLink="/nosotros">Nosotros</a>
         <a routerLink="/contacto">Sucursales y contacto</a>
       </nav>
-      <p class="muted small">© {{ year }} {{ marca() }}. Todos los derechos reservados.</p>
+      <p class="muted small">© {{ year }} {{ brand() }}. Todos los derechos reservados.</p>
     </div>
   `,
   styles: `
@@ -29,6 +29,6 @@ import { RouterLink } from '@angular/router';
   `,
 })
 export class SiteFooterComponent {
-  readonly marca = input('Rodalaser');
+  readonly brand = input('Rodalaser');
   protected readonly year = new Date().getFullYear();
 }

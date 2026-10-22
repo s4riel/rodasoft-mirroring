@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { IS_PUBLIC } from './decorators';
 
-/** Guard global: toda ruta exige token salvo las marcadas con @Public(). */
+/** Global guard: every route requires a token except those marked @Public(). */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(private readonly reflector: Reflector) {
@@ -16,7 +16,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   override handleRequest<T>(err: unknown, user: T): T {
-    if (err || !user) throw new UnauthorizedException({ code: 'SESION_INVALIDA', message: 'Sesión expirada o inválida' });
+    if (err || !user) throw new UnauthorizedException({ code: 'INVALID_SESSION', message: 'Session expired or invalid' });
     return user;
   }
 }

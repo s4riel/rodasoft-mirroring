@@ -20,10 +20,10 @@ export class PermissionsGuard implements CanActivate {
     if (!required?.length) return true;
     const user = ctx.switchToHttp().getRequest().user as JwtUser | undefined;
     if (!user) return false;
-    const granted = await this.membership.permisos(user.mid);
+    const granted = await this.membership.permissions(user.mid);
     const missing = required.filter((p) => !granted.has(p));
     if (missing.length) {
-      throw new ForbiddenException({ code: 'SIN_PERMISO', message: 'No tienes permiso para esta acción', details: { missing } });
+      throw new ForbiddenException({ code: 'NO_PERMISSION', message: 'You do not have permission for this action', details: { missing } });
     }
     return true;
   }

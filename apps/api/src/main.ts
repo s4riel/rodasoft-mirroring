@@ -25,25 +25,25 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.enableShutdownHooks();
-  // detrás de Caddy: confiar en X-Forwarded-For / -Proto
+  // behind Caddy: trust X-Forwarded-For / -Proto
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   const doc = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
       .setTitle('Rodasoft API')
-      .setDescription('ERP Rodalaser: multiempresa, inventario, ventas, facturación SIAT, compras, CRM y contabilidad')
+      .setDescription('Rodalaser ERP: multi-company, inventory, sales, SIAT invoicing, purchasing, CRM and accounting')
       .setVersion('0.1.0')
       .addBearerAuth()
-      .addApiKey({ type: 'apiKey', in: 'header', name: 'X-Empresa' }, 'empresa')
-      .addSecurityRequirements('empresa')
+      .addApiKey({ type: 'apiKey', in: 'header', name: 'X-Company' }, 'company')
+      .addSecurityRequirements('company')
       .build(),
   );
 
   if (exportIdx > -1) {
     const out = process.argv[exportIdx + 1] ?? 'dist/openapi.json';
     writeFileSync(out, JSON.stringify(doc, null, 2));
-    Logger.log(`OpenAPI exportado a ${out}`, 'Bootstrap');
+    Logger.log(`OpenAPI exported to ${out}`, 'Bootstrap');
     await app.close();
     return;
   }
@@ -52,7 +52,7 @@ async function bootstrap() {
 
   const port = config.get('API_PORT');
   await app.listen(port);
-  Logger.log(`API lista en http://localhost:${port}/api/v1 · documentación en /api/docs`, 'Bootstrap');
+  Logger.log(`API ready at http://localhost:${port}/api/v1 · documentation at /api/docs`, 'Bootstrap');
 }
 
 bootstrap();

@@ -1,7 +1,7 @@
 export const environment = {
   production: false,
-  /** URL pública de la API para navegaciones del navegador (login con Google). Las llamadas XHR usan /api (proxy). */
+  /** Public API URL for browser navigations (Google login). XHR calls use /api (proxy). */
   apiPublicUrl: 'http://localhost:3000',
-  /** empresa por defecto cuando se abre http://localhost:4200 (sin subdominio) */
-  defaultEmpresa: 'rodalaser',
+  /** default company when http://localhost:4200 is opened (no subdomain) */
+  defaultCompany: 'rodalaser',
 };

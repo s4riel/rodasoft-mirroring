@@ -1,45 +1,46 @@
 /**
- * Multiempresa: la empresa activa la define la URL (subdominio), nunca un selector en pantalla.
- *   rodalaser.erp.<dominio>  → empresa "rodalaser"
- *   empresa2.erp.<dominio>   → empresa "empresa2"
- * En desarrollo: http://rodalaser.localhost:4200 y http://empresa2.localhost:4200
+ * Multi-company: the active company is defined by the URL (subdomain), never by an on-screen selector.
+ *   rodalaser.erp.<domain>  -> company "rodalaser"
+ *   company2.erp.<domain>   -> company "company2"
+ * In development: http://rodalaser.localhost:4200 and http://company2.localhost:4200
  */
-export const EMPRESA_HEADER = 'x-empresa';
+export const COMPANY_HEADER = 'x-company';
 
-export type BrandMode = 'rodalaser' | 'empresa2';
+export type BrandMode = 'rodalaser' | 'company2';
 
-export interface EmpresaContexto {
+export interface CompanyContext {
   id: string;
   slug: string;
-  razonSocial: string;
-  nombreComercial: string;
+  legalName: string;
+  tradeName: string;
   nit: string;
   brand: BrandMode;
 }
 
-export interface SucursalContexto {
+export interface BranchContext {
   id: string;
-  codigo: number;
-  nombre: string;
-  almacenes: { id: string; codigo: string; nombre: string }[];
+  /** SIN branch code (0 = head office) */
+  code: number;
+  name: string;
+  warehouses: { id: string; code: string; name: string }[];
 }
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 
-export function isValidEmpresaSlug(slug: string | null | undefined): slug is string {
+export function isValidCompanySlug(slug: string | null | undefined): slug is string {
   return !!slug && SLUG_RE.test(slug);
 }
 
 /**
- * Obtiene el slug de empresa desde el host.
- * `rodalaser.erp.rodalaser.com.bo` → `rodalaser`; `empresa2.localhost` → `empresa2`.
- * Devuelve null para hosts sin subdominio de empresa (localhost, IPs, `www`).
+ * Extracts the company slug from the host.
+ * `rodalaser.erp.rodalaser.com.bo` -> `rodalaser`; `company2.localhost` -> `company2`.
+ * Returns null for hosts without a company subdomain (localhost, IPs, `www`).
  */
-export function empresaSlugFromHost(host: string | null | undefined, reserved: string[] = ['www', 'api', 'erp']): string | null {
+export function companySlugFromHost(host: string | null | undefined, reserved: string[] = ['www', 'api', 'erp']): string | null {
   if (!host) return null;
   const hostname = host.split(':')[0].toLowerCase();
   if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname === 'localhost') return null;
   const first = hostname.split('.')[0];
   if (reserved.includes(first)) return null;
-  return isValidEmpresaSlug(first) ? first : null;
+  return isValidCompanySlug(first) ? first : null;
 }

@@ -15,7 +15,7 @@ export function validateWorkerEnv(raw: Record<string, unknown>): WorkerEnv {
   const parsed = workerEnvSchema.safeParse(raw);
   if (!parsed.success) {
     throw new Error(
-      'Variables de entorno inválidas para el worker:\n' +
+      'Invalid environment variables for the worker:\n' +
         parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n'),
     );
   }

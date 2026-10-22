@@ -1,14 +1,16 @@
+import { isDevMode } from '@angular/core';
 import { Route } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guard';
 import { ShellComponent } from './layout/shell.component';
 
 const t = (s: string) => `${s} · ERP`;
 
-const modulo = (path: string, titulo: string, sprint: string): Route => ({
+const modulePlaceholder = (path: string, title: string, sprint: string): Route => ({
   path,
-  title: t(titulo),
-  data: { titulo, sprint },
-  loadComponent: () => import('./features/modulo/modulo.page').then((m) => m.ModuloPage),
+  title: t(title),
+  data: { title, sprint },
+  loadComponent: () =>
+    import('./features/module-placeholder/module-placeholder.page').then((m) => m.ModulePlaceholderPage),
 });
 
 export const routes: Route[] = [
@@ -19,14 +21,14 @@ export const routes: Route[] = [
     loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage),
   },
   {
-    path: 'recuperar',
+    path: 'forgot-password',
     title: t('Recuperar contraseña'),
-    loadComponent: () => import('./features/auth/recuperar.page').then((m) => m.RecuperarPage),
+    loadComponent: () => import('./features/auth/forgot-password.page').then((m) => m.ForgotPasswordPage),
   },
   {
-    path: 'recuperar/restablecer',
+    path: 'reset-password',
     title: t('Nueva contraseña'),
-    loadComponent: () => import('./features/auth/restablecer.page').then((m) => m.RestablecerPage),
+    loadComponent: () => import('./features/auth/reset-password.page').then((m) => m.ResetPasswordPage),
   },
   {
     path: 'auth/callback',
@@ -37,17 +39,24 @@ export const routes: Route[] = [
     component: ShellComponent,
     canActivate: [authGuard],
     children: [
-      { path: '', title: t('Inicio'), loadComponent: () => import('./features/inicio/inicio.page').then((m) => m.InicioPage) },
-      modulo('ventas', 'Ventas y POS', 'S2 (16–29 nov)'),
-      modulo('facturacion', 'Facturación SIAT', 'S2–S3 (16 nov–13 dic)'),
-      modulo('inventario', 'Inventario', 'S1 (2–15 nov)'),
-      modulo('compras', 'Compras', 'S4 (5–18 ene)'),
-      modulo('crm', 'CRM', 'S4 (5–18 ene)'),
-      modulo('contabilidad', 'Contabilidad', 'S5 (19 ene–1 feb)'),
-      modulo('tienda', 'Tienda en línea', 'S3 (30 nov–13 dic)'),
-      modulo('reportes', 'Reportes', 'S5 (19 ene–1 feb)'),
-      modulo('configuracion', 'Configuración', 'S1 (usuarios y roles)'),
+      { path: '', title: t('Inicio'), loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage) },
+      modulePlaceholder('sales', 'Ventas y POS', 'S2 (16–29 nov)'),
+      modulePlaceholder('invoicing', 'Facturación SIAT', 'S2–S3 (16 nov–13 dic)'),
+      modulePlaceholder('inventory', 'Inventario', 'S1 (2–15 nov)'),
+      modulePlaceholder('purchasing', 'Compras', 'S4 (5–18 ene)'),
+      modulePlaceholder('crm', 'CRM', 'S4 (5–18 ene)'),
+      modulePlaceholder('accounting', 'Contabilidad', 'S5 (19 ene–1 feb)'),
+      modulePlaceholder('store', 'Tienda en línea', 'S3 (30 nov–13 dic)'),
+      modulePlaceholder('reports', 'Reportes', 'S5 (19 ene–1 feb)'),
+      modulePlaceholder('settings', 'Configuración', 'S1 (usuarios y roles)'),
     ],
+  },
+  {
+    // Component catalog, development only (compare against the Figma Design System)
+    path: 'design-system',
+    title: t('Design System'),
+    canMatch: [() => isDevMode()],
+    loadComponent: () => import('./features/design-system/design-system.page').then((m) => m.DesignSystemPage),
   },
   { path: '**', redirectTo: '' },
 ];

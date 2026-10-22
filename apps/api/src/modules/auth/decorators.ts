@@ -2,7 +2,7 @@ import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/com
 import type { JwtUser } from './jwt.strategy';
 
 export const IS_PUBLIC = 'isPublic';
-/** Ruta sin autenticación (login, salud, datos públicos de la empresa). */
+/** Route without authentication (login, health, public company data). */
 export const Public = () => SetMetadata(IS_PUBLIC, true);
 
 export const CurrentUser = createParamDecorator(

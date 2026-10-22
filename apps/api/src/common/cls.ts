@@ -1,13 +1,13 @@
 import type { ClsStore } from 'nestjs-cls';
 
-/** Contexto por solicitud (AsyncLocalStorage). Lo llenan el middleware de CLS y TenantGuard. */
+/** Per-request context (AsyncLocalStorage). Filled by the CLS middleware and TenantGuard. */
 export interface AppClsStore extends ClsStore {
-  /** slug pedido por la URL/encabezado (antes de autenticar) */
-  empresaSlug: string | null;
-  /** empresa ya validada contra la membresía del usuario */
-  empresaId: string | null;
-  usuarioId: string | null;
-  membresiaId: string | null;
+  /** slug requested via URL/header (before authenticating) */
+  companySlug: string | null;
+  /** company already validated against the user's membership */
+  companyId: string | null;
+  userId: string | null;
+  membershipId: string | null;
   ip: string | null;
   userAgent: string | null;
 }

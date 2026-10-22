@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 /**
- * Marcador del rodamiento protagonista del Inicio.
- * S3: reemplazar por la escena Three.js (modelo .glb optimizado con Draco) que se despieza con el scroll
- * (GSAP ScrollTrigger), cargada solo en el navegador con @defer (on viewport) para no afectar el SSR ni el LCP.
- * Mientras tanto: SVG que gira con el scroll usando CSS scroll-driven animations (mejora progresiva).
+ * Placeholder for the hero bearing on the Home page.
+ * S3: replace with the Three.js scene (Draco-optimized .glb model) that explodes on scroll
+ * (GSAP ScrollTrigger), loaded only in the browser with @defer (on viewport) so it does not affect SSR or LCP.
+ * Meanwhile: an SVG that spins with the scroll using CSS scroll-driven animations (progressive enhancement).
  */
 @Component({
   selector: 'rs-bearing-hero',

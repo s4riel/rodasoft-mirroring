@@ -1,75 +1,110 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Tokens del Design System Rodalaser (claude/design-system.md, dirección visual v2).
-// Espejo de las colecciones de variables de Figma: Primitives, Color (Light/Dark),
-// Brand (Empresa 1 / Empresa 2), Spacing, Radius y Typography.
-// Modo de marca: <html data-brand="rodalaser|empresa2">  ·  Tema: <html data-theme="light|dark">
-// Cuando se exporten las variables de Figma (Style Dictionary), este archivo se regenera.
+// Rodalaser Design System tokens — mirror of the Figma variable collections
+// (file "Design System", library O7gJBRq4bMcWBGP1DMUKkw, 01 Foundations):
+//   Primitives · Color (Light/Dark) · Brand (Company 1 / Company 2) · Spacing · Typography · Effects
+//
+// Naming rule: Figma variable `group/name` -> CSS custom property `--group-name`
+//   e.g. `bg/surface-2` -> `--bg-surface-2`, `label/md/size` -> `--label-md-size`.
+// Modes:  <html data-theme="light|dark">  ·  <html data-brand="rodalaser|company2">
+// Light is the default. Color and Brand modes are independent and can be combined (2 x 2).
+// When the Figma variables change, update THIS file only; components consume semantic tokens.
 // ─────────────────────────────────────────────────────────────────────────────
 
 :root {
-  // ── Primitives ──
-  --gray-50: #f2f4f6;
-  --gray-100: #e8ecf0;
-  --gray-200: #d5dce3;
-  --gray-300: #c9d1d9;
-  --gray-400: #8e9aa6;
-  --gray-500: #5d6975;
-  --gray-600: #5a6672;
-  --gray-900: #17202a;
-  --ink-950: #0f1419;
-  --ink-900: #161d24;
-  --ink-800: #1f2831;
-  --ink-700: #2a3540;
-  --ink-600: #4a5663;
-  --ink-400: #98a6b4;
-  --ink-100: #e6ecf2;
-  --black: #111111;
+  // ── Primitives · gray ──
   --white: #ffffff;
-  --red-700: #b4181e;
-  --red-600: #e21f26;
-  --red-500: #e84d52;
+  --black: #000000;
+  --gray-50: #f5f5f7;
+  --gray-100: #efefef;
+  --gray-200: #e1e1e3;
+  --gray-300: #c9c9cd;
+  --gray-400: #8e8e93;
+  --gray-500: #6b6b70;
+  --gray-700: #3a3a3c;
+  --gray-900: #111111;
+  --gray-950: #0b0b0c;
+  --gray-muted-light: #5f5f64;
+  --gray-muted-dark: #a1a1a6;
+  --gray-action-soft: #e8e8e8;
+  --gray-canvas-dark: #161616;
+  --gray-surface-dark: #1c1c1e;
+  --gray-surface-2-dark: #2a2a2c;
+  --gray-section-dark: #1d1d1f;
+  --gray-border-dark: #2e2e30;
+
+  // ── Primitives · brand and status ──
   --red-100: #fad4d5;
-  --green-700: #2d6a3e;
-  --green-600: #3a7f4e;
-  --green-400: #6cc283;
+  --red-500: #e84d52;
+  --red-600: #e21f26;
+  --red-700: #b4181e;
   --green-100: #dceedf;
-  --blue-700: #1d4f86;
-  --blue-400: #6fa3dd;
+  --green-400: #6cc283;
+  --green-600: #3a7f4e;
+  --green-700: #2d6a3e;
+  --green-900: #183222;
+  --amber-100: #f6e7cc;
+  --amber-400: #e2b54a;
+  --amber-700: #946200;
+  --amber-soft-light: #f7ebcb;
+  --amber-soft-dark: #352a12;
+  --success-light: #2e7d32;
+  --success-dark: #71c977;
+  --success-soft-light: #e1f1e2;
+  --success-soft-dark: #1a3020;
+  --danger-light: #b4380f;
+  --danger-dark: #f08a5d;
+  --danger-soft-light: #f8e1d6;
+  --danger-soft-dark: #3a2016;
+  --info-light: #2265cd;
+  --info-dark: #6fa3dd;
+  --info-soft-light: #dde8f4;
+  --info-soft-dark: #1a2d44;
+  --whatsapp: #25d366;
 
-  // ── Color (Light) ──
-  --bg-page: var(--gray-50);
-  --bg-surface: var(--white);
-  --bg-surface-2: var(--gray-100);
+  // ── Color · Light ──
+  --bg-page: var(--gray-100);
   --bg-canvas: var(--white);
-  --bg-section-alt: #f5f5f7;
-  --bg-section-dark: #0b0b0c;
+  --bg-surface: var(--white);
+  --bg-surface-2: var(--gray-50);
+  --bg-section-alt: var(--gray-50);
+  --bg-section-dark: var(--gray-950);
   --text-primary: var(--gray-900);
-  --text-muted: var(--gray-600);
-  --text-on-dark: var(--white);
-  --border-default: var(--gray-200);
-  --border-strong: var(--gray-300);
-  --action-primary: var(--black);
+  --text-muted: var(--gray-muted-light);
+  --text-on-section-dark: var(--gray-50);
+  --text-muted-on-section-dark: var(--gray-muted-dark);
+  --border-default: var(--gray-200); // decorative only (1.31:1)
+  --border-control: var(--gray-500); // interactive boundaries (inputs, buttons, checkboxes)
+  --action-primary: var(--gray-900);
+  --action-primary-hover: var(--gray-700);
+  --action-primary-pressed: var(--gray-500);
   --action-on-primary: var(--white);
-  --action-primary-soft: #e8e8e8;
-  --status-success: #2e7d32;
-  --status-success-soft: #e1f1e2;
-  --status-warning: #946200;
-  --status-warning-soft: #f7ebcb;
-  --status-danger: #b4380f;
-  --status-danger-soft: #f8e1d6;
-  --status-info: var(--blue-700);
-  --status-info-soft: #dde8f4;
-  --status-idle: #7c8fa3;
-  --focus-ring: var(--blue-700);
+  --action-primary-soft: var(--gray-action-soft);
+  --action-on-danger: var(--white);
+  --status-success: var(--success-light);
+  --status-success-soft: var(--success-soft-light);
+  --status-warning: var(--amber-700);
+  --status-warning-soft: var(--amber-soft-light);
+  --status-danger: var(--danger-light);
+  --status-danger-soft: var(--danger-soft-light);
+  --status-info: var(--info-light);
+  --status-info-soft: var(--info-soft-light);
+  --status-idle: var(--gray-400);
+  --focus-ring: var(--red-600);
+  --focus-control: var(--red-600);
+  --nav-surface: var(--white);
 
-  // ── Brand (Empresa 1 · Rodalaser) — solo acentos: precio, badges, foco de marca, logo ──
+  // ── Brand · Company 1 (red). Accent only: price, badges, brand focus, logo. Never the main action. ──
   --brand-primary: var(--red-600);
   --brand-primary-hover: var(--red-500);
-  --brand-primary-strong: var(--red-700); // texto blanco AA sobre botón de marca
   --brand-primary-soft: var(--red-100);
   --brand-on-primary: var(--white);
+  --brand-on-hover: var(--gray-900); // text on brand-primary-hover (white fails contrast: 3.74:1)
+  --brand-accent-on-dark: var(--red-500);
+  --brand-focus-on-dark: var(--red-500);
+  --brand-accent-on-page: var(--red-700);
 
-  // ── Spacing (base 4) ──
+  // ── Spacing (4 px base) ──
+  --space-0: 0;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -81,7 +116,13 @@
   --space-12: 48px;
   --space-16: 64px;
 
+  // ── Control sizes (Button / Input / IconButton heights) ──
+  --size-control-sm: 36px;
+  --size-control-md: 44px;
+  --size-control-lg: 52px;
+
   // ── Radius ──
+  --radius-none: 0;
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -91,30 +132,88 @@
   --radius-3xl: 32px;
   --radius-full: 999px;
 
+  // ── Stroke and focus ──
+  --stroke-default: 1px;
+  --stroke-focus: 2px;
+  --stroke-icon: 1.8;
+  --focus-offset: 2px;
+
   // ── Effects ──
-  --shadow-card: 0 1px 2px rgba(15, 25, 35, 0.06), 0 4px 16px rgba(15, 25, 35, 0.06);
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
   --shadow-featured: 0 24px 48px rgba(0, 0, 0, 0.14);
-  --shadow-modal: 0 12px 40px rgba(15, 25, 35, 0.18);
+  --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --blur-nav: 20px;
+
+  // ── Motion (not in Figma variables; shared interaction timing) ──
   --motion-fast: 160ms;
   --motion-base: 240ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
-  // ── Typography ──
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  --text-xs: 11.5px;
-  --text-sm: 12px;
-  --text-md: 14px; // base ERP
-  --text-lg: 16px; // base web/tienda
-  --text-h3: 17px;
-  --text-h2: 22px;
-  --text-h1: 30px;
-  --text-display-xl: 56px;
-  --text-display-hero: 80px;
-  --tracking-tight: -0.02em;
-  --tracking-eyebrow: 0.08em;
-  --tracking-logo: 0.2em;
+  // ── Typography (families) ──
+  --font-family-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  // ── Typography (scale: size / line-height / weight / tracking) ──
+  --display-hero-size: 80px;
+  --display-hero-line-height: 84px;
+  --display-hero-weight: 700;
+  --display-hero-tracking: 0;
+  --stat-xl-size: 64px;
+  --stat-xl-line-height: 64px;
+  --stat-xl-weight: 600;
+  --stat-xl-tracking: -1.28px;
+  --display-xl-size: 56px;
+  --display-xl-line-height: 60px;
+  --display-xl-weight: 600;
+  --display-xl-tracking: -1.12px;
+  --display-h1-size: 40px;
+  --display-h1-line-height: 44px;
+  --display-h1-weight: 600;
+  --display-h1-tracking: -0.8px;
+  --display-h2-size: 28px;
+  --display-h2-line-height: 32px;
+  --display-h2-weight: 600;
+  --display-h2-tracking: -0.56px;
+  --display-h3-size: 20px;
+  --display-h3-line-height: 24px;
+  --display-h3-weight: 600;
+  --display-h3-tracking: 0;
+  --price-lg-size: 24px;
+  --price-lg-line-height: 28px;
+  --price-lg-weight: 700;
+  --price-lg-tracking: 0;
+  --body-lg-size: 16px;
+  --body-lg-line-height: 24px;
+  --body-lg-weight: 400;
+  --body-lg-tracking: 0;
+  --body-md-size: 14px;
+  --body-md-line-height: 21px;
+  --body-md-weight: 400;
+  --body-md-tracking: 0;
+  --body-md-strong-size: 14px;
+  --body-md-strong-line-height: 21px;
+  --body-md-strong-weight: 600;
+  --body-md-strong-tracking: 0;
+  --body-sm-size: 12px;
+  --body-sm-line-height: 18px;
+  --body-sm-weight: 400;
+  --body-sm-tracking: 0;
+  --label-md-size: 14px;
+  --label-md-line-height: 20px;
+  --label-md-weight: 500;
+  --label-md-tracking: 0;
+  --mono-md-size: 13px;
+  --mono-md-line-height: 20px;
+  --mono-md-weight: 500;
+  --mono-md-tracking: 0;
+  --eyebrow-size: 12px;
+  --eyebrow-line-height: 16px;
+  --eyebrow-weight: 600;
+  --eyebrow-tracking: 0.08em;
+  --logo-wordmark-size: 14px;
+  --logo-wordmark-line-height: 16px;
+  --logo-wordmark-weight: 600;
+  --logo-wordmark-tracking: 0.2em;
 
   // ── Layout ──
   --sidebar-width: 248px;
@@ -124,40 +223,70 @@
   color-scheme: light;
 }
 
-// ── Brand: Empresa 2 (verde) ──
-[data-brand='empresa2'] {
+// ── Brand · Company 2 (green) ──
+[data-brand='company2'] {
   --brand-primary: var(--green-700);
   --brand-primary-hover: var(--green-600);
-  --brand-primary-strong: var(--green-700);
   --brand-primary-soft: var(--green-100);
   --brand-on-primary: var(--white);
+  --brand-on-hover: var(--white);
+  --brand-accent-on-dark: var(--green-400);
+  --brand-focus-on-dark: var(--green-400);
+  --brand-accent-on-page: var(--green-700);
 }
 
-// ── Color (Dark) ──
+// ── Color · Dark ──
 [data-theme='dark'] {
-  --bg-page: var(--ink-950);
-  --bg-surface: var(--ink-900);
-  --bg-surface-2: var(--ink-800);
-  --bg-canvas: var(--ink-900);
-  --bg-section-alt: #1d1d1f;
-  --bg-section-dark: #000000;
-  --text-primary: var(--ink-100);
-  --text-muted: var(--ink-400);
-  --border-default: var(--ink-700);
-  --border-strong: var(--ink-600);
+  --bg-page: var(--gray-950);
+  --bg-canvas: var(--gray-canvas-dark);
+  --bg-surface: var(--gray-surface-dark);
+  --bg-surface-2: var(--gray-surface-2-dark);
+  --bg-section-alt: var(--gray-section-dark);
+  --bg-section-dark: var(--black);
+  --text-primary: var(--gray-50);
+  --text-muted: var(--gray-muted-dark);
+  --border-default: var(--gray-border-dark);
+  --border-control: var(--gray-muted-dark);
   --action-primary: var(--white);
-  --action-on-primary: var(--black);
-  --action-primary-soft: #2a2a2c;
-  --status-success: #71c977;
-  --status-success-soft: #1a3020;
-  --status-warning: #e2b54a;
-  --status-warning-soft: #352a12;
-  --status-danger: #f08a5d;
-  --status-danger-soft: #3a2016;
-  --status-info: var(--blue-400);
-  --status-info-soft: #1a2d44;
-  --status-idle: #8fa2b6;
-  --focus-ring: var(--blue-400);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  // TODO(figma): confirm dark values of action/primary-hover and -pressed (only the Light mode was readable)
+  --action-primary-hover: var(--gray-200);
+  --action-primary-pressed: var(--gray-300);
+  --action-on-primary: var(--gray-900);
+  --action-primary-soft: var(--gray-surface-2-dark);
+  --action-on-danger: var(--gray-900);
+  --status-success: var(--success-dark);
+  --status-success-soft: var(--success-soft-dark);
+  --status-warning: var(--amber-400);
+  --status-warning-soft: var(--amber-soft-dark);
+  --status-danger: var(--danger-dark);
+  --status-danger-soft: var(--danger-soft-dark);
+  --status-info: var(--info-dark);
+  --status-info-soft: var(--info-soft-dark);
+  --focus-ring: var(--red-500);
+  --focus-control: var(--red-500);
+  --nav-surface: var(--gray-canvas-dark);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
+}
+
+// ── Legacy aliases (deprecated) ──────────────────────────────────────────────
+// Kept so S0 screens keep working while they migrate to the Figma names above. Do not use in new code.
+:root {
+  --font-sans: var(--font-family-ui);
+  --font-mono: var(--font-family-mono);
+  --border-strong: var(--border-control);
+  --text-on-dark: var(--text-on-section-dark);
+  --text-xs: 11.5px;
+  --text-sm: var(--body-sm-size);
+  --text-md: var(--body-md-size);
+  --text-lg: var(--body-lg-size);
+  --text-h3: var(--display-h3-size);
+  --text-h2: var(--display-h2-size);
+  --text-h1: var(--display-h1-size);
+  --text-display-xl: var(--display-xl-size);
+  --text-display-hero: var(--display-hero-size);
+  --tracking-tight: -0.02em;
+  --tracking-eyebrow: var(--eyebrow-tracking);
+  --tracking-logo: var(--logo-wordmark-tracking);
+  --brand-primary-strong: var(--brand-accent-on-page);
 }

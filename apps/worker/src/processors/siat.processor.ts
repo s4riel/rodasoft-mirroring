@@ -4,13 +4,13 @@ import { Job, Queue } from 'bullmq';
 import { QUEUE } from '../common/queues';
 
 /**
- * Trabajos del SIAT. En S0 solo deja programadas las tareas; la lógica llega en S2–S3:
- *  - factura.emitir: arma XML, firma, empaqueta, envía y guarda el resultado (estado VALIDA/RECHAZADA/CONTINGENCIA).
- *  - factura.anular: anulación aprobada por Gerencia.
- *  - cufd.renovar: renueva el CUFD de cada punto de venta (diario, antes de abrir cajas).
- *  - catalogos.sincronizar: actividades, leyendas, motivos de anulación, tipos de evento.
- *  - contingencia.regularizar: arma y envía paquetes de facturas emitidas fuera de línea.
- * Concurrencia 1 por proceso para no saturar al SIN; escalar con más procesos si hace falta.
+ * SIAT jobs. In S0 it only schedules the recurring tasks; the logic arrives in S2-S3:
+ *  - invoice.issue: builds the XML, signs, packages, sends and stores the result (status VALID/REJECTED/CONTINGENCY).
+ *  - invoice.cancel: cancellation approved by Management.
+ *  - cufd.renew: renews the CUFD of each point of sale (daily, before registers open).
+ *  - catalogs.sync: activities, legends, cancellation reasons, event types.
+ *  - contingency.regularize: builds and sends packages of invoices issued offline.
+ * Concurrency 1 per process to avoid saturating the SIN; scale with more processes if needed.
  */
 @Processor(QUEUE.siat, { concurrency: 1 })
 export class SiatProcessor extends WorkerHost implements OnModuleInit {
@@ -21,27 +21,27 @@ export class SiatProcessor extends WorkerHost implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // hora de Bolivia (UTC-4): 06:30 renovar CUFD, 06:00 sincronizar catálogos
-    await this.queue.upsertJobScheduler('cufd-diario', { pattern: '30 6 * * *', tz: 'America/La_Paz' }, { name: 'cufd.renovar' });
+    // Bolivia time (UTC-4): 06:30 renew CUFD, 06:00 sync catalogs
+    await this.queue.upsertJobScheduler('cufd-daily', { pattern: '30 6 * * *', tz: 'America/La_Paz' }, { name: 'cufd.renew' });
     await this.queue.upsertJobScheduler(
-      'catalogos-diario',
+      'catalogs-daily',
       { pattern: '0 6 * * *', tz: 'America/La_Paz' },
-      { name: 'catalogos.sincronizar' },
+      { name: 'catalogs.sync' },
     );
   }
 
   async process(job: Job) {
     switch (job.name) {
-      case 'cufd.renovar':
-      case 'catalogos.sincronizar':
-        this.logger.log(`[pendiente S2] ${job.name}`);
+      case 'cufd.renew':
+      case 'catalogs.sync':
+        this.logger.log(`[pending S2] ${job.name}`);
         return;
-      case 'factura.emitir':
-      case 'factura.anular':
-        // Mientras no exista el flujo, falla para que el evento quede pendiente y visible.
-        throw new Error(`[pendiente S2] ${job.name} aún no implementado`);
+      case 'invoice.issue':
+      case 'invoice.cancel':
+        // Until the flow exists, fail so the event stays pending and visible.
+        throw new Error(`[pending S2] ${job.name} not implemented yet`);
       default:
-        this.logger.warn(`Trabajo SIAT desconocido: ${job.name}`);
+        this.logger.warn(`Unknown SIAT job: ${job.name}`);
     }
   }
 }

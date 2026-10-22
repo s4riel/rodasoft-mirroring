@@ -1,12 +1,12 @@
 import { Global, Module } from '@nestjs/common';
-import { EmpresasController } from './empresas.controller';
-import { EmpresasService } from './empresas.service';
+import { CompaniesController } from './companies.controller';
+import { CompaniesService } from './companies.service';
 import { TenantGuard } from './tenant.guard';
 
 @Global()
 @Module({
-  controllers: [EmpresasController],
-  providers: [EmpresasService, TenantGuard],
-  exports: [EmpresasService, TenantGuard],
+  controllers: [CompaniesController],
+  providers: [CompaniesService, TenantGuard],
+  exports: [CompaniesService, TenantGuard],
 })
 export class TenancyModule {}

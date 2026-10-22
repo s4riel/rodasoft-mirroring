@@ -7,7 +7,7 @@ import { PrismaService } from './common/prisma.service';
 import { QUEUE } from './common/queues';
 import { validateWorkerEnv, WorkerEnv } from './config/env';
 import { OutboxRelayService } from './outbox/outbox-relay.service';
-import { ContabilidadProcessor } from './processors/contabilidad.processor';
+import { AccountingProcessor } from './processors/accounting.processor';
 import { MailProcessor } from './processors/mail.processor';
 import { SiatProcessor } from './processors/siat.processor';
 
@@ -22,8 +22,8 @@ import { SiatProcessor } from './processors/siat.processor';
         prefix: 'rodasoft',
       }),
     }),
-    BullModule.registerQueue({ name: QUEUE.mail }, { name: QUEUE.siat }, { name: QUEUE.contabilidad }),
+    BullModule.registerQueue({ name: QUEUE.mail }, { name: QUEUE.siat }, { name: QUEUE.accounting }),
   ],
-  providers: [PrismaService, OutboxRelayService, MailProcessor, SiatProcessor, ContabilidadProcessor],
+  providers: [PrismaService, OutboxRelayService, MailProcessor, SiatProcessor, AccountingProcessor],
 })
 export class WorkerModule {}

@@ -4,13 +4,13 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { Env } from '../../config/env';
 
-/** Contenido del token de acceso. */
+/** Access token payload. */
 export interface JwtUser {
-  /** usuario */
+  /** user id */
   sub: string;
-  /** empresa */
-  emp: string;
-  /** membresía */
+  /** company id */
+  cid: string;
+  /** membership id */
   mid: string;
 }
 
@@ -27,6 +27,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   validate(payload: JwtUser): JwtUser {
-    return { sub: payload.sub, emp: payload.emp, mid: payload.mid };
+    return { sub: payload.sub, cid: payload.cid, mid: payload.mid };
   }
 }

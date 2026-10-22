@@ -1,11 +1,11 @@
 /**
- * Datos iniciales: 2 empresas, sucursales y almacenes, catálogo de permisos, roles y un administrador.
- * Idempotente: se puede correr varias veces (upsert).
+ * Seed data: 2 companies, branches and warehouses, permission catalog, roles and an administrator.
+ * Idempotent: can be run several times (upsert).
  *
  *   pnpm db:seed
  *
- * Variables opcionales: SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD.
- * Los datos de la 2.ª empresa son provisionales hasta la Fase 0.
+ * Optional variables: SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD.
+ * The 2nd company's data is provisional until Phase 0. Names (branches, warehouses) are display data in Spanish.
  */
 import { PrismaClient, BrandMode } from '@prisma/client';
 import { hash } from 'argon2';
@@ -13,31 +13,31 @@ import { DEFAULT_ROLES, PERMISSIONS, type Permission } from '@rodasoft/domain';
 
 const prisma = new PrismaClient();
 
-const EMPRESAS = [
+const COMPANIES = [
   {
     slug: 'rodalaser',
-    razonSocial: 'Rodalaser S.R.L.',
-    nombreComercial: 'Rodalaser',
-    nit: '0000000001', // TODO Fase 0: NIT real
+    legalName: 'Rodalaser S.R.L.',
+    tradeName: 'Rodalaser',
+    nit: '0000000001', // TODO Phase 0: real NIT
     brand: BrandMode.rodalaser,
-    sucursales: [
-      { codigo: 0, nombre: 'Huayna Kapac', almacenes: ['Principal', 'Depósito'] },
-      { codigo: 1, nombre: 'Sacaba', almacenes: ['Principal', 'Depósito'] },
-      { codigo: 2, nombre: 'Panamericana', almacenes: ['Principal', 'Depósito'] },
+    branches: [
+      { code: 0, name: 'Huayna Kapac', warehouses: ['Principal', 'Depósito'] },
+      { code: 1, name: 'Sacaba', warehouses: ['Principal', 'Depósito'] },
+      { code: 2, name: 'Panamericana', warehouses: ['Principal', 'Depósito'] },
     ],
   },
   {
-    slug: 'empresa2',
-    razonSocial: 'Empresa 2 (por definir)',
-    nombreComercial: 'Empresa 2',
-    nit: '0000000002', // TODO Fase 0: nombre, NIT y sucursales de la 2.ª empresa
-    brand: BrandMode.empresa2,
-    sucursales: [{ codigo: 0, nombre: 'Casa matriz', almacenes: ['Principal'] }],
+    slug: 'company2',
+    legalName: 'Empresa 2 (por definir)',
+    tradeName: 'Empresa 2',
+    nit: '0000000002', // TODO Phase 0: name, NIT and branches of the 2nd company
+    brand: BrandMode.company2,
+    branches: [{ code: 0, name: 'Casa matriz', warehouses: ['Principal'] }],
   },
 ];
 
-const prefijo = (nombre: string) =>
-  nombre
+const prefix = (name: string) =>
+  name
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .split(/\s+/)
@@ -47,85 +47,85 @@ const prefijo = (nombre: string) =>
     .slice(0, 3);
 
 async function main() {
-  // 1. Catálogo de permisos (fuente: libs/domain)
-  for (const [clave, descripcion] of Object.entries(PERMISSIONS)) {
-    await prisma.permiso.upsert({
-      where: { clave },
-      update: { descripcion, modulo: clave.split('.')[0] },
-      create: { clave, descripcion, modulo: clave.split('.')[0] },
+  // 1. Permission catalog (source: libs/domain)
+  for (const [key, description] of Object.entries(PERMISSIONS)) {
+    await prisma.permission.upsert({
+      where: { key },
+      update: { description, module: key.split('.')[0] },
+      create: { key, description, module: key.split('.')[0] },
     });
   }
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@rodalaser.local';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Rodalaser.2026';
-  const admin = await prisma.usuario.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {},
-    create: { email: adminEmail, nombre: 'Administrador', passwordHash: await hash(adminPassword) },
+    create: { email: adminEmail, name: 'Administrador', passwordHash: await hash(adminPassword) },
   });
 
-  for (const e of EMPRESAS) {
-    const empresa = await prisma.empresa.upsert({
-      where: { slug: e.slug },
-      update: { razonSocial: e.razonSocial, nombreComercial: e.nombreComercial, brand: e.brand },
+  for (const c of COMPANIES) {
+    const company = await prisma.company.upsert({
+      where: { slug: c.slug },
+      update: { legalName: c.legalName, tradeName: c.tradeName, brand: c.brand },
       create: {
-        slug: e.slug,
-        razonSocial: e.razonSocial,
-        nombreComercial: e.nombreComercial,
-        nit: e.nit,
-        brand: e.brand,
-        siatConfig: { create: {} },
+        slug: c.slug,
+        legalName: c.legalName,
+        tradeName: c.tradeName,
+        nit: c.nit,
+        brand: c.brand,
+        siatSettings: { create: {} },
       },
     });
 
-    // 2. Sucursales, almacenes y puntos de venta SIAT (0 por sucursal)
-    for (const s of e.sucursales) {
-      const sucursal = await prisma.sucursal.upsert({
-        where: { empresaId_codigo: { empresaId: empresa.id, codigo: s.codigo } },
-        update: { nombre: s.nombre },
-        create: { empresaId: empresa.id, codigo: s.codigo, nombre: s.nombre },
+    // 2. Branches, warehouses and SIAT points of sale (code 0 per branch)
+    for (const b of c.branches) {
+      const branch = await prisma.branch.upsert({
+        where: { companyId_code: { companyId: company.id, code: b.code } },
+        update: { name: b.name },
+        create: { companyId: company.id, code: b.code, name: b.name },
       });
-      for (const [i, nombre] of s.almacenes.entries()) {
-        const codigo = `${prefijo(s.nombre)}-${String(i + 1).padStart(2, '0')}`;
-        await prisma.almacen.upsert({
-          where: { empresaId_codigo: { empresaId: empresa.id, codigo } },
-          update: { nombre },
-          create: { empresaId: empresa.id, sucursalId: sucursal.id, codigo, nombre, esPrincipal: i === 0 },
+      for (const [i, name] of b.warehouses.entries()) {
+        const code = `${prefix(b.name)}-${String(i + 1).padStart(2, '0')}`;
+        await prisma.warehouse.upsert({
+          where: { companyId_code: { companyId: company.id, code } },
+          update: { name },
+          create: { companyId: company.id, branchId: branch.id, code, name, isMain: i === 0 },
         });
       }
-      await prisma.puntoVentaSiat.upsert({
-        where: { empresaId_sucursalId_codigo: { empresaId: empresa.id, sucursalId: sucursal.id, codigo: 0 } },
+      await prisma.siatPointOfSale.upsert({
+        where: { companyId_branchId_code: { companyId: company.id, branchId: branch.id, code: 0 } },
         update: {},
-        create: { empresaId: empresa.id, sucursalId: sucursal.id, codigo: 0, nombre: `Caja 1 · ${s.nombre}` },
+        create: { companyId: company.id, branchId: branch.id, code: 0, name: `Caja 1 · ${b.name}` },
       });
     }
 
-    // 3. Roles por empresa con sus permisos
-    for (const [clave, def] of Object.entries(DEFAULT_ROLES)) {
-      const rol = await prisma.rol.upsert({
-        where: { empresaId_clave: { empresaId: empresa.id, clave } },
-        update: { nombre: def.nombre },
-        create: { empresaId: empresa.id, clave, nombre: def.nombre, esSistema: true },
+    // 3. Roles per company with their permissions
+    for (const [key, def] of Object.entries(DEFAULT_ROLES)) {
+      const role = await prisma.role.upsert({
+        where: { companyId_key: { companyId: company.id, key } },
+        update: { name: def.name },
+        create: { companyId: company.id, key, name: def.name, isSystem: true },
       });
-      await prisma.rolPermiso.deleteMany({ where: { rolId: rol.id } });
-      await prisma.rolPermiso.createMany({
-        data: def.permisos.map((p: Permission) => ({ rolId: rol.id, permisoClave: p })),
+      await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+      await prisma.rolePermission.createMany({
+        data: def.permissions.map((p: Permission) => ({ roleId: role.id, permissionKey: p })),
         skipDuplicates: true,
       });
     }
 
-    // 4. Administrador con acceso a todas las sucursales
-    const rolAdmin = await prisma.rol.findUniqueOrThrow({
-      where: { empresaId_clave: { empresaId: empresa.id, clave: 'admin' } },
+    // 4. Administrator with access to every branch
+    const adminRole = await prisma.role.findUniqueOrThrow({
+      where: { companyId_key: { companyId: company.id, key: 'admin' } },
     });
-    await prisma.membresia.upsert({
-      where: { empresaId_usuarioId: { empresaId: empresa.id, usuarioId: admin.id } },
-      update: { rolId: rolAdmin.id, todasSucursales: true },
-      create: { empresaId: empresa.id, usuarioId: admin.id, rolId: rolAdmin.id, todasSucursales: true },
+    await prisma.membership.upsert({
+      where: { companyId_userId: { companyId: company.id, userId: admin.id } },
+      update: { roleId: adminRole.id, allBranches: true },
+      create: { companyId: company.id, userId: admin.id, roleId: adminRole.id, allBranches: true },
     });
   }
 
-  console.log(`✓ Seed listo. Administrador: ${adminEmail} / ${process.env.SEED_ADMIN_PASSWORD ? '(SEED_ADMIN_PASSWORD)' : adminPassword}`);
+  console.log(`Seed done. Administrator: ${adminEmail} / ${process.env.SEED_ADMIN_PASSWORD ? '(SEED_ADMIN_PASSWORD)' : adminPassword}`);
 }
 
 main()

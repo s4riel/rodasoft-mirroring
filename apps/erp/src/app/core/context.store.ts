@@ -2,19 +2,19 @@ import { HttpClient } from '@angular/common/http';
 import { skipAuthRetry } from './auth/http-context';
 import { computed, inject } from '@angular/core';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
-import type { ContextoResponse } from '@rodasoft/domain';
-import { TODAS_LAS_SUCURSALES } from '@rodasoft/ui';
+import type { ContextResponse } from '@rodasoft/domain';
+import { ALL_BRANCHES } from '@rodasoft/ui';
 import { firstValueFrom } from 'rxjs';
 import { TenantService } from './tenant.service';
 
 interface ContextState {
-  contexto: ContextoResponse | null;
-  sucursalId: string;
+  context: ContextResponse | null;
+  branchId: string;
 }
 
-const storageKey = (slug: string) => `rs:${slug}:sucursal`;
+const storageKey = (slug: string) => `rs:${slug}:branch`;
 
-const readSucursal = (slug: string): string | null => {
+const readBranch = (slug: string): string | null => {
   try {
     return localStorage.getItem(storageKey(slug));
   } catch {
@@ -23,43 +23,43 @@ const readSucursal = (slug: string): string | null => {
 };
 
 /**
- * Contexto de trabajo: empresa (fija), sucursal elegida, rol y permisos.
- * La sucursal elegida se recuerda por empresa en este navegador (solo comodidad).
+ * Working context: company (fixed), selected branch, role and permissions.
+ * The selected branch is remembered per company in this browser (convenience only).
  */
 export const ContextStore = signalStore(
   { providedIn: 'root' },
-  withState<ContextState>({ contexto: null, sucursalId: TODAS_LAS_SUCURSALES }),
-  withComputed(({ contexto, sucursalId }) => ({
-    empresa: computed(() => contexto()?.empresa ?? null),
-    sucursales: computed(() => contexto()?.sucursales ?? []),
-    permisos: computed<ReadonlySet<string>>(() => new Set(contexto()?.permisos ?? [])),
-    /** ContextBar Branch=All solo si el rol puede ver varias sucursales */
-    puedeVerTodas: computed(() => (contexto()?.sucursales.length ?? 0) > 1),
-    sucursalActual: computed(() => contexto()?.sucursales.find((s) => s.id === sucursalId()) ?? null),
+  withState<ContextState>({ context: null, branchId: ALL_BRANCHES }),
+  withComputed(({ context, branchId }) => ({
+    company: computed(() => context()?.company ?? null),
+    branches: computed(() => context()?.branches ?? []),
+    permissions: computed<ReadonlySet<string>>(() => new Set(context()?.permissions ?? [])),
+    /** ContextBar Branch=All only if the role can see several branches */
+    canViewAll: computed(() => (context()?.branches.length ?? 0) > 1),
+    currentBranch: computed(() => context()?.branches.find((b) => b.id === branchId()) ?? null),
   })),
   withMethods((store, http = inject(HttpClient), tenant = inject(TenantService)) => ({
     async load() {
-      const contexto = await firstValueFrom(http.get<ContextoResponse>('/api/v1/contexto', { context: skipAuthRetry() }));
-      const saved = readSucursal(tenant.slug);
-      const valid = saved === TODAS_LAS_SUCURSALES || contexto.sucursales.some((s) => s.id === saved);
-      const sucursalId =
-        valid && saved ? saved : contexto.sucursales.length === 1 ? contexto.sucursales[0].id : TODAS_LAS_SUCURSALES;
-      patchState(store, { contexto, sucursalId });
-      tenant.setBrand(contexto.empresa.brand);
+      const context = await firstValueFrom(http.get<ContextResponse>('/api/v1/context', { context: skipAuthRetry() }));
+      const saved = readBranch(tenant.slug);
+      const valid = saved === ALL_BRANCHES || context.branches.some((b) => b.id === saved);
+      const branchId =
+        valid && saved ? saved : context.branches.length === 1 ? context.branches[0].id : ALL_BRANCHES;
+      patchState(store, { context, branchId });
+      tenant.setBrand(context.company.brand);
     },
-    setSucursal(id: string) {
-      patchState(store, { sucursalId: id });
+    setBranch(id: string) {
+      patchState(store, { branchId: id });
       try {
         localStorage.setItem(storageKey(tenant.slug), id);
       } catch {
-        /* almacenamiento no disponible */
+        /* storage unavailable */
       }
     },
     can(permission: string) {
-      return store.permisos().has(permission);
+      return store.permissions().has(permission);
     },
     reset() {
-      patchState(store, { contexto: null, sucursalId: TODAS_LAS_SUCURSALES });
+      patchState(store, { context: null, branchId: ALL_BRANCHES });
     },
   })),
 );

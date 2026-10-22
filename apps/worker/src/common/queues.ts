@@ -1,20 +1,20 @@
-/** Colas de BullMQ. Una cola por tipo de trabajo, para escalar y reintentar por separado. */
+/** BullMQ queues. One queue per job type, to scale and retry separately. */
 export const QUEUE = {
   mail: 'mail',
   siat: 'siat',
-  contabilidad: 'contabilidad',
+  accounting: 'accounting',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
 
-/** A qué cola va cada tipo de evento del outbox (ver OutboxTipo en apps/api). */
+/** Which queue each outbox event type goes to (see OutboxType in apps/api). */
 export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'auth.password-reset': QUEUE.mail,
-  'auth.invitacion': QUEUE.mail,
-  'factura.emitir': QUEUE.siat,
-  'factura.anular': QUEUE.siat,
-  'venta.confirmada': QUEUE.contabilidad,
-  'asiento.generar': QUEUE.contabilidad,
+  'auth.invitation': QUEUE.mail,
+  'invoice.issue': QUEUE.siat,
+  'invoice.cancel': QUEUE.siat,
+  'sale.confirmed': QUEUE.accounting,
+  'entry.generate': QUEUE.accounting,
 };
 
 export const DEFAULT_JOB_OPTS = {

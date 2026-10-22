@@ -9,5 +9,5 @@ describe('ttlToSeconds', () => {
     ['45', 45],
   ])('%s → %d', (ttl, s) => expect(ttlToSeconds(ttl as string)).toBe(s));
 
-  it('rechaza formatos inválidos', () => expect(() => ttlToSeconds('quince')).toThrow());
+  it('rejects invalid formats', () => expect(() => ttlToSeconds('fifteen')).toThrow());
 });

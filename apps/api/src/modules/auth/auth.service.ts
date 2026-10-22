@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EstadoRegistro } from '@prisma/client';
+import { RecordStatus } from '@prisma/client';
 import { hash, verify } from 'argon2';
 import Redis from 'ioredis';
 import { AuditService } from '../../common/audit/audit.service';
@@ -9,27 +9,27 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { InjectRedis } from '../../common/redis/redis.provider';
 import { randomToken, sha256 } from '../../common/security/secrets.service';
 import type { Env } from '../../config/env';
-import { EmpresasService } from '../tenancy/empresas.service';
+import { CompaniesService } from '../tenancy/companies.service';
 import type { GoogleUser } from './google.strategy';
 import type { JwtUser } from './jwt.strategy';
 import { ClientMeta, TokensService } from './tokens.service';
 
-/** Códigos de error que el ERP traduce a pantallas (BC-01b, BC-04, BC-08b). */
+/** Error codes the ERP translates into screens (BC-01b, BC-04, BC-08b). */
 export const AuthErrors = {
-  credenciales: () => new UnauthorizedException({ code: 'CREDENCIALES', message: 'Correo o contraseña incorrectos' }),
-  sinAcceso: () => new ForbiddenException({ code: 'SIN_ACCESO', message: 'Tu cuenta no tiene acceso a esta empresa' }),
-  desactivada: () => new ForbiddenException({ code: 'CUENTA_DESACTIVADA', message: 'Tu cuenta está desactivada. Habla con el administrador.' }),
+  invalidCredentials: () => new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Incorrect e-mail or password' }),
+  noAccess: () => new ForbiddenException({ code: 'NO_ACCESS', message: 'Your account has no access to this company' }),
+  accountDisabled: () => new ForbiddenException({ code: 'ACCOUNT_DISABLED', message: 'Your account is disabled. Contact the administrator.' }),
 };
 
 @Injectable()
 export class AuthService {
-  /** hash de relleno: iguala el tiempo de respuesta cuando el correo no existe */
+  /** filler hash: equalizes response time when the e-mail does not exist */
   private readonly dummyHash = hash(randomToken(16));
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokensService,
-    private readonly empresas: EmpresasService,
+    private readonly companies: CompaniesService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly config: ConfigService<Env, true>,
@@ -37,38 +37,38 @@ export class AuthService {
   ) {}
 
   async login(slug: string, email: string, password: string, meta: ClientMeta) {
-    const empresaId = await this.empresas.idBySlug(slug);
-    const usuario = await this.prisma.usuario.findUnique({ where: { email: email.trim().toLowerCase() } });
-    const ok = await verify(usuario?.passwordHash ?? (await this.dummyHash), password).catch(() => false);
-    if (!usuario || !usuario.passwordHash || !ok) {
-      await this.audit.log({ accion: 'auth.login.fallido', empresaId, usuarioId: usuario?.id, despues: { email } });
-      throw AuthErrors.credenciales();
+    const companyId = await this.companies.idBySlug(slug);
+    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    const ok = await verify(user?.passwordHash ?? (await this.dummyHash), password).catch(() => false);
+    if (!user || !user.passwordHash || !ok) {
+      await this.audit.log({ action: 'auth.login.failed', companyId, userId: user?.id, after: { email } });
+      throw AuthErrors.invalidCredentials();
     }
-    return this.sessionFor(await this.authorize(usuario.id, empresaId, 'auth.login'), meta);
+    return this.sessionFor(await this.authorize(user.id, companyId, 'auth.login'), meta);
   }
 
-  /** Valida la cuenta de Google y devuelve a quién corresponde; la sesión se abre después en /google/exchange. */
+  /** Validates the Google account and returns who it maps to; the session is opened later in /google/exchange. */
   async loginGoogle(slug: string, g: GoogleUser): Promise<JwtUser> {
-    const empresaId = await this.empresas.idBySlug(slug);
-    if (!g.email || !g.emailVerified) throw AuthErrors.sinAcceso();
+    const companyId = await this.companies.idBySlug(slug);
+    if (!g.email || !g.emailVerified) throw AuthErrors.noAccess();
     const hd = this.config.get('GOOGLE_ALLOWED_HD');
-    if (hd && g.hd !== hd) throw AuthErrors.sinAcceso();
+    if (hd && g.hd !== hd) throw AuthErrors.noAccess();
 
-    // Solo entran correos invitados desde Configuración → Usuarios (pendiente de confirmar con el cliente).
-    const usuario =
-      (await this.prisma.usuario.findUnique({ where: { googleSub: g.sub } })) ??
-      (await this.prisma.usuario.findUnique({ where: { email: g.email } }));
-    if (!usuario) throw AuthErrors.sinAcceso();
-    if (!usuario.googleSub || !usuario.avatarUrl) {
-      await this.prisma.usuario.update({
-        where: { id: usuario.id },
-        data: { googleSub: usuario.googleSub ?? g.sub, avatarUrl: usuario.avatarUrl ?? g.avatarUrl },
+    // Only e-mails invited from Settings → Users get in (pending confirmation with the client).
+    const user =
+      (await this.prisma.user.findUnique({ where: { googleSub: g.sub } })) ??
+      (await this.prisma.user.findUnique({ where: { email: g.email } }));
+    if (!user) throw AuthErrors.noAccess();
+    if (!user.googleSub || !user.avatarUrl) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { googleSub: user.googleSub ?? g.sub, avatarUrl: user.avatarUrl ?? g.avatarUrl },
       });
     }
-    return this.authorize(usuario.id, empresaId, 'auth.login.google');
+    return this.authorize(user.id, companyId, 'auth.login.google');
   }
 
-  /** Código de un solo uso (60 s) para pasar la sesión de Google del dominio de la API al del ERP. */
+  /** One-time code (60 s) to hand the Google session from the API domain over to the ERP's. */
   async createGoogleCode(user: JwtUser): Promise<string> {
     const code = randomToken(24);
     await this.redis.set(`gauth:${sha256(code)}`, JSON.stringify(user), 'EX', 60);
@@ -77,72 +77,72 @@ export class AuthService {
 
   async exchangeGoogleCode(code: string, slug: string, meta: ClientMeta) {
     const raw = await this.redis.getdel(`gauth:${sha256(code)}`);
-    if (!raw) throw new UnauthorizedException({ code: 'CODIGO_INVALIDO', message: 'El enlace de acceso expiró. Intenta de nuevo.' });
+    if (!raw) throw new UnauthorizedException({ code: 'INVALID_CODE', message: 'The sign-in link expired. Try again.' });
     const user = JSON.parse(raw) as JwtUser;
-    if (user.emp !== (await this.empresas.idBySlug(slug))) throw AuthErrors.sinAcceso();
+    if (user.cid !== (await this.companies.idBySlug(slug))) throw AuthErrors.noAccess();
     return this.sessionFor(user, meta);
   }
 
   async refresh(raw: string | undefined, slug: string, meta: ClientMeta) {
-    const empresaId = await this.empresas.idBySlug(slug);
-    const rotated = await this.tokens.rotate(raw, empresaId, meta);
-    return { ...rotated, usuario: await this.usuarioPublico(rotated.user.sub) };
+    const companyId = await this.companies.idBySlug(slug);
+    const rotated = await this.tokens.rotate(raw, companyId, meta);
+    return { ...rotated, user: await this.publicUser(rotated.user.sub) };
   }
 
   logout(raw: string | undefined) {
     return this.tokens.revoke(raw);
   }
 
-  /** Siempre responde igual exista o no el correo (no revela qué cuentas existen). */
-  async solicitarRecuperacion(slug: string, email: string) {
-    const usuario = await this.prisma.usuario.findUnique({ where: { email: email.trim().toLowerCase() } });
-    if (!usuario || usuario.estado !== EstadoRegistro.ACTIVO) return;
+  /** Always answers the same whether or not the e-mail exists (does not reveal which accounts exist). */
+  async requestPasswordReset(slug: string, email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (!user || user.status !== RecordStatus.ACTIVE) return;
     const token = randomToken(32);
     await this.prisma.$transaction(async (tx) => {
       await tx.passwordReset.create({
-        data: { usuarioId: usuario.id, tokenHash: sha256(token), expiraEn: new Date(Date.now() + 30 * 60_000) },
+        data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 30 * 60_000) },
       });
-      const url = `${this.config.get('ERP_PUBLIC_URL').replace('{empresa}', slug)}/recuperar/restablecer?token=${token}`;
-      await this.outbox.publish('auth.password-reset', { email: usuario.email, nombre: usuario.nombre, url }, { tx, empresaId: null });
+      const url = `${this.config.get('ERP_PUBLIC_URL').replace('{company}', slug)}/reset-password?token=${token}`;
+      await this.outbox.publish('auth.password-reset', { email: user.email, name: user.name, url }, { tx, companyId: null });
     });
   }
 
-  async restablecer(token: string, password: string) {
+  async resetPassword(token: string, password: string) {
     const reset = await this.prisma.passwordReset.findUnique({ where: { tokenHash: sha256(token) } });
-    if (!reset || reset.usadoEn || reset.expiraEn < new Date()) {
-      throw new UnauthorizedException({ code: 'ENLACE_INVALIDO', message: 'El enlace expiró o ya fue usado' });
+    if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
+      throw new UnauthorizedException({ code: 'INVALID_LINK', message: 'The link expired or was already used' });
     }
     await this.prisma.$transaction([
-      this.prisma.usuario.update({ where: { id: reset.usuarioId }, data: { passwordHash: await hash(password) } }),
-      this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usadoEn: new Date() } }),
+      this.prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: await hash(password) } }),
+      this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
     ]);
-    await this.tokens.revokeAllForUser(reset.usuarioId);
-    await this.audit.log({ accion: 'auth.password.restablecida', usuarioId: reset.usuarioId, empresaId: null });
+    await this.tokens.revokeAllForUser(reset.userId);
+    await this.audit.log({ action: 'auth.password.reset', userId: reset.userId, companyId: null });
   }
 
-  private async authorize(usuarioId: string, empresaId: string, accion: string): Promise<JwtUser> {
-    const usuario = await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId } });
-    if (usuario.estado !== EstadoRegistro.ACTIVO) throw AuthErrors.desactivada();
-    const membresia = await this.prisma.membresia.findUnique({
-      where: { empresaId_usuarioId: { empresaId, usuarioId } },
+  private async authorize(userId: string, companyId: string, action: string): Promise<JwtUser> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.status !== RecordStatus.ACTIVE) throw AuthErrors.accountDisabled();
+    const membership = await this.prisma.membership.findUnique({
+      where: { companyId_userId: { companyId, userId } },
     });
-    if (!membresia) throw AuthErrors.sinAcceso();
-    if (membresia.estado !== EstadoRegistro.ACTIVO) throw AuthErrors.desactivada();
+    if (!membership) throw AuthErrors.noAccess();
+    if (membership.status !== RecordStatus.ACTIVE) throw AuthErrors.accountDisabled();
 
-    await this.prisma.usuario.update({ where: { id: usuarioId }, data: { ultimoAcceso: new Date() } });
-    await this.audit.log({ accion, empresaId, usuarioId });
-    return { sub: usuarioId, emp: empresaId, mid: membresia.id };
+    await this.prisma.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
+    await this.audit.log({ action, companyId, userId });
+    return { sub: userId, cid: companyId, mid: membership.id };
   }
 
   private async sessionFor(user: JwtUser, meta: ClientMeta) {
     const issued = await this.tokens.issue(user, meta);
-    return { ...issued, usuario: await this.usuarioPublico(user.sub) };
+    return { ...issued, user: await this.publicUser(user.sub) };
   }
 
-  private usuarioPublico(id: string) {
-    return this.prisma.usuario.findUniqueOrThrow({
+  private publicUser(id: string) {
+    return this.prisma.user.findUniqueOrThrow({
       where: { id },
-      select: { id: true, email: true, nombre: true, avatarUrl: true },
+      select: { id: true, email: true, name: true, avatarUrl: true },
     });
   }
 }

@@ -11,7 +11,7 @@ Plataforma de **Rodalaser S.R.L.**: ERP multiempresa (2 empresas, multisucursal)
 | Monorepo | Nx 21 + pnpm |
 | Producción | Docker Compose en un VPS + Caddy (TLS automático) |
 
-Plan completo: documento `claude/plan-implementacion-codigo.md` del proyecto.
+Plan completo: documento `claude/plan-implementacion-codigo.md` del proyecto. Reglas de nombres del código (todo en inglés): [`docs/naming-conventions.md`](docs/naming-conventions.md). Librería UI y Figma: [`docs/ui-library.md`](docs/ui-library.md).
 
 ---
 
@@ -41,8 +41,8 @@ Después de `pnpm install` por primera vez, **commitear `pnpm-lock.yaml`** (la C
 | Qué | URL |
 |---|---|
 | ERP · Rodalaser | http://rodalaser.localhost:4200 |
-| ERP · Empresa 2 (marca verde) | http://empresa2.localhost:4200 |
-| Sitio web | http://rodalaser.localhost:4300 · http://empresa2.localhost:4300 |
+| ERP · Empresa 2 / `company2` (marca verde) | http://company2.localhost:4200 |
+| Sitio web | http://rodalaser.localhost:4300 · http://company2.localhost:4300 |
 | API | http://localhost:3000/api/v1 |
 | Documentación de la API (Swagger) | http://localhost:3000/api/docs |
 | Correos de prueba (Mailpit) | http://localhost:8025 |
@@ -55,7 +55,7 @@ Usuario inicial: `admin@rodalaser.local` / `Rodalaser.2026` (cambiar con `SEED_A
 
 ```
 apps/
-  api/        NestJS: auth, empresas, permisos, contexto, salud (+ módulos por sprint)
+  api/        NestJS: auth, companies, permisos, context, health (+ módulos por sprint)
     prisma/   schema.prisma, migraciones y seed
   worker/     NestJS sin HTTP: outbox → BullMQ → correo / SIAT / contabilidad
   erp/        Angular: login (correo y Google), shell, inicio y marcadores de módulos
@@ -80,14 +80,19 @@ infra/        Docker, Caddy, compose de producción, respaldos
 
 ## 4. Decisiones de arquitectura clave
 
-- **Empresa por URL.** El subdominio (`rodalaser.erp.<dominio>`) define la empresa; no hay selector. El ERP manda además `X-Empresa`. El token de acceso está atado a una empresa y `TenantGuard` rechaza usarlo en la otra URL.
-- **Multi-tenant en esquema compartido.** Toda tabla de negocio tiene `empresa_id`. Usar **`prisma.tenant.<modelo>`** en los módulos: filtra y completa `empresaId` solo. Al crear un modelo de negocio, agregarlo a `TENANT_MODELS` (`apps/api/src/common/prisma/tenant.extension.ts`).
+- **Empresa por URL.** El subdominio (`rodalaser.erp.<dominio>`) define la empresa; no hay selector. El ERP manda además `X-Company`. El token de acceso está atado a una empresa y `TenantGuard` rechaza usarlo en la otra URL.
+- **Multi-tenant en esquema compartido.** Toda tabla de negocio tiene `company_id`. Usar **`prisma.tenant.<modelo>`** en los módulos: filtra y completa `companyId` solo. Al crear un modelo de negocio, agregarlo a `TENANT_MODELS` (`apps/api/src/common/prisma/tenant.extension.ts`).
 - **Sesión.** Token de acceso JWT de 15 min en memoria + refresh en cookie httpOnly con rotación y detección de reutilización. Google OAuth: la API valida y entrega un código de un solo uso que el ERP canjea en `/auth/google/exchange`. Solo entran correos **invitados** (pendiente de confirmar con el cliente).
-- **Permisos.** Catálogo en `libs/domain/src/lib/permissions.ts` (fuente de verdad). Backend: `@RequirePermissions('ventas.anulaciones.aprobar')`. ERP: `*rsCan="'ventas.anulaciones.aprobar'"` (solo UX).
+- **Permisos.** Catálogo en `libs/domain/src/lib/permissions.ts` (fuente de verdad). Backend: `@RequirePermissions('sales.cancellations.approve')`. ERP: `*rsCan="'sales.cancellations.approve'"` (solo UX).
 - **Dinero.** Nunca `number`: `Decimal` de `@rodasoft/domain` (bigint, redondeo HALF_UP) y `Decimal(14,2)` / `Decimal(14,4)` en BD.
 - **Outbox transaccional.** Los efectos secundarios (SIAT, correos, asientos) se publican con `OutboxService.publish(..., { tx })` dentro de la transacción del cambio; el worker los entrega a BullMQ con reintentos.
-- **Errores.** Toda respuesta de error es `{ status, code, message, details }` (`ApiProblem`). El ERP traduce `code` a mensajes (`apps/erp/src/app/core/api-error.ts`).
+- **Errores.** Toda respuesta de error es `{ status, code, message, details }` (`ApiProblem`) con `code` y `message` en inglés. El ERP traduce `code` a mensajes en español (`apps/erp/src/app/core/api-error.ts`).
 - **Secretos SIAT** (token, .p12 y contraseña) cifrados con AES-256-GCM (`SecretsService`), clave en `SECRETS_KEY`.
+
+### Catálogo de componentes UI
+
+Con `pnpm dev`, abrir http://rodalaser.localhost:4200/design-system (solo en desarrollo): muestra cada componente de `libs/ui`
+con sus variantes y estados, con selector de modo Claro/Oscuro y Empresa 1/Empresa 2, para compararlo con el Figma.
 
 ## 5. Comandos útiles
 
@@ -97,7 +102,7 @@ infra/        Docker, Caddy, compose de producción, respaldos
 | `pnpm affected` | Solo lo que cambió respecto a `main` |
 | `pnpm db:studio` | Explorador de la BD |
 | `pnpm api:client` | Exporta OpenAPI y regenera `libs/api-client` |
-| `pnpm siat:spike [--firmar]` | Prueba CUIS, CUFD, CUF y firma contra el SIAT piloto (ver `tools/siat-spike/README.md`) |
+| `pnpm siat:spike [--sign]` | Prueba CUIS, CUFD, CUF y firma contra el SIAT piloto (ver `tools/siat-spike/README.md`) |
 | `pnpm nx graph` | Grafo de dependencias del monorepo |
 | `pnpm nx migrate latest` | Actualizar Nx/Angular/Nest a la última versión compatible |
 
@@ -110,7 +115,7 @@ docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod run -
 docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d
 ```
 
-DNS: `api.`, `rodalaser.erp.`, `empresa2.erp.`, el dominio raíz y `www.` apuntando al VPS. Respaldos diarios en `infra/backups` + `infra/scripts/backup-offsite.sh`; probar restauración cada mes con `infra/scripts/restore.sh`.
+DNS: `api.`, `rodalaser.erp.`, `company2.erp.`, el dominio raíz y `www.` apuntando al VPS. Respaldos diarios en `infra/backups` + `infra/scripts/backup-offsite.sh`; probar restauración cada mes con `infra/scripts/restore.sh`.
 
 ## 7. Checklist de la semana S0 (19 oct – 1 nov)
 

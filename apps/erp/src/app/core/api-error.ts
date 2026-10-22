@@ -1,18 +1,18 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import type { ApiProblem } from '@rodasoft/domain';
 
-/** Mensajes para los códigos de error de la API (pantallas BC-01b, BC-04, BC-08). */
+/** User-facing (Spanish) messages for the API error codes (screens BC-01b, BC-04, BC-08). */
 const MESSAGES: Record<string, string> = {
-  CREDENCIALES: 'Correo o contraseña incorrectos.',
-  SIN_ACCESO: 'Tu cuenta no tiene acceso a esta empresa. Pide una invitación al administrador.',
-  CUENTA_DESACTIVADA: 'Tu cuenta está desactivada. Habla con el administrador.',
-  SESION_INVALIDA: 'Tu sesión expiró. Inicia sesión de nuevo.',
-  EMPRESA_NO_EXISTE: 'Esta dirección no corresponde a ninguna empresa.',
-  GOOGLE_CANCELADO: 'Cancelaste el acceso con Google.',
-  GOOGLE_ESTADO: 'No pudimos validar el acceso con Google. Intenta de nuevo.',
-  GOOGLE_NO_CONFIGURADO: 'El acceso con Google todavía no está configurado.',
-  CODIGO_INVALIDO: 'El enlace de acceso expiró. Intenta de nuevo.',
-  ENLACE_INVALIDO: 'El enlace expiró o ya fue usado. Pide uno nuevo.',
+  INVALID_CREDENTIALS: 'Correo o contraseña incorrectos.',
+  NO_ACCESS: 'Tu cuenta no tiene acceso a esta empresa. Pide una invitación al administrador.',
+  ACCOUNT_DISABLED: 'Tu cuenta está desactivada. Habla con el administrador.',
+  INVALID_SESSION: 'Tu sesión expiró. Inicia sesión de nuevo.',
+  COMPANY_NOT_FOUND: 'Esta dirección no corresponde a ninguna empresa.',
+  GOOGLE_CANCELLED: 'Cancelaste el acceso con Google.',
+  GOOGLE_STATE: 'No pudimos validar el acceso con Google. Intenta de nuevo.',
+  GOOGLE_NOT_CONFIGURED: 'El acceso con Google todavía no está configurado.',
+  INVALID_CODE: 'El enlace de acceso expiró. Intenta de nuevo.',
+  INVALID_LINK: 'El enlace expiró o ya fue usado. Pide uno nuevo.',
   THROTTLED: 'Demasiados intentos. Espera un minuto.',
   NETWORK: 'No hay conexión con el servidor. Revisa tu internet.',
 };

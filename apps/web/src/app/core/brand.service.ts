@@ -4,17 +4,17 @@ import type { BrandMode } from '@rodasoft/domain';
 
 interface BrandInfo {
   mode: BrandMode;
-  nombre: string;
+  name: string;
 }
 
 /**
- * Hosts de cada marca. Ajustar con los dominios definitivos (Fase 0).
- * En desarrollo: http://rodalaser.localhost:4300 y http://empresa2.localhost:4300
+ * Hosts of each brand. Adjust with the final domains (Phase 0).
+ * In development: http://rodalaser.localhost:4300 and http://company2.localhost:4300
  */
 const BRANDS: { match: RegExp; brand: BrandInfo }[] = [
-  { match: /(^|\.)empresa2\./i, brand: { mode: 'empresa2', nombre: 'Empresa 2' } },
+  { match: /(^|\.)company2\./i, brand: { mode: 'company2', name: 'Empresa 2' } },
 ];
-const DEFAULT_BRAND: BrandInfo = { mode: 'rodalaser', nombre: 'Rodalaser' };
+const DEFAULT_BRAND: BrandInfo = { mode: 'rodalaser', name: 'Rodalaser' };
 
 @Injectable({ providedIn: 'root' })
 export class BrandService {
@@ -24,7 +24,7 @@ export class BrandService {
   readonly brand: BrandInfo = this.resolve();
 
   constructor() {
-    // en el servidor y en el navegador, para que el HTML hidratado ya tenga los colores correctos
+    // on the server and in the browser, so the hydrated HTML already has the right colors
     this.document.documentElement.setAttribute('data-brand', this.brand.mode);
   }
 

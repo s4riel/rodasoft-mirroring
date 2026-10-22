@@ -9,16 +9,16 @@ import type { WorkerEnv } from '../config/env';
 
 interface OutboxRow {
   id: bigint;
-  empresa_id: string | null;
-  tipo: string;
+  company_id: string | null;
+  type: string;
   payload: unknown;
-  intentos: number;
+  attempts: number;
 }
 
 /**
- * Publica los eventos del outbox en BullMQ.
- * `FOR UPDATE SKIP LOCKED` permite correr varios workers sin publicar dos veces el mismo evento,
- * y `jobId = outbox-<id>` hace que BullMQ ignore duplicados si el worker se cae a mitad de camino.
+ * Publishes outbox events to BullMQ.
+ * `FOR UPDATE SKIP LOCKED` lets several workers run without publishing the same event twice,
+ * and `jobId = outbox-<id>` makes BullMQ ignore duplicates if the worker crashes midway.
  */
 @Injectable()
 export class OutboxRelayService {
@@ -31,9 +31,9 @@ export class OutboxRelayService {
     private readonly config: ConfigService<WorkerEnv, true>,
     @InjectQueue(QUEUE.mail) mail: Queue,
     @InjectQueue(QUEUE.siat) siat: Queue,
-    @InjectQueue(QUEUE.contabilidad) contabilidad: Queue,
+    @InjectQueue(QUEUE.accounting) accounting: Queue,
   ) {
-    this.queues = { mail, siat, contabilidad };
+    this.queues = { mail, siat, accounting };
   }
 
   @Interval('outbox', 2000)
@@ -46,7 +46,7 @@ export class OutboxRelayService {
         published = await this.publishBatch();
       } while (published === this.config.get('OUTBOX_BATCH'));
     } catch (err) {
-      this.logger.error('Error publicando el outbox', err as Error);
+      this.logger.error('Error publishing the outbox', err as Error);
     } finally {
       this.running = false;
     }
@@ -56,30 +56,30 @@ export class OutboxRelayService {
     const batch = this.config.get('OUTBOX_BATCH');
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<OutboxRow[]>`
-        SELECT id, empresa_id, tipo, payload, intentos
-        FROM outbox_event
-        WHERE procesado_en IS NULL AND disponible_en <= now()
+        SELECT id, company_id, type, payload, attempts
+        FROM outbox_events
+        WHERE processed_at IS NULL AND available_at <= now()
         ORDER BY id
         LIMIT ${batch}
         FOR UPDATE SKIP LOCKED`;
       for (const row of rows) {
-        const queueName = OUTBOX_ROUTES[row.tipo];
+        const queueName = OUTBOX_ROUTES[row.type];
         try {
-          if (!queueName) throw new Error(`Tipo de evento sin ruta: ${row.tipo}`);
+          if (!queueName) throw new Error(`Event type without a route: ${row.type}`);
           await this.queues[queueName].add(
-            row.tipo,
-            { outboxId: row.id.toString(), empresaId: row.empresa_id, payload: row.payload },
+            row.type,
+            { outboxId: row.id.toString(), companyId: row.company_id, payload: row.payload },
             { ...DEFAULT_JOB_OPTS, jobId: `outbox-${row.id}` },
           );
-          await tx.outboxEvent.update({ where: { id: row.id }, data: { procesadoEn: new Date(), error: null } });
+          await tx.outboxEvent.update({ where: { id: row.id }, data: { processedAt: new Date(), error: null } });
         } catch (err) {
-          const intentos = row.intentos + 1;
-          const delayMs = Math.min(2 ** intentos * 1000, 15 * 60_000);
+          const attempts = row.attempts + 1;
+          const delayMs = Math.min(2 ** attempts * 1000, 15 * 60_000);
           await tx.outboxEvent.update({
             where: { id: row.id },
-            data: { intentos, error: (err as Error).message.slice(0, 500), disponibleEn: new Date(Date.now() + delayMs) },
+            data: { attempts, error: (err as Error).message.slice(0, 500), availableAt: new Date(Date.now() + delayMs) },
           });
-          this.logger.warn(`Outbox ${row.id} (${row.tipo}) falló, reintento en ${delayMs / 1000}s: ${(err as Error).message}`);
+          this.logger.warn(`Outbox ${row.id} (${row.type}) failed, retrying in ${delayMs / 1000}s: ${(err as Error).message}`);
         }
       }
       return rows.length;

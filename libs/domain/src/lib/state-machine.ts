@@ -1,7 +1,7 @@
 /**
- * Máquina de estados mínima y explícita. Cada documento (factura, transferencia, OC…)
- * declara sus transiciones; el servicio llama a `assertTransition` antes de cambiar el estado
- * y registra el cambio en auditoría.
+ * Minimal, explicit state machine. Each document (invoice, transfer, purchase order…)
+ * declares its transitions; the service calls `next()` before changing the status
+ * and records the change in the audit log.
  */
 export type Transitions<S extends string, E extends string> = Record<S, Partial<Record<E, S>>>;
 
@@ -10,7 +10,7 @@ export class InvalidTransitionError extends Error {
     readonly from: string,
     readonly event: string,
   ) {
-    super(`Transición no permitida: "${event}" desde "${from}"`);
+    super(`Transition not allowed: "${event}" from "${from}"`);
     this.name = 'InvalidTransitionError';
   }
 }
@@ -31,66 +31,66 @@ export function createMachine<S extends string, E extends string>(transitions: T
   };
 }
 
-// ── Transferencias entre sucursales (inventario-transferencias-flujo.md) ──
-export type EstadoTransferencia =
-  | 'BORRADOR'
-  | 'POR_APROBAR'
-  | 'APROBADA'
-  | 'EN_TRANSITO'
-  | 'RECIBIDA_PARCIAL'
-  | 'RECIBIDA'
-  | 'RECHAZADA'
-  | 'ANULADA';
-export type EventoTransferencia =
-  | 'enviar'
-  | 'pedirAprobacion'
-  | 'aprobar'
-  | 'rechazar'
-  | 'despachar'
-  | 'recibirParcial'
-  | 'recibirTodo'
-  | 'anular';
+// ── Transfers between branches (inventario-transferencias-flujo.md) ──
+export type TransferStatus =
+  | 'DRAFT'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'IN_TRANSIT'
+  | 'PARTIALLY_RECEIVED'
+  | 'RECEIVED'
+  | 'REJECTED'
+  | 'CANCELLED';
+export type TransferEvent =
+  | 'send'
+  | 'requestApproval'
+  | 'approve'
+  | 'reject'
+  | 'dispatch'
+  | 'receivePartial'
+  | 'receiveAll'
+  | 'cancel';
 
-export const transferenciaMachine = createMachine<EstadoTransferencia, EventoTransferencia>({
-  BORRADOR: { enviar: 'EN_TRANSITO', pedirAprobacion: 'POR_APROBAR', anular: 'ANULADA' },
-  POR_APROBAR: { aprobar: 'APROBADA', rechazar: 'RECHAZADA' },
-  APROBADA: { despachar: 'EN_TRANSITO', anular: 'ANULADA' },
-  EN_TRANSITO: { recibirParcial: 'RECIBIDA_PARCIAL', recibirTodo: 'RECIBIDA' },
-  RECIBIDA_PARCIAL: { recibirParcial: 'RECIBIDA_PARCIAL', recibirTodo: 'RECIBIDA' },
-  RECIBIDA: {},
-  RECHAZADA: {},
-  ANULADA: {},
+export const transferMachine = createMachine<TransferStatus, TransferEvent>({
+  DRAFT: { send: 'IN_TRANSIT', requestApproval: 'PENDING_APPROVAL', cancel: 'CANCELLED' },
+  PENDING_APPROVAL: { approve: 'APPROVED', reject: 'REJECTED' },
+  APPROVED: { dispatch: 'IN_TRANSIT', cancel: 'CANCELLED' },
+  IN_TRANSIT: { receivePartial: 'PARTIALLY_RECEIVED', receiveAll: 'RECEIVED' },
+  PARTIALLY_RECEIVED: { receivePartial: 'PARTIALLY_RECEIVED', receiveAll: 'RECEIVED' },
+  RECEIVED: {},
+  REJECTED: {},
+  CANCELLED: {},
 });
 
-// ── Factura SIAT (facturacion-plan-cierre.md) ──
-export type EstadoFactura =
-  | 'PENDIENTE'
-  | 'ENVIANDO'
-  | 'VALIDA'
-  | 'RECHAZADA'
-  | 'CONTINGENCIA'
-  | 'OBSERVADA'
-  | 'ANULACION_PENDIENTE'
-  | 'ANULADA';
-export type EventoFactura =
-  | 'enviar'
-  | 'aceptar'
-  | 'rechazar'
-  | 'sinConexion'
-  | 'paqueteValidado'
-  | 'paqueteObservado'
-  | 'corregir'
-  | 'solicitarAnulacion'
-  | 'aprobarAnulacion'
-  | 'rechazarAnulacion';
+// ── SIAT invoice (facturacion-plan-cierre.md) ──
+export type InvoiceStatus =
+  | 'PENDING'
+  | 'SENDING'
+  | 'VALID'
+  | 'REJECTED'
+  | 'CONTINGENCY'
+  | 'OBSERVED'
+  | 'CANCELLATION_PENDING'
+  | 'CANCELLED';
+export type InvoiceEvent =
+  | 'send'
+  | 'accept'
+  | 'reject'
+  | 'offline'
+  | 'packageValidated'
+  | 'packageObserved'
+  | 'fix'
+  | 'requestCancellation'
+  | 'approveCancellation'
+  | 'rejectCancellation';
 
-export const facturaMachine = createMachine<EstadoFactura, EventoFactura>({
-  PENDIENTE: { enviar: 'ENVIANDO', sinConexion: 'CONTINGENCIA' },
-  ENVIANDO: { aceptar: 'VALIDA', rechazar: 'RECHAZADA', sinConexion: 'CONTINGENCIA' },
-  RECHAZADA: { corregir: 'PENDIENTE' },
-  CONTINGENCIA: { paqueteValidado: 'VALIDA', paqueteObservado: 'OBSERVADA' },
-  OBSERVADA: { corregir: 'PENDIENTE' },
-  VALIDA: { solicitarAnulacion: 'ANULACION_PENDIENTE' },
-  ANULACION_PENDIENTE: { aprobarAnulacion: 'ANULADA', rechazarAnulacion: 'VALIDA' },
-  ANULADA: {},
+export const invoiceMachine = createMachine<InvoiceStatus, InvoiceEvent>({
+  PENDING: { send: 'SENDING', offline: 'CONTINGENCY' },
+  SENDING: { accept: 'VALID', reject: 'REJECTED', offline: 'CONTINGENCY' },
+  REJECTED: { fix: 'PENDING' },
+  CONTINGENCY: { packageValidated: 'VALID', packageObserved: 'OBSERVED' },
+  OBSERVED: { fix: 'PENDING' },
+  VALID: { requestCancellation: 'CANCELLATION_PENDING' },
+  CANCELLATION_PENDING: { approveCancellation: 'CANCELLED', rejectCancellation: 'VALID' },
+  CANCELLED: {},
 });

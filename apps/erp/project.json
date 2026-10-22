@@ -4,63 +4,32 @@
   "projectType": "application",
   "prefix": "rs",
   "sourceRoot": "apps/erp/src",
-  "tags": [
-    "scope:frontend",
-    "type:app"
-  ],
+  "tags": ["scope:frontend", "type:app"],
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": [
-        "{options.outputPath}"
-      ],
+      "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/apps/erp",
         "browser": "apps/erp/src/main.ts",
         "tsConfig": "apps/erp/tsconfig.app.json",
         "inlineStyleLanguage": "scss",
-        "assets": [
-          {
-            "glob": "**/*",
-            "input": "apps/erp/public"
-          }
-        ],
-        "styles": [
-          "apps/erp/src/styles.scss"
-        ],
-        "stylePreprocessorOptions": {
-          "includePaths": [
-            "libs/ui/src/styles"
-          ]
-        }
+        "assets": [{ "glob": "**/*", "input": "apps/erp/public" }],
+        "styles": ["apps/erp/src/styles.scss"],
+        "stylePreprocessorOptions": { "includePaths": ["libs/ui/src/styles"] }
       },
       "configurations": {
         "production": {
           "budgets": [
-            {
-              "type": "initial",
-              "maximumWarning": "600kb",
-              "maximumError": "1mb"
-            },
-            {
-              "type": "anyComponentStyle",
-              "maximumWarning": "6kb",
-              "maximumError": "12kb"
-            }
+            { "type": "initial", "maximumWarning": "600kb", "maximumError": "1mb" },
+            { "type": "anyComponentStyle", "maximumWarning": "6kb", "maximumError": "12kb" }
           ],
           "outputHashing": "all",
           "fileReplacements": [
-            {
-              "replace": "apps/erp/src/environments/environment.ts",
-              "with": "apps/erp/src/environments/environment.prod.ts"
-            }
+            { "replace": "apps/erp/src/environments/environment.ts", "with": "apps/erp/src/environments/environment.prod.ts" }
           ]
         },
-        "development": {
-          "optimization": false,
-          "extractLicenses": false,
-          "sourceMap": true
-        }
+        "development": { "optimization": false, "extractLicenses": false, "sourceMap": true }
       },
       "defaultConfiguration": "production"
     },
@@ -69,33 +38,19 @@
       "options": {
         "port": 4200,
         "proxyConfig": "apps/erp/proxy.conf.json",
-        "allowedHosts": [
-          "rodalaser.localhost",
-          "empresa2.localhost",
-          "localhost"
-        ]
+        "allowedHosts": ["rodalaser.localhost", "company2.localhost", "localhost"]
       },
       "configurations": {
-        "production": {
-          "buildTarget": "erp:build:production"
-        },
-        "development": {
-          "buildTarget": "erp:build:development"
-        }
+        "production": { "buildTarget": "erp:build:production" },
+        "development": { "buildTarget": "erp:build:development" }
       },
       "defaultConfiguration": "development"
     },
-    "lint": {
-      "executor": "@nx/eslint:lint"
-    },
+    "lint": { "executor": "@nx/eslint:lint" },
     "test": {
       "executor": "@nx/jest:jest",
-      "outputs": [
-        "{workspaceRoot}/coverage/{projectRoot}"
-      ],
-      "options": {
-        "jestConfig": "apps/erp/jest.config.ts"
-      }
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": { "jestConfig": "apps/erp/jest.config.ts" }
     }
   }
 }

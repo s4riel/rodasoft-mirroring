@@ -1,5 +1,5 @@
 # Caddy: TLS automático (Let's Encrypt), compresión y enrutamiento.
-# Variables (infra/.env.prod): DOMAIN (p. ej. rodalaser.com.bo), DOMAIN_EMPRESA2, ACME_EMAIL
+# Variables (infra/.env.prod): DOMAIN (p. ej. rodalaser.com.bo), DOMAIN_COMPANY2, ACME_EMAIL
 {
 	email {$ACME_EMAIL}
 }
@@ -21,7 +21,7 @@ api.{$DOMAIN} {
 }
 
 # ERP: una URL por empresa. El Host se conserva → la API sabe qué empresa es.
-rodalaser.erp.{$DOMAIN}, empresa2.erp.{$DOMAIN} {
+rodalaser.erp.{$DOMAIN}, company2.erp.{$DOMAIN} {
 	import seguridad
 	handle /api/* {
 		reverse_proxy api:3000
@@ -36,7 +36,7 @@ rodalaser.erp.{$DOMAIN}, empresa2.erp.{$DOMAIN} {
 }
 
 # Sitio web + tienda (las dos marcas, mismo servidor SSR)
-{$DOMAIN}, www.{$DOMAIN}, {$DOMAIN_EMPRESA2} {
+{$DOMAIN}, www.{$DOMAIN}, {$DOMAIN_COMPANY2} {
 	import seguridad
 	handle /api/* {
 		reverse_proxy api:3000

@@ -6,7 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { InjectRedis } from '../../common/redis/redis.provider';
 import { Public } from '../auth/decorators';
 
-@ApiTags('salud')
+@ApiTags('health')
 @Public()
 @Controller('health')
 export class HealthController {
@@ -18,13 +18,13 @@ export class HealthController {
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
-  /** Vivo: el proceso responde (lo usa Docker). */
+  /** Live: the process responds (used by Docker). */
   @Get('live')
   live() {
     return { status: 'ok' };
   }
 
-  /** Listo: BD y Redis responden (lo usa Uptime Kuma). */
+  /** Ready: DB and Redis respond (used by Uptime Kuma). */
   @Get()
   @HealthCheck()
   ready() {

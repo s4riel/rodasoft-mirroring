@@ -3,5 +3,5 @@ import type { Permission } from '@rodasoft/domain';
 
 export const REQUIRED_PERMISSIONS = 'requiredPermissions';
 
-/** Exige TODOS los permisos indicados. Ej.: @RequirePermissions('ventas.anulaciones.aprobar') */
+/** Requires ALL the given permissions. E.g.: @RequirePermissions('sales.cancellations.approve') */
 export const RequirePermissions = (...permissions: Permission[]) => SetMetadata(REQUIRED_PERMISSIONS, permissions);

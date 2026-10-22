@@ -2,7 +2,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from './auth.service';
 
-/** Rutas internas: si no hay token en memoria, intenta renovar con la cookie antes de mandar al login. */
+/** Internal routes: if there is no in-memory token, try to renew with the cookie before sending to login. */
 export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
@@ -11,7 +11,7 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   return router.createUrlTree(['/login'], { queryParams: state.url !== '/' ? { returnUrl: state.url } : {} });
 };
 
-/** Pantallas de acceso: si ya hay sesión válida, ir al inicio. */
+/** Access screens: if a valid session already exists, go home. */
 export const guestGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);

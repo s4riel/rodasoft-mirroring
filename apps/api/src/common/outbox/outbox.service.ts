@@ -4,14 +4,14 @@ import { ClsService } from 'nestjs-cls';
 import type { AppClsStore } from '../cls';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** Tipos de evento conocidos. El worker enruta cada tipo a una cola (ver apps/worker/src/outbox). */
-export type OutboxTipo =
+/** Known event types. The worker routes each type to a queue (see apps/worker/src/outbox). */
+export type OutboxType =
   | 'auth.password-reset'
-  | 'auth.invitacion'
-  | 'venta.confirmada'
-  | 'factura.emitir'
-  | 'factura.anular'
-  | 'asiento.generar';
+  | 'auth.invitation'
+  | 'sale.confirmed'
+  | 'invoice.issue'
+  | 'invoice.cancel'
+  | 'entry.generate';
 
 type Tx = Prisma.TransactionClient | PrismaService;
 
@@ -23,22 +23,22 @@ export class OutboxService {
   ) {}
 
   /**
-   * Encola un evento. Pasar SIEMPRE el `tx` de la transacción del cambio de negocio:
-   * si la transacción se revierte, el evento tampoco existe.
+   * Enqueues an event. ALWAYS pass the `tx` of the business change's transaction:
+   * if the transaction rolls back, the event does not exist either.
    */
   async publish(
-    tipo: OutboxTipo,
+    type: OutboxType,
     payload: Record<string, unknown>,
-    opts: { tx?: Tx; idempotencyKey?: string; empresaId?: string | null; disponibleEn?: Date } = {},
+    opts: { tx?: Tx; idempotencyKey?: string; companyId?: string | null; availableAt?: Date } = {},
   ) {
     const tx = opts.tx ?? this.prisma;
     return tx.outboxEvent.create({
       data: {
-        tipo,
+        type,
         payload: payload as Prisma.InputJsonValue,
         idempotencyKey: opts.idempotencyKey,
-        empresaId: opts.empresaId ?? this.cls.get('empresaId'),
-        disponibleEn: opts.disponibleEn,
+        companyId: opts.companyId ?? this.cls.get('companyId'),
+        availableAt: opts.availableAt,
       },
     });
   }

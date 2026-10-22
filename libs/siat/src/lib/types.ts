@@ -1,75 +1,75 @@
 /**
- * Tipos y catálogos del SIAT (Servicio de Impuestos Nacionales, Bolivia).
- * Los valores vienen de la especificación técnica del SIN; validar contra la versión vigente
- * y contra los catálogos sincronizados (sincronizarParametrica*) antes de pasar a producción.
+ * SIAT (Servicio de Impuestos Nacionales, Bolivia) types and catalogs.
+ * Values come from the SIN technical specification; validate against the current version
+ * and against the synchronized catalogs (sincronizarParametrica*) before going to production.
  */
-export enum CodigoAmbiente {
-  Produccion = 1,
-  Pruebas = 2,
+export enum EnvironmentCode {
+  Production = 1,
+  Test = 2,
 }
 
-export enum CodigoModalidad {
-  ElectronicaEnLinea = 1,
-  ComputarizadaEnLinea = 2,
+export enum ModalityCode {
+  ElectronicOnline = 1,
+  ComputerizedOnline = 2,
 }
 
-export enum TipoEmision {
-  EnLinea = 1,
-  FueraDeLinea = 2,
-  Masiva = 3,
+export enum EmissionType {
+  Online = 1,
+  Offline = 2,
+  Bulk = 3,
 }
 
-/** 1 = con derecho a crédito fiscal, 2 = sin derecho, 3 = documento de ajuste */
-export enum TipoFacturaDocumento {
-  ConCreditoFiscal = 1,
-  SinCreditoFiscal = 2,
-  DocumentoAjuste = 3,
+/** 1 = with tax credit, 2 = without tax credit, 3 = adjustment document */
+export enum InvoiceDocumentType {
+  WithTaxCredit = 1,
+  WithoutTaxCredit = 2,
+  AdjustmentDocument = 3,
 }
 
-/** Sector 1 = Compra-Venta (el que usa Rodalaser; confirmar en Fase 0). 24 = Nota de crédito-débito. */
-export enum TipoDocumentoSector {
-  CompraVenta = 1,
-  NotaCreditoDebito = 24,
+/** Sector 1 = Purchase-Sale (the one Rodalaser uses; confirm in Phase 0). 24 = Credit-debit note. */
+export enum SectorDocumentType {
+  PurchaseSale = 1,
+  CreditDebitNote = 24,
 }
 
-export interface SiatCredenciales {
-  ambiente: CodigoAmbiente;
-  modalidad: CodigoModalidad;
+export interface SiatCredentials {
+  environment: EnvironmentCode;
+  modality: ModalityCode;
   nit: string;
-  codigoSistema: string;
-  /** Token delegado del SIAT. Se envía como header `apikey: TokenApi <token>`. */
+  systemCode: string;
+  /** SIAT delegated token. Sent as header `apikey: TokenApi <token>`. */
   token: string;
-  /** Base de servicios, p. ej. https://pilotosiatservicios.impuestos.gob.bo/v2 */
+  /** Services base URL, e.g. https://pilotosiatservicios.impuestos.gob.bo/v2 */
   baseUrl: string;
 }
 
-export interface PuntoVentaRef {
-  codigoSucursal: number;
-  codigoPuntoVenta: number;
+export interface PointOfSaleRef {
+  branchCode: number;
+  pointOfSaleCode: number;
 }
 
-export interface MensajeServicio {
-  codigo: number;
-  descripcion: string;
+export interface ServiceMessage {
+  code: number;
+  description: string;
 }
 
-export interface RespuestaCuis {
-  codigo: string;
-  fechaVigencia: string;
-  transaccion: boolean;
-  mensajesList?: MensajeServicio[];
+export interface CuisResult {
+  code: string;
+  validUntil: string;
+  success: boolean;
+  messages?: ServiceMessage[];
 }
 
-export interface RespuestaCufd {
-  codigo: string;
-  codigoControl: string;
-  direccion: string;
-  fechaVigencia: string;
-  transaccion: boolean;
-  mensajesList?: MensajeServicio[];
+export interface CufdResult {
+  code: string;
+  controlCode: string;
+  address: string;
+  validUntil: string;
+  success: boolean;
+  messages?: ServiceMessage[];
 }
 
-export interface RespuestaComunicacion {
-  transaccion: boolean;
-  mensajesList?: MensajeServicio[];
+export interface CommunicationResult {
+  success: boolean;
+  messages?: ServiceMessage[];
 }

@@ -6,7 +6,7 @@ import { messageFor, problemOf } from '../../core/api-error';
 import { AuthService } from '../../core/auth/auth.service';
 import { AuthLayoutComponent } from './auth-layout.component';
 
-/** BC-01 a/b/c/d (normal, error, cargando, Empresa 2), BC-03 (Google), BC-04 (sin acceso), BC-08a (expirada). */
+/** BC-01 a/b/c/d (normal, error, loading, Company 2), BC-03 (Google), BC-04 (no access), BC-08a (expired). */
 @Component({
   selector: 'rs-login-page',
   imports: [ReactiveFormsModule, RouterLink, AuthLayoutComponent, ButtonComponent, FieldComponent, IconComponent, NoteComponent],
@@ -29,7 +29,7 @@ import { AuthLayoutComponent } from './auth-layout.component';
         </rs-field>
 
         <rs-field label="Contraseña" forId="password" [error]="fieldError('password')">
-          <a rsFieldAction class="link" routerLink="/recuperar">¿Olvidaste tu contraseña?</a>
+          <a rsFieldAction class="link" routerLink="/forgot-password">¿Olvidaste tu contraseña?</a>
           <div class="pass">
             <input class="rs-input" id="password" [type]="showPassword() ? 'text' : 'password'" autocomplete="current-password"
               formControlName="password" [attr.aria-invalid]="!!fieldError('password')" />
@@ -45,7 +45,7 @@ import { AuthLayoutComponent } from './auth-layout.component';
 
       <div class="divider"><span>o</span></div>
 
-      <!-- SocialButton Provider=Google. Reemplazar .g-mark por el logo oficial según la guía de marca de Google. -->
+      <!-- SocialButton Provider=Google. Replace .g-mark with the official logo per Google's brand guidelines. -->
       <a rsButton variant="secondary" size="lg" fill [href]="googleUrl">
         <span class="g-mark" aria-hidden="true">G</span>
         Continuar con Google
