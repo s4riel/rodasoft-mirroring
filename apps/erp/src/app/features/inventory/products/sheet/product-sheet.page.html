@@ -1,0 +1,78 @@
+@switch (store.state()) {
+  @case ('loading') {
+    <section class="skeleton" aria-busy="true" aria-label="Cargando producto">
+      <rs-skeleton shape="text" width="40%" height="var(--space-8)" />
+      <rs-skeleton shape="text" width="60%" height="var(--space-4)" />
+      <div class="kpis">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+      </div>
+      <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+    </section>
+  }
+  @case ('notfound') {
+    <section class="state">
+      <rs-empty-state-illustrated
+        illustration="no-results"
+        heading="Producto no encontrado"
+        description="El producto no existe o fue eliminado."
+      >
+        <a rsButton variant="secondary" routerLink="/inventory/products">Volver a productos</a>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver productos"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated
+        illustration="error"
+        heading="No pudimos cargar el producto"
+        [description]="store.errorMessage()"
+      >
+        <button rsButton variant="secondary" type="button" (click)="store.retry()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (store.product(); as p) {
+      <rs-page-header
+        type="detail"
+        [title]="p.name"
+        [subtitle]="subtitle()"
+        [breadcrumbs]="breadcrumbs()"
+        breadcrumbLabel="Ruta de navegación"
+      >
+        <rs-status-pill rsStatus [status]="p.status === 'ACTIVE' ? 'success' : 'idle'">
+          {{ p.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
+        </rs-status-pill>
+        <div rsActions class="header-actions">
+          <button *rsCan="'inventory.products.edit'" rsButton variant="secondary" type="button" (click)="comingSoon()">
+            <rs-icon name="edit" [size]="16" /> Editar
+          </button>
+          <button *rsCan="'inventory.adjustments.create'" rsButton variant="brand" type="button" (click)="comingSoon()">
+            <rs-icon name="adjust" [size]="16" /> Ajustar stock
+          </button>
+        </div>
+      </rs-page-header>
+
+      <rs-tabs label="Secciones del producto" [selected]="tab()" (selectedChange)="setTab($event)">
+        <rs-tab value="data" label="Datos" />
+        <rs-tab value="equivalents" label="Equivalentes" />
+        <rs-tab value="movements" label="Movimientos" />
+      </rs-tabs>
+      <router-outlet />
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

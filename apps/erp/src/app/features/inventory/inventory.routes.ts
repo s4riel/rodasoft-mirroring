@@ -1,4 +1,5 @@
 import { Route } from '@angular/router';
+import { PRODUCT_SHEET_ROUTE } from './products/sheet/product-sheet.routes';
 
 export const INVENTORY_ROUTES: Route[] = [
   {
@@ -11,6 +12,7 @@ export const INVENTORY_ROUTES: Route[] = [
         title: 'Productos · ERP',
         loadComponent: () => import('./products/products.page').then((m) => m.ProductsPage),
       },
+      PRODUCT_SHEET_ROUTE,
     ],
   },
 ];

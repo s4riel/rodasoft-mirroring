@@ -57,6 +57,9 @@ const BEARINGS: [string, string, number, number, number][] = [
   ['22215', 'Esféricos de rodillos', 75, 130, 31],
 ];
 
+/** Units other than the default `UN` (piece) for the demo products that are not sold by the piece. */
+const UNIT_OF: Record<string, string> = { 'CAD-80': 'M', 'KIT-INST': 'JGO' };
+
 const OTHERS: [string, string, string][] = [
   ['Retenes y sellos', 'RET-3052', 'Retén 30x52x7'],
   ['Retenes y sellos', 'RET-4072', 'Retén 40x72x10'],
@@ -72,6 +75,34 @@ const OTHERS: [string, string, string][] = [
   ['Accesorios', 'MANG-6205', 'Manguito de fijación'],
   ['Accesorios', 'TAPA-6205', 'Tapa de rodamiento'],
   ['Acoples', 'ACO-L095', 'Acople elástico L095'],
+];
+
+type AttributeSeed = {
+  key: string;
+  label: string;
+  type: 'TEXT' | 'NUMBER' | 'ENUM' | 'BOOLEAN';
+  /** 2 = Dimensions, 3 = Technical specifications (design-notes, product creation steps). */
+  step: 2 | 3;
+  unit?: string;
+  options?: string[];
+};
+
+/** Bearing fields (design-notes §Product creation), in sheet order: step 2 feeds "Dimensiones", step 3 "Especificaciones técnicas". */
+const BEARING_ATTRIBUTES: AttributeSeed[] = [
+  { key: 'series', label: 'Serie de dimensiones', type: 'TEXT', step: 2 },
+  { key: 'minRadius', label: 'Radio mínimo r', type: 'NUMBER', step: 2, unit: 'mm' },
+  { key: 'boreType', label: 'Tipo de agujero', type: 'ENUM', step: 2, options: ['Cilíndrico', 'Cónico'] },
+  { key: 'seal', label: 'Protección / sello', type: 'ENUM', step: 3, options: ['Abierto', '2RS (goma, contacto)', '2Z (metálico)'] },
+  { key: 'internalClearance', label: 'Juego radial interno', type: 'ENUM', step: 3, options: ['C2', 'CN (normal)', 'C3', 'C4'] },
+  { key: 'rows', label: 'Número de hileras', type: 'NUMBER', step: 3 },
+  { key: 'material', label: 'Material de anillos y bolas', type: 'TEXT', step: 3 },
+  { key: 'cage', label: 'Material de la jaula', type: 'ENUM', step: 3, options: ['Acero estampado', 'Poliamida', 'Latón'] },
+  { key: 'toleranceClass', label: 'Clase de tolerancia', type: 'ENUM', step: 3, options: ['P0 · ABEC 1', 'P6 · ABEC 3', 'P5 · ABEC 5'] },
+  { key: 'dynamicLoad', label: 'Carga dinámica C', type: 'NUMBER', step: 3, unit: 'kN' },
+  { key: 'staticLoad', label: 'Carga estática C₀', type: 'NUMBER', step: 3, unit: 'kN' },
+  { key: 'limitingSpeed', label: 'Velocidad límite', type: 'NUMBER', step: 3, unit: 'rpm' },
+  { key: 'temperature', label: 'Temperatura de trabajo', type: 'TEXT', step: 3, unit: '°C' },
+  { key: 'lubricant', label: 'Lubricante', type: 'TEXT', step: 3 },
 ];
 
 const pad = (n: number) => `RL-${String(n).padStart(6, '0')}`;
@@ -114,7 +145,18 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
     for (const [j, child] of c.children.entries()) await ensureCategory(child, rootId, j);
   }
 
-  const warehouses = await prisma.warehouse.findMany({ where: { companyId }, select: { id: true } });
+  const bearingsRootId = categoryId.get('Rodamientos')!;
+  for (const [sortOrder, a] of BEARING_ATTRIBUTES.entries()) {
+    const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder };
+    await prisma.attributeDefinition.upsert({
+      where: { categoryId_key: { categoryId: bearingsRootId, key: a.key } },
+      update: data,
+      create: { companyId, categoryId: bearingsRootId, key: a.key, ...data },
+    });
+  }
+
+  const warehouses = await prisma.warehouse.findMany({ where: { companyId }, select: { id: true, branchId: true } });
+  const branchIds = [...new Set(warehouses.map((w) => w.branchId))];
   const brandNames = BRANDS.map((b) => b.name);
   const rows: { code: string; category: string; name: string; dims?: [number, number, number] }[] = [
     ...BEARINGS.map(([code, category, d, D, B]) => ({
@@ -148,12 +190,46 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
         status: n % 13 === 0 ? 'INACTIVE' : 'ACTIVE',
       },
     });
+    const unit = UNIT_OF[r.code];
+    if (unit && product.unit !== unit) await prisma.product.update({ where: { id: product.id }, data: { unit } });
     if (r.dims) {
+      // demo technical specifications for the sheet (IN-02a)
+      await prisma.product.update({
+        where: { id: product.id },
+        data: {
+          attributes: {
+            series: r.code.slice(0, 2),
+            minRadius: 1,
+            boreType: 'Cilíndrico',
+            seal: r.code.includes('2RS') ? '2RS (goma, contacto)' : 'Abierto',
+            internalClearance: 'CN (normal)',
+            rows: 1,
+            material: 'Acero cromo (52100)',
+            cage: 'Acero estampado',
+            toleranceClass: 'P0 · ABEC 1',
+            dynamicLoad: 14 + (n % 20) + 0.8,
+            staticLoad: 7 + (n % 10) + 0.8,
+            limitingSpeed: 13000 - (n % 8) * 500,
+            temperature: '-30 a 110',
+            lubricant: 'Grasa de litio',
+            tariffCode: '8482.10.00',
+            supplierName: 'Proveedor DEMO',
+            sectors: 'Minería, Industria',
+          },
+        },
+      });
       const [d, D, B] = r.dims;
       await prisma.productDimension.upsert({
         where: { productId: product.id },
         update: {},
         create: { productId: product.id, companyId, innerDiameter: d, outerDiameter: D, width: B },
+      });
+    }
+    for (const branchId of branchIds) {
+      await prisma.stockThreshold.upsert({
+        where: { productId_branchId: { productId: product.id, branchId } },
+        update: {},
+        create: { companyId, productId: product.id, branchId, minStock: 6, maxStock: 60, location: 'A-03-2' },
       });
     }
     for (const [i, w] of warehouses.entries()) {

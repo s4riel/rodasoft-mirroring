@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -45,6 +45,9 @@ const response = (items: ProductListItem[], over: Partial<ProductListResponse> =
   ...over,
 });
 
+@Component({ template: '' })
+class SheetStubPage {}
+
 describe('ProductsPage', () => {
   let http: HttpTestingController;
   let permissions: Set<string>;
@@ -55,7 +58,10 @@ describe('ProductsPage', () => {
     branchId = signal('branch-1');
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'products', component: ProductsPage }]),
+        provideRouter([
+          { path: 'products', component: ProductsPage },
+          { path: 'inventory/products/:id', component: SheetStubPage },
+        ]),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
@@ -231,11 +237,17 @@ describe('ProductsPage', () => {
       ).toEqual(['Ver detalles', 'Editar', 'Duplicar', 'Ajustar stock', 'Eliminar']);
     });
 
-    it.each(['Ver detalles', 'Editar', 'Ajustar stock'])('shows the coming-soon toast for %s', async (label) => {
+    it.each(['Editar', 'Ajustar stock'])('shows the coming-soon toast for %s', async (label) => {
       const h = await openMenu([...VIEW, 'inventory.products.edit', 'inventory.adjustments.create']);
       await choose(h, label);
       expect(text(h)).toContain('Esta acción estará disponible próximamente.');
       expect(el(h).querySelector('rs-duplicate-product-dialog [role=dialog]')).toBeNull();
+    });
+
+    it('opens the product sheet from Ver detalles', async () => {
+      const h = await openMenu(VIEW);
+      await choose(h, 'Ver detalles');
+      expect(TestBed.inject(Router).url).toBe('/inventory/products/p1');
     });
 
     it('opens the duplicate dialog for the chosen row', async () => {

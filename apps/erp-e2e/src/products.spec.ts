@@ -131,12 +131,27 @@ test('duplicates a product choosing the industry and deletes the copy', async ({
 });
 
 test('refuses to delete a product that has stock', async ({ page }) => {
-  await dataRows(page).first().getByRole('button', { name: /Acciones de/ }).click();
+  // Never click Eliminar on an arbitrary row: a product without stock would really be deleted. Target the seeded
+  // 6206-2RS (every seeded product has stock rows) and make sure the row shown has stock before confirming.
+  await page.getByRole('searchbox', { name: 'Buscar productos' }).fill('6206-2RS');
+  const rows = dataRows(page).filter({ has: page.getByText('6206-2RS', { exact: true }) });
+  await expect(rows.first()).toBeVisible();
+  let target = null;
+  for (let i = 0; i < (await rows.count()); i++) {
+    const total = Number((await rows.nth(i).locator('.cell.num').first().innerText()).trim());
+    if (total > 0) {
+      target = rows.nth(i);
+      break;
+    }
+  }
+  expect(target, 'a seeded 6206-2RS with stock').not.toBeNull();
+
+  await target!.getByRole('button', { name: /Acciones de/ }).click();
   await page.getByRole('menuitem', { name: 'Eliminar' }).click();
   await page
     .getByRole('dialog', { name: /¿Eliminar/ })
     .getByRole('button', { name: 'Eliminar' })
     .click();
   await expect(page.getByText('No se puede eliminar: tiene stock registrado. Desactívalo en su lugar.')).toBeVisible();
-  await expect(dataRows(page).first()).toBeVisible();
+  await expect(target!).toBeVisible();
 });

@@ -1,0 +1,13 @@
+<span class="label-row">
+  @if (showIcon()) {
+    <rs-icon class="icon" aria-hidden="true" [name]="icon()" [size]="16" />
+  }
+  <span class="label">{{ label() }}</span>
+</span>
+<span class="value">
+  @if (type() === 'empty') {
+    —
+  } @else {
+    <ng-content />
+  }
+</span>

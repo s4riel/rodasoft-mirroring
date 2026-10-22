@@ -55,7 +55,7 @@ describe('ProductTableComponent', () => {
     expect(el.textContent).toContain('Disponible');
     expect(el.textContent).toContain('Agotado');
     expect(el.querySelector('.initials')?.textContent?.trim()).toBe('SK');
-    expect(el.querySelectorAll('.alert.danger')).toHaveLength(1);
+    expect(el.querySelectorAll('rs-stock-flag[data-level="out"]')).toHaveLength(1);
   });
 
   it('draws the status with a glyph (check / warning), none for inactive, and the category glyph on the thumb', () => {

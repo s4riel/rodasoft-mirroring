@@ -1,0 +1,39 @@
+<table [attr.aria-label]="tableLabel() || null">
+  <thead>
+    <tr>
+      <th scope="col">{{ labels().branch }}</th>
+      <th scope="col">{{ labels().warehouse }}</th>
+      <th scope="col" class="num">{{ labels().available }}</th>
+      <th scope="col" class="num">{{ labels().min }}</th>
+      <th scope="col">{{ labels().status }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (row of rows(); track row.id) {
+      <tr [class.current]="row.current" [attr.aria-current]="row.current ? 'true' : null">
+        <td>{{ row.branch }}</td>
+        <td>{{ row.warehouse }}</td>
+        <td class="num">{{ row.available }}</td>
+        <td class="num">{{ row.minStock ?? '–' }}</td>
+        <td>
+          <span class="status" [attr.data-availability]="row.availability">
+            <rs-icon [name]="row.availability === 'available' ? 'check' : 'alert'" [size]="16" />
+            {{ labels().availability[row.availability] }}
+          </span>
+        </td>
+      </tr>
+    } @empty {
+      <tr>
+        <td colspan="5">{{ labels().empty }}</td>
+      </tr>
+    }
+  </tbody>
+  <tfoot>
+    <tr>
+      <th scope="row" colspan="2">{{ totalLabel() }}</th>
+      <td class="num">{{ totalAvailable() }}</td>
+      <td class="num">{{ totalMin() ?? '–' }}</td>
+      <td></td>
+    </tr>
+  </tfoot>
+</table>

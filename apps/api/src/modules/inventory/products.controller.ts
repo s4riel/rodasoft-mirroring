@@ -13,7 +13,15 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { DuplicateProductResponse, ProductFilterOptions, ProductListResponse } from '@rodasoft/domain';
+import type {
+  DuplicateProductResponse,
+  ProductDetail,
+  ProductFilterOptions,
+  ProductListResponse,
+} from '@rodasoft/domain';
+import { ClsService } from 'nestjs-cls';
+import type { AppClsStore } from '../../common/cls';
+import { MembershipService } from '../access/membership.service';
 import { RequirePermissions } from '../access/require-permissions.decorator';
 import { DuplicateProductDto, ListProductsQueryDto } from './dto';
 import { ProductCommandsService } from './product-commands.service';
@@ -54,6 +62,8 @@ export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly commands: ProductCommandsService,
+    private readonly membership: MembershipService,
+    private readonly cls: ClsService<AppClsStore>,
   ) {}
 
   @Get('products')
@@ -66,6 +76,14 @@ export class ProductsController {
   @RequirePermissions('inventory.products.view')
   filterOptions(): Promise<ProductFilterOptions> {
     return this.products.filterOptions();
+  }
+
+  @Get('products/:id')
+  @RequirePermissions('inventory.products.view')
+  async detail(@Param('id', idPipe) id: string): Promise<ProductDetail> {
+    const membershipId = this.cls.get('membershipId');
+    const granted = membershipId ? await this.membership.permissions(membershipId) : new Set<string>();
+    return this.products.detail(id, granted.has('inventory.costs.view'));
   }
 
   @Post('products/:id/duplicate')

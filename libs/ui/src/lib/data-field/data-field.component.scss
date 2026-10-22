@@ -1,0 +1,52 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+:host([data-layout='inline']) {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+:host([data-layout='inline']) .label-row {
+  flex: none;
+  width: 10rem; /* Figma Inline: 160 px label column, no token */
+}
+.icon {
+  flex: none;
+  color: var(--text-primary);
+}
+.label {
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  letter-spacing: var(--body-sm-tracking);
+  /* wraps instead of clipping long labels (Figma keeps one line) */
+  overflow-wrap: anywhere;
+}
+.value {
+  min-width: 0;
+  flex: 1 1 0;
+  color: var(--text-primary);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  letter-spacing: var(--body-md-tracking);
+  overflow-wrap: anywhere;
+}
+:host([data-type='mono']) .value {
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  letter-spacing: var(--mono-md-tracking);
+  font-weight: var(--mono-md-weight);
+}
+:host([data-type='empty']) .value {
+  color: var(--text-muted);
+}

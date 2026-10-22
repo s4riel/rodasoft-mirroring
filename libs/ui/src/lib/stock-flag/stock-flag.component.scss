@@ -1,0 +1,8 @@
+:host {
+  display: inline-flex;
+  flex: none;
+  color: var(--status-warning);
+}
+:host([data-level='out']) {
+  color: var(--status-danger);
+}

@@ -1,4 +1,6 @@
-/** Product catalog contracts and pure rules shared by the API and the ERP (HU-INV-01). */
+/** Product catalog contracts and pure rules shared by the API and the ERP (HU-INV-01, 02, 03). */
+
+import { Decimal } from './money';
 
 export const PRODUCT_PAGE_SIZE_DEFAULT = 25;
 export const PRODUCT_PAGE_SIZE_MAX = 100;
@@ -200,4 +202,119 @@ export function hasActiveFilters(filters: ProductListFilters): boolean {
       filters.status ||
       filters.search?.trim(),
   );
+}
+
+export type StockAvailability = 'available' | 'low' | 'out';
+
+/** Out at zero or below, low at or under the branch minimum (when there is one), otherwise available. */
+export function stockAvailability(quantity: number, minStock: number | null): StockAvailability {
+  if (quantity <= 0) return 'out';
+  return minStock !== null && quantity <= minStock ? 'low' : 'available';
+}
+
+/** (price − cost) / price × 100 with one decimal ("40.0"); null without cost or with a price of 0. */
+export function marginPercent(salePrice: string, cost: string | null): string | null {
+  if (cost === null) return null;
+  const price = Decimal.of(salePrice, 4);
+  if (price.isZero()) return null;
+  return price.sub(Decimal.of(cost, 4)).mul(100).div(price).round(1).toString();
+}
+
+export type AttributeKind = 'TEXT' | 'NUMBER' | 'ENUM' | 'BOOLEAN';
+
+/** Creation step whose fields feed the sheet's "Dimensiones" card. */
+export const SPEC_STEP_DIMENSIONS = 2;
+/** Creation step whose fields feed the sheet's "Especificaciones técnicas" card. */
+export const SPEC_STEP_SPECIFICATIONS = 3;
+
+export interface ProductSpec {
+  key: string;
+  /** Creation step of the field (see SPEC_STEP_*). */
+  step: number;
+  label: string;
+  type: AttributeKind;
+  unit: string | null;
+  value: string | number | boolean | null;
+}
+
+export interface ProductBranchStock {
+  branchId: string;
+  branchName: string;
+  /** Names of the branch's warehouses, in code order. */
+  warehouses: string[];
+  quantity: number;
+  minStock: number | null;
+  maxStock: number | null;
+  location: string | null;
+  availability: StockAvailability;
+}
+
+export interface ProductActor {
+  id: string;
+  name: string;
+}
+
+/** Product sheet (IN-02a). `cost` and `marginPercent` are present only with `inventory.costs.view`. */
+export interface ProductDetail {
+  id: string;
+  sku: string;
+  manufacturerCode: string;
+  name: string;
+  unit: string;
+  status: ProductStatusFilter;
+  brand: ProductBrandSummary;
+  country: ProductCountrySummary | null;
+  category: { id: string; name: string; icon: string };
+  subcategory: { id: string; name: string } | null;
+  dimensions: (Measurement & { weight: string | null }) | null;
+  specs: ProductSpec[];
+  /** Read from `attributes` when present (Purchasing and Web define their real sources later). */
+  extra: { tariffCode: string | null; supplierName: string | null; sectors: string | null };
+  pricing: { salePrice: string; cost?: string | null; marginPercent?: string | null };
+  totalStock: number;
+  stockByBranch: ProductBranchStock[];
+  photos: string[];
+  datasheetUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: ProductActor | null;
+  updatedBy: ProductActor | null;
+}
+
+export type FieldIconName = 'barcode' | 'hash' | 'diameter' | 'ruler' | 'package' | 'currency' | 'percent' | 'calendar' | 'warehouse' | 'tag' | 'info' | 'check' | 'user';
+
+export interface FieldIconInput {
+  type: AttributeKind | 'CODE' | 'SKU' | 'MONEY' | 'PERCENT' | 'DATE' | 'LOCATION' | 'USER';
+  unit?: string | null;
+  key?: string;
+}
+
+/** Icon that tells the data type of a sheet field (HU-INV-03). */
+export function fieldIconOf({ type, unit, key = '' }: FieldIconInput): FieldIconName {
+  switch (type) {
+    case 'CODE':
+      return 'barcode';
+    case 'SKU':
+      return 'hash';
+    case 'MONEY':
+      return 'currency';
+    case 'PERCENT':
+      return 'percent';
+    case 'DATE':
+      return 'calendar';
+    case 'LOCATION':
+      return 'warehouse';
+    case 'USER':
+      return 'user';
+    case 'ENUM':
+      return 'tag';
+    case 'BOOLEAN':
+      return 'check';
+    case 'TEXT':
+      return 'info';
+    case 'NUMBER':
+      if (unit === 'kg') return 'package';
+      if (unit === 'mm') return /diameter|radius/i.test(key) ? 'diameter' : 'ruler';
+      return 'hash';
+  }
 }

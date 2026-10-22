@@ -55,14 +55,14 @@ model Company {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  branches      Branch[]
-  warehouses    Warehouse[]
-  memberships   Membership[]
-  roles         Role[]
-  siatSettings  SiatSettings?
-  pointsOfSale  SiatPointOfSale[]
-  auditLogs     AuditLog[]
-  outboxEvents  OutboxEvent[]
+  branches             Branch[]
+  warehouses           Warehouse[]
+  memberships          Membership[]
+  roles                Role[]
+  siatSettings         SiatSettings?
+  pointsOfSale         SiatPointOfSale[]
+  auditLogs            AuditLog[]
+  outboxEvents         OutboxEvent[]
   countries            Country[]
   brands               Brand[]
   categories           Category[]
@@ -70,6 +70,7 @@ model Company {
   products             Product[]
   productDimensions    ProductDimension[]
   stockLevels          StockLevel[]
+  stockThresholds      StockThreshold[]
 
   @@map("companies")
 }
@@ -88,10 +89,11 @@ model Branch {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company      Company              @relation(fields: [companyId], references: [id])
-  warehouses   Warehouse[]
-  pointsOfSale SiatPointOfSale[]
-  memberships  MembershipBranch[]
+  company         Company            @relation(fields: [companyId], references: [id])
+  warehouses      Warehouse[]
+  pointsOfSale    SiatPointOfSale[]
+  memberships     MembershipBranch[]
+  stockThresholds StockThreshold[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -100,17 +102,17 @@ model Branch {
 
 /// Each branch has more than one warehouse (client decision).
 model Warehouse {
-  id        String       @id @default(uuid(7)) @db.Uuid
-  companyId String       @map("company_id") @db.Uuid
-  branchId  String       @map("branch_id") @db.Uuid
-  code      String // e.g. HK-01
-  name      String
-  isMain    Boolean      @default(false) @map("is_main")
+  id             String       @id @default(uuid(7)) @db.Uuid
+  companyId      String       @map("company_id") @db.Uuid
+  branchId       String       @map("branch_id") @db.Uuid
+  code           String // e.g. HK-01
+  name           String
+  isMain         Boolean      @default(false) @map("is_main")
   /// the online store only sells from published warehouses
-  visibleInStore Boolean @default(true) @map("visible_in_store")
-  status    RecordStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  visibleInStore Boolean      @default(true) @map("visible_in_store")
+  status         RecordStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company     Company      @relation(fields: [companyId], references: [id])
   branch      Branch       @relation(fields: [branchId], references: [id])
@@ -136,25 +138,27 @@ model User {
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships    Membership[]
-  refreshTokens  RefreshToken[]
-  passwordResets PasswordReset[]
+  memberships     Membership[]
+  createdProducts Product[]       @relation("ProductCreatedBy")
+  updatedProducts Product[]       @relation("ProductUpdatedBy")
+  refreshTokens   RefreshToken[]
+  passwordResets  PasswordReset[]
 
   @@map("users")
 }
 
 /// A user's belonging to a company, with one role and the branches they may operate.
 model Membership {
-  id        String       @id @default(uuid(7)) @db.Uuid
-  companyId String       @map("company_id") @db.Uuid
-  userId    String       @map("user_id") @db.Uuid
-  roleId    String       @map("role_id") @db.Uuid
+  id          String       @id @default(uuid(7)) @db.Uuid
+  companyId   String       @map("company_id") @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  roleId      String       @map("role_id") @db.Uuid
   /// true = may operate every branch (ContextBar Branch=All)
-  allBranches Boolean    @default(false) @map("all_branches")
-  status    RecordStatus @default(ACTIVE)
-  invitedBy String?      @map("invited_by") @db.Uuid
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  allBranches Boolean      @default(false) @map("all_branches")
+  status      RecordStatus @default(ACTIVE)
+  invitedBy   String?      @map("invited_by") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company  Company            @relation(fields: [companyId], references: [id])
   user     User               @relation(fields: [userId], references: [id])
@@ -317,7 +321,7 @@ model Country {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company Company @relation(fields: [companyId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
   brands   Brand[]
   products Product[]
 
@@ -378,7 +382,10 @@ model AttributeDefinition {
   unit       String?
   options    Json?
   required   Boolean       @default(false)
+  /// creation step the field belongs to (2 = Dimensions, 3 = Technical specifications), see design-notes
   step       Int           @default(0)
+  /// order inside the step
+  sortOrder  Int           @default(0) @map("sort_order")
   createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company  Company  @relation(fields: [companyId], references: [id])
@@ -408,15 +415,20 @@ model Product {
   attributes       Json         @default("{}")
   photos           Json         @default("[]")
   datasheetUrl     String?      @map("datasheet_url")
+  createdById      String?      @map("created_by_id") @db.Uuid
+  updatedById      String?      @map("updated_by_id") @db.Uuid
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company     Company           @relation(fields: [companyId], references: [id])
-  brand       Brand             @relation(fields: [brandId], references: [id])
-  category    Category          @relation(fields: [categoryId], references: [id])
-  country     Country?          @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  dimensions  ProductDimension?
-  stockLevels StockLevel[]
+  company         Company           @relation(fields: [companyId], references: [id])
+  brand           Brand             @relation(fields: [brandId], references: [id])
+  category        Category          @relation(fields: [categoryId], references: [id])
+  country         Country?          @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  dimensions      ProductDimension?
+  stockLevels     StockLevel[]
+  stockThresholds StockThreshold[]
+  createdBy       User?             @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?             @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@unique([companyId, sku])
   @@unique([companyId, brandId, manufacturerCode])
@@ -462,6 +474,27 @@ model StockLevel {
   @@unique([productId, warehouseId])
   @@index([companyId, warehouseId])
   @@map("stock_levels")
+}
+
+/// Minimum / maximum stock and shelf location of a product in a branch (per-branch data, never constants).
+model StockThreshold {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  minStock  Int?     @map("min_stock")
+  maxStock  Int?     @map("max_stock")
+  location  String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id])
+
+  @@unique([productId, branchId])
+  @@index([companyId, branchId])
+  @@map("stock_thresholds")
 }
 
 // ── Cross-cutting ───────────────────────────────────────────────────────────

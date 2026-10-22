@@ -121,7 +121,7 @@ export class ProductsPage {
 
   protected readonly canView = computed(() => this.ctx.can('inventory.products.view'));
 
-  /** Row menu items by permission (Figma RowMenu). View, edit and adjust arrive with HU-INV-03, 07 and 16. */
+  /** Row menu items by permission (Figma RowMenu). Edit and adjust arrive with HU-INV-07 and 16. */
   protected readonly menuItems = computed<RowMenuItem[]>(() => {
     const items: RowMenuItem[] = [{ key: 'view', label: 'Ver detalles', icon: 'eye' }];
     if (this.ctx.can('inventory.products.edit')) {
@@ -341,7 +341,7 @@ export class ProductsPage {
       });
   }
 
-  /** IN-01c · Row menu: duplicate and delete are built here; the other actions arrive with their own stories. */
+  /** IN-01c · Row menu: view, duplicate and delete are built; edit and adjust arrive with their own stories. */
   protected onRowAction(event: { id: string; key: string }) {
     const product = this.items().find((p) => p.id === event.id);
     if (!product) return;
@@ -349,6 +349,9 @@ export class ProductsPage {
       case 'duplicate':
         this.duplicateTarget.set(product);
         this.duplicateOpen.set(true);
+        return;
+      case 'view':
+        void this.router.navigate(['/inventory/products', product.id]);
         return;
       case 'delete':
         this.deleteTarget.set(product);
