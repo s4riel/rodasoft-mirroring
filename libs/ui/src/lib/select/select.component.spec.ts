@@ -89,3 +89,26 @@ describe('SelectComponent', () => {
     expect(trigger('c').disabled).toBe(true);
   });
 });
+
+@Component({
+  imports: [SelectComponent],
+  template: `<rs-select id="m" [options]="options" [open]="true" [value]="'jp'" />`,
+})
+class MediaHostComponent {
+  readonly options: SelectOption<string>[] = [
+    { value: 'se', label: 'Suecia', media: { type: 'flag', country: 'SE' } },
+    { value: 'jp', label: 'Japón', media: { type: 'flag', country: 'JP' } },
+    { value: 'none', label: 'Sin industria' },
+  ];
+}
+
+describe('SelectComponent media', () => {
+  it('muestra el medio de cada opción y el de la opción elegida en el control', async () => {
+    const fixture = TestBed.createComponent(MediaHostComponent);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('[role=option] rs-field-media')).toHaveLength(2);
+    expect(el.querySelectorAll('button.control rs-field-media')).toHaveLength(1);
+    expect(el.querySelector('button.control .value')?.textContent).toContain('Japón');
+  });
+});

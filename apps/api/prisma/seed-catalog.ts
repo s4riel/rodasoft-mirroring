@@ -127,6 +127,7 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
   ];
 
   let n = 0;
+  const countryOfBrand = new Map(BRANDS.map((b) => [b.name, countryId.get(b.country)!]));
   const upsertProduct = async (r: (typeof rows)[number], brand: string) => {
     n += 1;
     const sku = pad(n);
@@ -140,6 +141,7 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
         manufacturerCode: r.code,
         brandId: brandId.get(brand)!,
         categoryId: categoryId.get(r.category)!,
+        countryId: countryOfBrand.get(brand),
         name: r.name,
         salePrice: price,
         cost: (Number(price) * 0.6).toFixed(4),
@@ -174,6 +176,7 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
       manufacturerCode: `BULK-${i + 1}`,
       brandId: brandId.get(brandNames[i % brandNames.length])!,
       categoryId: bearingsId,
+      countryId: countryId.get(BRANDS[i % brandNames.length].country),
       name: `Rodamiento de prueba ${i + 1}`,
       salePrice: (10 + (i % 300)).toFixed(2),
     }));

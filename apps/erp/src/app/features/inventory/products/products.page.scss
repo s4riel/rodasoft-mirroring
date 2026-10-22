@@ -86,3 +86,8 @@
   font-size: var(--body-md-size);
   color: var(--text-muted);
 }
+
+.dialog-actions {
+  display: flex;
+  gap: var(--space-3);
+}

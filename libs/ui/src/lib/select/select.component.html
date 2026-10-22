@@ -17,6 +17,13 @@
   @if (leadingIcon(); as icon) {
     <rs-icon [name]="icon" [size]="16" />
   }
+  @if (selectedOption()?.media; as media) {
+    @if (media.type === 'flag') {
+      <rs-field-media type="flag" [country]="media.country" />
+    } @else {
+      <rs-field-media type="brand" [text]="media.text" />
+    }
+  }
   <span class="value" [class.placeholder]="!selectedOption()">{{
     selectedOption()?.label ?? placeholder()
   }}</span>
@@ -40,7 +47,14 @@
         (mouseenter)="onHover(i)"
         (click)="choose(i)"
       >
-        <span>{{ opt.label }}</span>
+        @if (opt.media; as media) {
+          @if (media.type === 'flag') {
+            <rs-field-media type="flag" [country]="media.country" />
+          } @else {
+            <rs-field-media type="brand" [text]="media.text" />
+          }
+        }
+        <span class="label">{{ opt.label }}</span>
         @if (i === selectedIndex()) {
           <rs-icon name="check" [size]="16" />
         }

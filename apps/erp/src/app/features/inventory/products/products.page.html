@@ -161,7 +161,7 @@
             [footerLabel]="footerLabel()"
             [footerNote]="footerNote()"
             [footerBranchStock]="subtotal()"
-            (rowAction)="comingSoon()"
+            (rowAction)="onRowAction($event)"
           />
           <footer class="pager">
             <span class="range">{{ rangeLabel() }}</span>
@@ -182,3 +182,23 @@
 }
 
 <rs-toast-outlet closeLabel="Cerrar" />
+
+<rs-duplicate-product-dialog
+  [(open)]="duplicateOpen"
+  [product]="duplicateTarget()"
+  [options]="options()"
+  (created)="onDuplicated($event)"
+/>
+
+<rs-modal
+  variant="confirmation"
+  closeLabel="Cerrar"
+  [heading]="'¿Eliminar ' + (deleteTarget()?.manufacturerCode ?? '') + '?'"
+  [(open)]="deleteOpen"
+>
+  Esta acción elimina el producto del catálogo y no se puede deshacer. Si tiene stock registrado, desactívalo en su lugar.
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</button>
+    <button rsButton variant="danger" type="button" [loading]="deleting()" (click)="confirmDelete()">Eliminar</button>
+  </div>
+</rs-modal>

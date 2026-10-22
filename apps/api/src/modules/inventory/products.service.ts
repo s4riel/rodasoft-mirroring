@@ -42,6 +42,7 @@ export class ProductsService {
           photos: true,
           salePrice: true,
           status: true,
+          country: { select: { id: true, code: true, name: true } },
           brand: {
             select: { id: true, name: true, logoUrl: true, country: { select: { id: true, code: true, name: true } } },
           },
@@ -84,7 +85,7 @@ export class ProductsService {
         name: r.name,
         photoUrl: photos[0] ?? null,
         brand: { id: r.brand.id, name: r.brand.name, logoUrl: r.brand.logoUrl },
-        country: r.brand.country,
+        country: r.country ?? r.brand.country,
         category: parent
           ? { id: parent.id, name: parent.name, icon: parent.icon }
           : { id: r.category.id, name: r.category.name, icon: r.category.icon },
@@ -138,7 +139,10 @@ export class ProductsService {
 
   private buildWhere(q: ListProductsQueryDto): Prisma.ProductWhereInput {
     const and: Prisma.ProductWhereInput[] = [];
-    if (q.countryId) and.push({ brand: { countryId: q.countryId } });
+    // the product's own industry wins; products without one fall back to their brand's country
+    if (q.countryId) {
+      and.push({ OR: [{ countryId: q.countryId }, { countryId: null, brand: { countryId: q.countryId } }] });
+    }
     if (q.brandId) and.push({ brandId: q.brandId });
     if (q.status) and.push({ status: q.status });
     // a root category also matches the products of its subcategories

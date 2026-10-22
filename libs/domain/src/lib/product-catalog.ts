@@ -23,6 +23,99 @@ export interface ProductListQuery extends ProductListFilters {
   pageSize: number;
 }
 
+/** Single source of the internal SKU prefix (decision #32); it moves to company settings with HU-INV-06. */
+export const SKU_PREFIX = 'RL-';
+const SKU_DIGITS = 6;
+
+/** `formatSku('RL-', 7)` → `RL-000007`. */
+export function formatSku(prefix: string, n: number): string {
+  return `${prefix}${String(n).padStart(SKU_DIGITS, '0')}`;
+}
+
+/** Number of a SKU built by `formatSku`; null for any other shape (imported or legacy SKUs). */
+export function parseSkuNumber(sku: string, prefix: string): number | null {
+  if (!sku.startsWith(prefix)) return null;
+  const digits = sku.slice(prefix.length);
+  return digits.length >= SKU_DIGITS && /^\d+$/.test(digits) ? Number(digits) : null;
+}
+
+export type ProductCopyPart = 'dimensions' | 'specifications' | 'price' | 'media' | 'equivalences';
+
+/** Parts copied by default in the duplicate dialog (Figma IN-19). */
+export const DEFAULT_COPY_PARTS: readonly ProductCopyPart[] = ['dimensions', 'specifications', 'price'];
+
+export interface DuplicateProductRequest {
+  manufacturerCode: string;
+  brandId: string;
+  /** Industry (country of origin) of the copy. */
+  countryId: string | null;
+  copy: ProductCopyPart[];
+}
+
+export interface DuplicateProductResponse {
+  id: string;
+  sku: string;
+}
+
+export interface ProductDimensionValues {
+  innerDiameter: string | null;
+  outerDiameter: string | null;
+  width: string | null;
+  weight: string | null;
+}
+
+/** The fields of a product that a copy can inherit. Money travels as decimal strings. */
+export interface DuplicateSource {
+  name: string;
+  categoryId: string;
+  unit: string;
+  salePrice: string;
+  cost: string | null;
+  attributes: Record<string, unknown>;
+  photos: string[];
+  datasheetUrl: string | null;
+  dimensions: ProductDimensionValues | null;
+}
+
+export interface DuplicatePayload {
+  manufacturerCode: string;
+  brandId: string;
+  countryId: string | null;
+  categoryId: string;
+  name: string;
+  unit: string;
+  status: 'ACTIVE';
+  salePrice: string;
+  cost: string | null;
+  attributes: Record<string, unknown>;
+  photos: string[];
+  datasheetUrl: string | null;
+  dimensions: ProductDimensionValues | null;
+}
+
+/**
+ * What the copy of a product contains. Name, category and unit are always copied; the rest only with its
+ * part. The copy is ACTIVE and never inherits stock. Without `price` the copy starts at 0.00 (HU-INV-06 warns).
+ */
+export function buildDuplicate(source: DuplicateSource, request: DuplicateProductRequest): DuplicatePayload {
+  const has = (part: ProductCopyPart) => request.copy.includes(part);
+  return {
+    manufacturerCode: request.manufacturerCode.trim(),
+    brandId: request.brandId,
+    countryId: request.countryId,
+    categoryId: source.categoryId,
+    name: source.name,
+    unit: source.unit,
+    status: 'ACTIVE',
+    salePrice: has('price') ? source.salePrice : '0.00',
+    cost: has('price') ? source.cost : null,
+    attributes: has('specifications') ? { ...source.attributes } : {},
+    photos: has('media') ? [...source.photos] : [],
+    datasheetUrl: has('media') ? source.datasheetUrl : null,
+    dimensions: has('dimensions') && source.dimensions ? { ...source.dimensions } : null,
+  };
+}
+
 export interface ProductBrandSummary {
   id: string;
   name: string;

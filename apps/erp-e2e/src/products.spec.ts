@@ -90,3 +90,53 @@ test('opens the row actions menu', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
 });
+
+/** HU-INV-02 · row actions: duplicate with a new code and industry, then delete the copy. */
+test('duplicates a product choosing the industry and deletes the copy', async ({ page }) => {
+  const code = `E2E-${Date.now()}`;
+  const search = page.getByRole('searchbox', { name: 'Buscar productos' });
+
+  await search.fill('6205-2RS');
+  await expect(dataRows(page).first()).toContainText('6205-2RS');
+  await dataRows(page).first().getByRole('button', { name: /Acciones de/ }).click();
+  const items = page.getByRole('menuitem');
+  await expect(items).toHaveText([/Ver detalles/, /Editar/, /Duplicar/, /Ajustar stock/, /Eliminar/]);
+  await items.filter({ hasText: 'Duplicar' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Duplicar producto' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Qué copiar')).toBeVisible();
+  await dialog.getByLabel('Código nuevo').fill(code);
+  await dialog.getByRole('combobox', { name: /Industria/ }).click();
+  await page.getByRole('option', { name: 'Japón' }).click();
+  await dialog.getByRole('button', { name: 'Crear copia' }).click();
+  await expect(page.getByText(/Copia creada: RL-\d{6}/)).toBeVisible();
+  await expect(dialog).toBeHidden();
+
+  // the copy shows the chosen industry's flag
+  await search.fill(code);
+  await expect(dataRows(page)).toHaveCount(1);
+  await expect(dataRows(page).first()).toContainText(code);
+  await expect(dataRows(page).first().locator('rs-flag')).toBeVisible();
+  await expect(page.locator('rs-filter-chip')).toHaveCount(0);
+
+  // the copy has no stock, so it can be deleted
+  await dataRows(page).first().getByRole('button', { name: /Acciones de/ }).click();
+  await page.getByRole('menuitem', { name: 'Eliminar' }).click();
+  const confirm = page.getByRole('dialog', { name: `¿Eliminar ${code}?` });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Eliminar' }).click();
+  await expect(page.getByText(`Producto eliminado: ${code}`)).toBeVisible();
+  await expect(dataRows(page)).toHaveCount(0);
+});
+
+test('refuses to delete a product that has stock', async ({ page }) => {
+  await dataRows(page).first().getByRole('button', { name: /Acciones de/ }).click();
+  await page.getByRole('menuitem', { name: 'Eliminar' }).click();
+  await page
+    .getByRole('dialog', { name: /¿Eliminar/ })
+    .getByRole('button', { name: 'Eliminar' })
+    .click();
+  await expect(page.getByText('No se puede eliminar: tiene stock registrado. Desactívalo en su lugar.')).toBeVisible();
+  await expect(dataRows(page).first()).toBeVisible();
+});

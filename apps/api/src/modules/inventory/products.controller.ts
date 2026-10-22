@@ -1,8 +1,22 @@
-import { BadRequestException, Controller, Get, Query, ValidationError, ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  ValidationError,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { ProductFilterOptions, ProductListResponse } from '@rodasoft/domain';
+import type { DuplicateProductResponse, ProductFilterOptions, ProductListResponse } from '@rodasoft/domain';
 import { RequirePermissions } from '../access/require-permissions.decorator';
-import { ListProductsQueryDto } from './dto';
+import { DuplicateProductDto, ListProductsQueryDto } from './dto';
+import { ProductCommandsService } from './product-commands.service';
 import { ProductsService } from './products.service';
 
 const filterPipe = new ValidationPipe({
@@ -17,11 +31,30 @@ const filterPipe = new ValidationPipe({
     }),
 });
 
+const bodyPipe = new ValidationPipe({
+  transform: true,
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  exceptionFactory: (errors: ValidationError[]) =>
+    new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      message: 'Invalid request',
+      details: errors.map((e) => ({ field: e.property, constraints: e.constraints })),
+    }),
+});
+
+const idPipe = new ParseUUIDPipe({
+  exceptionFactory: () => new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid id' }),
+});
+
 @ApiTags('inventory')
 @ApiBearerAuth()
 @Controller('inventory')
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly commands: ProductCommandsService,
+  ) {}
 
   @Get('products')
   @RequirePermissions('inventory.products.view')
@@ -33,5 +66,18 @@ export class ProductsController {
   @RequirePermissions('inventory.products.view')
   filterOptions(): Promise<ProductFilterOptions> {
     return this.products.filterOptions();
+  }
+
+  @Post('products/:id/duplicate')
+  @RequirePermissions('inventory.products.edit')
+  duplicate(@Param('id', idPipe) id: string, @Body(bodyPipe) body: DuplicateProductDto): Promise<DuplicateProductResponse> {
+    return this.commands.duplicate(id, body);
+  }
+
+  @Delete('products/:id')
+  @HttpCode(204)
+  @RequirePermissions('inventory.products.delete')
+  remove(@Param('id', idPipe) id: string): Promise<void> {
+    return this.commands.remove(id);
   }
 }

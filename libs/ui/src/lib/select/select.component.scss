@@ -56,8 +56,13 @@
 .value.placeholder {
   color: var(--text-muted);
 }
-rs-icon {
+rs-icon,
+rs-field-media {
   flex: none;
+}
+.option .label {
+  flex: 1 1 0;
+  min-width: 0;
 }
 .chevron {
   transition: transform var(--motion-fast) var(--ease-out);
