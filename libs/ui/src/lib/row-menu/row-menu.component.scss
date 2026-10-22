@@ -1,0 +1,46 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 220px; /* Figma RowMenu: 220 */
+  padding: var(--space-2);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family-ui);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-out);
+
+  &:hover {
+    background: var(--bg-surface-2);
+  }
+  &:active {
+    background: var(--gray-100);
+  }
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: calc(var(--focus-offset) * -1);
+  }
+  &.danger {
+    color: var(--status-danger);
+  }
+}
+.divider {
+  height: var(--stroke-default);
+  background: var(--border-default);
+}

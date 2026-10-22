@@ -1,0 +1,46 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.controls,
+.filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.search {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.filters > ::ng-deep * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.clear {
+  padding: var(--space-3) var(--space-5);
+  font-family: var(--font-family-ui);
+  font-size: var(--label-md-size);
+  font-weight: 500;
+  line-height: var(--label-md-line-height);
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg-surface-2);
+  }
+  &:active {
+    background: var(--gray-100);
+  }
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: var(--focus-offset);
+  }
+}

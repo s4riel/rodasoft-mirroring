@@ -1,0 +1,83 @@
+<div class="table" role="table">
+  <div class="row header" role="row">
+    <div class="cell" role="columnheader">{{ labels().photo }}</div>
+    <div class="cell" role="columnheader">{{ labels().code }}</div>
+    <div class="cell" role="columnheader">{{ labels().product }}</div>
+    <div class="cell" role="columnheader">{{ labels().description }}</div>
+    <div class="cell num" role="columnheader">{{ labels().totalStock }}</div>
+    <div class="cell num" role="columnheader">{{ labels().branchStock }}</div>
+    <div class="cell num" role="columnheader">{{ labels().price }}</div>
+    <div class="cell" role="columnheader">{{ labels().status }}</div>
+    <div class="cell" role="columnheader"></div>
+  </div>
+
+  @for (row of rows(); track row.id) {
+    <div class="row" role="row">
+      <div class="cell" role="cell"><rs-product-thumb [src]="row.photoUrl" [alt]="row.name" /></div>
+      <div class="cell code" role="cell">{{ row.code }}</div>
+      <div class="cell product" role="cell">
+        <span class="name">{{ row.name }}</span>
+        <span class="brand">
+          @if (row.brandLogoUrl) {
+            <img class="logo" [src]="row.brandLogoUrl" [alt]="row.brandName" />
+          } @else {
+            <span class="initials" aria-hidden="true">{{ initials(row.brandName) }}</span>
+          }
+          <span class="brand-name">{{ row.brandName }}</span>
+          @if (row.country) {
+            <rs-flag [country]="row.country" />
+          }
+        </span>
+      </div>
+      <div class="cell description" role="cell">{{ row.description }}</div>
+      <div class="cell num" role="cell">{{ row.totalStock }}</div>
+      <div class="cell num branch" role="cell">
+        @if (row.branchStock !== null) {
+          <span>{{ row.branchStock }}</span>
+          @if (row.availability === 'out') {
+            <rs-icon class="alert danger" name="alert" [size]="20" />
+          } @else if (row.availability === 'low') {
+            <rs-icon class="alert warning" name="alert" [size]="20" />
+          }
+        } @else {
+          <span>–</span>
+        }
+      </div>
+      <div class="cell num price" role="cell">{{ price(row.price) }}</div>
+      <div class="cell" role="cell">
+        <rs-status-pill [status]="statusOf(row.availability)">{{ labels().availability[row.availability] }}</rs-status-pill>
+      </div>
+      <div class="cell action" role="cell">
+        @if (menuItems().length) {
+          <button
+            type="button"
+            class="kebab"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="openRowId() === row.id"
+            [attr.aria-label]="labels().rowActions + ' ' + row.code"
+            (click)="toggleMenu(row.id, $event)"
+          >
+            <rs-icon name="dots" [size]="20" />
+          </button>
+          @if (openRowId() === row.id) {
+            <rs-row-menu class="menu" [items]="menuItems()" (selected)="choose(row.id, $event)" />
+          }
+        }
+      </div>
+    </div>
+  }
+
+  @if (footerLabel()) {
+    <div class="row footer" role="row">
+      <div class="cell" role="cell"></div>
+      <div class="cell strong" role="cell">{{ footerLabel() }}</div>
+      <div class="cell note" role="cell">{{ footerNote() }}</div>
+      <div class="cell" role="cell"></div>
+      <div class="cell num" role="cell">–</div>
+      <div class="cell num strong" role="cell">{{ footerBranchStock ?? '–' }}</div>
+      <div class="cell num" role="cell">–</div>
+      <div class="cell" role="cell">–</div>
+      <div class="cell" role="cell"></div>
+    </div>
+  }
+</div>
