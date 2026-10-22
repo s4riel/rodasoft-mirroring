@@ -1,0 +1,198 @@
+@if (product(); as p) {
+  <div class="sheet">
+    <section class="card identity" aria-label="Identificación">
+      <div class="photo">
+        @if (p.photos.length) {
+          <img [src]="p.photos[0]" [alt]="p.name" />
+        } @else {
+          <rs-icon [name]="thumbIcon()" [size]="24" aria-hidden="true" />
+        }
+      </div>
+      <div class="identity-body">
+        <div class="brand">
+          <rs-chip-media type="brand" [text]="p.brand.name.slice(0, 3).toUpperCase()" [logoUrl]="p.brand.logoUrl" />
+          <div class="brand-text">
+            <span class="brand-name">{{ p.brand.name }}</span>
+            <span class="origin">
+              País de origen:
+              @if (p.country; as country) {
+                @if (flag(); as code) {
+                  <rs-flag [country]="code" />
+                }
+                {{ country.name }}
+              } @else {
+                –
+              }
+            </span>
+          </div>
+        </div>
+        <h2 class="product-name">{{ p.name }}</h2>
+        <div class="identity-fields">
+          <rs-data-field label="Código del fabricante" [icon]="icons.code" type="mono">{{ p.manufacturerCode }}</rs-data-field>
+          <rs-data-field label="SKU interno" [icon]="icons.sku" type="mono">{{ p.sku }}</rs-data-field>
+        </div>
+        @if (sectors().length) {
+          <div class="sectors">
+            <span class="sectors-label">Sectores de aplicación</span>
+            <ul class="tags">
+              @for (sector of sectors(); track sector) {
+                <li>{{ sector }}</li>
+              }
+            </ul>
+          </div>
+        }
+      </div>
+    </section>
+
+    <div class="kpis">
+      <rs-kpi-card label="Stock total" [value]="p.totalStock + ' uds'" [note]="stockSummary()" />
+      <rs-kpi-card label="Precio de venta" [value]="salePrice()" [note]="priceNote()" />
+      <rs-kpi-card label="Equivalentes" value="–" note="Disponible próximamente" />
+    </div>
+
+    <div class="columns">
+      <div class="main">
+        <section class="card" aria-labelledby="dimensions-title">
+          <header class="card-head">
+            <h2 id="dimensions-title" class="card-title">Dimensiones</h2>
+            <p class="card-subtitle">Con estas medidas se buscan los equivalentes de otras marcas.</p>
+          </header>
+          @if (dimensions() || dimensionSpecs().length) {
+            <div class="dimensions" [class.no-diagram]="!dimensions()">
+              @if (dimensions(); as dims) {
+                <div class="diagram" aria-hidden="true">
+                  <svg viewBox="0 0 160 160" focusable="false">
+                    <circle cx="80" cy="96" r="60" fill="none" stroke="currentColor" stroke-width="2" />
+                    <circle cx="80" cy="96" r="24" fill="none" stroke="currentColor" stroke-width="2" />
+                    <text x="0" y="14" class="diagram-label">D {{ dims.outerDiameter }}</text>
+                    <text x="80" y="100" text-anchor="middle" class="diagram-label">d {{ dims.innerDiameter }}</text>
+                  </svg>
+                </div>
+              }
+              <div class="fields">
+                @for (field of dimensionFields(); track field.label) {
+                  <rs-data-field [label]="field.label" [icon]="field.icon" [type]="field.mono ? 'mono' : 'text'">{{ field.value }}</rs-data-field>
+                }
+                @for (field of dimensionSpecs(); track field.key) {
+                  <rs-data-field [label]="field.label" [icon]="field.icon" [type]="field.mono ? 'mono' : 'text'">{{ field.value }}</rs-data-field>
+                }
+              </div>
+            </div>
+          } @else {
+            <p class="muted">Este producto no tiene medidas registradas.</p>
+          }
+        </section>
+
+        <section class="card" aria-labelledby="specs-title">
+          <header class="card-head">
+            <h2 id="specs-title" class="card-title">Especificaciones técnicas</h2>
+            <p class="card-subtitle">Lo que permite distinguir un equivalente exacto de uno con diferencias.</p>
+          </header>
+          @if (specFields().length) {
+            <div class="fields">
+              @for (field of specFields(); track field.key) {
+                <rs-data-field [label]="field.label" [icon]="field.icon" [type]="field.mono ? 'mono' : 'text'">{{ field.value }}</rs-data-field>
+              }
+            </div>
+          } @else {
+            <p class="muted">Esta categoría aún no tiene especificaciones definidas.</p>
+          }
+        </section>
+
+        <section class="card" aria-labelledby="price-title">
+          <header class="card-head">
+            <h2 id="price-title" class="card-title">Precio e inventario</h2>
+            <p class="card-subtitle">Un solo precio por producto y empresa.</p>
+          </header>
+          <div class="fields">
+            <rs-data-field label="Unidad de medida" [icon]="icons.text">{{ unit() }}</rs-data-field>
+            <rs-data-field label="Precio de venta" [icon]="icons.money" type="mono">{{ salePrice() }}</rs-data-field>
+            @if (hasCost()) {
+              <rs-data-field label="Costo (restringido)" [icon]="icons.money" type="mono">{{ cost() }}</rs-data-field>
+              <rs-data-field label="Margen" [icon]="icons.percent" type="mono">{{ margin() }}</rs-data-field>
+            }
+            <rs-data-field label="Stock mínimo" [icon]="icons.count" [type]="stockMinLabel() ? 'mono' : 'empty'">{{ stockMinLabel() }}</rs-data-field>
+            <rs-data-field label="Stock máximo" [icon]="icons.count" [type]="stockMaxLabel() ? 'mono' : 'empty'">{{ stockMaxLabel() }}</rs-data-field>
+            <rs-data-field label="Ubicación en almacén" [icon]="icons.location" [type]="locationLabel() ? 'mono' : 'empty'">{{ locationLabel() }}</rs-data-field>
+            <rs-data-field label="Proveedor habitual" [icon]="icons.text" [type]="p.extra.supplierName ? 'text' : 'empty'">{{ p.extra.supplierName }}</rs-data-field>
+            <rs-data-field label="Partida arancelaria" [icon]="icons.code" [type]="p.extra.tariffCode ? 'mono' : 'empty'">{{ p.extra.tariffCode }}</rs-data-field>
+            <rs-data-field label="Fecha de ingreso" [icon]="icons.date">{{ createdAt() }}</rs-data-field>
+          </div>
+        </section>
+      </div>
+
+      <aside class="side">
+        <section class="card" aria-labelledby="stock-title">
+          <header class="card-head">
+            <h2 id="stock-title" class="card-title">Stock por sucursal</h2>
+            @if (stockLimits()) {
+              <p class="card-subtitle">{{ stockLimits() }}</p>
+            }
+          </header>
+          <ul class="stock-list">
+            @for (b of branches(); track b.id) {
+              <li [class.current]="b.current" [attr.aria-current]="b.current ? 'true' : null">
+                <span class="branch-name">{{ b.name }}</span>
+                <span class="qty">
+                  @if (b.availability !== 'available') {
+                    <rs-stock-flag
+                      [level]="b.availability === 'out' ? 'out' : 'low'"
+                      [label]="b.availability === 'out' ? 'Agotado' : 'Stock bajo'"
+                    />
+                  }
+                  {{ b.quantity }}
+                </span>
+              </li>
+            } @empty {
+              <li class="muted">No tienes sucursales asignadas.</li>
+            }
+          </ul>
+          <div class="stock-total">
+            <span>Total</span>
+            <span class="qty">{{ p.totalStock }}</span>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="media-title">
+          <header class="card-head">
+            <h2 id="media-title" class="card-title">Fotos y ficha técnica</h2>
+          </header>
+          @if (p.photos.length) {
+            <ul class="photos">
+              @for (photo of p.photos; track photo) {
+                <li><img [src]="photo" [alt]="'Foto de ' + p.name" loading="lazy" /></li>
+              }
+            </ul>
+          } @else {
+            <p class="muted">Este producto no tiene fotos.</p>
+          }
+          @if (p.datasheetUrl; as url) {
+            <div class="file">
+              <div class="file-text">
+                <span class="file-name">{{ datasheetName() }}</span>
+                <span class="file-kind">Ficha técnica</span>
+              </div>
+              <a class="file-link" [href]="url" target="_blank" rel="noopener noreferrer">Descargar</a>
+            </div>
+          }
+        </section>
+
+        <section class="card" aria-labelledby="log-title">
+          <header class="card-head">
+            <h2 id="log-title" class="card-title">Registro</h2>
+          </header>
+          <dl class="record">
+            <div>
+              <dt>Registrado por</dt>
+              <dd>{{ createdLine() }}</dd>
+            </div>
+            <div>
+              <dt>Última edición</dt>
+              <dd>{{ updatedLine() }}</dd>
+            </div>
+          </dl>
+        </section>
+      </aside>
+    </div>
+  </div>
+}

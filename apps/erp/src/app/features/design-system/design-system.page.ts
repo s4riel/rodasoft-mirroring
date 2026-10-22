@@ -2,11 +2,12 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ButtonComponent } from '@rodasoft/ui';
 import { ActionsFormsSection } from './sections/actions-forms.section';
+import { ErpComponentsSection } from './sections/erp-components.section';
 import { IconsSection } from './sections/icons.section';
 import { NavigationContentSection } from './sections/navigation-content.section';
 import { SelectionFeedbackSection } from './sections/selection-feedback.section';
 
-type SectionKey = 'actions' | 'selection' | 'navigation' | 'icons';
+type SectionKey = 'actions' | 'selection' | 'navigation' | 'erp' | 'icons';
 type Theme = 'light' | 'dark';
 type Brand = 'rodalaser' | 'company2';
 
@@ -18,7 +19,7 @@ type Brand = 'rodalaser' | 'company2';
 @Component({
   selector: 'rs-design-system-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, ActionsFormsSection, SelectionFeedbackSection, NavigationContentSection, IconsSection],
+  imports: [ButtonComponent, ActionsFormsSection, SelectionFeedbackSection, NavigationContentSection, ErpComponentsSection, IconsSection],
   template: `
     <header class="bar">
       <h1 class="rs-text-display-h3">Librería UI · Design System</h1>
@@ -41,6 +42,7 @@ type Brand = 'rodalaser' | 'company2';
         @case ('actions') { <rs-actions-forms-section /> }
         @case ('selection') { <rs-selection-feedback-section /> }
         @case ('navigation') { <rs-navigation-content-section /> }
+        @case ('erp') { <rs-erp-components-section /> }
         @case ('icons') { <rs-icons-section /> }
       }
     </main>
@@ -63,6 +65,7 @@ export class DesignSystemPage {
     { key: 'actions', label: 'Acciones y formularios' },
     { key: 'selection', label: 'Selección y feedback' },
     { key: 'navigation', label: 'Navegación y contenido' },
+    { key: 'erp', label: 'Componentes ERP' },
     { key: 'icons', label: 'Íconos' },
   ];
   protected readonly section = signal<SectionKey>('actions');

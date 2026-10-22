@@ -35,9 +35,9 @@
         @if (row.branchStock !== null) {
           <span>{{ row.branchStock }}</span>
           @if (row.availability === 'out') {
-            <rs-icon class="alert danger" name="alert" [size]="20" />
+            <rs-stock-flag level="out" />
           } @else if (row.availability === 'low') {
-            <rs-icon class="alert warning" name="alert" [size]="20" />
+            <rs-stock-flag level="low" />
           }
         } @else {
           <span>–</span>

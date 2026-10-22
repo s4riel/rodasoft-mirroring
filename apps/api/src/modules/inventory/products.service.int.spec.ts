@@ -31,7 +31,7 @@ interface Fixture {
 
 let current: string | null = null;
 let membershipId: string | null = null;
-const prisma = { tenant: base.$extends(tenantExtension(() => current)) } as unknown as PrismaService;
+const prisma = { tenant: base.$extends(tenantExtension(() => current)), user: base.user } as unknown as PrismaService;
 const cls = { get: (k: string) => (k === 'membershipId' ? membershipId : null) } as never;
 const service = new ProductsService(prisma, cls);
 
@@ -87,6 +87,7 @@ async function createCompany(tag: string): Promise<Fixture> {
 
 async function removeCompany(companyId: string) {
   await base.stockLevel.deleteMany({ where: { companyId } });
+  await base.stockThreshold.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.attributeDefinition.deleteMany({ where: { companyId } });
@@ -274,6 +275,99 @@ describe('ProductsService (integration, real Postgres)', () => {
     expect(o.countries.map((c) => c.code).sort()).toEqual(['JP', 'SE']);
     expect(o.brands.map((x) => x.name)).toEqual(['NSK', 'SKF']);
     expect(o.categories.find((c) => c.name === 'Rodamientos')!.subcategories.map((s) => s.name)).toEqual(['Bolas']);
+  });
+
+  describe('detail (product sheet)', () => {
+    let creator: string;
+
+    beforeAll(async () => {
+      await base.attributeDefinition.createMany({
+        data: [
+          { companyId: a.companyId, categoryId: a.rootBearings, key: 'seal', label: 'Sello', type: 'ENUM', step: 1 },
+          { companyId: a.companyId, categoryId: a.rootBearings, key: 'series', label: 'Serie', type: 'TEXT', step: 0 },
+          { companyId: a.companyId, categoryId: a.rootBearings, key: 'rows', label: 'Hileras', type: 'NUMBER', step: 2 },
+        ],
+      });
+      const user = await base.user.create({ data: { email: `creator-${run}@test.local`, name: 'Ana Rojas' } });
+      creator = user.id;
+      await base.product.update({
+        where: { id: p1 },
+        data: { attributes: { seal: '2RS', series: '62', tariffCode: '8482.10' }, createdById: creator, updatedById: creator },
+      });
+      await base.stockThreshold.create({
+        data: { companyId: a.companyId, productId: p1, branchId: a.branchA, minStock: 12, maxStock: 60, location: 'A-03-2' },
+      });
+    });
+
+    afterAll(async () => {
+      await base.product.update({ where: { id: p1 }, data: { createdById: null, updatedById: null } });
+      await base.user.delete({ where: { id: creator } });
+    });
+
+    it('returns identity, dimensions, industry and authorship', async () => {
+      const d = await service.detail(p1, false);
+      expect(d).toMatchObject({
+        sku: 'RL-6205',
+        manufacturerCode: '6205',
+        brand: { name: 'SKF' },
+        country: { code: 'SE' },
+        category: { name: 'Rodamientos' },
+        subcategory: { name: 'Bolas' },
+        photos: ['https://img.test/p.png'],
+        createdBy: { name: 'Ana Rojas' },
+        updatedBy: { name: 'Ana Rojas' },
+        extra: { tariffCode: '8482.10', supplierName: null, sectors: null },
+      });
+      expect(d.dimensions).toMatchObject({ innerDiameter: '25', outerDiameter: '52', width: '15', weight: null });
+    });
+
+    it("lists the specs in definition order using the parent category's definitions", async () => {
+      const d = await service.detail(p1, false);
+      expect(d.specs.map((s) => [s.key, s.value])).toEqual([
+        ['series', '62'],
+        ['seal', '2RS'],
+        ['rows', null],
+      ]);
+      expect(d.specs.map((s) => s.step)).toEqual([0, 1, 2]);
+    });
+
+    it('aggregates stock per branch across warehouses with the branch thresholds', async () => {
+      const d = await service.detail(p1, false);
+      expect(d.totalStock).toBe(15);
+      expect(d.stockByBranch).toEqual([
+        { branchId: a.branchA, branchName: 'B0', warehouses: ['A'], quantity: 10, minStock: 12, maxStock: 60, location: 'A-03-2', availability: 'low' },
+        { branchId: a.branchB, branchName: 'B1', warehouses: ['B'], quantity: 5, minStock: null, maxStock: null, location: null, availability: 'available' },
+      ]);
+    });
+
+    it('hides cost and margin without inventory.costs.view and shows them with it', async () => {
+      const without = await service.detail(p1, false);
+      expect(without.pricing).toEqual({ salePrice: '123.50' });
+      expect(JSON.stringify(without)).not.toContain('70.12');
+      const withCost = await service.detail(p1, true);
+      expect(withCost.pricing).toEqual({ salePrice: '123.50', cost: '70.1234', marginPercent: '43.2' });
+    });
+
+    it('shows only the branches a limited member may operate', async () => {
+      membershipId = a.limitedMembership;
+      const d = await service.detail(p1, false);
+      expect(d.stockByBranch.map((s) => s.branchId)).toEqual([a.branchA]);
+      // the total never includes branches the member cannot see
+      expect(d.totalStock).toBe(10);
+    });
+
+    it("answers 404 for a missing product or another company's", async () => {
+      const foreign = await base.product.findFirstOrThrow({ where: { companyId: b.companyId } });
+      await expect(service.detail(foreign.id, true)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.detail(randomUUID(), true)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("falls back to the brand's country when the product has none, and prefers its own", async () => {
+      expect((await service.detail(p1, false)).country?.code).toBe('SE');
+      await base.product.update({ where: { id: p1 }, data: { countryId: a.countryJP } });
+      expect((await service.detail(p1, false)).country?.code).toBe('JP');
+      await base.product.update({ where: { id: p1 }, data: { countryId: null } });
+    });
   });
 
   describe('pagination with thousands of products', () => {

@@ -77,6 +77,8 @@ export class ProductCommandsService {
             attributes: payload.attributes as Prisma.InputJsonObject,
             photos: payload.photos,
             datasheetUrl: payload.datasheetUrl,
+            createdById: this.cls.get('userId'),
+            updatedById: this.cls.get('userId'),
           },
           select: { id: true },
         });

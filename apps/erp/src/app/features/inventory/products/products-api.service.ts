@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import type {
   DuplicateProductRequest,
   DuplicateProductResponse,
+  ProductDetail,
   ProductFilterOptions,
   ProductListQuery,
   ProductListResponse,
@@ -23,6 +24,10 @@ export class ProductsApi {
 
   filterOptions(): Observable<ProductFilterOptions> {
     return this.http.get<ProductFilterOptions>('/api/v1/inventory/filter-options');
+  }
+
+  detail(id: string): Observable<ProductDetail> {
+    return this.http.get<ProductDetail>(`/api/v1/inventory/products/${id}`);
   }
 
   duplicate(id: string, body: DuplicateProductRequest): Observable<DuplicateProductResponse> {

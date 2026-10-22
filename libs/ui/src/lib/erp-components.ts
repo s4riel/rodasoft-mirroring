@@ -3,3 +3,7 @@ export * from './product-thumb/product-thumb.component';
 export * from './row-menu/row-menu.component';
 export * from './filter-bar-products/filter-bar-products.component';
 export * from './product-table/product-table.component';
+export * from './stock-flag/stock-flag.component';
+export * from './kpi-card/kpi-card.component';
+export * from './data-field/data-field.component';
+export * from './branch-stock-table/branch-stock-table.component';

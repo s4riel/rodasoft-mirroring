@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, input, output, signal } from '@angular/core';
 import { FlagComponent, FlagCountry } from '../flag/flag.component';
 import { IconComponent } from '../icon/icon.component';
+import { StockFlagComponent } from '../stock-flag/stock-flag.component';
 import { ProductThumbComponent } from '../product-thumb/product-thumb.component';
 import { RowMenuComponent, RowMenuItem } from '../row-menu/row-menu.component';
 import type { IconName } from '../icon/icons';
@@ -63,7 +64,7 @@ export function formatBoliviano(amount: string): string {
  */
 @Component({
   selector: 'rs-product-table',
-  imports: [FlagComponent, IconComponent, ProductThumbComponent, RowMenuComponent],
+  imports: [FlagComponent, IconComponent, ProductThumbComponent, RowMenuComponent, StockFlagComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './product-table.component.html',
   styleUrl: './product-table.component.scss',
