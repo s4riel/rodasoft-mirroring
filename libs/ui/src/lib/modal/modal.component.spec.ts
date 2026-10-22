@@ -6,7 +6,12 @@ import { ModalComponent } from './modal.component';
   imports: [ModalComponent],
   template: `
     <button id="opener" (click)="open.set(true)">Abrir</button>
-    <rs-modal [(open)]="open" heading="Anular factura" variant="form" (closed)="closedCount = closedCount + 1">
+    <rs-modal
+      [(open)]="open"
+      heading="Anular factura"
+      variant="form"
+      (closed)="closedCount = closedCount + 1"
+    >
       <input id="field" />
       <div slot="footer"><button id="cancel">Cancelar</button><button id="confirm">Anular</button></div>
     </rs-modal>
@@ -60,11 +65,15 @@ describe('ModalComponent', () => {
   it('cierra al hacer clic en el fondo pero no dentro del panel', async () => {
     const fixture = await openModal();
     const root: HTMLElement = fixture.nativeElement;
-    (root.querySelector('.panel') as HTMLElement).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    (root.querySelector('.panel') as HTMLElement).dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true }),
+    );
     await fixture.whenStable();
     expect(fixture.componentInstance.open()).toBe(true);
 
-    (root.querySelector('.backdrop') as HTMLElement).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    (root.querySelector('.backdrop') as HTMLElement).dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true }),
+    );
     await fixture.whenStable();
     expect(fixture.componentInstance.open()).toBe(false);
   });

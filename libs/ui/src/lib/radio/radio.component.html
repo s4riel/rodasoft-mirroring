@@ -1,0 +1,14 @@
+<label class="root" [class.disabled]="isDisabled()">
+  <input
+    class="native"
+    type="radio"
+    [attr.name]="group?.name() ?? (name() || null)"
+    [attr.id]="inputId() || null"
+    [checked]="isChecked()"
+    [disabled]="isDisabled()"
+    (change)="onSelect()"
+    (blur)="group?.markTouched()"
+  />
+  <span class="circle" aria-hidden="true"></span>
+  <span class="text"><ng-content /></span>
+</label>

@@ -1,12 +1,21 @@
-import { Directive, effect, inject, InjectionToken, input, Signal, TemplateRef, ViewContainerRef } from '@angular/core';
+import {
+  Directive,
+  effect,
+  inject,
+  InjectionToken,
+  input,
+  Signal,
+  TemplateRef,
+  ViewContainerRef,
+} from '@angular/core';
 
-/** La app provee los permisos del usuario actual (del endpoint /contexto). */
+/** The app provides the current user's permissions (from the /context endpoint). */
 export const RS_PERMISSIONS = new InjectionToken<Signal<ReadonlySet<string>>>('RS_PERMISSIONS');
 
 /**
- * Muestra el contenido solo si el usuario tiene TODOS los permisos.
- *   <button *rsCan="'ventas.anulaciones.aprobar'">Aprobar</button>
- *   <section *rsCan="['inventario.costos.ver', 'reportes.ver']">…</section>
+ * Shows the content only if the user has ALL the permissions.
+ *   <button *rsCan="'sales.cancellations.approve'">Aprobar</button>
+ *   <section *rsCan="['inventory.costs.view', 'reports.view']">…</section>
  * Es solo UX: el backend vuelve a validar con @RequirePermissions().
  */
 @Directive({ selector: '[rsCan]' })

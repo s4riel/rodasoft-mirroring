@@ -1,0 +1,36 @@
+<nav [attr.aria-label]="label() || null">
+  <button
+    type="button"
+    class="btn"
+    [attr.aria-label]="previousLabel() || null"
+    [disabled]="disabled() || page() <= 1"
+    (click)="go(page() - 1)"
+  >
+    <rs-icon name="chevron-down" class="prev" [size]="16" />
+  </button>
+  @for (item of items(); track $index) {
+    @if (item === null) {
+      <span class="ellipsis" aria-hidden="true">…</span>
+    } @else {
+      <button
+        type="button"
+        class="btn"
+        [class.selected]="item === page()"
+        [attr.aria-current]="item === page() ? 'page' : null"
+        [disabled]="disabled()"
+        (click)="go(item)"
+      >
+        {{ item }}
+      </button>
+    }
+  }
+  <button
+    type="button"
+    class="btn"
+    [attr.aria-label]="nextLabel() || null"
+    [disabled]="disabled() || page() >= pageCount()"
+    (click)="go(page() + 1)"
+  >
+    <rs-icon name="chevron-down" class="next" [size]="16" />
+  </button>
+</nav>

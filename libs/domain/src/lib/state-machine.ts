@@ -62,7 +62,7 @@ export const transferMachine = createMachine<TransferStatus, TransferEvent>({
   CANCELLED: {},
 });
 
-// ── SIAT invoice (facturacion-plan-cierre.md) ──
+// ── SIAT invoice (invoicing close plan) ──
 export type InvoiceStatus =
   | 'PENDING'
   | 'SENDING'

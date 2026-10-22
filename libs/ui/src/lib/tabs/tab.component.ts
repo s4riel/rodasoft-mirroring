@@ -1,15 +1,18 @@
-import { booleanAttribute, ChangeDetectionStrategy, Component, input, TemplateRef, viewChild } from '@angular/core';
+import {
+  booleanAttribute,
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  TemplateRef,
+  viewChild,
+} from '@angular/core';
 
 /** One tab of `<rs-tabs>`: `<rs-tab value="specs" label="...">panel content</rs-tab>`. */
 @Component({
   selector: 'rs-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<ng-template #content><ng-content /></ng-template>`,
-  styles: `
-    :host {
-      display: none;
-    }
-  `,
+  templateUrl: './tab.component.html',
+  styleUrl: './tab.component.scss',
 })
 export class TabComponent {
   /** Identifier used by `<rs-tabs [(selected)]>`. */

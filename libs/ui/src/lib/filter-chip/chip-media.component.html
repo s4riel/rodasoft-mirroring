@@ -1,0 +1,11 @@
+@switch (type()) {
+  @case ('flag') {
+    <rs-flag [country]="country()" />
+  }
+  @case ('icon') {
+    <ng-content />
+  }
+  @default {
+    <span class="text">{{ text() }}</span>
+  }
+}

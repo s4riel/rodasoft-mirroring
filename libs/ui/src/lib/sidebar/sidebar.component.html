@@ -1,0 +1,35 @@
+<a class="logo" [routerLink]="homeLink()" [attr.aria-label]="brandName()">
+  <span class="pin" aria-hidden="true"><rs-icon [name]="brandIcon()" [size]="16" /></span>
+  <span class="wordmark">{{ brandName() }}</span>
+</a>
+<nav class="body" [attr.aria-label]="navLabel() || null">
+  @for (group of groups(); track group.label) {
+    <p class="group">{{ group.label }}</p>
+    @for (item of group.items; track item.route) {
+      @if (item.disabled) {
+        <span class="item disabled" aria-disabled="true">
+          <rs-icon [name]="item.icon" [size]="20" />
+          <span class="text">{{ item.label }}</span>
+        </span>
+      } @else {
+        <a
+          class="item"
+          [routerLink]="item.route"
+          routerLinkActive="current"
+          [routerLinkActiveOptions]="{ exact: item.route === '/' }"
+          [class.current]="item.current"
+          #rla="routerLinkActive"
+          [attr.aria-current]="rla.isActive || item.current ? 'page' : null"
+        >
+          <span class="indicator" aria-hidden="true"></span>
+          <rs-icon [name]="item.icon" [size]="20" />
+          <span class="text">{{ item.label }}</span>
+          @if (item.badge) {
+            <span class="badge">{{ item.badge }}</span>
+          }
+        </a>
+      }
+    }
+  }
+</nav>
+<div class="footer"><ng-content select="[rsSidebarFooter]" /></div>

@@ -10,21 +10,8 @@ export type TooltipPosition = 'top' | 'bottom' | 'left' | 'right';
   selector: 'rs-tooltip',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { role: 'tooltip', '[attr.data-position]': 'position()' },
-  template: `{{ text() }}<ng-content />`,
-  styles: `
-    :host {
-      display: inline-block;
-      max-width: 280px;
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-sm);
-      background: var(--action-primary);
-      color: var(--action-on-primary);
-      font-size: var(--body-sm-size);
-      line-height: var(--body-sm-line-height);
-      font-weight: 500;
-      pointer-events: none;
-    }
-  `,
+  templateUrl: './tooltip.component.html',
+  styleUrl: './tooltip.component.scss',
 })
 export class TooltipComponent {
   readonly text = input<string>('');

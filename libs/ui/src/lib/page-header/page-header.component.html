@@ -1,0 +1,13 @@
+<div class="heading">
+  @if (breadcrumbs().length) {
+    <rs-breadcrumb [items]="breadcrumbs()" [label]="breadcrumbLabel()" />
+  }
+  <div class="title-row">
+    <h1 class="title">{{ title() }}</h1>
+    <ng-content select="[rsStatus]" />
+  </div>
+  @if (text()) {
+    <p class="description">{{ text() }}</p>
+  }
+</div>
+<div class="actions"><ng-content select="[rsActions]" /></div>

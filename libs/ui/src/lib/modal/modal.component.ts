@@ -38,110 +38,8 @@ let nextId = 0;
   selector: 'rs-modal',
   imports: [IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (open()) {
-      <div class="backdrop" (mousedown)="onBackdrop($event)">
-        <div
-          #panel
-          class="panel"
-          role="dialog"
-          aria-modal="true"
-          tabindex="-1"
-          [attr.data-variant]="variant()"
-          [attr.aria-labelledby]="heading() ? titleId : null"
-          [attr.aria-label]="heading() ? null : label() || null"
-          (keydown)="onKeydown($event)"
-        >
-          <header class="header">
-            @if (heading()) {
-              <h2 class="title" [id]="titleId">{{ heading() }}</h2>
-            }
-            <button type="button" class="close" [attr.aria-label]="closeLabel()" (click)="close()">
-              <rs-icon name="close" [size]="20" />
-            </button>
-          </header>
-          <div class="body"><ng-content /></div>
-          <footer class="footer"><ng-content select="[slot=footer]" /></footer>
-        </div>
-      </div>
-    }
-  `,
-  styles: `
-    :host { display: contents; }
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      display: grid;
-      place-items: center;
-      padding: var(--space-4);
-      background: color-mix(in srgb, var(--black) 48%, transparent);
-    }
-    .panel {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      max-width: 480px;
-      max-height: calc(100dvh - 2 * var(--space-4));
-      border-radius: var(--radius-2xl);
-      background: var(--bg-surface);
-      color: var(--text-primary);
-      box-shadow: var(--shadow-modal);
-      outline: none;
-    }
-    .panel[data-variant='form'] { max-width: 640px; }
-    .header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-4);
-      padding: var(--space-6) var(--space-6) 0;
-    }
-    .title {
-      flex: 1;
-      font-size: var(--display-h3-size);
-      line-height: var(--display-h3-line-height);
-      font-weight: var(--display-h3-weight);
-    }
-    .close {
-      flex: none;
-      display: inline-grid;
-      place-items: center;
-      width: 36px;
-      height: 36px;
-      margin: -6px -6px 0 auto;
-      border: 0;
-      border-radius: var(--radius-full);
-      background: transparent;
-      color: var(--text-muted);
-      cursor: pointer;
-    }
-    .close:hover { background: var(--bg-surface-2); color: var(--text-primary); }
-    .close:focus-visible { outline: var(--stroke-focus) solid var(--focus-control); outline-offset: var(--focus-offset); }
-    .body {
-      padding: var(--space-3) var(--space-6) var(--space-6);
-      overflow: auto;
-      color: var(--text-muted);
-      font-size: var(--body-md-size);
-      line-height: var(--body-md-line-height);
-    }
-    .panel[data-variant='form'] .body { color: var(--text-primary); }
-    .footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: var(--space-3);
-      padding: 0 var(--space-6) var(--space-6);
-    }
-    .footer:empty { display: none; }
-    .panel[data-variant='form'] .footer {
-      padding-top: var(--space-4);
-      border-top: var(--stroke-default) solid var(--border-default);
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .panel { animation: rs-modal-in var(--motion-base) var(--ease-out); }
-      @keyframes rs-modal-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
-    }
-  `,
+  templateUrl: './modal.component.html',
+  styleUrl: './modal.component.scss',
 })
 export class ModalComponent {
   private readonly document = inject(DOCUMENT);
@@ -230,7 +128,10 @@ export class ModalComponent {
           return;
         }
         // Prefer the first field/action in the body; fall back to the panel itself.
-        const target = panel.querySelector('.body')?.querySelector<HTMLElement>(FOCUSABLE) ?? panel.querySelector<HTMLElement>(FOCUSABLE) ?? panel;
+        const target =
+          panel.querySelector('.body')?.querySelector<HTMLElement>(FOCUSABLE) ??
+          panel.querySelector<HTMLElement>(FOCUSABLE) ??
+          panel;
         target.focus();
       },
       { injector: this.injector },

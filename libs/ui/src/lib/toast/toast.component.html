@@ -1,0 +1,12 @@
+<span class="icon"><rs-icon [name]="icon()" [size]="20" /></span>
+<div class="body">
+  @if (heading()) {
+    <strong>{{ heading() }}</strong>
+  }
+  <div class="text"><ng-content /></div>
+</div>
+@if (dismissible()) {
+  <button type="button" class="close" [attr.aria-label]="closeLabel()" (click)="dismissed.emit()">
+    <rs-icon name="close" [size]="16" />
+  </button>
+}

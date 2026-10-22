@@ -1,0 +1,30 @@
+:host {
+  display: grid;
+  gap: var(--space-2);
+}
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.label {
+  color: var(--text-primary);
+  font-size: var(--label-md-size);
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
+  letter-spacing: var(--label-md-tracking);
+}
+.required {
+  color: var(--status-danger);
+}
+.msg {
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  font-weight: var(--body-sm-weight);
+  letter-spacing: var(--body-sm-tracking);
+}
+.msg.error {
+  color: var(--status-danger);
+}

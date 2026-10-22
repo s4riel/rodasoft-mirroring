@@ -25,55 +25,8 @@ let nextId = 0;
   selector: 'rs-field',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.has-error]': '!!error()' },
-  template: `
-    <div class="head">
-      <label class="label" [attr.for]="forId()">
-        {{ label() }}
-        @if (required()) {
-          <span class="required" aria-hidden="true">*</span>
-        }
-      </label>
-      <ng-content select="[rsFieldAction]" />
-    </div>
-    <ng-content />
-    @if (error()) {
-      <p class="msg error" [id]="forId() + '-error'" role="alert">{{ error() }}</p>
-    } @else if (hint()) {
-      <p class="msg" [id]="forId() + '-hint'">{{ hint() }}</p>
-    }
-  `,
-  styles: `
-    :host {
-      display: grid;
-      gap: var(--space-2);
-    }
-    .head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: var(--space-2);
-    }
-    .label {
-      color: var(--text-primary);
-      font-size: var(--label-md-size);
-      line-height: var(--label-md-line-height);
-      font-weight: var(--label-md-weight);
-      letter-spacing: var(--label-md-tracking);
-    }
-    .required {
-      color: var(--status-danger);
-    }
-    .msg {
-      color: var(--text-muted);
-      font-size: var(--body-sm-size);
-      line-height: var(--body-sm-line-height);
-      font-weight: var(--body-sm-weight);
-      letter-spacing: var(--body-sm-tracking);
-    }
-    .msg.error {
-      color: var(--status-danger);
-    }
-  `,
+  templateUrl: './field.component.html',
+  styleUrl: './field.component.scss',
 })
 export class FieldComponent implements AfterViewChecked {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -103,10 +56,12 @@ export class FieldComponent implements AfterViewChecked {
     if (!control) return;
     const descriptor = hasError ? `${id}-error` : hasHint ? `${id}-hint` : null;
     if (descriptor) {
-      if (control.getAttribute('aria-describedby') !== descriptor) control.setAttribute('aria-describedby', descriptor);
+      if (control.getAttribute('aria-describedby') !== descriptor)
+        control.setAttribute('aria-describedby', descriptor);
       this.managedDescribedBy = descriptor;
     } else if (this.managedDescribedBy) {
-      if (control.getAttribute('aria-describedby') === this.managedDescribedBy) control.removeAttribute('aria-describedby');
+      if (control.getAttribute('aria-describedby') === this.managedDescribedBy)
+        control.removeAttribute('aria-describedby');
       this.managedDescribedBy = null;
     }
     if (hasError) {

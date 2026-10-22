@@ -1,5 +1,14 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, contentChildren, ElementRef, inject, input, model } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  contentChildren,
+  ElementRef,
+  inject,
+  input,
+  model,
+} from '@angular/core';
 import { TabComponent } from './tab.component';
 
 let nextId = 0;
@@ -13,85 +22,8 @@ let nextId = 0;
   selector: 'rs-tabs',
   imports: [NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="tablist" role="tablist" [attr.aria-label]="label() || null" (keydown)="onKeydown($event)">
-      @for (tab of tabs(); track tab.value()) {
-        <button
-          type="button"
-          role="tab"
-          class="tab"
-          [id]="tabId(tab)"
-          [attr.aria-selected]="isActive(tab)"
-          [attr.aria-controls]="panelId"
-          [attr.tabindex]="isActive(tab) ? 0 : -1"
-          [disabled]="tab.disabled()"
-          (click)="select(tab)"
-        >
-          {{ tab.label() }}
-        </button>
-      }
-    </div>
-    @if (activeTab(); as active) {
-      <div class="panel" role="tabpanel" tabindex="0" [id]="panelId" [attr.aria-labelledby]="tabId(active)">
-        <ng-container [ngTemplateOutlet]="active.content()" />
-      </div>
-    }
-  `,
-  styles: `
-    :host {
-      display: block;
-    }
-    .tablist {
-      display: flex;
-      gap: var(--space-2);
-      border-bottom: var(--stroke-default) solid var(--border-default);
-    }
-    .tab {
-      display: inline-flex;
-      align-items: center;
-      height: var(--size-control-md);
-      padding: 0 var(--space-4);
-      margin-bottom: calc(-1 * var(--stroke-default));
-      border: 0;
-      border-bottom: var(--stroke-focus) solid transparent;
-      border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-      background: transparent;
-      color: var(--text-muted);
-      font-family: var(--font-family-ui);
-      font-size: var(--body-md-size);
-      line-height: var(--body-md-line-height);
-      font-weight: var(--body-md-weight);
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .tab:hover:not(:disabled) {
-      color: var(--text-primary);
-      background: var(--bg-surface-2);
-    }
-    .tab:active:not(:disabled) {
-      background: var(--action-primary-soft);
-    }
-    .tab[aria-selected='true'] {
-      color: var(--text-primary);
-      font-weight: var(--body-md-strong-weight);
-      border-bottom-color: var(--action-primary);
-    }
-    .tab:focus-visible {
-      outline: var(--stroke-focus) solid var(--focus-control);
-      outline-offset: calc(-1 * var(--stroke-focus));
-    }
-    .tab:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-    .panel {
-      padding-top: var(--space-4);
-    }
-    .panel:focus-visible {
-      outline: var(--stroke-focus) solid var(--focus-control);
-      outline-offset: var(--focus-offset);
-    }
-  `,
+  templateUrl: './tabs.component.html',
+  styleUrl: './tabs.component.scss',
 })
 export class TabsComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -106,7 +38,11 @@ export class TabsComponent {
   protected readonly tabs = contentChildren(TabComponent);
   protected readonly activeTab = computed(() => {
     const tabs = this.tabs();
-    return tabs.find((t) => t.value() === this.selected() && !t.disabled()) ?? tabs.find((t) => !t.disabled()) ?? null;
+    return (
+      tabs.find((t) => t.value() === this.selected() && !t.disabled()) ??
+      tabs.find((t) => !t.disabled()) ??
+      null
+    );
   });
 
   protected tabId(tab: TabComponent): string {
@@ -128,7 +64,9 @@ export class TabsComponent {
     if (!keys.includes(event.key)) {
       return;
     }
-    const buttons = Array.from(this.host.nativeElement.querySelectorAll<HTMLButtonElement>('button.tab:not(:disabled)'));
+    const buttons = Array.from(
+      this.host.nativeElement.querySelectorAll<HTMLButtonElement>('button.tab:not(:disabled)'),
+    );
     if (!buttons.length) {
       return;
     }

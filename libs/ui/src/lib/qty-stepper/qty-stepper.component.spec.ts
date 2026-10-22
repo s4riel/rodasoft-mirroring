@@ -5,7 +5,13 @@ import { QtyStepperComponent } from './qty-stepper.component';
 
 @Component({
   imports: [QtyStepperComponent, ReactiveFormsModule],
-  template: `<rs-qty-stepper [formControl]="control" [min]="1" [max]="3" incrementLabel="Más" decrementLabel="Menos" />`,
+  template: `<rs-qty-stepper
+    [formControl]="control"
+    [min]="1"
+    [max]="3"
+    incrementLabel="Más"
+    decrementLabel="Menos"
+  />`,
 })
 class HostComponent {
   control = new FormControl(2, { nonNullable: true });

@@ -1,0 +1,15 @@
+<button
+  type="button"
+  class="chip"
+  [disabled]="disabled()"
+  [attr.aria-pressed]="selected()"
+  (click)="toggle()"
+>
+  @if (showMedia()) {
+    <ng-content select="rs-chip-media" />
+  }
+  <span class="text">{{ label() }}<ng-content /></span>
+  @if (selected()) {
+    <rs-icon class="close" name="close" [size]="16" />
+  }
+</button>

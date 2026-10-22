@@ -5,7 +5,15 @@ import { PriceRangeComponent, PriceRangeValue } from './price-range.component';
 
 @Component({
   imports: [PriceRangeComponent, ReactiveFormsModule],
-  template: `<rs-price-range [formControl]="control" [min]="0" [max]="500" label="Precio" lowLabel="Mínimo" highLabel="Máximo" prefix="Bs" />`,
+  template: `<rs-price-range
+    [formControl]="control"
+    [min]="0"
+    [max]="500"
+    label="Precio"
+    lowLabel="Mínimo"
+    highLabel="Máximo"
+    prefix="Bs"
+  />`,
 })
 class HostComponent {
   control = new FormControl<PriceRangeValue>([50, 300], { nonNullable: true });

@@ -19,7 +19,9 @@ describe('TooltipDirective', () => {
     const trigger = fixture.nativeElement.querySelector('#trigger') as HTMLButtonElement;
 
     trigger.dispatchEvent(new Event('focusin'));
-    const tip = document.body.querySelector('rs-tooltip[role="tooltip"][data-position="bottom"]') as HTMLElement;
+    const tip = document.body.querySelector(
+      'rs-tooltip[role="tooltip"][data-position="bottom"]',
+    ) as HTMLElement;
     expect(tip).not.toBeNull();
     expect(tip.textContent).toContain('Copiar código');
     expect(trigger.getAttribute('aria-describedby')).toBe(tip.id);

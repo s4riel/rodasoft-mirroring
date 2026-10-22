@@ -1,0 +1,19 @@
+<label class="root" [class.disabled]="isDisabled()">
+  <input
+    class="native"
+    type="checkbox"
+    [attr.id]="inputId()"
+    [attr.name]="name() || null"
+    [attr.aria-invalid]="invalid() ? 'true' : null"
+    [checked]="checked()"
+    [disabled]="isDisabled()"
+    (change)="onToggle($event)"
+    (blur)="onTouched()"
+  />
+  <span class="box" aria-hidden="true">
+    @if (checked()) {
+      <rs-icon name="check" [size]="16" />
+    }
+  </span>
+  <span class="text"><ng-content /></span>
+</label>

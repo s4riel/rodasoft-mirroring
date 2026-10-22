@@ -1,0 +1,8 @@
+<rs-illustration [name]="illustration()" />
+<h3 class="title">{{ heading() }}</h3>
+@if (description()) {
+  <p class="description">{{ description() }}</p>
+}
+@if (showAction()) {
+  <div class="actions"><ng-content /></div>
+}

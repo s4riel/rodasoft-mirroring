@@ -8,11 +8,22 @@ import { ILLUSTRATION_NAMES } from './illustrations';
 @Component({
   imports: [EmptyStateComponent, EmptyStateIllustratedComponent, IllustrationComponent],
   template: `
-    <rs-empty-state heading="Sin resultados" description="Prueba otro término"><button id="a">Limpiar</button></rs-empty-state>
-    <rs-empty-state-illustrated id="page" illustration="no-access" heading="Sin acceso" description="Pide permiso"
+    <rs-empty-state heading="Sin resultados" description="Prueba otro término"
+      ><button id="a">Limpiar</button></rs-empty-state
+    >
+    <rs-empty-state-illustrated
+      id="page"
+      illustration="no-access"
+      heading="Sin acceso"
+      description="Pide permiso"
       ><button id="b">Solicitar</button></rs-empty-state-illustrated
     >
-    <rs-empty-state-illustrated id="inline" size="inline" [showAction]="false" illustration="error" heading="Error"
+    <rs-empty-state-illustrated
+      id="inline"
+      size="inline"
+      [showAction]="false"
+      illustration="error"
+      heading="Error"
       ><button id="c">Reintentar</button></rs-empty-state-illustrated
     >
     @for (n of names; track n) {

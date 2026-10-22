@@ -41,166 +41,8 @@ let nextSelectId = 0;
     '[class.rs-select--open]': 'open()',
     '(document:click)': 'onDocumentClick($event)',
   },
-  template: `
-    <button
-      type="button"
-      class="control"
-      role="combobox"
-      aria-haspopup="listbox"
-      [attr.id]="inputId()"
-      [attr.aria-expanded]="open()"
-      [attr.aria-controls]="listId"
-      [attr.aria-activedescendant]="open() && activeIndex() >= 0 ? optionId(activeIndex()) : null"
-      [attr.aria-label]="ariaLabel() || null"
-      [attr.aria-invalid]="invalid() ? 'true' : null"
-      [disabled]="isDisabled()"
-      (click)="toggle()"
-      (keydown)="onKeydown($event)"
-      (blur)="onBlur()"
-    >
-      @if (leadingIcon(); as icon) {
-        <rs-icon [name]="icon" [size]="16" />
-      }
-      <span class="value" [class.placeholder]="!selectedOption()">{{ selectedOption()?.label ?? placeholder() }}</span>
-      <rs-icon class="chevron" name="chevron-down" [size]="16" />
-    </button>
-    @if (open()) {
-      <ul class="menu" role="listbox" [id]="listId" [attr.aria-label]="ariaLabel() || null">
-        @for (opt of options(); track $index; let i = $index) {
-          <li
-            role="option"
-            class="option"
-            [id]="optionId(i)"
-            [class.active]="i === activeIndex()"
-            [class.selected]="i === selectedIndex()"
-            [class.disabled]="opt.disabled"
-            [attr.aria-selected]="i === selectedIndex()"
-            [attr.aria-disabled]="opt.disabled ? 'true' : null"
-            (mousedown)="$event.preventDefault()"
-            (mouseenter)="onHover(i)"
-            (click)="choose(i)"
-          >
-            <span>{{ opt.label }}</span>
-            @if (i === selectedIndex()) {
-              <rs-icon name="check" [size]="16" />
-            }
-          </li>
-        }
-      </ul>
-    }
-  `,
-  styles: `
-    :host {
-      position: relative;
-      display: block;
-      width: 100%;
-    }
-    .control {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      width: 100%;
-      /* Figma: 12 px padding inside the 1 px border -> 45 px tall with body/md */
-      padding: calc(var(--space-3) - var(--stroke-default));
-      border: var(--stroke-default) solid var(--border-control);
-      border-radius: var(--radius-sm);
-      background: var(--bg-surface);
-      color: var(--text-primary);
-      font-family: var(--font-family-ui);
-      font-size: var(--body-md-size);
-      line-height: var(--body-md-line-height);
-      font-weight: var(--body-md-weight);
-      letter-spacing: var(--body-md-tracking);
-      text-align: left;
-      cursor: pointer;
-      transition: background var(--motion-fast) var(--ease-out);
-    }
-    :host(.rs-select--open) .control {
-      border-radius: var(--radius-md);
-    }
-    .control:hover:not(:disabled) {
-      background: var(--bg-surface-2);
-    }
-    .control:active:not(:disabled) {
-      background: var(--action-primary-soft);
-    }
-    .control:focus-visible {
-      outline: var(--stroke-focus) solid var(--focus-control);
-      outline-offset: var(--focus-offset);
-    }
-    .control:disabled {
-      background: var(--action-primary-soft);
-      color: var(--text-muted);
-      cursor: not-allowed;
-    }
-    .control[aria-invalid='true'],
-    :host-context(.has-error) .control {
-      border-color: var(--status-danger);
-      box-shadow: inset 0 0 0 var(--stroke-default) var(--status-danger);
-    }
-    .value {
-      flex: 1 1 0;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .value.placeholder {
-      color: var(--text-muted);
-    }
-    rs-icon {
-      flex: none;
-    }
-    .chevron {
-      transition: transform var(--motion-fast) var(--ease-out);
-    }
-    :host(.rs-select--open) .chevron {
-      transform: rotate(180deg);
-    }
-    .menu {
-      position: absolute;
-      z-index: 10;
-      top: calc(100% + var(--space-1));
-      left: 0;
-      right: 0;
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      max-height: 288px; /* ~8 options before scrolling; no Figma token */
-      margin: 0;
-      padding: var(--space-3);
-      overflow-y: auto;
-      list-style: none;
-      border: var(--stroke-default) solid var(--border-control);
-      border-radius: var(--radius-md);
-      background: var(--bg-surface);
-      color: var(--text-primary);
-      box-shadow: var(--shadow-card);
-      font-size: var(--body-md-size);
-      line-height: var(--body-md-line-height);
-    }
-    .option {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
-      /* highlight bleeds into the menu padding so the text stays at Figma's 12 px inset */
-      margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2));
-      padding: var(--space-1) var(--space-2);
-      border-radius: var(--radius-xs);
-      cursor: pointer;
-    }
-    .option.active {
-      background: var(--bg-surface-2);
-    }
-    .option.selected {
-      font-weight: var(--body-md-strong-weight);
-    }
-    .option.disabled {
-      color: var(--text-muted);
-      cursor: not-allowed;
-    }
-  `,
+  templateUrl: './select.component.html',
+  styleUrl: './select.component.scss',
 })
 export class SelectComponent implements ControlValueAccessor {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -226,7 +68,9 @@ export class SelectComponent implements ControlValueAccessor {
   private readonly cvaDisabled = signal(false);
   protected readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
 
-  protected readonly selectedIndex = computed(() => this.options().findIndex((o) => Object.is(o.value, this.value())));
+  protected readonly selectedIndex = computed(() =>
+    this.options().findIndex((o) => Object.is(o.value, this.value())),
+  );
   protected readonly selectedOption = computed(() => this.options()[this.selectedIndex()] ?? null);
 
   private onChange: (value: unknown) => void = () => undefined;
@@ -334,7 +178,8 @@ export class SelectComponent implements ControlValueAccessor {
         return;
       }
       default: {
-        if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) this.search(event.key);
+        if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey)
+          this.search(event.key);
       }
     }
   }
@@ -351,7 +196,9 @@ export class SelectComponent implements ControlValueAccessor {
   private moveActive(index: number): void {
     if (index < 0) return;
     this.activeIndex.set(index);
-    this.host.nativeElement.ownerDocument.getElementById(this.optionId(index))?.scrollIntoView?.({ block: 'nearest' });
+    this.host.nativeElement.ownerDocument
+      .getElementById(this.optionId(index))
+      ?.scrollIntoView?.({ block: 'nearest' });
   }
 
   private search(char: string): void {

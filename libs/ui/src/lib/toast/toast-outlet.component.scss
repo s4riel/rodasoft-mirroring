@@ -1,0 +1,31 @@
+:host {
+  position: fixed;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: calc(100% - 2 * var(--space-4));
+  max-width: 400px;
+  pointer-events: none;
+}
+:host > * {
+  pointer-events: auto;
+}
+:host([data-position='bottom-right']) {
+  right: var(--space-4);
+  bottom: var(--space-4);
+}
+:host([data-position='bottom-left']) {
+  left: var(--space-4);
+  bottom: var(--space-4);
+}
+:host([data-position='top-right']) {
+  right: var(--space-4);
+  top: var(--space-4);
+  flex-direction: column-reverse;
+}
+:host([data-position='top-left']) {
+  left: var(--space-4);
+  top: var(--space-4);
+  flex-direction: column-reverse;
+}

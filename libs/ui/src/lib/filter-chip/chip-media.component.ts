@@ -13,41 +13,8 @@ export type ChipMediaType = 'flag' | 'brand' | 'icon' | 'initials' | 'count';
   imports: [FlagComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[attr.data-type]': 'type()' },
-  template: `
-    @switch (type()) {
-      @case ('flag') {
-        <rs-flag [country]="country()" />
-      }
-      @case ('icon') {
-        <ng-content />
-      }
-      @default {
-        <span class="text">{{ text() }}</span>
-      }
-    }
-  `,
-  styles: `
-    :host {
-      display: inline-flex;
-      flex: none;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
-      width: 28px; /* Figma ChipMedia: 28x28 */
-      height: 28px;
-      border-radius: 14px; /* Figma: half of 28 (disc) */
-      background: var(--white);
-      color: var(--gray-900); /* fixed: the tile is white in both themes */
-    }
-    :host([data-type='brand']) { border-radius: var(--radius-sm); }
-    .text { font-weight: 600; line-height: 1; white-space: nowrap; }
-    :host([data-type='brand']) .text { font-size: 10px; font-weight: 700; }
-    :host([data-type='initials']) .text { font-size: 11px; }
-    :host([data-type='count']) .text { font-size: var(--body-sm-size); }
-    /* Flag is drawn at 40x28 and cropped to the disc (Figma: left -6) */
-    rs-flag { --rs-flag-border: 2px; width: 40px; height: 28px; margin-left: 0; flex: none; }
-  `,
+  templateUrl: './chip-media.component.html',
+  styleUrl: './chip-media.component.scss',
 })
 export class ChipMediaComponent {
   readonly type = input<ChipMediaType>('flag');

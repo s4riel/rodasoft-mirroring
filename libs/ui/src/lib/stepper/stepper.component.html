@@ -1,0 +1,28 @@
+<ol [attr.aria-label]="label() || null">
+  @for (step of steps(); track $index; let i = $index; let last = $last) {
+    <li
+      class="item"
+      [class.done]="i + 1 < current()"
+      [class.current]="i + 1 === current()"
+      [class.upcoming]="i + 1 > current()"
+      [attr.aria-current]="i + 1 === current() ? 'step' : null"
+    >
+      <span class="circle">
+        @if (i + 1 < current()) {
+          <rs-icon name="check" [size]="16" />
+        } @else {
+          {{ i + 1 }}
+        }
+      </span>
+      <span class="text">
+        <span class="label">{{ step.label }}</span>
+        @if (step.tag) {
+          <span class="tag">{{ step.tag }}</span>
+        }
+      </span>
+    </li>
+    @if (!last) {
+      <li class="connector" [class.done]="i + 1 < current()" aria-hidden="true"></li>
+    }
+  }
+</ol>

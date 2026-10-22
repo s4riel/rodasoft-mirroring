@@ -1,7 +1,7 @@
 /**
- * Tipos de la API generados desde OpenAPI (`pnpm api:client`).
- * Uso: import type { components } from '@rodasoft/api-client';
- *      type Producto = components['schemas']['ProductoDto'];
- * Los contratos manuales compartidos (sesión, contexto, errores) están en @rodasoft/domain.
+ * API types generated from OpenAPI (`pnpm api:client`).
+ * Usage: import type { components } from '@rodasoft/api-client';
+ *      type Producto = components['schemas']['ProductDto'];
+ * Shared hand-written contracts (session, context, errors) live in @rodasoft/domain.
  */
 export type { paths, components } from './generated/schema';

@@ -6,7 +6,9 @@ import { SwitchComponent } from './switch.component';
 @Component({
   imports: [SwitchComponent, ReactiveFormsModule],
   template: `
-    <rs-switch id="a" onText="Activado" offText="Desactivado" [formControl]="control">Solo disponibles</rs-switch>
+    <rs-switch id="a" onText="Activado" offText="Desactivado" [formControl]="control"
+      >Solo disponibles</rs-switch
+    >
     <rs-switch id="b" [checked]="true" disabled>Bloqueado</rs-switch>
   `,
 })

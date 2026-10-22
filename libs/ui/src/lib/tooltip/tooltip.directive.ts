@@ -1,4 +1,14 @@
-import { ApplicationRef, ComponentRef, createComponent, Directive, ElementRef, EnvironmentInjector, inject, input, OnDestroy } from '@angular/core';
+import {
+  ApplicationRef,
+  ComponentRef,
+  createComponent,
+  Directive,
+  ElementRef,
+  EnvironmentInjector,
+  inject,
+  input,
+  OnDestroy,
+} from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { TooltipComponent, TooltipPosition } from './tooltip.component';
 
@@ -94,8 +104,14 @@ export class TooltipDirective implements OnDestroy {
         left = anchor.left + (anchor.width - box.width) / 2;
     }
     if (vw > 0 && vh > 0) {
-      left = Math.min(Math.max(left, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, vw - box.width - VIEWPORT_MARGIN));
-      top = Math.min(Math.max(top, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, vh - box.height - VIEWPORT_MARGIN));
+      left = Math.min(
+        Math.max(left, VIEWPORT_MARGIN),
+        Math.max(VIEWPORT_MARGIN, vw - box.width - VIEWPORT_MARGIN),
+      );
+      top = Math.min(
+        Math.max(top, VIEWPORT_MARGIN),
+        Math.max(VIEWPORT_MARGIN, vh - box.height - VIEWPORT_MARGIN),
+      );
     }
     tip.style.top = `${Math.round(top)}px`;
     tip.style.left = `${Math.round(left)}px`;

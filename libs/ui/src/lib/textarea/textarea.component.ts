@@ -7,7 +7,6 @@ import { booleanAttribute, Directive, input } from '@angular/core';
  * Inside `<rs-field>` the error state is applied automatically.
  */
 @Directive({
-  // eslint-disable-next-line @angular-eslint/directive-selector
   selector: 'textarea[rsTextarea]',
   host: {
     class: 'rs-textarea',

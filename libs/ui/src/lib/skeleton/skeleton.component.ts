@@ -15,25 +15,8 @@ export type SkeletonShape = 'rect' | 'text' | 'circle';
     '[style.width]': 'width()',
     '[style.height]': 'height()',
   },
-  template: ``,
-  styles: `
-    :host {
-      display: block;
-      background: linear-gradient(90deg, var(--bg-surface-2) 0%, var(--border-default) 50%, var(--bg-surface-2) 100%);
-      background-size: 200% 100%;
-      border-radius: var(--radius-sm);
-      animation: rs-skeleton-shimmer 1.4s var(--ease-out) infinite;
-    }
-    :host([data-shape='text']) { border-radius: var(--radius-xs); }
-    :host([data-shape='circle']) { border-radius: var(--radius-full); }
-    @keyframes rs-skeleton-shimmer {
-      from { background-position: 100% 0; }
-      to { background-position: -100% 0; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      :host { animation: none; }
-    }
-  `,
+  templateUrl: './skeleton.component.html',
+  styleUrl: './skeleton.component.scss',
 })
 export class SkeletonComponent {
   readonly shape = input<SkeletonShape>('rect');

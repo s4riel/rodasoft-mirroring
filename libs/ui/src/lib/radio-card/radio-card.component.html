@@ -1,0 +1,9 @@
+<ng-content select="[slot=media]" />
+<span class="body">
+  <span class="label">{{ label() }}</span>
+  @if (description()) {
+    <span class="description">{{ description() }}</span>
+  }
+  <ng-content />
+</span>
+<span class="radio" aria-hidden="true"><span class="dot"></span></span>

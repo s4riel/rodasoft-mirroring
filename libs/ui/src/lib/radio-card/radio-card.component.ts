@@ -18,12 +18,12 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 @Component({
   selector: 'rs-radio-card-group',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => RadioCardGroupComponent), multi: true }],
+  providers: [
+    { provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => RadioCardGroupComponent), multi: true },
+  ],
   host: { role: 'radiogroup', '(keydown)': 'onKeydown($event)' },
-  template: `<ng-content />`,
-  styles: `
-    :host { display: grid; gap: var(--space-3); }
-  `,
+  templateUrl: './radio-card-group.component.html',
+  styleUrl: './radio-card-group.component.scss',
 })
 export class RadioCardGroupComponent implements ControlValueAccessor {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -49,7 +49,9 @@ export class RadioCardGroupComponent implements ControlValueAccessor {
     if (!keys.includes(event.key)) {
       return;
     }
-    const radios = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('[role="radio"]:not([aria-disabled="true"])'));
+    const radios = Array.from(
+      this.host.nativeElement.querySelectorAll<HTMLElement>('[role="radio"]:not([aria-disabled="true"])'),
+    );
     if (radios.length === 0) {
       return;
     }
@@ -92,62 +94,8 @@ export class RadioCardGroupComponent implements ControlValueAccessor {
     '(click)': 'choose()',
     '(keydown.space)': 'onSpace($event)',
   },
-  template: `
-    <ng-content select="[slot=media]" />
-    <span class="body">
-      <span class="label">{{ label() }}</span>
-      @if (description()) {
-        <span class="description">{{ description() }}</span>
-      }
-      <ng-content />
-    </span>
-    <span class="radio" aria-hidden="true"><span class="dot"></span></span>
-  `,
-  styles: `
-    :host {
-      --_border: var(--border-control);
-      --_bw: var(--stroke-default);
-      --_bg: var(--bg-surface);
-      display: flex;
-      align-items: center;
-      gap: var(--space-4);
-      min-height: 82px; /* Figma RadioCard: 420x82 */
-      padding: var(--space-4) var(--space-5);
-      border-radius: var(--radius-lg);
-      background: var(--_bg);
-      box-shadow: inset 0 0 0 var(--_bw) var(--_border);
-      color: var(--text-primary);
-      cursor: pointer;
-      transition: background var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
-    }
-    .body { flex: 1; display: grid; gap: 2px; min-width: 0; }
-    .label { font-size: var(--body-md-strong-size); line-height: var(--body-md-strong-line-height); font-weight: var(--body-md-strong-weight); }
-    .description { font-size: var(--body-sm-size); line-height: var(--body-sm-line-height); color: var(--text-muted); }
-    .radio {
-      order: -1;
-      display: inline-grid;
-      place-items: center;
-      flex: none;
-      width: 20px;
-      height: 20px;
-      border-radius: var(--radius-full);
-      box-shadow: inset 0 0 0 var(--stroke-focus) var(--border-control);
-    }
-    .dot { width: 10px; height: 10px; border-radius: var(--radius-full); background: transparent; }
-    :host([data-checked='true']) {
-      --_border: var(--action-primary);
-      --_bw: var(--stroke-focus);
-    }
-    :host([data-checked='true']) .radio { box-shadow: inset 0 0 0 var(--stroke-focus) var(--action-primary); }
-    :host([data-checked='true']) .dot { background: var(--action-primary); }
-    :host(:hover) { --_bg: var(--bg-surface-2); }
-    :host(:active) { --_bg: var(--action-primary-soft); }
-    :host(:focus-visible) {
-      outline: var(--stroke-focus) solid var(--focus-control);
-      outline-offset: var(--focus-offset);
-    }
-    :host([aria-disabled='true']) { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
-  `,
+  templateUrl: './radio-card.component.html',
+  styleUrl: './radio-card.component.scss',
 })
 export class RadioCardComponent {
   protected readonly group = inject(RadioCardGroupComponent, { optional: true });
@@ -159,9 +107,10 @@ export class RadioCardComponent {
   /** Standalone checked state (ignored inside a group). */
   readonly checked = model(false);
 
-
   protected readonly isDisabled = computed(() => this.disabled() || (this.group?.disabled() ?? false));
-  protected readonly isChecked = computed(() => (this.group ? Object.is(this.group.value(), this.value()) : this.checked()));
+  protected readonly isChecked = computed(() =>
+    this.group ? Object.is(this.group.value(), this.value()) : this.checked(),
+  );
 
   protected choose(): void {
     if (this.isDisabled()) {

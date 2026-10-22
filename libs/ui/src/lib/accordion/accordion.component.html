@@ -1,0 +1,19 @@
+<h3 class="heading">
+  <button
+    type="button"
+    class="trigger"
+    [id]="triggerId"
+    [attr.aria-expanded]="open()"
+    [attr.aria-controls]="panelId"
+    [disabled]="disabled()"
+    (click)="open.set(!open())"
+  >
+    <span class="title">{{ title() }}</span>
+    <rs-icon class="chevron" name="chevron-down" [size]="20" />
+  </button>
+</h3>
+@if (open()) {
+  <div class="panel" role="region" [id]="panelId" [attr.aria-labelledby]="triggerId">
+    <ng-content />
+  </div>
+}

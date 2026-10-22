@@ -1,0 +1,26 @@
+@if (open()) {
+  <div class="backdrop" (mousedown)="onBackdrop($event)">
+    <div
+      #panel
+      class="panel"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      [attr.data-variant]="variant()"
+      [attr.aria-labelledby]="heading() ? titleId : null"
+      [attr.aria-label]="heading() ? null : label() || null"
+      (keydown)="onKeydown($event)"
+    >
+      <header class="header">
+        @if (heading()) {
+          <h2 class="title" [id]="titleId">{{ heading() }}</h2>
+        }
+        <button type="button" class="close" [attr.aria-label]="closeLabel()" (click)="close()">
+          <rs-icon name="close" [size]="20" />
+        </button>
+      </header>
+      <div class="body"><ng-content /></div>
+      <footer class="footer"><ng-content select="[slot=footer]" /></footer>
+    </div>
+  </div>
+}

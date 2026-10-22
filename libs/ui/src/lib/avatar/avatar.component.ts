@@ -16,33 +16,8 @@ export type AvatarType = 'initials' | 'image';
     '[attr.role]': 'name() ? "img" : null',
     '[attr.aria-label]': 'name() || null',
   },
-  template: `
-    @if (type() === 'image') {
-      <img [src]="src()" alt="" (error)="failed.set(true)" />
-    } @else {
-      <span class="initials" aria-hidden="true">{{ initials() }}</span>
-    }
-  `,
-  styles: `
-    :host {
-      display: inline-flex;
-      flex: none;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      width: 32px; /* SM */
-      height: 32px;
-      border-radius: var(--radius-full);
-      background: var(--action-primary-soft);
-      color: var(--text-primary);
-      font-size: var(--body-sm-size);
-      font-weight: 600;
-      line-height: 1;
-      user-select: none;
-    }
-    :host([data-size='md']) { width: 40px; height: 40px; font-size: var(--body-md-size); }
-    img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  `,
+  templateUrl: './avatar.component.html',
+  styleUrl: './avatar.component.scss',
 })
 export class AvatarComponent {
   readonly size = input<AvatarSize>('md');

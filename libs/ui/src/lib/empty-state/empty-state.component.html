@@ -1,0 +1,8 @@
+<div class="icon"><ng-content select="[slot=icon]" /></div>
+@if (heading()) {
+  <h3 class="title">{{ heading() }}</h3>
+}
+@if (description()) {
+  <p class="description">{{ description() }}</p>
+}
+<div class="actions"><ng-content /></div>

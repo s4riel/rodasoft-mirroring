@@ -1,0 +1,42 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 480px; /* Figma Size=Page */
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+:host([data-size='inline']) {
+  max-width: 360px;
+  padding: var(--space-6) var(--space-4);
+}
+rs-illustration {
+  margin-bottom: var(--space-4);
+}
+.title {
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: var(--display-h3-weight);
+  color: var(--text-primary);
+}
+:host([data-size='page']) .title {
+  font-size: var(--display-h2-size);
+  line-height: var(--display-h2-line-height);
+  font-weight: var(--display-h2-weight);
+  letter-spacing: var(--display-h2-tracking);
+}
+.description {
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  color: var(--text-muted);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}

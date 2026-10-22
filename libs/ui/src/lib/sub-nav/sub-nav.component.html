@@ -1,0 +1,38 @@
+<nav [attr.aria-label]="label() || null">
+  <ul>
+    @for (item of items(); track item.key) {
+      <li>
+        @if (item.route && !item.disabled) {
+          <a
+            class="item"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: false }"
+            [class.active]="item.key === activeKey()"
+            [attr.aria-current]="item.key === activeKey() ? 'page' : null"
+            (click)="activeKey.set(item.key)"
+          >
+            <span class="text">{{ item.label }}</span>
+            @if (item.badge !== undefined && item.badge !== '') {
+              <span class="badge">{{ item.badge }}</span>
+            }
+          </a>
+        } @else {
+          <button
+            type="button"
+            class="item"
+            [class.active]="item.key === activeKey()"
+            [disabled]="item.disabled"
+            [attr.aria-current]="item.key === activeKey() ? 'page' : null"
+            (click)="activeKey.set(item.key)"
+          >
+            <span class="text">{{ item.label }}</span>
+            @if (item.badge !== undefined && item.badge !== '') {
+              <span class="badge">{{ item.badge }}</span>
+            }
+          </button>
+        }
+      </li>
+    }
+  </ul>
+</nav>

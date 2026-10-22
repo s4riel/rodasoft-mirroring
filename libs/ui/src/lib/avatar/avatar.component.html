@@ -1,0 +1,5 @@
+@if (type() === 'image') {
+  <img [src]="src()" alt="" (error)="failed.set(true)" />
+} @else {
+  <span class="initials" aria-hidden="true">{{ initials() }}</span>
+}

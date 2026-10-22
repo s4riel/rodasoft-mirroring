@@ -1,0 +1,72 @@
+@if (label()) {
+  <span class="label">{{ label() }}</span>
+}
+<div class="slider" [style.--from]="fromPct() + '%'" [style.--to]="toPct() + '%'">
+  <div class="track"><div class="fill"></div></div>
+  <input
+    type="range"
+    class="thumb"
+    [attr.aria-label]="lowLabel() || null"
+    [min]="min()"
+    [max]="max()"
+    [step]="step()"
+    [value]="low()"
+    [disabled]="isDisabled()"
+    (input)="setLow($any($event.target).valueAsNumber)"
+    (blur)="onTouched()"
+  />
+  <input
+    type="range"
+    class="thumb"
+    [attr.aria-label]="highLabel() || null"
+    [min]="min()"
+    [max]="max()"
+    [step]="step()"
+    [value]="high()"
+    [disabled]="isDisabled()"
+    (input)="setHigh($any($event.target).valueAsNumber)"
+    (blur)="onTouched()"
+  />
+</div>
+<div class="fields">
+  <label class="field">
+    <span class="field-label">{{ lowLabel() }}</span>
+    <span class="box">
+      @if (prefix()) {
+        <span class="prefix">{{ prefix() }}</span>
+      }
+      <input
+        #lowField
+        type="number"
+        class="num"
+        [min]="min()"
+        [max]="max()"
+        [step]="step()"
+        [value]="low()"
+        [disabled]="isDisabled()"
+        (change)="setLow(lowField.valueAsNumber); lowField.value = '' + low()"
+        (blur)="onTouched()"
+      />
+    </span>
+  </label>
+  <label class="field">
+    <span class="field-label">{{ highLabel() }}</span>
+    <span class="box">
+      @if (prefix()) {
+        <span class="prefix">{{ prefix() }}</span>
+      }
+      <input
+        #highField
+        type="number"
+        class="num"
+        [min]="min()"
+        [max]="max()"
+        [step]="step()"
+        [value]="high()"
+        [disabled]="isDisabled()"
+        (change)="setHigh(highField.valueAsNumber); highField.value = '' + high()"
+        (blur)="onTouched()"
+      />
+    </span>
+  </label>
+</div>

@@ -1,0 +1,147 @@
+:host {
+  display: grid;
+  gap: var(--space-4);
+  color: var(--text-primary);
+}
+:host(.is-disabled) {
+  opacity: 0.55;
+}
+.label {
+  font-size: var(--label-md-size);
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
+}
+.slider {
+  --_thumb: 20px; /* Figma thumb size, no token */
+  position: relative;
+  height: var(--_thumb);
+}
+.track {
+  position: absolute;
+  left: calc(var(--_thumb) / 2);
+  right: calc(var(--_thumb) / 2);
+  top: 50%;
+  height: 4px; /* Figma track thickness, no token */
+  transform: translateY(-50%);
+  border-radius: var(--radius-full);
+  background: var(--border-default);
+}
+.fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--from);
+  right: calc(100% - var(--to));
+  border-radius: var(--radius-full);
+  background: var(--action-primary);
+}
+.thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.thumb::-webkit-slider-runnable-track {
+  background: transparent;
+  height: var(--_thumb);
+}
+.thumb::-moz-range-track {
+  background: transparent;
+}
+.thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--_thumb);
+  height: var(--_thumb);
+  border-radius: var(--radius-full);
+  border: var(--stroke-focus) solid var(--action-primary);
+  background: var(--bg-surface);
+  cursor: grab;
+  pointer-events: auto;
+}
+.thumb::-moz-range-thumb {
+  width: var(--_thumb);
+  height: var(--_thumb);
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: var(--stroke-focus) solid var(--action-primary);
+  background: var(--bg-surface);
+  cursor: grab;
+  pointer-events: auto;
+}
+.thumb:hover:not(:disabled)::-webkit-slider-thumb {
+  background: var(--bg-surface-2);
+}
+.thumb:active:not(:disabled)::-webkit-slider-thumb {
+  background: var(--action-primary-soft);
+  cursor: grabbing;
+}
+.thumb:focus-visible {
+  outline: none;
+}
+.thumb:focus-visible::-webkit-slider-thumb {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.thumb:focus-visible::-moz-range-thumb {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.thumb:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+}
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+.field-label {
+  font-size: var(--label-md-size);
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
+}
+.box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--size-control-md);
+  padding: 0 var(--space-3);
+  border: var(--stroke-default) solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+.box:hover {
+  border-color: var(--text-primary);
+}
+.box:focus-within {
+  border-color: var(--focus-control);
+  box-shadow: 0 0 0 var(--stroke-focus) var(--focus-control);
+}
+.prefix {
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+}
+.num {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-family-ui);
+  font-size: var(--body-md-size);
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}

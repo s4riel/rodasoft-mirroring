@@ -1,0 +1,68 @@
+:host {
+  display: block;
+}
+ol {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-control-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  white-space: nowrap;
+}
+.circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px; /* Figma circle size, no token */
+  height: 32px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--text-primary);
+  color: var(--bg-surface);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+}
+.upcoming .circle {
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  color: var(--text-muted);
+}
+.text {
+  display: flex;
+  flex-direction: column;
+}
+.label {
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+  letter-spacing: var(--body-md-strong-tracking);
+  color: var(--text-primary);
+}
+.tag {
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  font-weight: var(--body-sm-weight);
+  color: var(--text-muted);
+}
+.upcoming .label {
+  color: var(--text-muted);
+}
+.connector {
+  flex: 1 0 var(--space-4);
+  min-width: 1px;
+  height: 2px; /* Figma connector thickness, no token */
+  background: var(--border-default);
+}
+.connector.done {
+  background: var(--text-primary);
+}

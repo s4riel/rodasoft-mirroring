@@ -34,62 +34,8 @@ export class InputDirective {
   host: {
     '[class.rs-input-group--invalid]': 'invalid()',
   },
-  template: `
-    <ng-content select="[rsInputLeading]" />
-    <ng-content />
-    <ng-content select="[rsInputTrailing]" />
-  `,
-  styles: `
-    :host {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      width: 100%;
-      height: var(--size-control-md);
-      padding: 0 calc(var(--space-3) - var(--stroke-default));
-      border: var(--stroke-default) solid var(--border-control);
-      border-radius: var(--radius-sm);
-      background: var(--bg-surface);
-      color: var(--text-primary);
-      transition: background var(--motion-fast) var(--ease-out);
-    }
-    :host(:hover:not(:has(.rs-input:disabled))) {
-      background: var(--bg-surface-2);
-    }
-    :host(:has(.rs-input:active:not(:disabled))) {
-      background: var(--action-primary-soft);
-    }
-    :host(:has(.rs-input:focus-visible)) {
-      outline: var(--stroke-focus) solid var(--focus-control);
-      outline-offset: var(--focus-offset);
-    }
-    :host(:has(.rs-input:disabled)) {
-      background: var(--action-primary-soft);
-      color: var(--text-muted);
-      cursor: not-allowed;
-    }
-    :host(.rs-input-group--invalid),
-    :host(:has(.rs-input[aria-invalid='true'])),
-    :host-context(.has-error) {
-      border-color: var(--status-danger);
-      box-shadow: inset 0 0 0 var(--stroke-default) var(--status-danger);
-    }
-    /* The inner input is borderless: the group draws the box */
-    :host ::ng-deep input.rs-input.rs-input {
-      flex: 1 1 0;
-      min-width: 0;
-      height: 100%;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
-      outline: none;
-    }
-    :host ::ng-deep rs-icon {
-      flex: none;
-    }
-  `,
+  templateUrl: './input.component.html',
+  styleUrl: './input.component.scss',
 })
 export class InputGroupComponent {
   readonly invalid = input(false, { transform: booleanAttribute });

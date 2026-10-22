@@ -1,0 +1,7 @@
+<rs-icon [name]="icon()" [size]="20" />
+<div class="body">
+  @if (title()) {
+    <strong>{{ title() }}</strong>
+  }
+  <div class="text"><ng-content /></div>
+</div>

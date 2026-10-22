@@ -1,0 +1,15 @@
+<div class="head">
+  <label class="label" [attr.for]="forId()">
+    {{ label() }}
+    @if (required()) {
+      <span class="required" aria-hidden="true">*</span>
+    }
+  </label>
+  <ng-content select="[rsFieldAction]" />
+</div>
+<ng-content />
+@if (error()) {
+  <p class="msg error" [id]="forId() + '-error'" role="alert">{{ error() }}</p>
+} @else if (hint()) {
+  <p class="msg" [id]="forId() + '-hint'">{{ hint() }}</p>
+}

@@ -42,9 +42,11 @@ const BRAND = 'fill:var(--brand-primary)';
 const SURFACE = 'fill:var(--bg-surface)';
 const SURFACE2 = 'fill:var(--bg-surface-2)';
 const INK = 'fill:var(--text-primary)';
-const LINE = 'stroke:var(--border-control);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round';
+const LINE =
+  'stroke:var(--border-control);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round';
 const LINE_SOFT = 'stroke:var(--border-default);stroke-width:2;fill:none;stroke-linecap:round';
-const BRAND_LINE = 'stroke:var(--brand-primary);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round';
+const BRAND_LINE =
+  'stroke:var(--brand-primary);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round';
 
 /** Shared stage: soft disc + ground shadow. */
 const STAGE = `<circle cx="120" cy="84" r="66" style="${SOFT}"/><ellipse cx="120" cy="160" rx="72" ry="8" style="${SURFACE2}"/>`;

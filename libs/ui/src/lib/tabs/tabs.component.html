@@ -1,0 +1,24 @@
+<!-- the tablist handles arrow keys; the focusable elements are the tabs (roving tabindex) -->
+<!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -->
+<div class="tablist" role="tablist" [attr.aria-label]="label() || null" (keydown)="onKeydown($event)">
+  @for (tab of tabs(); track tab.value()) {
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      [id]="tabId(tab)"
+      [attr.aria-selected]="isActive(tab)"
+      [attr.aria-controls]="panelId"
+      [attr.tabindex]="isActive(tab) ? 0 : -1"
+      [disabled]="tab.disabled()"
+      (click)="select(tab)"
+    >
+      {{ tab.label() }}
+    </button>
+  }
+</div>
+@if (activeTab(); as active) {
+  <div class="panel" role="tabpanel" tabindex="0" [id]="panelId" [attr.aria-labelledby]="tabId(active)">
+    <ng-container [ngTemplateOutlet]="active.content()" />
+  </div>
+}

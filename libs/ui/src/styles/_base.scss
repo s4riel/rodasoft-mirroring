@@ -65,23 +65,26 @@ textarea {
 }
 
 // Typography presets: one class per Figma text style (`label/md` -> `.rs-text-label-md`).
-@each $name, $family in (
-  display-hero: ui,
-  stat-xl: ui,
-  display-xl: ui,
-  display-h1: ui,
-  display-h2: ui,
-  display-h3: ui,
-  price-lg: ui,
-  body-lg: ui,
-  body-md: ui,
-  body-md-strong: ui,
-  body-sm: ui,
-  label-md: ui,
-  mono-md: mono,
-  eyebrow: ui,
-  logo-wordmark: ui
-) {
+@each $name,
+  $family
+    in (
+      display-hero: ui,
+      stat-xl: ui,
+      display-xl: ui,
+      display-h1: ui,
+      display-h2: ui,
+      display-h3: ui,
+      price-lg: ui,
+      body-lg: ui,
+      body-md: ui,
+      body-md-strong: ui,
+      body-sm: ui,
+      label-md: ui,
+      mono-md: mono,
+      eyebrow: ui,
+      logo-wordmark: ui
+    )
+{
   .rs-text-#{$name} {
     font-family: var(--font-family-#{$family});
     font-size: var(--#{$name}-size);
@@ -160,7 +163,9 @@ kbd {
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-primary);
-  transition: background var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out),
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
     box-shadow var(--motion-fast) var(--ease-out);
 
   &::placeholder {

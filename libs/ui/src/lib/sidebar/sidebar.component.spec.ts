@@ -11,7 +11,10 @@ const GROUPS: NavGroup[] = [
       { label: 'Inventario', icon: 'inventory', route: '/inventory', badge: 3 },
     ],
   },
-  { label: 'Canales y control', items: [{ label: 'Configuración', icon: 'settings', route: '/settings', disabled: true }] },
+  {
+    label: 'Canales y control',
+    items: [{ label: 'Configuración', icon: 'settings', route: '/settings', disabled: true }],
+  },
 ];
 
 @Component({

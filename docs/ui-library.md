@@ -37,12 +37,12 @@ Brand colors are accents (price, badges, brand focus, logo); the main action is 
 
 - Standalone, `ChangeDetectionStrategy.OnPush`, signal inputs (`input()`, `model()`, `output()`), `@if/@for`, no NgModule.
 - Form controls (Input, Select, Textarea, Checkbox, Radio, Switch, QtyStepper, Chip groups) implement `ControlValueAccessor`.
-- Styles inline in the component (`styles`), **tokens only** (`var(--...)`). No hex values, no loose px other than
+- Logic, template and styles in **separate files** (`templateUrl` / `styleUrl`; no inline `template`/`styles` in the decorator), **tokens only** (`var(--...)`). No hex values, no loose px other than
   geometry that Figma specifies and has no token (comment it).
 - Focus ring: `outline: var(--stroke-focus) solid var(--focus-control); outline-offset: var(--focus-offset)`; on dark
   surfaces brand-aware focus uses `--brand-focus-on-dark`.
 - Accessibility: correct roles/ARIA, keyboard support, visible focus, contrast pairs from the Figma "Política de contraste".
-- Files: `src/lib/<name>/<name>.component.ts` + `<name>.component.spec.ts`. Public API through `src/index.ts`.
+- Files: `src/lib/<name>/<name>.component.ts` + `<name>.component.html` + `<name>.component.scss` + `<name>.component.spec.ts`. If a file holds several components, name each one's html/scss after its selector (`radio-group.component.html`). Public API through `src/index.ts`.
 - Code is English; visible default text is Spanish only in the showcase / apps.
 - A showcase page (`/design-system` in the ERP, dev only) renders every component with all its variants and states in the
   same layout as the Figma frames, so visual review is a side-by-side comparison.

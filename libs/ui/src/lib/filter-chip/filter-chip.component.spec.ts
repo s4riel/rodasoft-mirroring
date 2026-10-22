@@ -42,7 +42,9 @@ describe('FilterChipComponent', () => {
   it('no cambia cuando está deshabilitado', async () => {
     const fixture = TestBed.createComponent(HostComponent);
     await fixture.whenStable();
-    const disabled = fixture.nativeElement.querySelectorAll('rs-filter-chip')[1].querySelector('button') as HTMLButtonElement;
+    const disabled = fixture.nativeElement
+      .querySelectorAll('rs-filter-chip')[1]
+      .querySelector('button') as HTMLButtonElement;
     expect(disabled.disabled).toBe(true);
   });
 

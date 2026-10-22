@@ -1,0 +1,57 @@
+<button
+  type="button"
+  class="btn"
+  [attr.aria-label]="decrementLabel() || null"
+  [disabled]="isDisabled() || atMin()"
+  (click)="step(-1)"
+>
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <path d="M5 12h14" />
+  </svg>
+</button>
+<input
+  #field
+  class="value"
+  type="text"
+  inputmode="numeric"
+  role="spinbutton"
+  [attr.aria-label]="label() || null"
+  [attr.aria-valuenow]="value()"
+  [attr.aria-valuemin]="min()"
+  [attr.aria-valuemax]="max()"
+  [value]="value()"
+  [disabled]="isDisabled()"
+  (change)="commit(field.value); field.value = '' + value()"
+  (blur)="onTouched()"
+  (keydown.arrowup)="step(1); $event.preventDefault()"
+  (keydown.arrowdown)="step(-1); $event.preventDefault()"
+/>
+<button
+  type="button"
+  class="btn"
+  [attr.aria-label]="incrementLabel() || null"
+  [disabled]="isDisabled() || atMax()"
+  (click)="step(1)"
+>
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+</button>

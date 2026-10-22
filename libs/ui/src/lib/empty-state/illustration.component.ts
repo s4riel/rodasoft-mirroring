@@ -15,11 +15,8 @@ import { ILLUSTRATIONS, IllustrationName } from './illustrations';
     '[attr.aria-hidden]': 'label() ? null : "true"',
     '[attr.data-name]': 'name()',
   },
-  template: `<svg viewBox="0 0 240 180" width="240" height="180" focusable="false" [innerHTML]="art()"></svg>`,
-  styles: `
-    :host { display: inline-block; width: 240px; height: 180px; line-height: 0; }
-    svg { display: block; width: 100%; height: 100%; }
-  `,
+  templateUrl: './illustration.component.html',
+  styleUrl: './illustration.component.scss',
 })
 export class IllustrationComponent {
   private readonly sanitizer = inject(DomSanitizer);
@@ -28,5 +25,7 @@ export class IllustrationComponent {
   readonly label = input<string>('');
 
   // Artwork is a static, trusted constant of this library (never user input).
-  protected readonly art = computed<SafeHtml>(() => this.sanitizer.bypassSecurityTrustHtml(ILLUSTRATIONS[this.name()]));
+  protected readonly art = computed<SafeHtml>(() =>
+    this.sanitizer.bypassSecurityTrustHtml(ILLUSTRATIONS[this.name()]),
+  );
 }

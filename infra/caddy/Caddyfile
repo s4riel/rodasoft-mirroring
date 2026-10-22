@@ -20,7 +20,7 @@ api.{$DOMAIN} {
 	reverse_proxy api:3000
 }
 
-# ERP: una URL por empresa. El Host se conserva → la API sabe qué empresa es.
+# ERP: one URL per company. The Host header is preserved so the API knows which company it is.
 rodalaser.erp.{$DOMAIN}, company2.erp.{$DOMAIN} {
 	import seguridad
 	handle /api/* {

@@ -1,0 +1,136 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: var(--sidebar-width);
+  height: 100%;
+  padding: var(--space-4);
+  overflow: hidden;
+  background: var(--nav-surface);
+  border: var(--stroke-default) solid var(--border-default);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  text-decoration: none;
+  border-radius: var(--radius-xs);
+}
+.logo:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px; /* Figma MapMarker pin, no token */
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+}
+.wordmark {
+  font-family: var(--font-family-ui);
+  font-size: var(--logo-wordmark-size);
+  line-height: var(--logo-wordmark-line-height);
+  font-weight: var(--logo-wordmark-weight);
+  letter-spacing: var(--logo-wordmark-tracking);
+  text-transform: uppercase;
+}
+.body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 0;
+  overflow-y: auto;
+}
+.group {
+  margin: 0;
+  padding: var(--space-4) 0 var(--space-1) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--eyebrow-size);
+  line-height: var(--eyebrow-line-height);
+  font-weight: var(--eyebrow-weight);
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+}
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--size-control-md);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  font-weight: var(--body-md-weight);
+  letter-spacing: var(--body-md-tracking);
+}
+.text {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item:hover:not(.disabled) {
+  background: var(--bg-surface-2);
+}
+.item:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.indicator {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: var(--space-1);
+  height: var(--space-6);
+  transform: translateY(-50%);
+  /* nav/current-indicator is defined by the Figma Phase 3 variables; falls back to the brand accent */
+  background: var(--nav-current-indicator, var(--brand-primary));
+}
+.item.current {
+  background: var(--bg-surface-2);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+  letter-spacing: var(--body-md-strong-tracking);
+}
+.item.current .indicator {
+  display: block;
+}
+.item.disabled {
+  background: var(--action-primary-soft);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+  font-size: var(--body-sm-size);
+  font-weight: var(--body-md-strong-weight);
+}
+.footer {
+  display: grid;
+  gap: var(--space-2);
+  flex: none;
+}
+.footer:empty {
+  display: none;
+}

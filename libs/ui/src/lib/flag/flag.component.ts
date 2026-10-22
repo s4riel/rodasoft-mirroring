@@ -1,9 +1,25 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
-export type FlagCountry = 'DE' | 'CN' | 'JP' | 'SE' | 'US' | 'ES' | 'IT' | 'FR' | 'BR' | 'BO' | 'AR' | 'IN' | 'KR' | 'TW';
+export type FlagCountry =
+  'DE' | 'CN' | 'JP' | 'SE' | 'US' | 'ES' | 'IT' | 'FR' | 'BR' | 'BO' | 'AR' | 'IN' | 'KR' | 'TW';
 
-export const FLAG_COUNTRIES: readonly FlagCountry[] = ['DE', 'CN', 'JP', 'SE', 'US', 'ES', 'IT', 'FR', 'BR', 'BO', 'AR', 'IN', 'KR', 'TW'];
+export const FLAG_COUNTRIES: readonly FlagCountry[] = [
+  'DE',
+  'CN',
+  'JP',
+  'SE',
+  'US',
+  'ES',
+  'IT',
+  'FR',
+  'BR',
+  'BO',
+  'AR',
+  'IN',
+  'KR',
+  'TW',
+];
 
 /** Regular star polygon points (5 points) centred on (cx, cy). */
 function star(cx: number, cy: number, r: number, rotation = -90): string {
@@ -66,28 +82,8 @@ const FLAG_ART: Record<FlagCountry, string> = {
     '[attr.aria-hidden]': 'label() ? null : "true"',
     '[attr.data-country]': 'country()',
   },
-  template: `<svg viewBox="0 0 20 14" preserveAspectRatio="none" aria-hidden="true" [innerHTML]="art()"></svg>`,
-  styles: `
-    :host {
-      position: relative;
-      display: inline-block;
-      flex: none;
-      width: 20px; /* Figma Flag: 20x14 */
-      height: 14px;
-      overflow: hidden;
-      border-radius: 2px; /* Figma: radius 2, no token (radius-xs is 4) */
-      vertical-align: middle;
-    }
-    svg { display: block; width: 100%; height: 100%; }
-    :host::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      border: var(--rs-flag-border, var(--stroke-default)) solid var(--border-default);
-      pointer-events: none;
-    }
-  `,
+  templateUrl: './flag.component.html',
+  styleUrl: './flag.component.scss',
 })
 export class FlagComponent {
   private readonly sanitizer = inject(DomSanitizer);
@@ -96,5 +92,7 @@ export class FlagComponent {
   /** Accessible name. Empty = decorative. */
   readonly label = input<string>('');
 
-  protected readonly art = computed<SafeHtml>(() => this.sanitizer.bypassSecurityTrustHtml(FLAG_ART[this.country()]));
+  protected readonly art = computed<SafeHtml>(() =>
+    this.sanitizer.bypassSecurityTrustHtml(FLAG_ART[this.country()]),
+  );
 }

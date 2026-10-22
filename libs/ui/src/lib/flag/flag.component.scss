@@ -1,0 +1,23 @@
+:host {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 20px; /* Figma Flag: 20x14 */
+  height: 14px;
+  overflow: hidden;
+  border-radius: 2px; /* Figma: radius 2, no token (radius-xs is 4) */
+  vertical-align: middle;
+}
+svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+:host::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: var(--rs-flag-border, var(--stroke-default)) solid var(--border-default);
+  pointer-events: none;
+}

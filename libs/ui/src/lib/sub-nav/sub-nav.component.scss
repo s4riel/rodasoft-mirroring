@@ -1,0 +1,68 @@
+:host {
+  display: block;
+}
+ul {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  height: 45px; /* Figma: 44 item + 1 divider */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--size-control-md);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 4px solid transparent; /* Figma active indicator, no token */
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-family-ui);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  font-weight: var(--body-md-weight);
+  letter-spacing: var(--body-md-tracking);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.item:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+.item:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: calc(-1 * var(--stroke-focus));
+}
+.item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.item.active {
+  color: var(--text-primary);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+  border-bottom-color: var(--brand-primary);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px; /* Figma badge size, no token */
+  height: 20px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  font-weight: var(--body-sm-weight);
+}
+.item.active .badge {
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+}

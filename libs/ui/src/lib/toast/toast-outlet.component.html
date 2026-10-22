@@ -1,0 +1,9 @@
+@for (toast of service.toasts(); track toast.id) {
+  <rs-toast
+    [type]="toast.type"
+    [heading]="toast.heading ?? ''"
+    [closeLabel]="closeLabel()"
+    (dismissed)="service.dismiss(toast.id)"
+    >{{ toast.message }}</rs-toast
+  >
+}

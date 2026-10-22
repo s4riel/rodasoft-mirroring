@@ -1,0 +1,30 @@
+<div class="field company">
+  <span class="label">{{ companyLabel() }}</span>
+  <div class="value">
+    <span class="strong">{{ company() }}</span>
+  </div>
+</div>
+<div class="field branch">
+  <label class="label" [attr.for]="selectId">{{ branchLabel() }}</label>
+  @if (selectable()) {
+    <div class="control">
+      <select [id]="selectId" [disabled]="disabled()" (change)="branchId.set($any($event.target).value)">
+        @if (allowAll()) {
+          <option [value]="all" [selected]="branchId() === all">{{ allLabel() }}</option>
+        }
+        @for (b of branches(); track b.id) {
+          <option [value]="b.id" [selected]="b.id === branchId()">{{ b.name }}</option>
+        }
+      </select>
+      <rs-icon class="chevron" name="chevron-down" [size]="16" />
+    </div>
+  } @else {
+    <div class="value">
+      <span class="strong" [id]="selectId">{{ singleName() }}</span>
+    </div>
+  }
+</div>
+@if (description()) {
+  <p class="description">{{ description() }}</p>
+}
+<div class="actions"><ng-content select="[rsContextActions]" /></div>
