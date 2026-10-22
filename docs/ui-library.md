@@ -64,7 +64,8 @@ Written without a compiler and partly without Figma access (the Figma MCP quota 
 | ERP components | ProductTable, FilterBarProducts, RowMenu, ProductThumb | implemented (HU-INV-01) | re-check vs Figma |
 | | KpiCard, StockFlag (extracted from ProductTable) | implemented (HU-INV-03), names from the Figma plan | re-check vs Figma |
 | | DataField (`2198:4942`), BranchStockTable (`2200:5023`, with Row Current) | Figma page 03 (read, HU-INV-03) | review |
-| | DocTable, CategoryCard… | not started | next |
+| | DocTable (`2086:4176`, as `rs-doc-table`: generic columns, typed cells, custom cell templates, total row and footer slot; also used for the IN-02b equivalents table at 52 px rows) | Figma page 03 (read, HU-INV-04) | review |
+| | CategoryCard… | not started | next |
 | Store & Web | header, product card, footer… | not started | next |
 
 Known gaps: dark values of `action/primary-hover|pressed` are assumed (`TODO(figma)` in `_tokens.scss`); illustrations and

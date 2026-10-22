@@ -1,0 +1,63 @@
+<div class="scroll">
+  <table [attr.aria-label]="tableLabel() || null">
+    <thead>
+      <tr>
+        @for (column of columns(); track column.key) {
+          <th scope="col" [class.num]="isRight(column)" [style.width]="column.width">{{ column.label }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.id) {
+        <tr>
+          @for (column of columns(); track column.key) {
+            <td [class.num]="isRight(column)" [class.code]="typeOf(column) === 'code'">
+              @switch (typeOf(column)) {
+                @case ('custom') {
+                  @if (templateOf(column.key); as template) {
+                    <ng-container [ngTemplateOutlet]="template" [ngTemplateOutletContext]="{ $implicit: row }" />
+                  }
+                }
+                @case ('status') {
+                  @if (statusOf(row.cells[column.key]); as s) {
+                    <rs-status-pill
+                      [status]="s.status"
+                      [icon]="s.icon ?? null"
+                      [tooltip]="s.tooltip"
+                      >{{ s.label }}</rs-status-pill
+                    >
+                  }
+                }
+                @default {
+                  {{ textOf(row.cells[column.key]) }}
+                }
+              }
+            </td>
+          }
+        </tr>
+      } @empty {
+        @if (emptyLabel()) {
+          <tr>
+            <td class="empty" [attr.colspan]="columns().length">{{ emptyLabel() }}</td>
+          </tr>
+        }
+      }
+    </tbody>
+    @if (totals(); as total) {
+      <tfoot>
+        <tr>
+          @for (column of columns(); track column.key; let first = $first) {
+            @if (first) {
+              <th scope="row">{{ textOf(total[column.key]) }}</th>
+            } @else {
+              <td [class.num]="isRight(column)" [class.code]="typeOf(column) === 'code' || typeOf(column) === 'number'">
+                {{ textOf(total[column.key]) }}
+              </td>
+            }
+          }
+        </tr>
+      </tfoot>
+    }
+  </table>
+</div>
+<div class="footer"><ng-content select="[slot=footer]" /></div>

@@ -44,11 +44,7 @@
       </div>
     </section>
 
-    <div class="kpis">
-      <rs-kpi-card label="Stock total" [value]="p.totalStock + ' uds'" [note]="stockSummary()" />
-      <rs-kpi-card label="Precio de venta" [value]="salePrice()" [note]="priceNote()" />
-      <rs-kpi-card label="Equivalentes" value="–" note="Disponible próximamente" />
-    </div>
+    <rs-product-kpis [product]="p" [equivalents]="equivalents()?.summary ?? null" />
 
     <div class="columns">
       <div class="main">
@@ -151,6 +147,42 @@
             <span>Total</span>
             <span class="qty">{{ p.totalStock }}</span>
           </div>
+        </section>
+
+        <section class="card" aria-labelledby="equivalents-card-title">
+          <header class="card-head">
+            <h2 id="equivalents-card-title" class="card-title">Equivalencias</h2>
+            @if (equivalents(); as eq) {
+              @if (eq.total > 0) {
+                <p class="card-subtitle">{{ referenceLabel() }}</p>
+              }
+            }
+          </header>
+          @if (equivalentItems().length) {
+            <ul class="eq-list">
+              @for (entry of equivalentItems(); track entry.item.productId) {
+                <li>
+                  <rs-chip-media type="brand" [text]="entry.item.brand.name.slice(0, 2).toUpperCase()" [logoUrl]="entry.item.brand.logoUrl" />
+                  <div class="eq-text">
+                    <span class="eq-code">{{ entry.item.manufacturerCode }}</span>
+                    <span class="eq-brand">{{ entry.item.brand.name }}</span>
+                  </div>
+                  <rs-status-pill
+                    [status]="entry.pill.status"
+                    [icon]="entry.pill.icon ?? null"
+                    [tooltip]="entry.pill.tooltip"
+                    >{{ entry.pill.label }}</rs-status-pill
+                  >
+                </li>
+              }
+            </ul>
+            <a class="eq-link" [routerLink]="['equivalents']">Ver todas las equivalencias</a>
+          } @else if (equivalentsFailed()) {
+            <p class="muted" role="alert">No pudimos cargar los equivalentes.</p>
+            <a class="eq-link" [routerLink]="['equivalents']">Ver equivalentes</a>
+          } @else {
+            <p class="muted">Sin equivalentes registrados.</p>
+          }
         </section>
 
         <section class="card" aria-labelledby="media-title">

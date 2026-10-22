@@ -71,6 +71,7 @@ model Company {
   productDimensions    ProductDimension[]
   stockLevels          StockLevel[]
   stockThresholds      StockThreshold[]
+  equivalences         Equivalence[]
 
   @@map("companies")
 }
@@ -138,11 +139,13 @@ model User {
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships     Membership[]
-  createdProducts Product[]       @relation("ProductCreatedBy")
-  updatedProducts Product[]       @relation("ProductUpdatedBy")
-  refreshTokens   RefreshToken[]
-  passwordResets  PasswordReset[]
+  memberships          Membership[]
+  createdProducts      Product[]       @relation("ProductCreatedBy")
+  createdEquivalences  Equivalence[]   @relation("EquivalenceCreatedBy")
+  approvedEquivalences Equivalence[]   @relation("EquivalenceApprovedBy")
+  updatedProducts      Product[]       @relation("ProductUpdatedBy")
+  refreshTokens        RefreshToken[]
+  passwordResets       PasswordReset[]
 
   @@map("users")
 }
@@ -427,6 +430,8 @@ model Product {
   dimensions      ProductDimension?
   stockLevels     StockLevel[]
   stockThresholds StockThreshold[]
+  equivalencesAsA Equivalence[]     @relation("EquivalenceProductA")
+  equivalencesAsB Equivalence[]     @relation("EquivalenceProductB")
   createdBy       User?             @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy       User?             @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
@@ -495,6 +500,31 @@ model StockThreshold {
   @@unique([productId, branchId])
   @@index([companyId, branchId])
   @@map("stock_thresholds")
+}
+
+/// Direct equivalence link between two products (HU-INV-04). The pair is stored once, with `productAId < productBId`
+/// (CHECK in the migration), which also forbids self-links and a duplicate in reverse order. Whether the link is
+/// exact or has differences is computed on read from the products, so it is not stored.
+model Equivalence {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  productAId   String    @map("product_a_id") @db.Uuid
+  productBId   String    @map("product_b_id") @db.Uuid
+  createdById  String?   @map("created_by_id") @db.Uuid
+  /// decision #34: approval is optional; nothing sets these until HU-INV-13
+  approvedById String?   @map("approved_by_id") @db.Uuid
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company @relation(fields: [companyId], references: [id])
+  productA   Product @relation("EquivalenceProductA", fields: [productAId], references: [id], onDelete: Cascade)
+  productB   Product @relation("EquivalenceProductB", fields: [productBId], references: [id], onDelete: Cascade)
+  createdBy  User?   @relation("EquivalenceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy User?   @relation("EquivalenceApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, productAId, productBId])
+  @@index([companyId, productBId])
+  @@map("equivalences")
 }
 
 // ── Cross-cutting ───────────────────────────────────────────────────────────

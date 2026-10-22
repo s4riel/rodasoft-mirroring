@@ -30,6 +30,14 @@
   --_c: var(--status-info);
   --_bg: var(--status-info-soft);
 }
+:host(:focus-visible) {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.glyph {
+  flex: none;
+  color: var(--_c);
+}
 .dot {
   width: 6px;
   height: 6px;

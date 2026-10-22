@@ -54,6 +54,11 @@ export function fileNameOf(url: string): string {
   }
 }
 
+/** "1 sucursal" / "2 sucursales": the form that matches the count. */
+export function plural(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
 /** The shared value of a per-branch setting, `null` when none is set and `mixed` when branches differ. */
 export function uniformValue<T extends string | number>(values: readonly (T | null)[]): T | null | 'mixed' {
   const set = new Set(values.filter((v): v is T => v !== null));

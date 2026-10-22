@@ -7,3 +7,5 @@ export * from './stock-flag/stock-flag.component';
 export * from './kpi-card/kpi-card.component';
 export * from './data-field/data-field.component';
 export * from './branch-stock-table/branch-stock-table.component';
+export * from './doc-table/doc-table.component';
+export * from './doc-table/doc-table-cell.directive';

@@ -1,1 +1,6 @@
-<span class="dot" aria-hidden="true"></span><ng-content />
+@if (icon(); as glyph) {
+  <rs-icon class="glyph" aria-hidden="true" [name]="glyph" [size]="16" />
+} @else {
+  <span class="dot" aria-hidden="true"></span>
+}
+<ng-content />

@@ -1,0 +1,47 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.section {
+  display: grid;
+  gap: var(--space-4);
+}
+.section-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  font-weight: var(--body-md-strong-weight);
+}
+.industry,
+.stock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.footer {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.range {
+  color: var(--text-muted);
+}
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.skeleton {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
