@@ -71,7 +71,9 @@ export class SelectComponent implements ControlValueAccessor {
   protected readonly selectedIndex = computed(() =>
     this.options().findIndex((o) => Object.is(o.value, this.value())),
   );
-  protected readonly selectedOption = computed(() => this.options()[this.selectedIndex()] ?? null);
+  protected readonly selectedOption = computed<SelectOption | null>(
+    () => this.options()[this.selectedIndex()] ?? null,
+  );
 
   private onChange: (value: unknown) => void = () => undefined;
   private onTouched: () => void = () => undefined;
