@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import {
+  CategoryCardComponent,
+  IconComponent,
   BranchStockLabels,
   BranchStockRow,
   BranchStockTableComponent,
@@ -15,7 +17,16 @@ import {
 /** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. */
 @Component({
   selector: 'rs-erp-components-section',
-  imports: [BranchStockTableComponent, DataFieldComponent, DocTableCellDirective, DocTableComponent, KpiCardComponent, StockFlagComponent],
+  imports: [
+    BranchStockTableComponent,
+    CategoryCardComponent,
+    DataFieldComponent,
+    DocTableCellDirective,
+    DocTableComponent,
+    IconComponent,
+    KpiCardComponent,
+    StockFlagComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="ds-section">
@@ -28,6 +39,19 @@ import {
         <rs-kpi-card label="Ventas del mes" value="Bs 128.450,00" trend="neutral" note="Sin cambios vs. mes anterior" />
         <rs-kpi-card label="Ventas del mes" value="Bs 128.450,00" trend="positive" note="+12% vs. mes anterior" disabled />
         <rs-kpi-card label="Ventas del mes" value="Bs 128.450,00" trend="positive" note="+12% vs. mes anterior" tabindex="0" />
+      </div>
+
+      <h3>CategoryCard · State = Default | Selected | Disabled (Hover: CSS, pointer over the card)</h3>
+      <div class="row">
+        <rs-category-card title="Rodamientos" description="12 subcategorías">
+          <rs-icon slot="glyph" name="bearing" [size]="24" />
+        </rs-category-card>
+        <rs-category-card title="Rodamientos" description="12 subcategorías" [selected]="true">
+          <rs-icon slot="glyph" name="bearing" [size]="24" />
+        </rs-category-card>
+        <rs-category-card title="Rodamientos" description="12 subcategorías" [disabled]="true">
+          <rs-icon slot="glyph" name="bearing" [size]="24" />
+        </rs-category-card>
       </div>
 
       <h3>StockFlag · Level = Low | Out</h3>

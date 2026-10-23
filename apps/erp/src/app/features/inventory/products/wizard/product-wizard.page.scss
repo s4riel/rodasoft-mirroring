@@ -1,0 +1,434 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px; /* IN-03c: form 784 px, summary 320 px */
+  gap: var(--space-6);
+  align-items: start;
+}
+.main {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+.step {
+  display: grid;
+  gap: var(--space-5);
+}
+.step-title {
+  margin: 0;
+  font-family: var(--font-family-ui);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+/* Figma rows: 16 px between columns, 24 px between rows, and every field keeps its own height (items start) */
+.grid-2,
+.grid-3,
+.grid-4 {
+  display: grid;
+  gap: var(--space-6) var(--space-4);
+  align-items: start;
+}
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.affix {
+  font-family: var(--font-family-ui);
+  font-size: var(--body-sm-size);
+  color: var(--text-muted);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.spacer {
+  flex: 1 1 0;
+}
+.aside {
+  display: grid;
+  gap: var(--space-4);
+}
+.card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.card-title {
+  margin: 0;
+  font-family: var(--font-family-ui);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--body-sm-size);
+}
+dt {
+  color: var(--text-muted);
+}
+dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+.muted {
+  color: var(--text-muted);
+}
+.progress {
+  margin: 0;
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+.loading {
+  color: var(--text-muted);
+}
+@media (max-width: 900px) {
+  .layout,
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Fields keep their grid cell: a select or input never grows past its column */
+.grid-3 > rs-field,
+.grid-4 > rs-field,
+.grid-3 rs-select,
+.grid-4 rs-select {
+  min-width: 0;
+  width: 100%;
+}
+
+/* IN-03c · step card: white panel with the numbered header, the fields and the sector chips */
+.step-card {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.step-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+  align-items: center;
+}
+/* title and description: 4 px apart, as in the frame */
+.step-head > div {
+  display: grid;
+  gap: var(--space-1);
+}
+/* Figma step bubble: 28 px with the medium radius; there is no size token for it */
+.step-bubble {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: 600;
+}
+.step-desc {
+  margin: 0;
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.sectors {
+  display: grid;
+  gap: var(--space-2);
+}
+.field-label {
+  display: block;
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  font-weight: var(--body-sm-weight);
+  color: var(--text-primary);
+}
+.chips,
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.actions-panel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-height: 100px; /* Figma action bar: 100 px */
+  box-sizing: border-box;
+  padding: var(--space-4);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+.preview {
+  gap: var(--space-4);
+}
+.eyebrow {
+  margin: 0;
+  font-size: var(--eyebrow-size);
+  line-height: var(--eyebrow-line-height);
+  font-weight: var(--eyebrow-weight);
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.product {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 40px; /* Figma brand mark: 40 px */
+  height: 40px;
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  font-weight: var(--body-sm-weight);
+  color: var(--text-primary);
+}
+.product-data {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.product-code {
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.product-name {
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+/* Figma preview chip: 36 px tall, gray-200, 14 px of padding before the text and 8 after it */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--space-2) 0 14px;
+  border-radius: var(--radius-full);
+  background: var(--border-default);
+  font-size: var(--label-md-size);
+  font-weight: var(--label-md-weight);
+  color: var(--text-primary);
+}
+.progress-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.progress-steps {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.progress-steps li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  color: var(--text-muted);
+}
+.progress-steps .step-tag {
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+.progress-steps .dot {
+  width: 16px; /* Figma pending mark: 16 px */
+  height: 16px;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--border-default);
+}
+.progress-steps li.done .dot {
+  background: var(--action-primary);
+  border-color: var(--action-primary);
+}
+.progress-steps li.done .step-name {
+  color: var(--text-primary);
+}
+@media (max-width: 900px) {
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.step-note {
+  margin: 0;
+  font-size: var(--body-sm-size);
+  color: var(--text-muted);
+}
+/* IN-03d/IN-03 step 4: two dashed drop zones, one for photos and one for the datasheet */
+.dropzone {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+.dz-target {
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border: var(--stroke-default) dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+  text-align: center;
+  cursor: pointer;
+}
+.dz-target:hover {
+  border-color: var(--text-primary);
+}
+.dz-target:focus-within {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.dz-title {
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.dz-hint {
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--body-sm-size);
+  color: var(--text-primary);
+}
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+}
+.review-grid dt {
+  font-size: var(--body-sm-size);
+  color: var(--text-muted);
+}
+.review-grid dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+.candidates {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.candidates li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+}
+.candidates li + li {
+  border-top: var(--stroke-default) solid var(--border-default);
+}
+/* Figma: photo thumbnail in the file row (no size token) */
+.thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.bar {
+  height: 8px; /* Figma progress bar: 8 px */
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+  overflow: hidden;
+}
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--action-primary);
+  transition: width var(--motion-fast) var(--ease-out);
+}
+.progress-steps .mark {
+  display: grid;
+  place-items: center;
+  width: 16px; /* Figma progress mark: 16 px */
+  height: 16px;
+  color: var(--text-primary);
+}
+.progress-steps li.current .dot {
+  border-width: 2px; /* Figma current step ring: 2 px */
+  border-color: var(--action-primary);
+}
+.progress-steps li.done .mark {
+  width: 18px; /* Figma done mark: an 18 px check (the pending circle is 16 px) */
+  color: var(--action-primary);
+}
+
+/* Figma measure inputs: IBM Plex Mono 13/20 */
+.mono {
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+}

@@ -32,8 +32,9 @@ export class OutboxRelayService {
     @InjectQueue(QUEUE.mail) mail: Queue,
     @InjectQueue(QUEUE.siat) siat: Queue,
     @InjectQueue(QUEUE.accounting) accounting: Queue,
+    @InjectQueue(QUEUE.inventory) inventory: Queue,
   ) {
-    this.queues = { mail, siat, accounting };
+    this.queues = { mail, siat, accounting, inventory };
   }
 
   @Interval('outbox', 2000)

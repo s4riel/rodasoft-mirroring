@@ -10,7 +10,7 @@ export function describeDifference(d: EquivalenceDifference): string {
  * Pill of an equivalent (Figma IN-02b "Diferencia"). The long form names the first difference and counts the
  * rest, with every difference in the tooltip; the short form (sheet card) only says there are differences.
  */
-export function equivalencePill(item: ProductEquivalentItem, form: 'long' | 'short' = 'long'): DocTableStatus {
+export function equivalencePill(item: Pick<ProductEquivalentItem, 'kind' | 'differences'>, form: 'long' | 'short' = 'long'): DocTableStatus {
   switch (item.kind) {
     case 'EXACT':
       return { label: 'Exacta', status: 'success', icon: 'check' };

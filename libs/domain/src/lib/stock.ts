@@ -80,3 +80,29 @@ export interface ProductWarehouseStockResponse {
   /** Sum of the quantities shown (the footer "Total N uds"). */
   total: number;
 }
+
+/** Raised when a movement would leave a warehouse below zero and the company does not allow negative stock. */
+export class InsufficientStockError extends Error {
+  readonly code = 'INSUFFICIENT_STOCK';
+
+  constructor(
+    readonly currentQuantity: number,
+    readonly delta: number,
+  ) {
+    super('Insufficient stock for this movement');
+    this.name = 'InsufficientStockError';
+  }
+}
+
+/**
+ * Balance after a signed movement (HU-INV-06). Pure: the stock service locks the level row, calls this, then writes
+ * both the level and the movement. Throws InsufficientStockError when the result would be negative and not allowed.
+ */
+export function applyMovement(currentQuantity: number, delta: number, allowNegative: boolean): { balanceAfter: number } {
+  if (!Number.isInteger(currentQuantity) || !Number.isInteger(delta)) {
+    throw new RangeError('Stock quantities are whole numbers');
+  }
+  const balanceAfter = currentQuantity + delta;
+  if (balanceAfter < 0 && !allowNegative) throw new InsufficientStockError(currentQuantity, delta);
+  return { balanceAfter };
+}

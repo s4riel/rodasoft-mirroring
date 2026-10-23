@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 import type { AppClsStore } from '../cls';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService, type TenantTransaction } from '../prisma/prisma.service';
 
 /** Known event types. The worker routes each type to a queue (see apps/worker/src/outbox). */
 export type OutboxType =
@@ -11,9 +11,10 @@ export type OutboxType =
   | 'sale.confirmed'
   | 'invoice.issue'
   | 'invoice.cancel'
-  | 'entry.generate';
+  | 'entry.generate'
+  | 'inventory.product-created';
 
-type Tx = Prisma.TransactionClient | PrismaService;
+type Tx = Prisma.TransactionClient | PrismaService | TenantTransaction;
 
 @Injectable()
 export class OutboxService {

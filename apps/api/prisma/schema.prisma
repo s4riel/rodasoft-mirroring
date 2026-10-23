@@ -30,6 +30,14 @@ enum RecordStatus {
   INACTIVE
 }
 
+/// Products also have DRAFT (HU-INV-06): an unfinished product saved from the creation wizard. Drafts stay out of the
+/// lists and the filter options unless asked for.
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DRAFT
+}
+
 enum SiatEnvironment {
   PRODUCTION // 1
   TEST // 2
@@ -73,6 +81,7 @@ model Company {
   stockThresholds      StockThreshold[]
   stockMovements       StockMovement[]
   equivalences         Equivalence[]
+  companySettings      CompanySetting[]
 
   @@map("companies")
 }
@@ -149,6 +158,7 @@ model User {
   refreshTokens        RefreshToken[]
   passwordResets       PasswordReset[]
   stockMovements       StockMovement[]
+  companySettingsUpdated CompanySetting[]
 
   @@map("users")
 }
@@ -413,14 +423,19 @@ model Product {
   /// industry (country of origin) of the product; falls back to the brand's country when null
   countryId        String?      @map("country_id") @db.Uuid
   name             String
-  salePrice        Decimal      @map("sale_price") @db.Decimal(14, 2)
+  salePrice        Decimal       @map("sale_price") @db.Decimal(14, 2)
   /// only visible with inventory.costs.view
-  cost             Decimal?     @db.Decimal(14, 4)
-  unit             String       @default("UN")
-  status           RecordStatus @default(ACTIVE)
-  attributes       Json         @default("{}")
-  photos           Json         @default("[]")
-  datasheetUrl     String?      @map("datasheet_url")
+  cost             Decimal?      @db.Decimal(14, 4)
+  unit             String        @default("UN")
+  status           ProductStatus @default(ACTIVE)
+  /// sectors the product is used in (chips in the wizard, HU-INV-06)
+  sectors          String[]      @default([])
+  tariffCode       String?       @map("tariff_code")
+  supplierName     String?       @map("supplier_name")
+  entryDate        DateTime?     @map("entry_date") @db.Date
+  attributes       Json          @default("{}")
+  photos           Json          @default("[]")
+  datasheetUrl     String?       @map("datasheet_url")
   createdById      String?      @map("created_by_id") @db.Uuid
   updatedById      String?      @map("updated_by_id") @db.Uuid
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -572,6 +587,23 @@ model Equivalence {
   @@unique([companyId, productAId, productBId])
   @@index([companyId, productBId])
   @@map("equivalences")
+}
+
+/// Per-company configuration (HU-INV-06). `key` is typed in `libs/domain` (COMPANY_SETTING_DEFAULTS), so code always
+/// has a fallback when no row exists. Open client decisions (#32, #36, #37) are parameterized here.
+model CompanySetting {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  key         String
+  value       Json
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company   Company @relation(fields: [companyId], references: [id])
+  updatedBy User?   @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, key])
+  @@map("company_settings")
 }
 
 // ── Cross-cutting ───────────────────────────────────────────────────────────

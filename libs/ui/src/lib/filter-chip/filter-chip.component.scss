@@ -26,6 +26,12 @@
     background var(--motion-fast) var(--ease-out),
     box-shadow var(--motion-fast) var(--ease-out);
 }
+:host([data-size='s']) .chip {
+  height: 36px; /* IN-03c sector chips */
+}
+:host([data-size='s'][data-selected='true']) .chip {
+  height: 40px; /* the selected chip carries its 1.5 px ring on top */
+}
 :host([data-size='l']) .chip {
   height: 48px;
   font-size: var(--body-lg-size);

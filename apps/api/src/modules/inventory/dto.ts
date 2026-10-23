@@ -65,10 +65,10 @@ export class ListProductsQueryDto {
   @IsUUID()
   brandId?: string;
 
-  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE'] })
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE', 'DRAFT'] })
   @IsOptional()
-  @IsIn(['ACTIVE', 'INACTIVE'])
-  status?: 'ACTIVE' | 'INACTIVE';
+  @IsIn(['ACTIVE', 'INACTIVE', 'DRAFT'])
+  status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT';
 
   @ApiPropertyOptional({ description: 'Code, SKU, name, brand or measurement (25x52x15)' })
   @IsOptional()

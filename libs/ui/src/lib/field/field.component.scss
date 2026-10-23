@@ -4,7 +4,8 @@
 }
 .head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  line-height: var(--label-md-line-height);
   justify-content: space-between;
   gap: var(--space-2);
 }
@@ -16,7 +17,7 @@
   letter-spacing: var(--label-md-tracking);
 }
 .required {
-  color: var(--status-danger);
+  color: inherit; /* Figma: the asterisk is part of the label text */
 }
 .msg {
   color: var(--text-muted);

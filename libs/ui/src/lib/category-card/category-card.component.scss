@@ -1,0 +1,98 @@
+:host {
+  /* Figma CategoryCard: 264x152 with 20px padding and 14px gap; capped at the container on narrow screens */
+  display: flex;
+  width: 264px;
+  max-width: 100%;
+  flex-direction: column;
+  gap: 14px;
+  height: 152px;
+  box-sizing: border-box;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  border: var(--stroke-default) solid var(--gray-200);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+:host(:hover) {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+}
+
+/* Figma: a 2px gray-900 border, so the content moves 1px as in the frame */
+:host([data-selected='true']) {
+  border: 2px solid var(--gray-900);
+}
+
+:host([aria-disabled='true']) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+:host(:focus-visible) {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* Figma IconBox: 44x44 with a 10px radius (no token for this size) */
+.icon-box {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--bg-surface-2);
+}
+
+.control {
+  position: relative;
+  width: 20px; /* Figma Control: 20 px */
+  height: 20px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--gray-300); /* Figma Control: 1.5 px border */
+  box-sizing: border-box;
+}
+
+:host([data-selected='true']) .control {
+  border: none;
+  background: var(--gray-900);
+}
+
+:host([data-selected='true']) .control::after {
+  content: '';
+  position: absolute;
+  inset: 6px; /* Figma Control: the 8 px white dot centred in 20 px */
+  border-radius: var(--radius-full);
+  background: var(--action-on-primary);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.title {
+  font-size: var(--body-lg-size);
+  line-height: var(--body-lg-line-height);
+  font-weight: 600;
+}
+
+/* Figma: Inter Regular 13px, gray-500 (no 13px size token) */
+.description {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--gray-500);
+}

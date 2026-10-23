@@ -1,6 +1,6 @@
 /** Equivalences between products (HU-INV-04): the comparison rule and the response contracts. */
 import { Decimal } from './money';
-import type { ProductBrandSummary, ProductCountrySummary, ProductStatusFilter } from './product-catalog';
+import type { ProductBrandSummary, ProductCountrySummary, ProductStatus } from './product-catalog';
 
 /**
  * - EXACT: same type and d × D × B, and none of the compared specifications differs.
@@ -109,7 +109,7 @@ export interface ProductEquivalentItem {
   totalStock: number;
   /** Decimal string, scale 2. */
   salePrice: string;
-  status: ProductStatusFilter;
+  status: ProductStatus;
   kind: EquivalenceKind;
   differences: EquivalenceDifference[];
 }
@@ -133,4 +133,23 @@ export interface ProductEquivalentsResponse {
   summary: ProductEquivalentsSummary;
   /** Footer of the table: the original plus every equivalent (not only this page). */
   totals: { codes: number; stock: number };
+}
+
+/** A product that could be linked to the one being created (HU-INV-06): same type and d×D×B, not linked yet. */
+export interface EquivalenceSuggestion {
+  productId: string;
+  manufacturerCode: string;
+  brand: ProductBrandSummary;
+  kind: EquivalenceKind;
+  differences: EquivalenceDifference[];
+}
+
+export interface EquivalenceSuggestionsResponse {
+  items: EquivalenceSuggestion[];
+}
+
+export interface EquivalenceLinkResponse {
+  id: string;
+  productAId: string;
+  productBId: string;
 }

@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { Prisma } from '@prisma/client';
 import {
   clampPage,
+  type CategoryAttributeDefinitionsResponse,
   clampPageSize,
   marginPercent,
   parseMeasurement,
@@ -144,7 +145,6 @@ export class ProductsService {
     ]);
     const actor = (userId: string | null) => actors.find((a) => a.id === userId) ?? null;
     const parent = p.category.parent;
-    const text = (key: string) => (typeof attributes[key] === 'string' ? (attributes[key] as string) : null);
     const cost = p.cost ? p.cost.toFixed(4) : null;
     const salePrice = p.salePrice.toFixed(2);
 
@@ -170,7 +170,7 @@ export class ProductsService {
           }
         : null,
       specs,
-      extra: { tariffCode: text('tariffCode'), supplierName: text('supplierName'), sectors: text('sectors') },
+      extra: { tariffCode: p.tariffCode, supplierName: p.supplierName, sectors: p.sectors.length ? p.sectors.join(', ') : null },
       pricing: includeCost ? { salePrice, cost, marginPercent: marginPercent(salePrice, cost) } : { salePrice },
       // only the branches the member may see, so the total always matches the rows shown
       totalStock: stockByBranch.reduce((sum, b) => sum + b.quantity, 0),
@@ -240,6 +240,34 @@ export class ProductsService {
       });
   }
 
+  /** Technical fields of a category for the wizard (HU-INV-06): its own definitions, else its parent's. */
+  async attributeDefinitions(categoryId: string): Promise<CategoryAttributeDefinitionsResponse> {
+    const category = await this.prisma.tenant.category.findFirst({ where: { id: categoryId }, select: { id: true, parentId: true } });
+    if (!category) throw new NotFoundException({ code: 'CATEGORY_NOT_FOUND', message: 'Category not found' });
+
+    const order = [{ step: 'asc' as const }, { sortOrder: 'asc' as const }];
+    let definedOn = category.id;
+    let defs = await this.prisma.tenant.attributeDefinition.findMany({ where: { categoryId }, orderBy: order });
+    if (!defs.length && category.parentId) {
+      definedOn = category.parentId;
+      defs = await this.prisma.tenant.attributeDefinition.findMany({ where: { categoryId: category.parentId }, orderBy: order });
+    }
+    return {
+      categoryId,
+      definedOn,
+      items: defs.map((d) => ({
+        key: d.key,
+        label: d.label,
+        type: d.type,
+        unit: d.unit,
+        options: Array.isArray(d.options) ? (d.options as string[]) : null,
+        required: d.required,
+        step: d.step,
+        sortOrder: d.sortOrder,
+      })),
+    };
+  }
+
   async filterOptions(): Promise<ProductFilterOptions> {
     const [countries, brands, roots] = await Promise.all([
       this.prisma.tenant.country.findMany({ orderBy: { name: 'asc' }, select: { id: true, code: true, name: true } }),
@@ -277,7 +305,8 @@ export class ProductsService {
       and.push({ OR: [{ countryId: q.countryId }, { countryId: null, brand: { countryId: q.countryId } }] });
     }
     if (q.brandId) and.push({ brandId: q.brandId });
-    if (q.status) and.push({ status: q.status });
+    // drafts (HU-INV-06) stay out of the list unless filtered for; `status` is only ACTIVE or INACTIVE in the filter
+    and.push({ status: q.status ?? { not: 'DRAFT' } });
     // a root category also matches the products of its subcategories
     if (q.categoryId) and.push({ OR: [{ categoryId: q.categoryId }, { category: { parentId: q.categoryId } }] });
     if (q.subcategoryId) and.push({ categoryId: q.subcategoryId });

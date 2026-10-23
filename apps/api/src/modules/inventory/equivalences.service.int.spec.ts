@@ -10,7 +10,10 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import { tenantExtension } from '../../common/prisma/tenant.extension';
 import { EquivalencesService } from './equivalences.service';
+import { OutboxService } from '../../common/outbox/outbox.service';
+import { SettingsService } from '../../common/settings/settings.service';
 import { ProductCommandsService } from './product-commands.service';
+import { StockMovementService } from './stock-movement.service';
 
 const run = randomUUID().slice(0, 8);
 
@@ -21,9 +24,11 @@ class TestPrisma extends PrismaClient {
 }
 const base = new TestPrisma();
 const prisma = base as unknown as PrismaService;
-const service = new EquivalencesService(prisma);
 const cls = { get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? 'm1' : null) } as never;
-const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls), { permissions: async () => new Set() } as never);
+const membership = { permissions: async () => new Set(), operableBranchIds: async () => null } as never;
+const service = new EquivalencesService(prisma, cls, new AuditService(prisma, cls));
+const settings = new SettingsService(prisma);
+const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls), membership, settings, new StockMovementService(cls, settings), new OutboxService(prisma, cls));
 
 interface Fixture {
   companyId: string;
@@ -63,6 +68,9 @@ async function removeCompany(companyId: string) {
   await base.equivalence.deleteMany({ where: { companyId } });
   await base.auditLog.deleteMany({ where: { companyId } });
   await base.stockLevel.deleteMany({ where: { companyId } });
+  await base.stockThreshold.deleteMany({ where: { companyId } });
+  await base.companySetting.deleteMany({ where: { companyId } });
+  await base.outboxEvent.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.attributeDefinition.deleteMany({ where: { companyId } });

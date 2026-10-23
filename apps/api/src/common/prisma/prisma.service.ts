@@ -9,6 +9,9 @@ const createTenantClient = (base: PrismaClient, getCompanyId: () => string | nul
 
 export type TenantClient = ReturnType<typeof createTenantClient>;
 
+/** The transaction client of `prisma.tenant.$transaction(async (tx) => …)`, tenant-scoped like the client. */
+export type TenantTransaction = Parameters<Parameters<TenantClient['$transaction']>[0]>[0];
+
 /**
  * - `prisma.<model>`: unfiltered access (auth, seed, system tasks). Use with care.
  * - `prisma.tenant.<model>`: access filtered by the request's company. This is what modules use.

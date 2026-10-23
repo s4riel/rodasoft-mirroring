@@ -292,7 +292,7 @@ describe('ProductsService (integration, real Postgres)', () => {
       creator = user.id;
       await base.product.update({
         where: { id: p1 },
-        data: { attributes: { seal: '2RS', series: '62', tariffCode: '8482.10' }, createdById: creator, updatedById: creator },
+        data: { attributes: { seal: '2RS', series: '62' }, tariffCode: '8482.10', createdById: creator, updatedById: creator },
       });
       // the branch's location comes from its main warehouse
       await base.warehouse.update({ where: { id: a.whA }, data: { isMain: true } });
