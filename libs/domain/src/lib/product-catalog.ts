@@ -5,7 +5,10 @@ import { Decimal } from './money';
 export const PRODUCT_PAGE_SIZE_DEFAULT = 25;
 export const PRODUCT_PAGE_SIZE_MAX = 100;
 
-export type ProductStatusFilter = 'ACTIVE' | 'INACTIVE';
+export type ProductStatusFilter = 'ACTIVE' | 'INACTIVE' | 'DRAFT';
+
+/** Product status (mirrors the Prisma enum). DRAFT is an unfinished product from the creation wizard (HU-INV-06). */
+export type ProductStatus = ProductStatusFilter;
 
 /** Filters of the product list. There is intentionally no branch filter. */
 export interface ProductListFilters {
@@ -148,7 +151,7 @@ export interface ProductListItem {
   branchStock: number | null;
   /** Decimal string, scale 2. */
   salePrice: string;
-  status: ProductStatusFilter;
+  status: ProductStatus;
 }
 
 export interface ProductListResponse {
@@ -261,7 +264,7 @@ export interface ProductDetail {
   manufacturerCode: string;
   name: string;
   unit: string;
-  status: ProductStatusFilter;
+  status: ProductStatus;
   brand: ProductBrandSummary;
   country: ProductCountrySummary | null;
   category: { id: string; name: string; icon: string };

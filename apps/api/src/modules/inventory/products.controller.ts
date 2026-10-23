@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   ParseUUIDPipe,
   Post,
   Query,
@@ -14,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type {
+  CategoryAttributeDefinitionsResponse,
   DuplicateProductResponse,
   ProductDetail,
   ProductFilterOptions,
@@ -26,7 +28,8 @@ import type { AppClsStore } from '../../common/cls';
 import { MembershipService } from '../access/membership.service';
 import { RequirePermissions } from '../access/require-permissions.decorator';
 import { DuplicateProductDto, ListMovementsQueryDto, ListProductsQueryDto } from './dto';
-import { ProductCommandsService } from './product-commands.service';
+import { CodeAvailabilityQueryDto, ProductWriteDto } from './product-write.dto';
+import { type CodeAvailabilityResponse, ProductCommandsService, type ProductWriteResponse } from './product-commands.service';
 import { ProductsService } from './products.service';
 import { StockQueriesService } from './stock-queries.service';
 
@@ -80,6 +83,31 @@ export class ProductsController {
   @RequirePermissions('inventory.products.view')
   filterOptions(): Promise<ProductFilterOptions> {
     return this.products.filterOptions();
+  }
+
+  /** Declared before `products/:id`, so the path is not read as an id. */
+  @Get('products/code-availability')
+  @RequirePermissions('inventory.products.edit')
+  codeAvailability(@Query(filterPipe) query: CodeAvailabilityQueryDto): Promise<CodeAvailabilityResponse> {
+    return this.commands.codeAvailability(query.brandId, query.code);
+  }
+
+  @Get('categories/:id/attribute-definitions')
+  @RequirePermissions('inventory.products.view')
+  attributeDefinitions(@Param('id', idPipe) id: string): Promise<CategoryAttributeDefinitionsResponse> {
+    return this.products.attributeDefinitions(id);
+  }
+
+  @Post('products')
+  @RequirePermissions('inventory.products.edit')
+  create(@Body(bodyPipe) body: ProductWriteDto): Promise<ProductWriteResponse> {
+    return this.commands.create(body);
+  }
+
+  @Patch('products/:id/draft')
+  @RequirePermissions('inventory.products.edit')
+  saveDraft(@Param('id', idPipe) id: string, @Body(bodyPipe) body: ProductWriteDto): Promise<ProductWriteResponse> {
+    return this.commands.saveDraft(id, body);
   }
 
   @Get('products/:id')

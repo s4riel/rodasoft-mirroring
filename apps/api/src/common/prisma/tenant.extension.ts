@@ -23,6 +23,7 @@ export const TENANT_MODELS = new Set<Prisma.ModelName>([
   'StockThreshold',
   'StockMovement',
   'Equivalence',
+  'CompanySetting',
 ]);
 
 /** Models with company_id that are intentionally queried WITHOUT a filter (system / authentication). */

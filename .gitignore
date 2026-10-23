@@ -29,3 +29,5 @@ infra/.env.prod
 # Playwright
 test-results/
 playwright-report/
+
+storage-local/

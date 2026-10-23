@@ -1,4 +1,4 @@
-import { movementDirection, movementWindowStart } from './stock';
+import { applyMovement, InsufficientStockError, movementDirection, movementWindowStart } from "./stock";
 
 describe('movementDirection', () => {
   it('reads the sign of the quantity', () => {
@@ -24,5 +24,25 @@ describe('movementWindowStart', () => {
     const start = movementWindowStart(new Date('2026-10-22T15:00:00Z'), 30);
     expect(new Date('2026-09-23T04:00:00Z') >= start).toBe(true);
     expect(new Date('2026-09-23T03:59:59Z') >= start).toBe(false);
+  });
+});
+
+describe('applyMovement', () => {
+  it('returns the balance after the movement', () => {
+    expect(applyMovement(5, -2, false)).toEqual({ balanceAfter: 3 });
+    expect(applyMovement(0, 24, false)).toEqual({ balanceAfter: 24 });
+  });
+
+  it('refuses a balance below zero unless negative stock is allowed', () => {
+    expect(() => applyMovement(1, -2, false)).toThrow(InsufficientStockError);
+    expect(applyMovement(1, -2, true)).toEqual({ balanceAfter: -1 });
+  });
+
+  it('exposes the INSUFFICIENT_STOCK code', () => {
+    expect(() => applyMovement(0, -1, false)).toThrow(expect.objectContaining({ code: 'INSUFFICIENT_STOCK' }));
+  });
+
+  it('rejects fractional quantities', () => {
+    expect(() => applyMovement(1.5, 1, false)).toThrow(RangeError);
   });
 });

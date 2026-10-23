@@ -6,7 +6,7 @@ import { WorkerModule } from './worker.module';
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(WorkerModule);
   app.enableShutdownHooks();
-  Logger.log('Worker ready: outbox, mail, siat, accounting', 'Worker');
+  Logger.log('Worker ready: outbox, mail, siat, accounting, inventory', 'Worker');
 }
 
 bootstrap();

@@ -26,6 +26,8 @@ export const envSchema = z.object({
   ERP_PUBLIC_URL: z.string().default('http://{company}.localhost:4200'),
 
   SECRETS_KEY: z.string().default(''),
+  /** Local-disk folder for uploads (product photos and datasheets); production uses an S3-compatible bucket. */
+  STORAGE_LOCAL_DIR: z.string().default('./storage-local'),
   SMTP_URL: z.string().default('smtp://localhost:1025'),
   MAIL_FROM: z.string().default('Rodalaser ERP <no-reply@rodalaser.com.bo>'),
 });

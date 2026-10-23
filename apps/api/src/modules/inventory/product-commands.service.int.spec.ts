@@ -8,7 +8,10 @@ import { randomUUID } from 'node:crypto';
 import { AuditService } from '../../common/audit/audit.service';
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import { tenantExtension } from '../../common/prisma/tenant.extension';
+import { OutboxService } from '../../common/outbox/outbox.service';
+import { SettingsService } from '../../common/settings/settings.service';
 import { ProductCommandsService } from './product-commands.service';
+import { StockMovementService } from './stock-movement.service';
 import { ProductsService } from './products.service';
 
 const run = randomUUID().slice(0, 8);
@@ -22,8 +25,10 @@ const base = new TestPrisma();
 const prisma = base as unknown as PrismaService;
 let grantedPermissions: string[] = ['inventory.costs.view'];
 const cls = { get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? 'm1' : null) } as never;
-const membership = { permissions: async () => new Set(grantedPermissions) } as never;
-const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls), membership);
+const membership = { permissions: async () => new Set(grantedPermissions), operableBranchIds: async () => null } as never;
+const settings = new SettingsService(prisma);
+const outbox = new OutboxService(prisma, cls);
+const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls), membership, settings, new StockMovementService(cls, settings), outbox);
 const products = new ProductsService(prisma, cls);
 
 interface Fixture {
@@ -75,6 +80,9 @@ async function removeCompany(companyId: string) {
   await purgeMovements(companyId);
   await base.auditLog.deleteMany({ where: { companyId } });
   await base.stockLevel.deleteMany({ where: { companyId } });
+  await base.stockThreshold.deleteMany({ where: { companyId } });
+  await base.companySetting.deleteMany({ where: { companyId } });
+  await base.outboxEvent.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.category.deleteMany({ where: { companyId } });

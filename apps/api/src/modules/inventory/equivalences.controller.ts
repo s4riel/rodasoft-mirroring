@@ -1,18 +1,25 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
+  Post,
   Query,
   ValidationError,
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { ProductEquivalentsResponse } from '@rodasoft/domain';
+import type {
+  EquivalenceLinkResponse,
+  EquivalenceSuggestionsResponse,
+  ProductEquivalentsResponse,
+} from '@rodasoft/domain';
 import { RequirePermissions } from '../access/require-permissions.decorator';
 import { ListEquivalentsQueryDto } from './dto';
 import { EquivalencesService } from './equivalences.service';
+import { LinkEquivalenceDto } from './product-write.dto';
 
 const queryPipe = new ValidationPipe({
   transform: true,
@@ -22,6 +29,18 @@ const queryPipe = new ValidationPipe({
     new BadRequestException({
       code: 'INVALID_FILTER',
       message: 'Invalid filter',
+      details: errors.map((e) => ({ field: e.property, constraints: e.constraints })),
+    }),
+});
+
+const bodyPipe = new ValidationPipe({
+  transform: true,
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  exceptionFactory: (errors: ValidationError[]) =>
+    new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      message: 'Invalid request',
       details: errors.map((e) => ({ field: e.property, constraints: e.constraints })),
     }),
 });
@@ -40,5 +59,17 @@ export class EquivalencesController {
   @RequirePermissions('inventory.products.view')
   list(@Param('id', idPipe) id: string, @Query(queryPipe) query: ListEquivalentsQueryDto): Promise<ProductEquivalentsResponse> {
     return this.equivalences.listForProduct(id, query);
+  }
+
+  @Get('products/:id/equivalence-suggestions')
+  @RequirePermissions('inventory.products.view')
+  suggestions(@Param('id', idPipe) id: string): Promise<EquivalenceSuggestionsResponse> {
+    return this.equivalences.suggestions(id);
+  }
+
+  @Post('equivalences')
+  @RequirePermissions('inventory.equivalences.link')
+  link(@Body(bodyPipe) body: LinkEquivalenceDto): Promise<EquivalenceLinkResponse> {
+    return this.equivalences.link(body);
   }
 }

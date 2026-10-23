@@ -25,6 +25,16 @@ export class MembershipService {
     return permissions;
   }
 
+  /** Branches the membership may operate; null means every branch (allBranches). Unknown membership: none. */
+  async operableBranchIds(membershipId: string): Promise<string[] | null> {
+    const m = await this.prisma.membership.findUnique({
+      where: { id: membershipId },
+      select: { allBranches: true, branches: { select: { branchId: true } } },
+    });
+    if (!m) return [];
+    return m.allBranches ? null : m.branches.map((b) => b.branchId);
+  }
+
   invalidate(membershipId?: string) {
     if (membershipId) this.cache.delete(membershipId);
     else this.cache.clear();

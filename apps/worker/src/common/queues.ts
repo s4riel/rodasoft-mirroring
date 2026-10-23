@@ -3,6 +3,7 @@ export const QUEUE = {
   mail: 'mail',
   siat: 'siat',
   accounting: 'accounting',
+  inventory: 'inventory',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -15,6 +16,7 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'invoice.cancel': QUEUE.siat,
   'sale.confirmed': QUEUE.accounting,
   'entry.generate': QUEUE.accounting,
+  'inventory.product-created': QUEUE.inventory,
 };
 
 export const DEFAULT_JOB_OPTS = {

@@ -9,7 +9,7 @@
  */
 import { PrismaClient, BrandMode } from '@prisma/client';
 import { hash } from 'argon2';
-import { DEFAULT_ROLES, PERMISSIONS, type Permission } from '@rodasoft/domain';
+import { COMPANY_SETTING_DEFAULTS, DEFAULT_ROLES, PERMISSIONS, type Permission } from '@rodasoft/domain';
 
 import { seedCatalog } from './seed-catalog';
 
@@ -116,10 +116,19 @@ async function main() {
       });
     }
 
-    // 4. Demo product catalog (Rodalaser only)
+    // 4. Company settings with their defaults (HU-INV-06). Thresholds without a value are not stored: the code reads the default.
+    for (const key of ['inventory.skuPrefix', 'inventory.allowNegativeStock'] as const) {
+      await prisma.companySetting.upsert({
+        where: { companyId_key: { companyId: company.id, key } },
+        update: {},
+        create: { companyId: company.id, key, value: COMPANY_SETTING_DEFAULTS[key] },
+      });
+    }
+
+    // 5. Demo product catalog (Rodalaser only)
     if (c.slug === 'rodalaser') await seedCatalog(prisma, company.id, Number(process.env.SEED_BULK_PRODUCTS ?? 0));
 
-    // 5. Administrator with access to every branch
+    // 6. Administrator with access to every branch
     const adminRole = await prisma.role.findUniqueOrThrow({
       where: { companyId_key: { companyId: company.id, key: 'admin' } },
     });

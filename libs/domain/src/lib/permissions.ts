@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   'inventory.transfers.receive': 'Recibir transferencias',
   'inventory.products.import': 'Importar productos desde Excel',
   'inventory.products.export': 'Exportar productos a Excel',
+  'inventory.equivalences.link': 'Vincular equivalencias',
 
   // Sales and POS
   'sales.pos.use': 'Vender en el punto de venta',

@@ -1,4 +1,11 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   buildDuplicate,
@@ -6,21 +13,43 @@ import {
   type DuplicateSource,
   formatSku,
   parseSkuNumber,
-  SKU_PREFIX,
+  type ProductDraftInput,
+  type ProductFieldError,
+  SPEC_STEP_DIMENSIONS,
+  validateProductDraft,
+  type AttributeRule,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AppClsStore } from '../../common/cls';
+import { OutboxService } from '../../common/outbox/outbox.service';
+import { PrismaService, type TenantTransaction } from '../../common/prisma/prisma.service';
+import { SettingsService } from '../../common/settings/settings.service';
 import { MembershipService } from '../access/membership.service';
-import { PrismaService } from '../../common/prisma/prisma.service';
 import type { DuplicateProductDto } from './dto';
+import { ProductWriteDto } from './product-write.dto';
+import { StockMovementService } from './stock-movement.service';
 
 const notFound = () => new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
 
+export interface ProductWriteResponse {
+  id: string;
+  sku: string;
+  status: 'ACTIVE' | 'DRAFT';
+}
+
+export interface CodeAvailabilityResponse {
+  available: boolean;
+  productId: string | null;
+}
+
 /**
- * Write side of the catalog for the row actions of the list (HU-INV-02). It never touches `stock_levels`:
- * stock changes only through the movements service (HU-INV-16).
- * No outbox event: nothing consumes product events yet.
+ * Write side of the catalog: the row actions of the list (HU-INV-02) and the creation wizard (HU-INV-06).
+ * Stock changes only through `StockMovementService` (design-notes rule 1), so the initial stock of a new product is
+ * recorded there as an INITIAL movement.
+ *
+ * Drafts keep the product fields only. The initial stock and the thresholds are applied when the product becomes
+ * ACTIVE (on create or on finalize), so a draft never moves stock.
  */
 @Injectable()
 export class ProductCommandsService {
@@ -29,7 +58,29 @@ export class ProductCommandsService {
     private readonly cls: ClsService<AppClsStore>,
     private readonly audit: AuditService,
     private readonly membership: MembershipService,
+    private readonly settings: SettingsService,
+    private readonly stock: StockMovementService,
+    private readonly outbox: OutboxService,
   ) {}
+
+  /** Creates a product from the wizard: ACTIVE when `status` is ACTIVE (the default), a draft otherwise. */
+  async create(dto: ProductWriteDto): Promise<ProductWriteResponse> {
+    return this.write(null, dto);
+  }
+
+  /** Saves the wizard state of a draft. A PATCH sends the whole form, so missing fields are cleared. */
+  async saveDraft(id: string, dto: ProductWriteDto): Promise<ProductWriteResponse> {
+    return this.write(id, dto);
+  }
+
+  /** Live check of the (brand, code) pair. Drafts count, because the unique constraint covers them. */
+  async codeAvailability(brandId: string, code: string): Promise<CodeAvailabilityResponse> {
+    const existing = await this.prisma.tenant.product.findFirst({
+      where: { brandId, manufacturerCode: code.trim() },
+      select: { id: true },
+    });
+    return { available: !existing, productId: existing?.id ?? null };
+  }
 
   async duplicate(id: string, dto: DuplicateProductDto): Promise<DuplicateProductResponse> {
     const companyId = this.companyId();
@@ -52,13 +103,7 @@ export class ProductCommandsService {
           }
         }
 
-        // serializes SKU generation per company; released when the transaction ends
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}::text || ':sku'))`;
-        const last = await tx.$queryRaw<{ sku: string }[]>`
-          SELECT sku FROM products
-          WHERE company_id = ${companyId}::uuid AND sku ~ '^RL-[0-9]{6,}$'
-          ORDER BY length(sku) DESC, sku DESC LIMIT 1`;
-        const sku = formatSku(SKU_PREFIX, (last[0] ? (parseSkuNumber(last[0].sku, SKU_PREFIX) ?? 0) : 0) + 1);
+        const sku = await this.nextSku(tx, companyId);
 
         const { dimensions, ...payload } = buildDuplicate(toDuplicateSource(source, canCopyCost), dto);
         const created = await tx.product.create({
@@ -164,6 +209,220 @@ export class ProductCommandsService {
     });
   }
 
+  /**
+   * Creates or saves a product from the wizard (HU-INV-06). One transaction: validation, references, the product,
+   * its dimensions, and on activation the initial stock and thresholds, the audit entry and the outbox event.
+   */
+  private async write(id: string | null, dto: ProductWriteDto): Promise<ProductWriteResponse> {
+    const companyId = this.companyId();
+    assertWizardShape(dto);
+    const userId = this.cls.get('userId') ?? null;
+    const canViewCosts = await this.canViewCosts();
+
+    return this.prisma.tenant.$transaction(async (tx) => {
+        const existing = id ? await tx.product.findFirst({ where: { id, companyId }, select: { id: true, sku: true, status: true } }) : null;
+        if (id && !existing) throw notFound();
+        if (existing && existing.status !== 'DRAFT') {
+          throw new ConflictException({ code: 'NOT_A_DRAFT', message: 'Only a draft can be saved from the wizard' });
+        }
+
+        const status: 'ACTIVE' | 'DRAFT' = dto.status ?? (existing ? 'DRAFT' : 'ACTIVE');
+        const draft = status === 'DRAFT';
+        // missing identity fields are empty strings here; the validation below refuses them before any lookup
+        const code = dto.manufacturerCode?.trim() ?? '';
+        const brandId = dto.brandId ?? '';
+        const categoryId = dto.categoryId ?? '';
+        const rules = categoryId ? await this.attributeRules(tx, categoryId) : [];
+        const isBearing = rules.some((r) => r.step === SPEC_STEP_DIMENSIONS);
+
+        const input: ProductDraftInput = {
+          manufacturerCode: code || null,
+          brandId: brandId || null,
+          categoryId: categoryId || null,
+          isBearing,
+          salePrice: dto.salePrice ?? null,
+          dimensions: { innerDiameter: dto.innerDiameter ?? null, outerDiameter: dto.outerDiameter ?? null, width: dto.width ?? null },
+          attributes: dto.attributes ?? {},
+        };
+        // a draft may lack the rest, but not the category: the wizard picks it first and the row needs it
+        const errors = validateProductDraft(input, rules, { draft });
+        if (!categoryId) errors.push({ field: 'categoryId', code: 'CATEGORY_REQUIRED' });
+
+        // references are checked before the field rules: an unknown category has no field rules to check against
+        const brand = brandId ? await tx.brand.findFirst({ where: { id: brandId }, select: { id: true, name: true } }) : null;
+        if (brandId && !brand) throw new UnprocessableEntityException({ code: 'BRAND_NOT_FOUND', message: 'Brand not found' });
+        const category = categoryId ? await tx.category.findFirst({ where: { id: categoryId }, select: { id: true, name: true } }) : null;
+        if (categoryId && !category) throw new UnprocessableEntityException({ code: 'CATEGORY_NOT_FOUND', message: 'Category not found' });
+        assertValid(errors);
+        // the empty-id cases were reported by assertValid above, so both rows are present here
+        if (!brand || !category) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request' });
+        if (dto.countryId) {
+          const country = await tx.country.findFirst({ where: { id: dto.countryId }, select: { id: true } });
+          if (!country) throw new UnprocessableEntityException({ code: 'COUNTRY_NOT_FOUND', message: 'Country not found' });
+        }
+
+        // the stock side needs a receiving branch: its main warehouse holds the stock and the thresholds
+        const wantsStock = !draft && ((dto.initialStock ?? 0) > 0 || [dto.minStock, dto.maxStock, dto.location].some((v) => v !== undefined));
+        if (wantsStock && !dto.branchId) {
+          throw new BadRequestException({
+            code: 'VALIDATION_FAILED',
+            message: 'Invalid request',
+            details: [{ field: 'branchId', code: 'BRANCH_REQUIRED' }],
+          });
+        }
+        const warehouseId = wantsStock && dto.branchId ? await this.receivingWarehouse(tx, dto.branchId) : null;
+
+        const data = {
+          manufacturerCode: code,
+          brandId: brand.id,
+          categoryId: category.id,
+          countryId: dto.countryId ?? null,
+          name: dto.name?.trim() || `${category.name} ${brand.name} ${code}`,
+          unit: dto.unit ?? 'UN',
+          salePrice: dto.salePrice ?? '0.00',
+          status,
+          sectors: dto.sectors ?? [],
+          tariffCode: dto.tariffCode ?? null,
+          supplierName: dto.supplierName ?? null,
+          entryDate: dto.entryDate ? calendarDate(dto.entryDate) : null,
+          attributes: (dto.attributes ?? {}) as Prisma.InputJsonObject,
+          updatedById: userId,
+          ...(canViewCosts ? { cost: dto.cost ?? null } : {}),
+        };
+
+        let product: { id: string; sku: string };
+        try {
+          if (existing) {
+            // conditional on DRAFT: when a concurrent save committed first, the row no longer matches and nothing is written
+            const { count } = await tx.product.updateMany({ where: { id: existing.id, companyId, status: 'DRAFT' }, data });
+            if (count !== 1) throw new ConflictException({ code: 'NOT_A_DRAFT', message: 'Only a draft can be saved from the wizard' });
+            product = { id: existing.id, sku: existing.sku };
+          } else {
+            product = await tx.product.create({
+              data: { ...data, companyId, sku: await this.nextSku(tx, companyId), createdById: userId },
+              select: { id: true, sku: true },
+            });
+          }
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            throw new ConflictException({
+              code: 'DUPLICATE_MANUFACTURER_CODE',
+              message: 'A product with this manufacturer code already exists for the brand',
+            });
+          }
+          throw err;
+        }
+
+        await this.saveDimensions(tx, companyId, product.id, dto);
+
+        if (!draft) {
+          if (warehouseId && (dto.initialStock ?? 0) > 0) {
+            await this.stock.apply(tx, {
+              productId: product.id,
+              warehouseId,
+              type: 'INITIAL',
+              quantity: dto.initialStock ?? 0,
+              reason: 'Initial stock on product creation',
+              refType: 'PRODUCT',
+              refId: product.id,
+              refNumber: product.sku,
+            });
+          }
+          if (warehouseId) await this.saveThreshold(tx, companyId, product.id, warehouseId, dto);
+        }
+
+        await this.audit.log(
+          {
+            action: existing ? (draft ? 'inventory.product.draft.save' : 'inventory.product.finalize') : draft ? 'inventory.product.draft.create' : 'inventory.product.create',
+            entity: 'Product',
+            entityId: product.id,
+            after: { sku: product.sku, status, manufacturerCode: data.manufacturerCode, brandId: brand.id, categoryId: data.categoryId },
+          },
+          tx as unknown as Prisma.TransactionClient,
+        );
+        if (!draft) {
+          await this.outbox.publish(
+            'inventory.product-created',
+            { productId: product.id, sku: product.sku },
+            { tx, companyId, idempotencyKey: `inventory.product-created:${product.id}` },
+          );
+        }
+        return { id: product.id, sku: product.sku, status };
+      });
+  }
+
+  /** Attribute definitions of a category, falling back to its parent's when it has none (as the wizard shows them). */
+  private async attributeRules(tx: TenantTransaction, categoryId: string): Promise<(AttributeRule & { step: number })[]> {
+    const order = [{ step: 'asc' as const }, { sortOrder: 'asc' as const }];
+    let defs = await tx.attributeDefinition.findMany({ where: { categoryId }, orderBy: order });
+    if (!defs.length) {
+      const category = await tx.category.findFirst({ where: { id: categoryId }, select: { parentId: true } });
+      if (category?.parentId) defs = await tx.attributeDefinition.findMany({ where: { categoryId: category.parentId }, orderBy: order });
+    }
+    return defs.map((d) => ({
+      key: d.key,
+      type: d.type,
+      required: d.required,
+      options: Array.isArray(d.options) ? (d.options as string[]) : null,
+      step: d.step,
+    }));
+  }
+
+  /** The main warehouse of the branch, if the member may operate that branch. */
+  private async receivingWarehouse(tx: TenantTransaction, branchId: string): Promise<string> {
+    const membershipId = this.cls.get('membershipId');
+    const allowed = membershipId ? await this.membership.operableBranchIds(membershipId) : [];
+    if (allowed && !allowed.includes(branchId)) {
+      throw new ForbiddenException({ code: 'BRANCH_NOT_ALLOWED', message: 'You cannot operate this branch' });
+    }
+    const warehouse = await tx.warehouse.findFirst({ where: { branchId, isMain: true }, select: { id: true } });
+    if (!warehouse) throw new UnprocessableEntityException({ code: 'WAREHOUSE_NOT_FOUND', message: 'The branch has no main warehouse' });
+    return warehouse.id;
+  }
+
+  private async saveDimensions(tx: TenantTransaction, companyId: string, productId: string, dto: ProductWriteDto) {
+    const values = {
+      innerDiameter: dto.innerDiameter ?? null,
+      outerDiameter: dto.outerDiameter ?? null,
+      width: dto.width ?? null,
+      weight: dto.weight ?? null,
+    };
+    if (Object.values(values).every((v) => v === null)) {
+      await tx.productDimension.deleteMany({ where: { productId } });
+      return;
+    }
+    await tx.productDimension.upsert({
+      where: { productId },
+      create: { companyId, productId, ...values },
+      update: values,
+    });
+  }
+
+  private async saveThreshold(tx: TenantTransaction, companyId: string, productId: string, warehouseId: string, dto: ProductWriteDto) {
+    if (dto.minStock === undefined && dto.maxStock === undefined && dto.location === undefined) return;
+    const values = { minStock: dto.minStock ?? null, maxStock: dto.maxStock ?? null, location: dto.location ?? null };
+    await tx.stockThreshold.upsert({
+      where: { productId_warehouseId: { productId, warehouseId } },
+      create: { companyId, productId, warehouseId, ...values },
+      update: values,
+    });
+  }
+
+  /**
+   * Next internal SKU of the company, with the prefix from its settings (decision #32). The advisory lock serializes
+   * generation per company until the transaction ends; only numeric SKUs with the prefix count.
+   */
+  private async nextSku(tx: TenantTransaction, companyId: string): Promise<string> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}::text || ':sku'))`;
+    const prefix = await this.settings.get('inventory.skuPrefix', tx);
+    const pattern = `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[0-9]{6,}$`;
+    const last = await tx.$queryRaw<{ sku: string }[]>`
+      SELECT sku FROM products
+      WHERE company_id = ${companyId}::uuid AND sku ~ ${pattern}
+      ORDER BY length(sku) DESC, sku DESC LIMIT 1`;
+    return formatSku(prefix, (last[0] ? (parseSkuNumber(last[0].sku, prefix) ?? 0) : 0) + 1);
+  }
+
   /** Cost is only visible with `inventory.costs.view`, so a copy by anyone else must not inherit it. */
   private async canViewCosts(): Promise<boolean> {
     const membershipId = this.cls.get('membershipId');
@@ -176,6 +435,36 @@ export class ProductCommandsService {
     if (!companyId) throw new Error('Missing company in context');
     return companyId;
   }
+}
+
+/** Blocking errors are 400 with their fields; a missing price is its own 422, which the wizard shows on the price step. */
+function assertValid(errors: ProductFieldError[]): void {
+  if (!errors.length) return;
+  const blocking = errors.filter((e) => e.code !== 'PRICE_REQUIRED');
+  if (blocking.length) {
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      message: 'Invalid request',
+      details: blocking.map((e) => ({ field: e.field, code: e.code })),
+    });
+  }
+  throw new UnprocessableEntityException({ code: 'PRICE_REQUIRED', message: 'The product needs a sale price' });
+}
+
+/** Rejects the shapes the DTO cannot check: a date that does not exist, and a minimum above the maximum. */
+function assertWizardShape(dto: ProductWriteDto): void {
+  const details: { field: string; code: string }[] = [];
+  if (dto.entryDate && !calendarDate(dto.entryDate)) details.push({ field: 'entryDate', code: 'INVALID_DATE' });
+  if (dto.minStock !== undefined && dto.maxStock !== undefined && dto.minStock > dto.maxStock) {
+    details.push({ field: 'maxStock', code: 'MAX_BELOW_MIN' });
+  }
+  if (details.length) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details });
+}
+
+/** A calendar date as `YYYY-MM-DD`, or null when it does not exist (for example 2026-02-30). */
+function calendarDate(value: string): Date | null {
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
 }
 
 function toDuplicateSource(
