@@ -64,7 +64,7 @@ interface FilterChip {
   icon: IconName;
 }
 
-const STATUS_LABELS: Record<ProductStatusFilter, string> = { ACTIVE: 'Activo', INACTIVE: 'Inactivo' };
+const STATUS_LABELS: Record<ProductStatusFilter, string> = { ACTIVE: 'Activo', INACTIVE: 'Inactivo', DRAFT: 'Borrador' };
 
 /** IN-01a…e · Product list: filters, applied-filter chips, paginated table, row menu and empty states. */
 @Component({
@@ -117,6 +117,7 @@ export class ProductsPage {
   protected readonly statusOptions: SelectOption[] = [
     { value: 'ACTIVE', label: STATUS_LABELS.ACTIVE },
     { value: 'INACTIVE', label: STATUS_LABELS.INACTIVE },
+    { value: 'DRAFT', label: STATUS_LABELS.DRAFT },
   ];
 
   protected readonly canView = computed(() => this.ctx.can('inventory.products.view'));
@@ -145,7 +146,7 @@ export class ProductsPage {
       categoryId: q.get('categoryId'),
       subcategoryId: q.get('subcategoryId'),
       brandId: q.get('brandId'),
-      status: status === 'ACTIVE' || status === 'INACTIVE' ? status : null,
+      status: status === 'ACTIVE' || status === 'INACTIVE' || status === 'DRAFT' ? status : null,
       page: Math.max(1, Number(q.get('page')) || 1),
     };
   });
@@ -350,9 +351,12 @@ export class ProductsPage {
         this.duplicateTarget.set(product);
         this.duplicateOpen.set(true);
         return;
-      case 'view':
-        void this.router.navigate(['/inventory/products', product.id]);
+      case 'view': {
+        // a draft has no sheet yet: it opens in the creation wizard (HU-INV-06)
+        const path = product.status === 'DRAFT' ? [product.id, 'draft'] : [product.id];
+        void this.router.navigate(['/inventory/products', ...path]);
         return;
+      }
       case 'delete':
         this.deleteTarget.set(product);
         this.deleteOpen.set(true);
@@ -388,6 +392,11 @@ export class ProductsPage {
         this.toast.danger(problemOf(err).message);
       },
     });
+  }
+
+  /** Opens the creation wizard at its first screen: the category cards (IN-03a). */
+  protected createProduct() {
+    void this.router.navigate(['/inventory/products/new']);
   }
 
   /** Actions of the header and the row menu arrive with their own stories. */

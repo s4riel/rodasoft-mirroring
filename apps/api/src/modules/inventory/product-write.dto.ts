@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ArrayMaxSize,
   Matches,
   Max,
   MaxLength,
@@ -49,24 +50,24 @@ export class ProductWriteDto {
   @ApiPropertyOptional({ description: 'Industry (country of origin); the brand country when omitted' })
   @IsOptional()
   @IsUUID()
-  countryId?: string;
+  countryId?: string | null;
 
   @ApiPropertyOptional({ description: 'Commercial name; built from the category and brand when omitted' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  name?: string;
+  name?: string | null;
 
   @ApiPropertyOptional({ example: '45.50' })
   @IsOptional()
   @Matches(DECIMAL_2)
-  salePrice?: string;
+  salePrice?: string | null;
 
   /** Only stored with inventory.costs.view; ignored otherwise. */
   @ApiPropertyOptional({ example: '30.0000' })
   @IsOptional()
   @Matches(DECIMAL_4)
-  cost?: string;
+  cost?: string | null;
 
   @ApiPropertyOptional({ example: 'UN' })
   @IsOptional()
@@ -77,22 +78,22 @@ export class ProductWriteDto {
   @ApiPropertyOptional({ description: 'Inner diameter d, mm' })
   @IsOptional()
   @Matches(MEASURE)
-  innerDiameter?: string;
+  innerDiameter?: string | null;
 
   @ApiPropertyOptional({ description: 'Outer diameter D, mm' })
   @IsOptional()
   @Matches(MEASURE)
-  outerDiameter?: string;
+  outerDiameter?: string | null;
 
   @ApiPropertyOptional({ description: 'Width B (T for tapered bearings), mm' })
   @IsOptional()
   @Matches(MEASURE)
-  width?: string;
+  width?: string | null;
 
   @ApiPropertyOptional({ description: 'Weight, kg' })
   @IsOptional()
   @Matches(MEASURE)
-  weight?: string;
+  weight?: string | null;
 
   @ApiPropertyOptional({ type: Object, description: 'Technical fields, keyed by attribute definition key' })
   @IsOptional()
@@ -110,18 +111,18 @@ export class ProductWriteDto {
   @IsOptional()
   @IsString()
   @MaxLength(60)
-  tariffCode?: string;
+  tariffCode?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  supplierName?: string;
+  supplierName?: string | null;
 
   @ApiPropertyOptional({ example: '2026-10-22' })
   @IsOptional()
   @Matches(DATE)
-  entryDate?: string;
+  entryDate?: string | null;
 
   /** Branch that receives the initial stock; its main warehouse gets the stock and the thresholds. */
   @ApiPropertyOptional()
@@ -135,6 +136,22 @@ export class ProductWriteDto {
   @Min(0)
   @Max(1_000_000)
   initialStock?: number;
+
+  /** Storage keys of the photos, from `POST /inventory/uploads` (at most five, IN-03 step 4). */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  photos?: string[];
+
+  /** Storage key of the datasheet PDF, from `POST /inventory/uploads`. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  datasheetKey?: string | null;
 
   @ApiPropertyOptional({ minimum: 0 })
   @IsOptional()
@@ -152,7 +169,7 @@ export class ProductWriteDto {
   @IsOptional()
   @IsString()
   @MaxLength(60)
-  location?: string;
+  location?: string | null;
 }
 
 /** Fields of `POST /inventory/uploads` next to the file. */
@@ -172,6 +189,30 @@ export class CodeAvailabilityQueryDto {
   @IsNotEmpty()
   @MaxLength(60)
   code!: string;
+}
+
+/** Measures and fields typed so far, to look for equivalents of a product that is not saved yet. */
+export class EquivalenceCandidatesDto {
+  @ApiProperty()
+  @IsUUID()
+  categoryId!: string;
+
+  @ApiProperty({ description: 'Inner diameter d, mm' })
+  @Matches(MEASURE)
+  innerDiameter!: string;
+
+  @ApiProperty({ description: 'Outer diameter D, mm' })
+  @Matches(MEASURE)
+  outerDiameter!: string;
+
+  @ApiProperty({ description: 'Width B, mm' })
+  @Matches(MEASURE)
+  width!: string;
+
+  @ApiPropertyOptional({ type: Object, description: 'Technical fields typed so far (seal, clearance…) to tell exact from different' })
+  @IsOptional()
+  @IsObject()
+  attributes?: Record<string, unknown>;
 }
 
 export class LinkEquivalenceDto {

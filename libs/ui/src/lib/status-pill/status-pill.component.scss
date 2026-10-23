@@ -14,6 +14,12 @@
   background: var(--_bg);
   white-space: nowrap;
 }
+:host([data-size='lg']) {
+  gap: var(--space-2);
+  height: 34px; /* Figma StatusPill in list rows: 34 */
+  padding: 0 var(--space-3);
+  font-weight: 400;
+}
 :host([data-status='success']) {
   --_c: var(--status-success);
   --_bg: var(--status-success-soft);

@@ -1,7 +1,7 @@
 import { booleanAttribute, ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 import { IconComponent } from '../icon/icon.component';
 
-export type FilterChipSize = 'm' | 'l';
+export type FilterChipSize = 's' | 'm' | 'l';
 
 /**
  * Toggle filter chip (Figma: FilterChip Size=M|L, Selected=Off|On, State=Default|Hover|Pressed|Focus|Disabled).

@@ -60,6 +60,9 @@ async function createCompany(tag: string): Promise<Fixture> {
       { companyId, categoryId: bearings.id, key: 'bore', label: 'Agujero', type: 'NUMBER', step: 2 },
       { companyId, categoryId: bearings.id, key: 'seal', label: 'Sello', type: 'ENUM', options: ['Abierto', '2RS'], required: true, step: 3 },
       { companyId, categoryId: seals.id, key: 'material', label: 'Material', type: 'TEXT', required: true, step: 3 },
+      { companyId, categoryId: seals.id, key: 'innerDiameter', label: 'Ø Interior d', type: 'NUMBER', step: 3 },
+      { companyId, categoryId: seals.id, key: 'outerDiameter', label: 'Ø Exterior D', type: 'NUMBER', step: 3 },
+      { companyId, categoryId: seals.id, key: 'width', label: 'Ancho B', type: 'NUMBER', step: 3 },
     ],
   });
   return {
@@ -198,6 +201,66 @@ describe('ProductCommandsService create / saveDraft (integration, real Postgres)
     expect(err).toMatchObject({ status: 409, code: 'NOT_A_DRAFT' });
   });
 
+  it('keeps the stored fields of a draft that a later save leaves out', async () => {
+    const draft = await commands.create(bearing({ manufacturerCode: 'KEEP-1', status: 'DRAFT', sectors: ['Minería'], tariffCode: '8482.10' }));
+
+    // the wizard sends only what the user filled in this time
+    await commands.saveDraft(draft.id, { status: 'DRAFT', manufacturerCode: 'KEEP-1', brandId: a.brandSKF, categoryId: a.bearings, salePrice: '50.00' });
+
+    const row = await base.product.findFirstOrThrow({ where: { id: draft.id }, include: { dimensions: true } });
+    expect(row.attributes).toEqual({ seal: 'Abierto' });
+    expect(row.sectors).toEqual(['Minería']);
+    expect(row.tariffCode).toBe('8482.10');
+    expect(row.salePrice.toFixed(2)).toBe('50.00');
+    expect(row.dimensions?.innerDiameter?.toString()).toBe('25');
+  });
+
+  it('clears a field sent as null and keeps one that is left out', async () => {
+    const datasheet = `${a.companyId}/datasheet/0190e8a0-0000-7000-8000-0000000000ee.pdf`;
+    const draft = await commands.create(
+      bearing({ manufacturerCode: 'CLEAR-1', status: 'DRAFT', tariffCode: '8482.10', supplierName: 'Proveedor', datasheetKey: datasheet }),
+    );
+
+    await commands.saveDraft(draft.id, { status: 'DRAFT', manufacturerCode: 'CLEAR-1', tariffCode: null, datasheetKey: null });
+
+    const row = await base.product.findFirstOrThrow({ where: { id: draft.id } });
+    expect(row.tariffCode).toBeNull();
+    expect(row.datasheetUrl).toBeNull();
+    expect(row.supplierName).toBe('Proveedor');
+  });
+
+  it('fills the dimension columns from the technical fields of a category without a dimensions step', async () => {
+    const seal = await commands.create({
+      manufacturerCode: 'SEAL-DIMS',
+      brandId: a.brandSKF,
+      categoryId: a.seals,
+      salePrice: '12.00',
+      attributes: { material: 'NBR', innerDiameter: 35, outerDiameter: 52, width: 7 },
+    });
+    const dims = await base.productDimension.findFirstOrThrow({ where: { productId: seal.id } });
+    expect([dims.innerDiameter?.toString(), dims.outerDiameter?.toString(), dims.width?.toString()]).toEqual(['35', '52', '7']);
+  });
+
+  it('stores the photo and datasheet keys of this company and refuses keys of another company', async () => {
+    const photo = `${a.companyId}/photo/0190e8a0-0000-7000-8000-0000000000aa.jpg`;
+    const datasheet = `${a.companyId}/datasheet/0190e8a0-0000-7000-8000-0000000000bb.pdf`;
+    const created = await commands.create(bearing({ manufacturerCode: 'FILES-1', status: 'DRAFT', photos: [photo], datasheetKey: datasheet }));
+    const row = await base.product.findFirstOrThrow({ where: { id: created.id } });
+    expect(row.photos).toEqual([photo]);
+    expect(row.datasheetUrl).toBe(datasheet);
+
+    const foreign = `${randomUUID()}/photo/0190e8a0-0000-7000-8000-0000000000cc.jpg`;
+    const err = await rejection(commands.saveDraft(created.id, { status: 'DRAFT', manufacturerCode: 'FILES-1', photos: [foreign] }));
+    expect(err).toMatchObject({ status: 400, code: 'VALIDATION_FAILED', details: [{ field: 'photos', code: 'INVALID_FILE_KEY' }] });
+  });
+
+  it('keeps the stored photos when a later save leaves them out', async () => {
+    const photo = `${a.companyId}/photo/0190e8a0-0000-7000-8000-0000000000dd.png`;
+    const created = await commands.create(bearing({ manufacturerCode: 'FILES-2', status: 'DRAFT', photos: [photo] }));
+    await commands.saveDraft(created.id, { status: 'DRAFT', manufacturerCode: 'FILES-2', salePrice: '10.00' });
+    expect((await base.product.findFirstOrThrow({ where: { id: created.id } })).photos).toEqual([photo]);
+  });
+
   it('finalizes a draft once when two saves race: the stock is recorded once', async () => {
     const draft = await commands.create(bearing({ manufacturerCode: 'RACE-1', status: 'DRAFT', salePrice: undefined, attributes: {} }));
     const finalize = bearing({ manufacturerCode: 'RACE-1', status: 'ACTIVE', branchId: a.branchId, initialStock: 10 });
@@ -271,6 +334,29 @@ describe('ProductCommandsService create / saveDraft (integration, real Postgres)
       await equivalences.link({ productAId: original.id, productBId: twin.id });
       const after = await equivalences.suggestions(original.id);
       expect(after.items.map((i) => i.productId)).not.toContain(twin.id);
+    });
+
+    it('finds candidates by measures for a product that is not saved yet, exact first', async () => {
+      await commands.create(bearing({ manufacturerCode: 'CAND-EXACT', attributes: { seal: '2RS' } }));
+      await commands.create(bearing({ manufacturerCode: 'CAND-DIFF', attributes: { seal: 'Abierto' } }));
+
+      const found = await equivalences.candidates({
+        categoryId: a.bearings,
+        innerDiameter: '25',
+        outerDiameter: '52',
+        width: '15',
+        attributes: { seal: '2RS' },
+      });
+      const byCode = new Map(found.items.map((i) => [i.manufacturerCode, i.kind]));
+      expect(byCode.get('CAND-EXACT')).toBe('EXACT');
+      expect(byCode.get('CAND-DIFF')).toBe('WITH_DIFFERENCES');
+      expect(found.items[0].kind).toBe('EXACT');
+
+      expect((await equivalences.candidates({ categoryId: a.bearings, innerDiameter: '99', outerDiameter: '52', width: '15' })).items).toEqual([]);
+      expect(await rejection(equivalences.candidates({ categoryId: randomUUID(), innerDiameter: '25', outerDiameter: '52', width: '15' }))).toMatchObject({
+        status: 404,
+        code: 'CATEGORY_NOT_FOUND',
+      });
     });
 
     it('stores a link once whichever way round it is made', async () => {

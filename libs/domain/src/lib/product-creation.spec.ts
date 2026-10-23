@@ -31,7 +31,7 @@ describe('wizardSteps', () => {
 
   it('marks identification, price and inventory (and dimensions for bearings) as required', () => {
     expect(wizardSteps(true).filter((s) => s.required).map((s) => s.key)).toEqual(['identification', 'dimensions', 'price-inventory']);
-    expect(wizardSteps(false).filter((s) => s.required).map((s) => s.key)).toEqual(['identification', 'price-inventory']);
+    expect(wizardSteps(false).filter((s) => s.required).map((s) => s.key)).toEqual(['identification', 'specifications', 'price-inventory']);
   });
 });
 

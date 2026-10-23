@@ -1,10 +1,18 @@
 import {
   BadRequestException,
   Body,
+  CallHandler,
   Controller,
+  ExecutionContext,
+  Get,
   HttpCode,
+  Injectable,
+  NestInterceptor,
+  NotFoundException,
+  Param,
   PayloadTooLargeException,
   Post,
+  StreamableFile,
   UnsupportedMediaTypeException,
   UploadedFile,
   UseInterceptors,
@@ -15,6 +23,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { checkUpload, UPLOAD_CONTENT_TYPE, type UploadKind } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
+import { catchError, type Observable, throwError } from 'rxjs';
 import type { AppClsStore } from '../../common/cls';
 import { RequirePermissions } from '../access/require-permissions.decorator';
 import { StorageService } from '../../common/storage/storage.service';
@@ -38,6 +47,28 @@ const fieldsPipe = new ValidationPipe({
     }),
 });
 
+/**
+ * Multer reports a file over its limit as a bare 413 without our error code. This runs before the file interceptor and
+ * gives that error the FILE_TOO_LARGE code of the upload contract.
+ */
+@Injectable()
+class UploadLimitInterceptor implements NestInterceptor {
+  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    return next.handle().pipe(
+      catchError((err: unknown) => {
+        const coded = err instanceof PayloadTooLargeException && typeof err.getResponse() === 'object' && 'code' in (err.getResponse() as object);
+        if (err instanceof PayloadTooLargeException && !coded) {
+          return throwError(() => new PayloadTooLargeException({ code: 'FILE_TOO_LARGE', message: 'The file is larger than the limit' }));
+        }
+        return throwError(() => err);
+      }),
+    );
+  }
+}
+
+const FILE_NAME = /^[0-9a-f-]{36}.(jpg|png|webp|pdf)$/;
+const FILE_TYPES: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf' };
+
 /** Largest file the parser keeps in memory: the datasheet limit. Each kind is checked against its own limit. */
 const MAX_PARSED_BYTES = 10 * 1024 * 1024;
 
@@ -54,11 +85,25 @@ export class UploadsController {
     private readonly cls: ClsService<AppClsStore>,
   ) {}
 
+  /** Serves a stored file of the caller's company, so the wizard can preview photos and open the datasheet. */
+  @Get('files/:kind/:file')
+  @RequirePermissions('inventory.products.view')
+  async file(@Param('kind') kind: string, @Param('file') file: string): Promise<StreamableFile> {
+    const type = FILE_TYPES[file.slice(file.lastIndexOf('.') + 1)];
+    const companyId = this.cls.get('companyId');
+    if ((kind !== 'photo' && kind !== 'datasheet') || !FILE_NAME.test(file) || !type || !companyId) {
+      throw new NotFoundException({ code: 'FILE_NOT_FOUND', message: 'File not found' });
+    }
+    const bytes = await this.storage.read(`${companyId}/${kind}/${file}`);
+    if (!bytes) throw new NotFoundException({ code: 'FILE_NOT_FOUND', message: 'File not found' });
+    return new StreamableFile(bytes, { type });
+  }
+
   @Post('uploads')
   @HttpCode(201)
   @ApiConsumes('multipart/form-data')
   @RequirePermissions('inventory.products.edit')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PARSED_BYTES, files: 1 } }))
+  @UseInterceptors(UploadLimitInterceptor, FileInterceptor('file', { limits: { fileSize: MAX_PARSED_BYTES, files: 1 } }))
   async upload(
     @UploadedFile() file: UploadedBinary | undefined,
     @Body(fieldsPipe) fields: UploadFieldsDto,

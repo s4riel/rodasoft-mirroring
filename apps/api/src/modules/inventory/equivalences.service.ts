@@ -18,10 +18,12 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { AppClsStore } from '../../common/cls';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { ListEquivalentsQueryDto } from './dto';
-import type { LinkEquivalenceDto } from './product-write.dto';
+import type { EquivalenceCandidatesDto, LinkEquivalenceDto } from './product-write.dto';
 
 /** Suggestions offered on "Producto creado" (design-notes: 3 suggested equivalents). */
 const SUGGESTION_LIMIT = 3;
+/** Candidates shown on the equivalences step, before the product exists. */
+const CANDIDATE_LIMIT = 10;
 
 const KIND_ORDER: Record<EquivalenceKind, number> = { EXACT: 0, WITH_DIFFERENCES: 1, INCOMPATIBLE: 2 };
 
@@ -55,38 +57,53 @@ export class EquivalencesService {
       include: { dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true } } },
     });
     if (!source) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
-    const d = source.dimensions;
-    if (!d?.innerDiameter || !d.outerDiameter || !d.width) return { items: [] };
 
     const links = await this.prisma.tenant.equivalence.findMany({
       where: { OR: [{ productAId: id }, { productBId: id }] },
       select: { productAId: true, productBId: true },
     });
-    const linked = new Set(links.flatMap((l) => [l.productAId, l.productBId]));
+    const linked = links.flatMap((l) => [l.productAId, l.productBId]);
+    const category = await this.prisma.tenant.category.findFirst({ where: { id: source.categoryId }, select: { parentId: true } });
+    return { items: await this.rank(toComparable(source), [id, ...linked], category?.parentId ?? null, SUGGESTION_LIMIT) };
+  }
 
+  /**
+   * Candidates for a product that does not exist yet (the equivalences step of the wizard): active products of the same
+   * category with the same d×D×B, compared with the attributes typed so far. Exact first; at most ten.
+   */
+  async candidates(dto: EquivalenceCandidatesDto): Promise<EquivalenceSuggestionsResponse> {
+    const category = await this.prisma.tenant.category.findFirst({ where: { id: dto.categoryId }, select: { id: true, parentId: true } });
+    if (!category) throw new NotFoundException({ code: 'CATEGORY_NOT_FOUND', message: 'Category not found' });
+    const source: EquivalenceComparable = {
+      categoryId: category.id,
+      dimensions: { innerDiameter: dto.innerDiameter, outerDiameter: dto.outerDiameter, width: dto.width },
+      attributes: dto.attributes ?? {},
+    };
+    return { items: await this.rank(source, [], category.parentId, CANDIDATE_LIMIT) };
+  }
+
+  /** The products with the source's category and measures, compared with it and ranked exact first. */
+  private async rank(source: EquivalenceComparable, exclude: string[], parentId: string | null, limit: number): Promise<EquivalenceSuggestion[]> {
+    const m = source.dimensions;
+    if (!m?.innerDiameter || !m.outerDiameter || !m.width) return [];
     const candidates = await this.prisma.tenant.product.findMany({
       where: {
-        id: { not: id, notIn: [...linked] },
+        id: { notIn: exclude },
         status: 'ACTIVE',
         categoryId: source.categoryId,
-        dimensions: { is: { innerDiameter: d.innerDiameter, outerDiameter: d.outerDiameter, width: d.width } },
+        dimensions: { is: { innerDiameter: m.innerDiameter, outerDiameter: m.outerDiameter, width: m.width } },
       },
       include: productInclude,
-      take: 50,
     });
-    const category = await this.prisma.tenant.category.findFirst({ where: { id: source.categoryId }, select: { parentId: true } });
-    const labels = await this.labelsOf(source.categoryId, category?.parentId ?? null);
-
-    const sourceComparable = toComparable({ ...source, dimensions: source.dimensions });
-    const items: EquivalenceSuggestion[] = candidates
+    const labels = await this.labelsOf(source.categoryId, parentId);
+    return candidates
       .map((p) => {
-        const { kind, differences } = compareEquivalents(sourceComparable, toComparable(p), labels);
+        const { kind, differences } = compareEquivalents(source, toComparable(p), labels);
         return { productId: p.id, manufacturerCode: p.manufacturerCode, brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl }, kind, differences };
       })
-      .filter((s) => s.kind !== 'INCOMPATIBLE')
+      .filter((c) => c.kind !== 'INCOMPATIBLE')
       .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.brand.name.localeCompare(b.brand.name) || a.manufacturerCode.localeCompare(b.manufacturerCode))
-      .slice(0, SUGGESTION_LIMIT);
-    return { items };
+      .slice(0, limit);
   }
 
   /**

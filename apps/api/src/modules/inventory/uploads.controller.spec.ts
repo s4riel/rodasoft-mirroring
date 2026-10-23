@@ -1,4 +1,4 @@
-import { BadRequestException, PayloadTooLargeException, UnsupportedMediaTypeException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, PayloadTooLargeException, StreamableFile, UnsupportedMediaTypeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -37,6 +37,20 @@ describe('UploadsController', () => {
     const result = await controller.upload(file(pdf), { kind: 'datasheet' });
     expect(result.key).toMatch(/\/datasheet\/.+\.pdf$/);
     expect(result.contentType).toBe('application/pdf');
+  });
+
+  it('serves a stored file of the company with its content type', async () => {
+    const { key } = await controller.upload(file(jpeg), { kind: 'photo' });
+    const name = key.split('/')[2];
+    const served = await controller.file('photo', name);
+    expect(served).toBeInstanceOf(StreamableFile);
+    expect(served.getHeaders().type).toBe('image/jpeg');
+  });
+
+  it('answers 404 for a missing file, a wrong kind or a name that is not an upload', async () => {
+    await expect(controller.file('photo', '0190e8a0-0000-7000-8000-0000000000ff.jpg')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.file('secret', '0190e8a0-0000-7000-8000-0000000000ff.jpg')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.file('photo', '../../etc/passwd')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('refuses a missing file with 400 FILE_REQUIRED', async () => {

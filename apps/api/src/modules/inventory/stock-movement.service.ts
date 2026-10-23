@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { StockMovementType } from '@prisma/client';
 import { applyMovement, InsufficientStockError } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
@@ -31,17 +31,29 @@ export class StockMovementService {
     private readonly settings: SettingsService,
   ) {}
 
+  /**
+   * Deletes the levels of a product that hold nothing (quantity and reserved both zero). Levels with stock are never
+   * touched here: the product delete checks for them first, and the lock it holds keeps a movement from slipping in.
+   */
+  async removeEmptyLevels(tx: TenantTransaction, productId: string, companyId: string): Promise<void> {
+    await tx.stockLevel.deleteMany({ where: { productId, companyId, quantity: 0, reserved: 0 } });
+  }
+
   async apply(tx: TenantTransaction, input: StockMovementInput): Promise<{ balanceAfter: number }> {
     const companyId = this.cls.get('companyId');
     if (!companyId) throw new Error('Stock movement outside a company context');
+    assertOrigin(input);
 
     // the product row lock serializes movements with remove(), which takes the same lock before checking for stock
     const [product] = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM products WHERE id = ${input.productId}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
     if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
-    const [warehouse] = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM warehouses WHERE id = ${input.warehouseId}::uuid AND company_id = ${companyId}::uuid`;
+    const [warehouse] = await tx.$queryRaw<{ id: string; status: string }[]>`
+      SELECT id, status::text AS status FROM warehouses WHERE id = ${input.warehouseId}::uuid AND company_id = ${companyId}::uuid`;
     if (!warehouse) throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'Warehouse not found' });
+    if (warehouse.status !== 'ACTIVE') {
+      throw new UnprocessableEntityException({ code: 'WAREHOUSE_INACTIVE', message: 'The warehouse is inactive and cannot receive stock' });
+    }
 
     // the level is created on first use; ON CONFLICT keeps a concurrent creator's row
     await tx.$executeRaw`
@@ -86,5 +98,22 @@ export class StockMovementService {
       },
     });
     return { balanceAfter };
+  }
+}
+
+/** Types that add stock, and types that remove it: the sign of a movement must match its type. */
+const INWARD: readonly StockMovementType[] = ['PURCHASE_RECEIPT', 'TRANSFER_IN', 'ADJUSTMENT_IN', 'INITIAL', 'RETURN'];
+const OUTWARD: readonly StockMovementType[] = ['SALE', 'TRANSFER_OUT', 'ADJUSTMENT_OUT'];
+
+/** Every movement says why it happened and has a non-zero quantity with the sign of its type. */
+function assertOrigin(input: StockMovementInput): void {
+  if (!input.reason.trim()) {
+    throw new BadRequestException({ code: 'REASON_REQUIRED', message: 'A stock movement needs a reason' });
+  }
+  const signMatches =
+    input.quantity !== 0 &&
+    (INWARD.includes(input.type) ? input.quantity > 0 : OUTWARD.includes(input.type) ? input.quantity < 0 : true);
+  if (!signMatches) {
+    throw new UnprocessableEntityException({ code: 'MOVEMENT_SIGN_MISMATCH', message: 'The quantity sign does not match the movement type' });
   }
 }

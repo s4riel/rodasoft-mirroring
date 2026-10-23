@@ -1,0 +1,546 @@
+<rs-page-header
+  [title]="title()"
+  [description]="subtitle()"
+  type="form"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@if (loadError(); as message) {
+  <rs-note type="danger" title="No pudimos abrir el formulario">
+    {{ message }}
+    <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+  </rs-note>
+} @else if (!options()) {
+  <section class="loading" aria-busy="true" aria-label="Cargando formulario">
+    <rs-skeleton height="48px" />
+    <rs-skeleton height="200px" />
+    <rs-skeleton height="48px" />
+  </section>
+} @else {
+  <rs-stepper label="Pasos del producto" [steps]="stepItems()" [current]="stepIndex() + 1" />
+
+  <div class="layout">
+    <section class="main" aria-label="Datos del producto">
+      <form class="step" id="product-wizard-step" [formGroup]="form" novalidate (ngSubmit)="next()">
+        @switch (currentStep()) {
+          @case ('identification') {
+            <div class="step-card">
+              <header class="step-head">
+                <span class="step-bubble" aria-hidden="true">1</span>
+                <div>
+                  <h2 class="step-title">Identificación</h2>
+                  <p class="step-desc">Categoría {{ root()?.name }} · datos para reconocer el producto en cualquier pantalla.</p>
+                </div>
+              </header>
+
+              @if (taken(); as dup) {
+                <rs-note type="danger" title="Código duplicado">
+                  Ya existe un producto con este código para la marca.
+                  @if (dup.productId) {
+                    <a [routerLink]="['/inventory/products', dup.productId]">Ver el producto existente</a>
+                  }
+                </rs-note>
+              }
+
+              <div class="grid-3">
+                <rs-field
+                  label="Código del fabricante"
+                  forId="wizard-code"
+                  hint="Como figura en la caja."
+                  required
+                  [error]="errorText('manufacturerCode')"
+                >
+                  <rs-input-group [invalid]="invalid('manufacturerCode') || !!taken()">
+                    <rs-icon rsInputLeading name="barcode" [size]="16" />
+                    <input
+                      rsInput
+                      id="wizard-code"
+                      formControlName="manufacturerCode"
+                      autocomplete="off"
+                      maxlength="60"
+                      placeholder="Ej. RT-3552"
+                    />
+                  </rs-input-group>
+                </rs-field>
+
+                <rs-field label="Marca" forId="wizard-brand" required hint="Define el logo y las equivalencias." [error]="errorText('brandId')">
+                  <rs-select
+                    inputId="wizard-brand"
+                    formControlName="brandId"
+                    placeholder="Selecciona una marca"
+                    [options]="brandOptions()"
+                    [invalid]="invalid('brandId')"
+                  />
+                </rs-field>
+
+                <rs-field label="Subcategoría" forId="wizard-subcategory" hint="Define los campos técnicos del paso 2.">
+                  <rs-select inputId="wizard-subcategory" formControlName="subcategoryId" placeholder="Sin subcategoría" [options]="subcategoryOptions()" />
+                </rs-field>
+
+                <rs-field label="Nombre comercial" forId="wizard-name" hint="Se arma con tipo, código y marca.">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="tag" [size]="16" />
+                    <input rsInput id="wizard-name" formControlName="name" autocomplete="off" maxlength="200" placeholder="Se arma al crear" />
+                  </rs-input-group>
+                </rs-field>
+
+                <rs-field label="Código interno (SKU)" forId="wizard-sku" hint="Asignado por el sistema.">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="barcode" [size]="16" />
+                    <input rsInput id="wizard-sku" value="Se asigna al crear" readonly />
+                  </rs-input-group>
+                </rs-field>
+
+                <rs-field label="Industria (país de origen)" forId="wizard-country" hint="Se sugiere por la marca.">
+                  <rs-select inputId="wizard-country" formControlName="countryId" placeholder="Selecciona una industria" [options]="countryOptions()" />
+                </rs-field>
+              </div>
+
+              <div class="sectors">
+                <span class="field-label">Sectores de aplicación</span>
+                <div class="chips" role="group" aria-label="Sectores de aplicación">
+                  @for (sector of sectorOptions; track sector) {
+                    <rs-filter-chip
+                      size="s"
+                      [label]="sector"
+                      [selected]="isSector(sector)"
+                      (selectedChange)="setSector(sector, $event)"
+                    />
+                  }
+                </div>
+              </div>
+            </div>
+          }
+          @case ('dimensions') {
+            <div class="step-card">
+              <header class="step-head">
+                <span class="step-bubble" aria-hidden="true">{{ stepNumber() }}</span>
+                <div>
+                  <h2 class="step-title">Dimensiones</h2>
+                  <p class="step-desc">Con estas tres medidas el sistema propone equivalentes de otras marcas.</p>
+                </div>
+              </header>
+              <div class="grid-4">
+                <rs-field label="Ø Interior d (mm)" forId="wizard-d" required [error]="errorText('dimensions')">
+                  <rs-input-group [invalid]="invalid('dimensions') && !form.controls.innerDiameter.value.trim()">
+                    <rs-icon rsInputLeading name="diameter" [size]="16" />
+                    <input rsInput class="mono" id="wizard-d" formControlName="innerDiameter" inputmode="decimal" placeholder="25" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Ø Exterior D (mm)" forId="wizard-big-d" required>
+                  <rs-input-group [invalid]="invalid('dimensions') && !form.controls.outerDiameter.value.trim()">
+                    <rs-icon rsInputLeading name="diameter" [size]="16" />
+                    <input rsInput class="mono" id="wizard-big-d" formControlName="outerDiameter" inputmode="decimal" placeholder="52" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Ancho B (mm)" forId="wizard-b" required>
+                  <rs-input-group [invalid]="invalid('dimensions') && !form.controls.width.value.trim()">
+                    <rs-icon rsInputLeading name="ruler" [size]="16" />
+                    <input rsInput class="mono" id="wizard-b" formControlName="width" inputmode="decimal" placeholder="15" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Peso (kg)" forId="wizard-weight">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="package" [size]="16" />
+                    <input rsInput class="mono" id="wizard-weight" formControlName="weight" inputmode="decimal" placeholder="0,13" />
+                  </rs-input-group>
+                </rs-field>
+              </div>
+              @if (fieldsOf('dimensions').length) {
+                <div class="grid-3">
+                  @for (definition of fieldsOf('dimensions'); track definition.key; let first = $first) {
+                    <ng-container *ngTemplateOutlet="attributeField; context: { $implicit: definition, hint: first ? dimensionsHint : '' }" />
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          @case ('specifications') {
+            <div class="step-card">
+              <header class="step-head">
+                <span class="step-bubble" aria-hidden="true">{{ stepNumber() }}</span>
+                <div>
+                  <h2 class="step-title">Especificaciones</h2>
+                  <p class="step-desc">Medidas y material; con ellas el sistema propone equivalentes de otras marcas.</p>
+                </div>
+              </header>
+              @if (fieldsOf('specifications').length) {
+                <div class="grid-4">
+                  @for (definition of fieldsOf('specifications').slice(0, 4); track definition.key) {
+                    <ng-container *ngTemplateOutlet="attributeField; context: { $implicit: definition }" />
+                  }
+                </div>
+                @if (fieldsOf('specifications').length > 4) {
+                  <div class="grid-3">
+                    @for (definition of fieldsOf('specifications').slice(4); track definition.key; let first = $first) {
+                      <ng-container *ngTemplateOutlet="attributeField; context: { $implicit: definition, hint: first ? specsHint() : '' }" />
+                    }
+                  </div>
+                }
+              } @else {
+                <rs-note type="info">Esta categoría todavía no tiene campos técnicos. Puedes continuar.</rs-note>
+              }
+            </div>
+          }
+
+          @case ('price-inventory') {
+            <div class="step-card">
+              <header class="step-head">
+                <span class="step-bubble" aria-hidden="true">{{ stepNumber() }}</span>
+                <div>
+                  <h2 class="step-title">Precio e inventario</h2>
+                  <p class="step-desc">
+                    Un solo precio por producto y empresa.
+                    @if (canSeeCost()) {
+                      El costo no lo ve Ventas.
+                    }
+                  </p>
+                </div>
+              </header>
+              @if (stepMessage(); as message) {
+                <rs-note type="danger" title="Falta el precio">{{ message }}</rs-note>
+              }
+              <div class="grid-3">
+                <rs-field label="Unidad de medida" forId="wizard-unit">
+                  <rs-select inputId="wizard-unit" formControlName="unit" [options]="unitOptions" />
+                </rs-field>
+                <rs-field label="Precio de venta (Bs)" forId="wizard-price" required [error]="errorText('salePrice')">
+                  <rs-input-group [invalid]="invalid('salePrice')">
+                    <rs-icon rsInputLeading name="currency" [size]="16" />
+                    <input rsInput id="wizard-price" formControlName="salePrice" inputmode="decimal" placeholder="0,00" />
+                  </rs-input-group>
+                </rs-field>
+                @if (canSeeCost()) {
+                  <rs-field label="Costo (Bs)" forId="wizard-cost" hint="Solo Gerencia y Contabilidad.">
+                    <rs-input-group>
+                      <rs-icon rsInputLeading name="currency" [size]="16" />
+                      <input rsInput id="wizard-cost" formControlName="cost" inputmode="decimal" placeholder="0,00" />
+                    </rs-input-group>
+                  </rs-field>
+                }
+                <rs-field label="Stock mínimo" forId="wizard-min" hint="Genera alerta de stock bajo.">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="package" [size]="16" />
+                    <input rsInput id="wizard-min" formControlName="minStock" inputmode="numeric" placeholder="0" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Stock máximo" forId="wizard-max">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="package" [size]="16" />
+                    <input rsInput id="wizard-max" formControlName="maxStock" inputmode="numeric" placeholder="0" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Ubicación en almacén" forId="wizard-location" hint="Pasillo · estante · nivel.">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="warehouse" [size]="16" />
+                    <input rsInput id="wizard-location" formControlName="location" placeholder="Ej. A-03-2" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Sucursal de ingreso" forId="wizard-branch">
+                  <rs-select inputId="wizard-branch" formControlName="branchId" [options]="branchOptions()" />
+                </rs-field>
+                <rs-field label="Stock inicial" forId="wizard-stock">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="package" [size]="16" />
+                    <input rsInput id="wizard-stock" formControlName="initialStock" inputmode="numeric" placeholder="0" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Proveedor habitual" forId="wizard-supplier">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="user" [size]="16" />
+                    <input rsInput id="wizard-supplier" formControlName="supplierName" />
+                  </rs-input-group>
+                </rs-field>
+              </div>
+              <div class="grid-2">
+                <rs-field label="Partida arancelaria" forId="wizard-tariff" hint="Para costos de importación.">
+                  <rs-input-group>
+                    <rs-icon rsInputLeading name="document" [size]="16" />
+                    <input rsInput id="wizard-tariff" formControlName="tariffCode" placeholder="Ej. 8482.10" />
+                  </rs-input-group>
+                </rs-field>
+                <rs-field label="Fecha de ingreso" forId="wizard-entry">
+                  <input rsInput id="wizard-entry" type="date" formControlName="entryDate" />
+                </rs-field>
+              </div>
+            </div>
+          }
+
+          @case ('photos') {
+            <div class="step-card">
+              <header class="step-head">
+                <span class="step-bubble" aria-hidden="true">{{ stepNumber() }}</span>
+                <div>
+                  <h2 class="step-title">Fotos y ficha técnica</h2>
+                  <p class="step-desc">Ayudan al vendedor a confirmar el producto frente al cliente.</p>
+                </div>
+              </header>
+              @if (uploadError(); as message) {
+                <rs-note type="danger" title="No se pudo subir el archivo">{{ message }}</rs-note>
+              }
+              <div class="grid-2">
+                <div class="dropzone">
+                  <label class="dz-target">
+                    <input
+                      class="visually-hidden"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      [disabled]="uploading() !== null"
+                      (change)="onFiles('photo', $event)"
+                    />
+                    <span class="dz-title">Fotos del producto</span>
+                    <span class="dz-hint">Hasta {{ maxPhotos }} imágenes · JPG o PNG · máx. 5 MB</span>
+                  </label>
+                  @for (key of photoKeys(); track key; let i = $index) {
+                    <p class="file-row">
+                      @if (previews()[key]; as src) {
+                        <img class="thumb" [src]="src" [alt]="'Foto ' + (i + 1)" />
+                      } @else {
+                        <span>Foto {{ i + 1 }}</span>
+                      }
+                      <button rsButton variant="ghost" size="sm" type="button" (click)="removePhoto(i)">Quitar</button>
+                    </p>
+                  }
+                </div>
+                <div class="dropzone">
+                  <label class="dz-target">
+                    <input
+                      class="visually-hidden"
+                      type="file"
+                      accept="application/pdf"
+                      [disabled]="uploading() !== null"
+                      (change)="onFiles('datasheet', $event)"
+                    />
+                    <span class="dz-title">Ficha técnica</span>
+                    <span class="dz-hint">PDF del fabricante · máx. 10 MB</span>
+                  </label>
+                  @if (datasheetKey()) {
+                    <p class="file-row">
+                      <span>Ficha técnica adjunta</span>
+                      <button rsButton variant="ghost" size="sm" type="button" (click)="removeDatasheet()">Quitar</button>
+                    </p>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+
+          @case ('equivalences') {
+            <section class="step-card" aria-labelledby="review-title">
+              <h2 id="review-title" class="step-title">Revisa antes de guardar</h2>
+              <dl class="review-grid">
+                @for (entry of review(); track entry.label) {
+                  <div>
+                    <dt>{{ entry.label }}</dt>
+                    <dd>{{ entry.value }}</dd>
+                  </div>
+                }
+              </dl>
+            </section>
+
+            <div class="step-card">
+              <header class="step-head">
+                <span class="step-bubble" aria-hidden="true">{{ stepNumber() }}</span>
+                <div>
+                  <h2 class="step-title">Equivalencias</h2>
+                  <p class="step-desc">Por medidas y tipo encontramos referencias de otras marcas. Confirma cuáles vincular.</p>
+                </div>
+              </header>
+
+              @switch (candidatesState()) {
+                @case ('loading') {
+                  <rs-skeleton height="120px" />
+                }
+                @case ('error') {
+                  <rs-note type="danger" title="No pudimos buscar equivalentes">
+                    Revisa tu conexión y vuelve a intentarlo.
+                    <button rsButton variant="secondary" type="button" (click)="loadCandidates()">Reintentar</button>
+                  </rs-note>
+                }
+                @default {
+                  @if (candidates().length) {
+                    <rs-note
+                      type="info"
+                      [title]="candidates().length + (candidates().length === 1 ? ' posible equivalente' : ' posibles equivalentes') + ' para ' + measuresText()"
+                    >
+                      Coinciden en medidas y tipo. Revisa en qué se diferencian antes de vincular.
+                    </rs-note>
+                    <ul class="candidates">
+                      @for (candidate of candidates(); track candidate.productId) {
+                        <li>
+                          <span class="brand-mark" aria-hidden="true">{{ candidate.brand.name.slice(0, 2).toUpperCase() }}</span>
+                          <div class="product-data">
+                            <span class="product-code">{{ candidate.manufacturerCode }} · {{ candidate.brand.name }}</span>
+                            <span class="product-name">{{ noteOf(candidate) }}</span>
+                          </div>
+                          <rs-status-pill [status]="pillOf(candidate).status" [icon]="pillOf(candidate).icon ?? null" [tooltip]="pillOf(candidate).tooltip">
+                            {{ pillOf(candidate).label }}
+                          </rs-status-pill>
+                          <button rsButton variant="secondary" type="button" [attr.aria-pressed]="isLinked(candidate.productId)" (click)="toggleLink(candidate.productId)">
+                            @if (isLinked(candidate.productId)) {
+                              <rs-icon name="check" [size]="16" /> Vinculado
+                            } @else {
+                              <rs-icon name="link" [size]="16" /> Vincular
+                            }
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  } @else {
+                    <rs-note type="info">No encontramos productos con las mismas medidas y tipo. Puedes buscar otra referencia.</rs-note>
+                  }
+                }
+              }
+
+              <rs-field label="Buscar otra referencia" forId="wizard-equiv-search" hint="Para equivalentes que no aparecen arriba.">
+                <rs-input-group>
+                  <rs-icon rsInputLeading name="barcode" [size]="16" />
+                  <input rsInput id="wizard-equiv-search" [formControl]="search" autocomplete="off" placeholder="Código, medida o marca" />
+                </rs-input-group>
+              </rs-field>
+              @if (searchResults().length) {
+                <ul class="candidates">
+                  @for (result of searchResults(); track result.productId) {
+                    <li>
+                      <span class="brand-mark" aria-hidden="true">{{ result.brand.slice(0, 2).toUpperCase() }}</span>
+                      <div class="product-data">
+                        <span class="product-code">{{ result.code }} · {{ result.brand }}</span>
+                        <span class="product-name">Resultado de la búsqueda</span>
+                      </div>
+                      <button rsButton variant="secondary" type="button" [attr.aria-pressed]="isLinked(result.productId)" (click)="toggleLink(result.productId)">
+                        @if (isLinked(result.productId)) {
+                          <rs-icon name="check" [size]="16" /> Vinculado
+                        } @else {
+                          <rs-icon name="link" [size]="16" /> Vincular
+                        }
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        }
+
+        @if (submitError(); as message) {
+          <rs-note type="danger">{{ message }}</rs-note>
+        }
+      </form>
+
+
+    </section>
+
+    <aside class="aside" aria-label="Resumen del producto">
+      <section class="card preview">
+        <p class="eyebrow">Vista previa</p>
+        <div class="product">
+          <span class="brand-mark" aria-hidden="true">{{ brandInitials() }}</span>
+          <div class="product-data">
+            <span class="product-code">{{ form.controls.manufacturerCode.value || "—" }}</span>
+            <span class="product-name">{{ categoryLabel() ?? "—" }}{{ brandName() ? " · " + brandName() : "" }}</span>
+          </div>
+        </div>
+        <div class="pills">
+          @for (chip of previewChips(); track $index) {
+            <span class="pill">{{ chip }}</span>
+          }
+        </div>
+      </section>
+
+      <section class="card" aria-label="Progreso">
+        <div class="progress-head">
+          <h2 class="card-title">Progreso</h2>
+          <span class="progress">{{ progress().done }} de {{ progress().total }} requeridos</span>
+        </div>
+        <div class="bar" role="progressbar" aria-label="Avance del producto" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="progressPercent()">
+          <span class="fill" [style.width.%]="progressPercent()"></span>
+        </div>
+        <ul class="progress-steps">
+          @for (item of progressItems(); track item.key) {
+            <li
+              [class.done]="item.done"
+              [class.current]="item.key === currentStep()"
+              [attr.aria-current]="item.key === currentStep() ? 'step' : null"
+            >
+              <span class="mark" aria-hidden="true">
+                @if (item.done) {
+                  <rs-icon name="check" [size]="16" />
+                } @else {
+                  <span class="dot"></span>
+                }
+              </span>
+              <span class="step-name">{{ item.label }}</span>
+              <span class="step-tag">{{ item.required ? 'Requerido' : 'Opcional' }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+      @if (currentStep() === 'equivalences') {
+        <section class="card">
+          <h2 class="card-title">Cómo valida el flujo de equivalencias</h2>
+          <p class="muted">
+            Al guardar, el sistema cruza medidas (d × D × B), tipo, sello y juego interno con el catálogo y propone equivalentes. Lo que
+            difiere se muestra como «Con diferencias».
+          </p>
+        </section>
+      }
+    </aside>
+  </div>
+
+  <footer class="actions-panel">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="saveDraft()">
+          <rs-icon name="edit" [size]="16" /> Guardar borrador
+        </button>
+    @if (stepIndex() > 0) {
+      <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="back()">Atrás</button>
+    }
+    @if (currentStep() === 'equivalences') {
+      <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="saveWithoutLinks()">Guardar sin vincular</button>
+    } @else if (optionalStep()) {
+      <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="skip()">Omitir este paso</button>
+    }
+    <button rsButton variant="brand" type="submit" form="product-wizard-step" [loading]="saving()">
+      @if (currentStep() === 'equivalences') {
+        <rs-icon name="check" [size]="16" /> Guardar producto
+      } @else {
+        {{ isLastStep() ? "Crear producto" : "Siguiente" }}
+      }
+    </button>
+  </footer>
+}
+
+<ng-template #attributeField let-definition let-hint="hint">
+  <rs-field [hint]="hint ?? ''" [label]="definition.label + (definition.unit ? ' (' + definition.unit + ')' : '')" [forId]="'attr-' + definition.key" [required]="definition.required" [error]="errorText(definition.key)">
+    @if (definition.type === 'ENUM') {
+      <rs-select
+        [inputId]="'attr-' + definition.key"
+        [formControl]="form.controls.attributes.controls[definition.key]"
+        placeholder="Selecciona una opción"
+        [options]="optionsOf(definition)"
+        [invalid]="invalid(definition.key)"
+      />
+    } @else {
+      <rs-input-group [invalid]="invalid(definition.key)">
+        <rs-icon rsInputLeading [name]="iconOfField(definition)" [size]="16" />
+        <input
+          rsInput
+          [id]="'attr-' + definition.key"
+          [formControl]="form.controls.attributes.controls[definition.key]"
+          [attr.inputmode]="definition.type === 'NUMBER' ? 'decimal' : null"
+        />
+      </rs-input-group>
+    }
+  </rs-field>
+</ng-template>
+
+<rs-modal variant="confirmation" closeLabel="Cerrar" heading="¿Salir sin guardar?" [(open)]="leaveOpen">
+  Los datos que escribiste se perderán. Puedes guardarlos como borrador antes de salir.
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" (click)="leaveOpen.set(false)">Seguir editando</button>
+    <button rsButton variant="danger" type="button" (click)="leave()">Salir sin guardar</button>
+  </div>
+</rs-modal>

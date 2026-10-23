@@ -21,9 +21,10 @@ export function wizardSteps(isBearing: boolean): WizardStep[] {
       { key: 'equivalences', required: false },
     ];
   }
+  // IN-03c: specifications are required for the other categories too
   return [
     { key: 'identification', required: true },
-    { key: 'specifications', required: false },
+    { key: 'specifications', required: true },
     { key: 'price-inventory', required: true },
     { key: 'photos', required: false },
   ];
@@ -175,25 +176,28 @@ export interface ProductWriteRequest {
   manufacturerCode?: string;
   brandId?: string;
   categoryId?: string;
-  countryId?: string;
-  name?: string;
-  salePrice?: string;
-  cost?: string;
+  countryId?: string | null;
+  name?: string | null;
+  salePrice?: string | null;
+  cost?: string | null;
   unit?: string;
-  innerDiameter?: string;
-  outerDiameter?: string;
-  width?: string;
-  weight?: string;
+  innerDiameter?: string | null;
+  outerDiameter?: string | null;
+  width?: string | null;
+  weight?: string | null;
   attributes?: Record<string, unknown>;
   sectors?: string[];
-  tariffCode?: string;
-  supplierName?: string;
-  entryDate?: string;
+  photos?: string[];
+  /** Storage key of the datasheet; null removes it. */
+  datasheetKey?: string | null;
+  tariffCode?: string | null;
+  supplierName?: string | null;
+  entryDate?: string | null;
   branchId?: string;
   initialStock?: number;
   minStock?: number;
   maxStock?: number;
-  location?: string;
+  location?: string | null;
 }
 
 export interface ProductWriteResponse {

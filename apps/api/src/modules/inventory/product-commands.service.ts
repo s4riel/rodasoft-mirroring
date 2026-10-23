@@ -187,7 +187,7 @@ export class ProductCommandsService {
       }
 
       // zero levels and thresholds carry no history: they go with the product
-      await tx.stockLevel.deleteMany({ where: { productId: id, companyId } });
+      await this.stock.removeEmptyLevels(tx, id, companyId);
       await tx.stockThreshold.deleteMany({ where: { productId: id, companyId } });
 
       const before = await tx.product.findFirstOrThrow({ where: { id, companyId } });
@@ -213,18 +213,24 @@ export class ProductCommandsService {
    * Creates or saves a product from the wizard (HU-INV-06). One transaction: validation, references, the product,
    * its dimensions, and on activation the initial stock and thresholds, the audit entry and the outbox event.
    */
-  private async write(id: string | null, dto: ProductWriteDto): Promise<ProductWriteResponse> {
+  private async write(id: string | null, request: ProductWriteDto): Promise<ProductWriteResponse> {
     const companyId = this.companyId();
-    assertWizardShape(dto);
+    assertWizardShape(request);
+    assertUploadKeys(companyId, request);
     const userId = this.cls.get('userId') ?? null;
     const canViewCosts = await this.canViewCosts();
 
     return this.prisma.tenant.$transaction(async (tx) => {
-        const existing = id ? await tx.product.findFirst({ where: { id, companyId }, select: { id: true, sku: true, status: true } }) : null;
-        if (id && !existing) throw notFound();
-        if (existing && existing.status !== 'DRAFT') {
+        // a draft save locks its row first, so two saves cannot merge from the same stored state and drop each other's fields
+        if (id) await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
+        const stored = id ? await tx.product.findFirst({ where: { id, companyId }, include: { dimensions: true } }) : null;
+        if (id && !stored) throw notFound();
+        if (stored && stored.status !== 'DRAFT') {
           throw new ConflictException({ code: 'NOT_A_DRAFT', message: 'Only a draft can be saved from the wizard' });
         }
+        const existing = stored ? { id: stored.id, sku: stored.sku } : null;
+        // a save of a draft keeps every stored field the request leaves out
+        const dto = stored ? mergeWithStored(request, stored) : request;
 
         const status: 'ACTIVE' | 'DRAFT' = dto.status ?? (existing ? 'DRAFT' : 'ACTIVE');
         const draft = status === 'DRAFT';
@@ -286,6 +292,8 @@ export class ProductCommandsService {
           supplierName: dto.supplierName ?? null,
           entryDate: dto.entryDate ? calendarDate(dto.entryDate) : null,
           attributes: (dto.attributes ?? {}) as Prisma.InputJsonObject,
+          photos: dto.photos ?? [],
+          datasheetUrl: dto.datasheetKey ?? null,
           updatedById: userId,
           ...(canViewCosts ? { cost: dto.cost ?? null } : {}),
         };
@@ -375,16 +383,21 @@ export class ProductCommandsService {
     if (allowed && !allowed.includes(branchId)) {
       throw new ForbiddenException({ code: 'BRANCH_NOT_ALLOWED', message: 'You cannot operate this branch' });
     }
-    const warehouse = await tx.warehouse.findFirst({ where: { branchId, isMain: true }, select: { id: true } });
+    const warehouse = await tx.warehouse.findFirst({ where: { branchId, isMain: true, status: 'ACTIVE' }, select: { id: true } });
     if (!warehouse) throw new UnprocessableEntityException({ code: 'WAREHOUSE_NOT_FOUND', message: 'The branch has no main warehouse' });
     return warehouse.id;
   }
 
   private async saveDimensions(tx: TenantTransaction, companyId: string, productId: string, dto: ProductWriteDto) {
+    // categories without a dimensions step (seals) keep d, D and B as technical fields: they fill the columns too
+    const attributeMeasure = (key: string): string | null => {
+      const value = dto.attributes?.[key];
+      return typeof value === 'number' || typeof value === 'string' ? String(value) : null;
+    };
     const values = {
-      innerDiameter: dto.innerDiameter ?? null,
-      outerDiameter: dto.outerDiameter ?? null,
-      width: dto.width ?? null,
+      innerDiameter: dto.innerDiameter ?? attributeMeasure('innerDiameter'),
+      outerDiameter: dto.outerDiameter ?? attributeMeasure('outerDiameter'),
+      width: dto.width ?? attributeMeasure('width'),
       weight: dto.weight ?? null,
     };
     if (Object.values(values).every((v) => v === null)) {
@@ -489,5 +502,50 @@ function toDuplicateSource(
           weight: p.dimensions.weight?.toString() ?? null,
         }
       : null,
+  };
+}
+
+/**
+ * Files come from `POST /inventory/uploads`, whose keys are `<company>/<kind>/<uuid>.<ext>`. A key that does not match
+ * this company and kind is refused, so a product cannot point at another company's file.
+ */
+function assertUploadKeys(companyId: string, dto: ProductWriteDto): void {
+  const photo = new RegExp(`^${companyId}/photo/[0-9a-f-]{36}\\.(jpg|png|webp)$`);
+  const datasheet = new RegExp(`^${companyId}/datasheet/[0-9a-f-]{36}\\.pdf$`);
+  const details: { field: string; code: string }[] = [];
+  for (const key of dto.photos ?? []) if (!photo.test(key)) details.push({ field: 'photos', code: 'INVALID_FILE_KEY' });
+  if (dto.datasheetKey && !datasheet.test(dto.datasheetKey)) details.push({ field: 'datasheetKey', code: 'INVALID_FILE_KEY' });
+  if (details.length) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details });
+}
+
+/**
+ * Fills the fields a draft save leaves out with the stored values (PATCH semantics, HU-INV-06). A field sent as `null` is
+ * cleared; a field that is absent keeps what is stored. Required fields (code, brand, category, unit) cannot be cleared.
+ */
+function mergeWithStored(request: ProductWriteDto, stored: Prisma.ProductGetPayload<{ include: { dimensions: true } }>): ProductWriteDto {
+  const keep = <T>(sent: T | null | undefined, storedValue: T | undefined): T | undefined =>
+    sent === undefined ? storedValue : (sent ?? undefined);
+  const storedAttributes = stored.attributes && typeof stored.attributes === 'object' && !Array.isArray(stored.attributes) ? stored.attributes : {};
+  return {
+    ...request,
+    manufacturerCode: request.manufacturerCode ?? stored.manufacturerCode,
+    brandId: request.brandId ?? stored.brandId,
+    categoryId: request.categoryId ?? stored.categoryId,
+    unit: request.unit ?? stored.unit,
+    countryId: keep(request.countryId, stored.countryId ?? undefined),
+    name: keep(request.name, stored.name),
+    salePrice: keep(request.salePrice, stored.salePrice.toFixed(2)),
+    cost: keep(request.cost, stored.cost?.toFixed(4)),
+    innerDiameter: keep(request.innerDiameter, stored.dimensions?.innerDiameter?.toString()),
+    outerDiameter: keep(request.outerDiameter, stored.dimensions?.outerDiameter?.toString()),
+    width: keep(request.width, stored.dimensions?.width?.toString()),
+    weight: keep(request.weight, stored.dimensions?.weight?.toString()),
+    attributes: { ...(storedAttributes as Record<string, unknown>), ...(request.attributes ?? {}) },
+    photos: request.photos ?? (Array.isArray(stored.photos) ? (stored.photos as string[]) : []),
+    datasheetKey: keep(request.datasheetKey, stored.datasheetUrl ?? undefined),
+    sectors: request.sectors ?? stored.sectors,
+    tariffCode: keep(request.tariffCode, stored.tariffCode ?? undefined),
+    supplierName: keep(request.supplierName, stored.supplierName ?? undefined),
+    entryDate: keep(request.entryDate, stored.entryDate ? stored.entryDate.toISOString().slice(0, 10) : undefined),
   };
 }

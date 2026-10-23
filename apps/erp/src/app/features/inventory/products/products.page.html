@@ -12,7 +12,7 @@
     <button *rsCan="'inventory.products.export'" rsButton variant="secondary" type="button" (click)="comingSoon()">
       <rs-icon name="export" [size]="16" /> Exportar
     </button>
-    <button *rsCan="'inventory.products.edit'" rsButton variant="brand" type="button" (click)="comingSoon()">
+    <button *rsCan="'inventory.products.edit'" rsButton variant="brand" type="button" (click)="createProduct()">
       <rs-icon name="plus" [size]="16" /> Nuevo producto
     </button>
   </div>
@@ -136,7 +136,7 @@
             heading="Tu catálogo está vacío"
             description="Aún no hay productos. Crea el primero o importa tu lista desde Excel."
           >
-            <button *rsCan="'inventory.products.edit'" rsButton variant="brand" type="button" (click)="comingSoon()">
+            <button *rsCan="'inventory.products.edit'" rsButton variant="brand" type="button" (click)="createProduct()">
               <rs-icon name="plus" [size]="16" /> Nuevo producto
             </button>
           </rs-empty-state-illustrated>

@@ -28,9 +28,11 @@ rs-icon {
 }
 .body {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1); /* Figma Note: title to description 4 */
   min-width: 0;
 }
 strong {
-  font-weight: var(--body-md-strong-weight);
+  font-size: var(--label-md-size); /* Figma Note title: label/md 14/20/500 */
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
 }

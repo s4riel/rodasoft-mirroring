@@ -1,0 +1,56 @@
+<rs-page-header
+  title="Nuevo producto"
+  description="Elige la categoría del producto. En el siguiente paso eliges la subcategoría y completas la ficha."
+  type="form"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="cards" aria-busy="true" aria-label="Cargando categorías">
+      @for (row of skeletonRows; track row) {
+        <rs-skeleton height="152px" />
+      }
+    </section>
+  }
+  @case ('error') {
+    <rs-note type="danger" title="No pudimos cargar las categorías">
+      Revisa tu conexión y vuelve a intentarlo.
+      <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+    </rs-note>
+  }
+  @default {
+    @if (categories().length === 0) {
+      <rs-empty-state-illustrated
+        illustration="empty-catalog"
+        heading="Aún no hay categorías"
+        description="Pide al administrador que cree las categorías de productos."
+      >
+        <a rsButton variant="secondary" routerLink="/inventory/products">Volver a productos</a>
+      </rs-empty-state-illustrated>
+    } @else {
+      <div class="cards" role="radiogroup" aria-label="Categoría del producto">
+        @for (category of categories(); track category.id; let first = $first) {
+          <rs-category-card
+            [title]="category.name"
+            [description]="subcategoryCount(category.subcategories.length)"
+            [selected]="selected.value === category.id"
+            [tabStop]="selected.value === category.id || (!selected.value && first)"
+            (keydown)="onCardKey($event)"
+            (selectedChange)="select(category.id)"
+          >
+            <rs-icon slot="glyph" [name]="iconOf(category.icon)" [size]="24" />
+          </rs-category-card>
+        }
+      </div>
+    }
+  }
+}
+
+<footer class="actions">
+  <button rsButton variant="secondary" type="button" (click)="cancel()">Cancelar</button>
+  <button rsButton variant="brand" type="button" [disabled]="!selected.value" (click)="next()">
+    Continuar <rs-icon name="chevron-right" [size]="16" />
+  </button>
+</footer>

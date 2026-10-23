@@ -30,6 +30,16 @@ async function purgeMovements(companyId: string) {
   });
 }
 
+/** The error code of a rejected call, or null when it succeeds. */
+async function codeOf(promise: Promise<unknown>): Promise<string | null> {
+  try {
+    await promise;
+    return null;
+  } catch (err) {
+    return (err as { getResponse(): { code: string } }).getResponse().code;
+  }
+}
+
 /** Applies one movement in its own transaction, as the business services do. */
 const move = (productId: string, warehouseId: string, quantity: number, type: 'INITIAL' | 'SALE' = 'SALE') =>
   base.tenant.$transaction((tx) => stock.apply(tx, { productId, warehouseId, type, quantity, reason: 'Test movement' }));
@@ -82,8 +92,23 @@ describe('StockMovementService (integration, real Postgres)', () => {
   });
 
   it('refuses a movement below zero when negative stock is not allowed', async () => {
-    await expect(move(productId, warehouseId, -100)).rejects.toMatchObject({ getResponse: expect.any(Function) });
+    expect(await codeOf(move(productId, warehouseId, -100))).toBe('INSUFFICIENT_STOCK');
     expect(await base.stockLevel.findFirstOrThrow({ where: { productId, warehouseId } })).toMatchObject({ quantity: 20 });
+  });
+
+  it('refuses a movement without a reason, or whose sign does not match its type', async () => {
+    const apply = (input: { type: 'SALE' | 'INITIAL'; quantity: number; reason: string }) =>
+      base.tenant.$transaction((tx) => stock.apply(tx, { productId, warehouseId, ...input }));
+    expect(await codeOf(apply({ type: 'SALE', quantity: -1, reason: '  ' }))).toBe('REASON_REQUIRED');
+    expect(await codeOf(apply({ type: 'SALE', quantity: 1, reason: 'Venta' }))).toBe('MOVEMENT_SIGN_MISMATCH');
+    expect(await codeOf(apply({ type: 'INITIAL', quantity: -1, reason: 'Carga' }))).toBe('MOVEMENT_SIGN_MISMATCH');
+  });
+
+  it('refuses stock into an inactive warehouse', async () => {
+    const branch = await base.branch.findFirstOrThrow({ where: { companyId } });
+    const closed = await base.warehouse.create({ data: { companyId, branchId: branch.id, code: `X-${run}`, name: 'Cerrado', status: 'INACTIVE' } });
+    expect(await codeOf(move(productId, closed.id, 5, 'INITIAL'))).toBe('WAREHOUSE_INACTIVE');
+    await base.warehouse.delete({ where: { id: closed.id } });
   });
 
   it('serializes 10 parallel deductions of 1 on a stock of 5: exactly 5 succeed, none goes negative, none is lost', async () => {

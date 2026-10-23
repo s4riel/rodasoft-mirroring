@@ -97,7 +97,35 @@ type AttributeSeed = {
   step: 2 | 3;
   unit?: string;
   options?: string[];
+  required?: boolean;
 };
+
+/**
+ * Seal fields (IN-03d, "Especificaciones"). All are step 3: the domain treats any step-2 definition as a bearing.
+ * IN-03d shows material and lip type as text fields and only the spring as a list; the lists are samples until the client
+ * confirms them (decision #52).
+ */
+const SEAL_ATTRIBUTES: AttributeSeed[] = [
+  { key: 'innerDiameter', label: 'Ø Interior d', type: 'NUMBER', step: 3, unit: 'mm', required: true },
+  { key: 'outerDiameter', label: 'Ø Exterior D', type: 'NUMBER', step: 3, unit: 'mm', required: true },
+  { key: 'width', label: 'Ancho B', type: 'NUMBER', step: 3, unit: 'mm', required: true },
+  { key: 'material', label: 'Material', type: 'TEXT', step: 3, required: true },
+  { key: 'lipType', label: 'Tipo de labio', type: 'TEXT', step: 3 },
+  { key: 'maxTemperature', label: 'Temperatura máxima', type: 'NUMBER', step: 3, unit: '°C' },
+  { key: 'spring', label: 'Con resorte', type: 'ENUM', step: 3, options: ['Sí', 'No'] },
+];
+
+/**
+ * Generic technical fields for every category that has none of its own (belts, chains, lubricants, tools, accessories and
+ * couplings): the step looks the same everywhere and the real list per category comes with decision #52.
+ */
+const GENERIC_ATTRIBUTES: AttributeSeed[] = [
+  { key: 'material', label: 'Material', type: 'TEXT', step: 3, required: true },
+  { key: 'mainMeasure', label: 'Medida principal', type: 'TEXT', step: 3, required: true },
+  { key: 'model', label: 'Tipo o modelo', type: 'TEXT', step: 3 },
+  { key: 'capacity', label: 'Capacidad o presentación', type: 'TEXT', step: 3 },
+  { key: 'technicalNotes', label: 'Observaciones técnicas', type: 'TEXT', step: 3 },
+];
 
 /** Bearing fields (design-notes §Product creation), in sheet order: step 2 feeds "Dimensiones", step 3 "Especificaciones técnicas". */
 const BEARING_ATTRIBUTES: AttributeSeed[] = [
@@ -119,6 +147,11 @@ const BEARING_ATTRIBUTES: AttributeSeed[] = [
 
 const pad = (n: number) => `RL-${String(n).padStart(6, '0')}`;
 
+/**
+ * Demo catalog loader. It runs outside the application (no request, no transaction per movement), so it writes the demo
+ * stock levels and their history rows directly instead of going through `StockMovementService`. It only inserts fixture
+ * data into a development database; application code must never write stock this way.
+ */
 export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk = 0) {
   const countryId = new Map<string, string>();
   for (const c of COUNTRIES) {
@@ -159,11 +192,34 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
 
   const bearingsRootId = categoryId.get('Rodamientos')!;
   for (const [sortOrder, a] of BEARING_ATTRIBUTES.entries()) {
-    const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder };
+    const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder, required: a.required ?? false };
     await prisma.attributeDefinition.upsert({
       where: { categoryId_key: { categoryId: bearingsRootId, key: a.key } },
       update: data,
       create: { companyId, categoryId: bearingsRootId, key: a.key, ...data },
+    });
+  }
+
+  const specific = new Set(['Rodamientos', 'Retenes y sellos']);
+  for (const category of CATEGORIES.filter((c) => !specific.has(c.name))) {
+    const rootId = categoryId.get(category.name)!;
+    for (const [sortOrder, a] of GENERIC_ATTRIBUTES.entries()) {
+      const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder, required: a.required ?? false };
+      await prisma.attributeDefinition.upsert({
+        where: { categoryId_key: { categoryId: rootId, key: a.key } },
+        update: data,
+        create: { companyId, categoryId: rootId, key: a.key, ...data },
+      });
+    }
+  }
+
+  const sealsRootId = categoryId.get('Retenes y sellos')!;
+  for (const [sortOrder, a] of SEAL_ATTRIBUTES.entries()) {
+    const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder, required: a.required ?? false };
+    await prisma.attributeDefinition.upsert({
+      where: { categoryId_key: { categoryId: sealsRootId, key: a.key } },
+      update: data,
+      create: { companyId, categoryId: sealsRootId, key: a.key, ...data },
     });
   }
 

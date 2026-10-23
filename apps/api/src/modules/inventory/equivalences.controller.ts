@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -19,7 +20,7 @@ import type {
 import { RequirePermissions } from '../access/require-permissions.decorator';
 import { ListEquivalentsQueryDto } from './dto';
 import { EquivalencesService } from './equivalences.service';
-import { LinkEquivalenceDto } from './product-write.dto';
+import { EquivalenceCandidatesDto, LinkEquivalenceDto } from './product-write.dto';
 
 const queryPipe = new ValidationPipe({
   transform: true,
@@ -65,6 +66,13 @@ export class EquivalencesController {
   @RequirePermissions('inventory.products.view')
   suggestions(@Param('id', idPipe) id: string): Promise<EquivalenceSuggestionsResponse> {
     return this.equivalences.suggestions(id);
+  }
+
+  @Post('equivalence-candidates')
+  @HttpCode(200)
+  @RequirePermissions('inventory.products.edit')
+  candidates(@Body(bodyPipe) body: EquivalenceCandidatesDto): Promise<EquivalenceSuggestionsResponse> {
+    return this.equivalences.candidates(body);
   }
 
   @Post('equivalences')

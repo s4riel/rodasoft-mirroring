@@ -21,6 +21,17 @@ const MESSAGES: Record<string, string> = {
   PRODUCT_NOT_FOUND: 'El producto ya no existe. Actualiza el listado.',
   BRAND_NOT_FOUND: 'La marca elegida ya no existe.',
   COUNTRY_NOT_FOUND: 'La industria elegida ya no existe.',
+  PRICE_REQUIRED: 'Falta el precio de venta. Ingrésalo para activar el producto.',
+  NOT_A_DRAFT: 'Este producto ya no es un borrador. Ábrelo desde el listado.',
+  EQUIVALENCE_EXISTS: 'Estos productos ya están vinculados como equivalentes.',
+  SELF_LINK: 'Un producto no puede ser equivalente de sí mismo.',
+  BRANCH_NOT_ALLOWED: 'No puedes operar en esta sucursal.',
+  BRANCH_REQUIRED: 'Elige la sucursal que recibe el producto.',
+  CATEGORY_NOT_FOUND: 'La categoría elegida ya no existe.',
+  WAREHOUSE_NOT_FOUND: 'La sucursal no tiene almacén principal. Configúralo primero.',
+  WAREHOUSE_INACTIVE: 'El almacén está inactivo y no puede recibir stock.',
+  MAX_BELOW_MIN: 'El stock máximo no puede ser menor que el mínimo.',
+  INVALID_DATE: 'La fecha de ingreso no es válida.',
   VALIDATION_FAILED: 'Revisa los datos ingresados.',
 };
 
