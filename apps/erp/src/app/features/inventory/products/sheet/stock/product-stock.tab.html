@@ -1,0 +1,60 @@
+<section class="section" aria-labelledby="stock-title">
+  <h2 id="stock-title" class="section-title">Stock por almacén</h2>
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="skeleton" role="status" aria-busy="true" aria-label="Cargando stock por almacén">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      </div>
+    }
+    @case ('forbidden') {
+      <div class="state" aria-live="polite">
+        <rs-empty-state-illustrated
+          illustration="no-access"
+          heading="No tienes permiso para ver el stock"
+          description="Pide acceso al administrador de tu empresa."
+          [showAction]="false"
+        />
+      </div>
+    }
+    @case ('error') {
+      <div class="state" role="alert">
+        <rs-empty-state-illustrated
+          illustration="error"
+          heading="No pudimos cargar el stock"
+          [description]="errorMessage()"
+        >
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </div>
+    }
+    @default {
+      @if (isEmpty()) {
+        <div class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="Sin stock registrado"
+            description="Cuando el producto tenga stock o mínimos en un almacén, aparecerán aquí."
+            [showAction]="false"
+          />
+        </div>
+      } @else {
+        <rs-doc-table size="md" tableLabel="Stock por almacén" [columns]="columns" [rows]="rows()">
+          <ng-template rsDocCell="stock" let-row>
+            <span class="stock">
+              @if (flagOf(row.id); as flag) {
+                <rs-stock-flag [level]="flag.level" [label]="flag.label" />
+              }
+              {{ quantityOf(row.id) }}
+            </span>
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="total">{{ totalLabel(data()?.total ?? 0) }}</span>
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+</section>

@@ -24,8 +24,8 @@ Plural snake_case tables, all with `company_id` (add them to `TENANT_MODELS`). M
 | `products` | `sku`, `manufacturerCode` (unique per brand and company), `brandId`, `categoryId`, `name`, `salePrice`, `cost?`, `unit`, `status`, `attributes` (JSONB validated with `attribute_definitions`), `photos`, `datasheetUrl?` |
 | `product_dimensions` (or inside `attributes`) | `innerDiameter` d, `outerDiameter` D, `width` B, `weight`; indexed for equivalence search |
 | `stock_levels` | `productId`, `warehouseId`, `quantity`, `reserved`; unique per (product, warehouse) |
-| `stock_thresholds` | `productId`, `branchId`, `minStock`, `maxStock`, `location?` |
-| `stock_movements` | **immutable**: `productId`, `warehouseId`, `type`, `quantity` (signed), `balanceAfter`, `unitCost?`, `reason`, `refType`, `refId`, `userId`, `createdAt` |
+| `stock_thresholds` | `productId`, `warehouseId` (per warehouse, HU-INV-05: IN-23 shows one row per warehouse; the branch sums them), `minStock`, `maxStock`, `location?` |
+| `stock_movements` | **immutable** (trigger rejects UPDATE and DELETE; HU-INV-05): `productId`, `warehouseId`, `type`, `quantity` (signed), `balanceAfter`, `unitCost?`, `reason`, `refType`, `refId`, `refNumber` (denormalized display number), `userId`, `createdAt` |
 | `stock_adjustments` | `status`, `reason`, `approvedBy?`, lines |
 | `transfers` + `transfer_items` | `status` (`TransferStatus`), origin, destination, lines with sent and received quantities, differences |
 | `equivalences` | pair (`productAId`, `productBId`), `kind` (EXACT, WITH_DIFFERENCES), `differences` JSON, `approvedBy?` |

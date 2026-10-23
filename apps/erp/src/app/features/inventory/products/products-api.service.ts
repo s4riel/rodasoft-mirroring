@@ -8,6 +8,8 @@ import type {
   ProductFilterOptions,
   ProductListQuery,
   ProductListResponse,
+  ProductMovementsResponse,
+  ProductWarehouseStockResponse,
 } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
@@ -35,6 +37,16 @@ export class ProductsApi {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(query)) if (value !== undefined) params = params.set(key, String(value));
     return this.http.get<ProductEquivalentsResponse>(`/api/v1/inventory/products/${id}/equivalents`, { params });
+  }
+
+  movements(id: string, query: { page?: number; pageSize?: number } = {}): Observable<ProductMovementsResponse> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) if (value !== undefined) params = params.set(key, String(value));
+    return this.http.get<ProductMovementsResponse>(`/api/v1/inventory/products/${id}/movements`, { params });
+  }
+
+  stockByWarehouse(id: string): Observable<ProductWarehouseStockResponse> {
+    return this.http.get<ProductWarehouseStockResponse>(`/api/v1/inventory/products/${id}/stock`);
   }
 
   duplicate(id: string, body: DuplicateProductRequest): Observable<DuplicateProductResponse> {

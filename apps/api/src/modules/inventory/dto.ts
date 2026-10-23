@@ -113,3 +113,34 @@ export class ListEquivalentsQueryDto {
   @Max(PRODUCT_PAGE_SIZE_MAX)
   pageSize?: number;
 }
+
+export class ListMovementsQueryDto {
+  @ApiPropertyOptional({ description: 'Warehouse branch whose movements are listed (must be one the member operates)' })
+  @IsOptional()
+  @IsUUID()
+  branchId?: string;
+
+  /** Window of the summary KPIs; the design shows 30 days. */
+  @ApiPropertyOptional({ default: 30, maximum: 365 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  days?: number;
+
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 25, maximum: PRODUCT_PAGE_SIZE_MAX })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(PRODUCT_PAGE_SIZE_MAX)
+  pageSize?: number;
+}

@@ -71,6 +71,7 @@ model Company {
   productDimensions    ProductDimension[]
   stockLevels          StockLevel[]
   stockThresholds      StockThreshold[]
+  stockMovements       StockMovement[]
   equivalences         Equivalence[]
 
   @@map("companies")
@@ -94,7 +95,6 @@ model Branch {
   warehouses      Warehouse[]
   pointsOfSale    SiatPointOfSale[]
   memberships     MembershipBranch[]
-  stockThresholds StockThreshold[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -117,7 +117,9 @@ model Warehouse {
 
   company     Company      @relation(fields: [companyId], references: [id])
   branch      Branch       @relation(fields: [branchId], references: [id])
-  stockLevels StockLevel[]
+  stockLevels     StockLevel[]
+  stockThresholds StockThreshold[]
+  stockMovements  StockMovement[]
 
   @@unique([companyId, code])
   @@index([companyId, branchId])
@@ -146,6 +148,7 @@ model User {
   updatedProducts      Product[]       @relation("ProductUpdatedBy")
   refreshTokens        RefreshToken[]
   passwordResets       PasswordReset[]
+  stockMovements       StockMovement[]
 
   @@map("users")
 }
@@ -430,6 +433,7 @@ model Product {
   dimensions      ProductDimension?
   stockLevels     StockLevel[]
   stockThresholds StockThreshold[]
+  stockMovements  StockMovement[]
   equivalencesAsA Equivalence[]     @relation("EquivalenceProductA")
   equivalencesAsB Equivalence[]     @relation("EquivalenceProductB")
   createdBy       User?             @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -481,25 +485,68 @@ model StockLevel {
   @@map("stock_levels")
 }
 
-/// Minimum / maximum stock and shelf location of a product in a branch (per-branch data, never constants).
+/// Minimum / maximum stock and shelf location of a product in a warehouse (HU-INV-05). Per warehouse, not per branch:
+/// IN-23 shows one row per warehouse, and the branch figures are the sum over its warehouses.
 model StockThreshold {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  companyId String   @map("company_id") @db.Uuid
-  productId String   @map("product_id") @db.Uuid
-  branchId  String   @map("branch_id") @db.Uuid
-  minStock  Int?     @map("min_stock")
-  maxStock  Int?     @map("max_stock")
-  location  String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id          String   @id @default(uuid(7)) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  minStock    Int?     @map("min_stock")
+  maxStock    Int?     @map("max_stock")
+  location    String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company Company @relation(fields: [companyId], references: [id])
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  branch  Branch  @relation(fields: [branchId], references: [id])
+  company   Company   @relation(fields: [companyId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
 
-  @@unique([productId, branchId])
-  @@index([companyId, branchId])
+  @@unique([productId, warehouseId])
+  @@index([companyId, warehouseId])
   @@map("stock_thresholds")
+}
+
+enum StockMovementType {
+  PURCHASE_RECEIPT
+  SALE
+  TRANSFER_OUT
+  TRANSFER_IN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  INITIAL
+  RETURN
+}
+
+/// Immutable history of stock changes (design-notes rule 3): a database trigger rejects UPDATE and DELETE, so a
+/// correction is a new movement. Only the movements service writes it (HU-INV-16); HU-INV-05 only reads it.
+model StockMovement {
+  id          String            @id @default(uuid(7)) @db.Uuid
+  companyId   String            @map("company_id") @db.Uuid
+  productId   String            @map("product_id") @db.Uuid
+  warehouseId String            @map("warehouse_id") @db.Uuid
+  type        StockMovementType
+  /// signed: positive adds stock, negative removes it
+  quantity    Int
+  /// warehouse balance after this movement, so the kardex never needs a re-sum
+  balanceAfter Int             @map("balance_after")
+  unitCost    Decimal?         @map("unit_cost") @db.Decimal(14, 4)
+  reason      String?
+  /// source document (refType "SALE", "TRANSFER", "ADJUSTMENT", "PURCHASE") and its number for display ("V-00231")
+  refType     String?          @map("ref_type")
+  refId       String?          @map("ref_id") @db.Uuid
+  refNumber   String?          @map("ref_number")
+  userId      String?          @map("user_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, productId, createdAt(sort: Desc)])
+  @@index([companyId, warehouseId, productId, createdAt])
+  @@map("stock_movements")
 }
 
 /// Direct equivalence link between two products (HU-INV-04). The pair is stored once, with `productAId < productBId`
