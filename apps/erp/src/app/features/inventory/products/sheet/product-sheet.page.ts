@@ -19,13 +19,13 @@ import { formatMeasure } from '../product-list.mapper';
 import { formatDate } from './product-sheet.mapper';
 import { ProductSheetStore } from './product-sheet.store';
 
-export type SheetTab = 'data' | 'equivalents' | 'movements';
+export type SheetTab = 'data' | 'equivalents' | 'movements' | 'stock';
 
-const TAB_PATHS: Record<SheetTab, string> = { data: '', equivalents: 'equivalents', movements: 'movements' };
+const TAB_PATHS: Record<SheetTab, string> = { data: '', equivalents: 'equivalents', movements: 'movements', stock: 'stock' };
 
 /**
  * IN-02a · Product sheet: header, tabs and the routed tab page. "Datos" is the default child route;
- * Equivalentes and Movimientos arrive with HU-INV-04 and HU-INV-22.
+ * Equivalentes (HU-INV-04), Movimientos and Stock por almacén (HU-INV-05) are routed tabs.
  */
 @Component({
   selector: 'rs-product-sheet-page',

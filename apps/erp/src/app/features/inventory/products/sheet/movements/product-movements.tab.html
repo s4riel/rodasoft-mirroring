@@ -1,0 +1,77 @@
+<section class="section" aria-labelledby="movements-title">
+  @switch (state()) {
+    @case ('loading') {
+      <div class="kpis">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+      </div>
+      <div class="skeleton" role="status" aria-busy="true" aria-label="Cargando movimientos">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      </div>
+    }
+    @case ('forbidden') {
+      <div class="state" aria-live="polite">
+        <rs-empty-state-illustrated
+          illustration="no-access"
+          heading="No tienes permiso para ver el stock"
+          description="Pide acceso al administrador de tu empresa."
+          [showAction]="false"
+        />
+      </div>
+    }
+    @case ('error') {
+      <div class="state" role="alert">
+        <rs-empty-state-illustrated
+          illustration="error"
+          heading="No pudimos cargar los movimientos"
+          [description]="errorMessage()"
+        >
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </div>
+    }
+    @default {
+      @if (data(); as d) {
+        <div class="kpis">
+          <rs-kpi-card label="Entradas (30 días)" [value]="'+' + d.summary.inLast30Days" />
+          <rs-kpi-card label="Salidas (30 días)" [value]="'−' + d.summary.outLast30Days" />
+          <rs-kpi-card label="Saldo actual" [value]="d.summary.currentBalance + ' uds'" />
+        </div>
+      }
+
+      <h2 id="movements-title" class="section-title">
+        Movimientos de {{ store.product()?.manufacturerCode }}
+      </h2>
+
+      @if (isEmpty()) {
+        <div class="state">
+          <rs-empty-state-illustrated
+            illustration="no-movements"
+            heading="Sin movimientos registrados"
+            description="Las entradas y salidas del producto aparecerán aquí."
+            [showAction]="false"
+          />
+        </div>
+      } @else {
+        <rs-doc-table size="md" tableLabel="Movimientos del producto" [columns]="columns" [rows]="rows()">
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeLabel() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="page()"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+        <p class="note">Historial completo en Kardex, con filtros por sucursal, tipo y fechas.</p>
+      }
+    }
+  }
+</section>

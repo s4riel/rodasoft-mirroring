@@ -167,8 +167,11 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
     });
   }
 
-  const warehouses = await prisma.warehouse.findMany({ where: { companyId }, select: { id: true, branchId: true } });
-  const branchIds = [...new Set(warehouses.map((w) => w.branchId))];
+  const warehouses = await prisma.warehouse.findMany({
+    where: { companyId },
+    orderBy: [{ isMain: 'desc' }, { code: 'asc' }],
+    select: { id: true, branchId: true },
+  });
   const brandNames = BRANDS.map((b) => b.name);
   const rows: { code: string; category: string; name: string; dims?: [number, number, number] }[] = [
     ...BEARINGS.map(([code, category, d, D, B]) => ({
@@ -243,18 +246,53 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
         create: { productId: product.id, companyId, innerDiameter: d, outerDiameter: D, width: B },
       });
     }
-    for (const branchId of branchIds) {
-      await prisma.stockThreshold.upsert({
-        where: { productId_branchId: { productId: product.id, branchId } },
-        update: {},
-        create: { companyId, productId: product.id, branchId, minStock: 6, maxStock: 60, location: 'A-03-2' },
-      });
-    }
     for (const [i, w] of warehouses.entries()) {
-      await prisma.stockLevel.upsert({
+      // thresholds per warehouse (IN-23): the main warehouse has the shelf of the sample, the others a smaller one
+      const threshold = i === 0 ? { minStock: 6, maxStock: 60, location: 'A-03-2' } : { minStock: 2, maxStock: 6, location: 'V-01-1' };
+      await prisma.stockThreshold.upsert({
         where: { productId_warehouseId: { productId: product.id, warehouseId: w.id } },
         update: {},
-        create: { companyId, productId: product.id, warehouseId: w.id, quantity: (n * 7 + i * 5) % 40 },
+        create: { companyId, productId: product.id, warehouseId: w.id, ...threshold },
+      });
+      const quantity = (n * 7 + i * 5) % 40;
+      const level = await prisma.stockLevel.upsert({
+        where: { productId_warehouseId: { productId: product.id, warehouseId: w.id } },
+        update: {},
+        create: { companyId, productId: product.id, warehouseId: w.id, quantity },
+      });
+      await seedMovementHistory(product.id, w.id, level.quantity, n + i);
+    }
+  };
+
+  /**
+   * A short history whose last balance equals the seeded level: initial stock, a purchase, a sale and a
+   * shrinkage adjustment. Written directly because this is a fixture; runtime writes go through StockMovementService.
+   */
+  const seedMovementHistory = async (productId: string, warehouseId: string, endBalance: number, seq: number) => {
+    if (await prisma.stockMovement.count({ where: { productId, warehouseId } })) return;
+    const daysAgo = (d: number) => new Date(Date.now() - d * 24 * 60 * 60 * 1000);
+    const steps: { type: 'INITIAL' | 'PURCHASE_RECEIPT' | 'SALE' | 'ADJUSTMENT_OUT'; quantity: number; days: number; refType?: string; refNumber?: string; reason?: string }[] = [
+      { type: 'INITIAL', quantity: endBalance + 2, days: 60 },
+      { type: 'PURCHASE_RECEIPT', quantity: 8, days: 15, refType: 'PURCHASE', refNumber: `OC-${String(80 + seq).padStart(4, '0')}` },
+      { type: 'SALE', quantity: -5, days: 10, refType: 'SALE', refNumber: `V-${String(230 + seq).padStart(5, '0')}` },
+      { type: 'ADJUSTMENT_OUT', quantity: -5, days: 3, refType: 'ADJUSTMENT', refNumber: `AJ-${String(12 + seq).padStart(4, '0')}`, reason: 'Merma' },
+    ];
+    let balance = 0;
+    for (const s of steps) {
+      balance += s.quantity;
+      await prisma.stockMovement.create({
+        data: {
+          companyId,
+          productId,
+          warehouseId,
+          type: s.type,
+          quantity: s.quantity,
+          balanceAfter: balance,
+          reason: s.reason ?? null,
+          refType: s.refType ?? null,
+          refNumber: s.refNumber ?? null,
+          createdAt: daysAgo(s.days),
+        },
       });
     }
   };

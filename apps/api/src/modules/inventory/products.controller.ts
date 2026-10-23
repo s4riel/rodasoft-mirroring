@@ -18,14 +18,17 @@ import type {
   ProductDetail,
   ProductFilterOptions,
   ProductListResponse,
+  ProductMovementsResponse,
+  ProductWarehouseStockResponse,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
 import type { AppClsStore } from '../../common/cls';
 import { MembershipService } from '../access/membership.service';
 import { RequirePermissions } from '../access/require-permissions.decorator';
-import { DuplicateProductDto, ListProductsQueryDto } from './dto';
+import { DuplicateProductDto, ListMovementsQueryDto, ListProductsQueryDto } from './dto';
 import { ProductCommandsService } from './product-commands.service';
 import { ProductsService } from './products.service';
+import { StockQueriesService } from './stock-queries.service';
 
 const filterPipe = new ValidationPipe({
   transform: true,
@@ -62,6 +65,7 @@ export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly commands: ProductCommandsService,
+    private readonly stock: StockQueriesService,
     private readonly membership: MembershipService,
     private readonly cls: ClsService<AppClsStore>,
   ) {}
@@ -84,6 +88,21 @@ export class ProductsController {
     const membershipId = this.cls.get('membershipId');
     const granted = membershipId ? await this.membership.permissions(membershipId) : new Set<string>();
     return this.products.detail(id, granted.has('inventory.costs.view'));
+  }
+
+  @Get('products/:id/movements')
+  @RequirePermissions('inventory.products.view')
+  movements(
+    @Param('id', idPipe) id: string,
+    @Query(filterPipe) query: ListMovementsQueryDto,
+  ): Promise<ProductMovementsResponse> {
+    return this.stock.movements(id, query);
+  }
+
+  @Get('products/:id/stock')
+  @RequirePermissions('inventory.products.view')
+  stockByWarehouse(@Param('id', idPipe) id: string): Promise<ProductWarehouseStockResponse> {
+    return this.stock.stockByWarehouse(id);
   }
 
   @Post('products/:id/duplicate')

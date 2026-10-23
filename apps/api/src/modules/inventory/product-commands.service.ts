@@ -125,13 +125,25 @@ export class ProductCommandsService {
         SELECT id FROM products WHERE id = ${id}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
       if (!locked.length) throw notFound();
 
-      // proxy for "has history" until stock_movements exists (HU-INV-16)
-      if ((await tx.stockLevel.count({ where: { productId: id, companyId } })) > 0) {
+      // any movement is history: the product is deactivated instead (design-notes rule 4, HU-INV-09)
+      if ((await tx.stockMovement.count({ where: { productId: id, companyId } })) > 0) {
         throw new ConflictException({
-          code: 'PRODUCT_HAS_STOCK',
-          message: 'The product has stock records and cannot be deleted; deactivate it instead',
+          code: 'PRODUCT_HAS_MOVEMENTS',
+          message: 'The product has stock movements and cannot be deleted; deactivate it instead',
         });
       }
+      // reserved stock counts too: deleting its level would drop the reservation
+      const withStock = { productId: id, companyId, OR: [{ quantity: { not: 0 } }, { reserved: { not: 0 } }] };
+      if ((await tx.stockLevel.count({ where: withStock })) > 0) {
+        throw new ConflictException({
+          code: 'PRODUCT_HAS_STOCK',
+          message: 'The product has stock and cannot be deleted; deactivate it instead',
+        });
+      }
+
+      // zero levels and thresholds carry no history: they go with the product
+      await tx.stockLevel.deleteMany({ where: { productId: id, companyId } });
+      await tx.stockThreshold.deleteMany({ where: { productId: id, companyId } });
 
       const before = await tx.product.findFirstOrThrow({ where: { id, companyId } });
       await tx.product.deleteMany({ where: { id, companyId } });

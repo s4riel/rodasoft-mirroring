@@ -216,23 +216,26 @@ export class ProductsService {
         },
       }),
       this.prisma.tenant.stockLevel.groupBy({ by: ['warehouseId'], where: { productId }, _sum: { quantity: true } }),
-      this.prisma.tenant.stockThreshold.findMany({ where: { productId } }),
+      this.prisma.tenant.stockThreshold.findMany({ where: { productId }, select: { minStock: true, maxStock: true, location: true, warehouse: { select: { branchId: true, isMain: true } } } }),
     ]);
     const byWarehouse = new Map(levels.map((l) => [l.warehouseId, l._sum.quantity ?? 0]));
     return branches
       .filter((b) => !allowed || allowed.has(b.id))
       .map((b) => {
         const quantity = b.warehouses.reduce((sum, w) => sum + (byWarehouse.get(w.id) ?? 0), 0);
-        const t = thresholds.find((th) => th.branchId === b.id);
+        // thresholds are per warehouse (HU-INV-05): the branch sums them, and its location is the main warehouse's
+        const own = thresholds.filter((th) => th.warehouse.branchId === b.id);
+        const minStock = sumOrNull(own.map((th) => th.minStock));
+        const maxStock = sumOrNull(own.map((th) => th.maxStock));
         return {
           branchId: b.id,
           branchName: b.name,
           warehouses: b.warehouses.map((w) => w.name),
           quantity,
-          minStock: t?.minStock ?? null,
-          maxStock: t?.maxStock ?? null,
-          location: t?.location ?? null,
-          availability: stockAvailability(quantity, t?.minStock ?? null),
+          minStock,
+          maxStock,
+          location: own.find((th) => th.warehouse.isMain)?.location ?? null,
+          availability: stockAvailability(quantity, minStock),
         };
       });
   }
@@ -307,6 +310,12 @@ export class ProductsService {
       throw new ForbiddenException({ code: 'BRANCH_NOT_ALLOWED', message: 'You cannot operate this branch' });
     }
   }
+}
+
+/** Sum of the set values; null when none of them is set. */
+function sumOrNull(values: (number | null)[]): number | null {
+  const set = values.filter((v): v is number => v !== null);
+  return set.length ? set.reduce((sum, v) => sum + v, 0) : null;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {

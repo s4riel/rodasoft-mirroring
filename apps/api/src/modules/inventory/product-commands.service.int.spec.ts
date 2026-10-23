@@ -63,7 +63,16 @@ async function createCompany(tag: string): Promise<Fixture> {
   };
 }
 
+/** The immutability trigger blocks DELETE on stock_movements; test cleanup bypasses it inside its own transaction. */
+async function purgeMovements(companyId: string) {
+  await base.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+    await tx.stockMovement.deleteMany({ where: { companyId } });
+  });
+}
+
 async function removeCompany(companyId: string) {
+  await purgeMovements(companyId);
   await base.auditLog.deleteMany({ where: { companyId } });
   await base.stockLevel.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
@@ -252,10 +261,25 @@ describe('ProductCommandsService (integration, real Postgres)', () => {
       expect(await base.product.count({ where: { id: source } })).toBe(1);
     });
 
-    it('is still blocked when the stock record has quantity 0', async () => {
+    it('is blocked when the product has movements, even if its stock is now 0', async () => {
+      const p = await create('DEL-HIST');
+      await base.stockLevel.create({ data: { companyId: a.companyId, productId: p.id, warehouseId: a.warehouseId, quantity: 0 } });
+      await base.stockMovement.create({
+        data: { companyId: a.companyId, productId: p.id, warehouseId: a.warehouseId, type: 'INITIAL', quantity: 3, balanceAfter: 3 },
+      });
+      await expect(commands.remove(p.id)).rejects.toMatchObject({
+        constructor: ConflictException,
+        response: { code: 'PRODUCT_HAS_MOVEMENTS' },
+      });
+      expect(await base.product.count({ where: { id: p.id } })).toBe(1);
+    });
+
+    it('deletes a product whose only stock record is 0 and has no movements', async () => {
       const p = await create('DEL-ZERO');
       await base.stockLevel.create({ data: { companyId: a.companyId, productId: p.id, warehouseId: a.warehouseId, quantity: 0 } });
-      await expect(commands.remove(p.id)).rejects.toMatchObject({ response: { code: 'PRODUCT_HAS_STOCK' } });
+      await commands.remove(p.id);
+      expect(await base.product.count({ where: { id: p.id } })).toBe(0);
+      expect(await base.stockLevel.count({ where: { productId: p.id } })).toBe(0);
     });
 
     it('deletes a product without history with its dimensions and audits it', async () => {

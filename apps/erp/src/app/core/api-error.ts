@@ -17,6 +17,7 @@ const MESSAGES: Record<string, string> = {
   NETWORK: 'No hay conexión con el servidor. Revisa tu internet.',
   DUPLICATE_MANUFACTURER_CODE: 'Ya existe un producto con este código para la marca.',
   PRODUCT_HAS_STOCK: 'No se puede eliminar: tiene stock registrado. Desactívalo en su lugar.',
+  PRODUCT_HAS_MOVEMENTS: 'No se puede eliminar: tiene movimientos de stock. Desactívalo en su lugar.',
   PRODUCT_NOT_FOUND: 'El producto ya no existe. Actualiza el listado.',
   BRAND_NOT_FOUND: 'La marca elegida ya no existe.',
   COUNTRY_NOT_FOUND: 'La industria elegida ya no existe.',

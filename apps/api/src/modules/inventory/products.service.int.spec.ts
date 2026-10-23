@@ -294,8 +294,13 @@ describe('ProductsService (integration, real Postgres)', () => {
         where: { id: p1 },
         data: { attributes: { seal: '2RS', series: '62', tariffCode: '8482.10' }, createdById: creator, updatedById: creator },
       });
+      // the branch's location comes from its main warehouse
+      await base.warehouse.update({ where: { id: a.whA }, data: { isMain: true } });
       await base.stockThreshold.create({
-        data: { companyId: a.companyId, productId: p1, branchId: a.branchA, minStock: 12, maxStock: 60, location: 'A-03-2' },
+        data: { companyId: a.companyId, productId: p1, warehouseId: a.whA, minStock: 12, maxStock: 60, location: 'A-03-2' },
+      });
+      await base.stockThreshold.create({
+        data: { companyId: a.companyId, productId: p1, warehouseId: a.whB, minStock: 3, maxStock: 9, location: 'B-01-1' },
       });
     });
 
@@ -336,7 +341,7 @@ describe('ProductsService (integration, real Postgres)', () => {
       expect(d.totalStock).toBe(15);
       expect(d.stockByBranch).toEqual([
         { branchId: a.branchA, branchName: 'B0', warehouses: ['A'], quantity: 10, minStock: 12, maxStock: 60, location: 'A-03-2', availability: 'low' },
-        { branchId: a.branchB, branchName: 'B1', warehouses: ['B'], quantity: 5, minStock: null, maxStock: null, location: null, availability: 'available' },
+        { branchId: a.branchB, branchName: 'B1', warehouses: ['B'], quantity: 5, minStock: 3, maxStock: 9, location: null, availability: 'available' },
       ]);
     });
 

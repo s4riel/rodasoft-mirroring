@@ -4,7 +4,12 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import type { ProductDetail, ProductEquivalentItem, ProductEquivalentsResponse } from '@rodasoft/domain';
+import type {
+  ProductDetail,
+  ProductEquivalentItem,
+  ProductEquivalentsResponse,
+  ProductMovementsResponse,
+} from '@rodasoft/domain';
 import { RS_PERMISSIONS } from '@rodasoft/ui';
 import { ContextStore } from '../../../../core/context.store';
 import { PRODUCT_SHEET_ROUTE } from './product-sheet.routes';
@@ -12,6 +17,13 @@ import { ProductSheetPage } from './product-sheet.page';
 
 const URL = '/api/v1/inventory/products/p1';
 const EQUIVALENTS_URL = `${URL}/equivalents`;
+const MOVEMENTS: ProductMovementsResponse = {
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize: 10,
+  summary: { inLast30Days: 0, outLast30Days: 0, currentBalance: 0 },
+};
 
 const equivalent = (over: Partial<ProductEquivalentItem>): ProductEquivalentItem => ({
   productId: 'e1',
@@ -259,16 +271,25 @@ describe('ProductSheetPage', () => {
     expect(text(h)).toContain('Esta acción estará disponible próximamente.');
   });
 
-  it('shows the placeholders of the Equivalentes and Movimientos tabs', async () => {
+  it('opens the Movimientos and Stock por almacén tabs with their own requests', async () => {
     const h = await open();
     respond(detail());
     await settle(h);
     const tab = (label: string) =>
       Array.from(el(h).querySelectorAll('[role="tab"]')).find((b) => b.textContent?.includes(label)) as HTMLButtonElement;
+
     tab('Movimientos').click();
     await settle(h);
-    expect(text(h)).toContain('Disponible próximamente');
+    http.expectOne((r) => r.url === `${URL}/movements`).flush(MOVEMENTS);
+    await settle(h);
+    expect(text(h)).toContain('Sin movimientos registrados');
     expect(el(h).querySelector('rs-branch-stock-table')).toBeNull();
+
+    tab('Stock por almacén').click();
+    await settle(h);
+    http.expectOne(`${URL}/stock`).flush({ items: [], total: 0 });
+    await settle(h);
+    expect(text(h)).toContain('Sin stock registrado');
   });
 
   describe('equivalents on the sheet', () => {
