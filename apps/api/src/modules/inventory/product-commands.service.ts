@@ -9,12 +9,19 @@ import {
 import { Prisma } from '@prisma/client';
 import {
   buildDuplicate,
+  diffProduct,
   type DuplicateProductResponse,
   type DuplicateSource,
+  editableFields,
   formatSku,
+  MOVEMENT_LOCKED_FIELDS,
   parseSkuNumber,
+  PRODUCT_READONLY_FIELDS,
+  type ProductChange,
   type ProductDraftInput,
   type ProductFieldError,
+  type ProductSnapshot,
+  type ProductUpdateResponse,
   SPEC_STEP_DIMENSIONS,
   todayInLaPaz,
   validateProductDraft,
@@ -28,7 +35,7 @@ import { PrismaService, type TenantTransaction } from '../../common/prisma/prism
 import { SettingsService } from '../../common/settings/settings.service';
 import { MembershipService } from '../access/membership.service';
 import type { DuplicateProductDto } from './dto';
-import { ProductWriteDto } from './product-write.dto';
+import { ProductUpdateDto, ProductWriteDto } from './product-write.dto';
 import { StockMovementService } from './stock-movement.service';
 
 const notFound = () => new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
@@ -380,6 +387,215 @@ export class ProductCommandsService {
       });
   }
 
+  /**
+   * Edits a finished product (HU-INV-07). The body is the whole form: a field that is absent keeps its stored value, a
+   * `null` clears it. One transaction: the row lock, the `expectedUpdatedAt` check, the editable-fields check, the same
+   * validation as creation, the update, the audit entry (only what changed) and the outbox event. Stock is never written
+   * here (design-notes rule 1): only the thresholds of one warehouse.
+   */
+  async update(id: string, request: ProductUpdateDto): Promise<ProductUpdateResponse> {
+    const companyId = this.companyId();
+    assertEditableShape(request);
+    assertWizardShape(request);
+    assertUploadKeys(companyId, request);
+    const userId = this.cls.get('userId') ?? null;
+    const canViewCosts = await this.canViewCosts();
+    const expected = new Date(request.expectedUpdatedAt).getTime();
+    const thresholdTouched = [request.minStock, request.maxStock, request.location].some((v) => v !== undefined);
+    if (thresholdTouched && !request.thresholdBranchId) {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: 'Invalid request',
+        details: [{ field: 'thresholdBranchId', code: 'BRANCH_REQUIRED' }],
+      });
+    }
+
+    try {
+      return await this.prisma.tenant.$transaction(async (tx) => {
+        // the lock serializes edits of the same product: the second one reads the first one's `updated_at` and is refused
+        await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
+        const stored = await tx.product.findFirst({ where: { id, companyId }, include: { dimensions: true } });
+        if (!stored) throw notFound();
+        if (stored.status === 'DRAFT') {
+          throw new ConflictException({ code: 'NOT_EDITABLE_DRAFT', message: 'A draft is edited from the creation wizard' });
+        }
+        if (stored.updatedAt.getTime() !== expected) {
+          throw new ConflictException({
+            code: 'PRODUCT_MODIFIED',
+            message: 'The product was modified by someone else',
+            details: { updatedAt: stored.updatedAt.toISOString() },
+          });
+        }
+
+        const hasMovements = (await tx.stockMovement.count({ where: { productId: id, companyId } })) > 0;
+        const editable = editableFields({ hasMovements, canViewCost: canViewCosts });
+        const categoryChanged = request.categoryId !== undefined && request.categoryId !== stored.categoryId;
+        const brandChanged = request.brandId !== undefined && request.brandId !== stored.brandId;
+        if ((categoryChanged && !editable.categoryId) || (brandChanged && !editable.brandId)) {
+          throw new ConflictException({
+            code: 'PRODUCT_HAS_MOVEMENTS',
+            message: 'The brand and the category cannot change once the product has stock movements',
+            details: MOVEMENT_LOCKED_FIELDS,
+          });
+        }
+
+        // the technical fields belong to the category: a new category starts from the ones the form sent
+        const merged = mergeWithStored(request, stored);
+        const dto: ProductWriteDto = categoryChanged ? { ...merged, attributes: request.attributes ?? {} } : merged;
+        // an empty technical field is no value: it is not stored
+        const attributes = Object.fromEntries(Object.entries(dto.attributes ?? {}).filter(([, v]) => v !== null && v !== ''));
+
+        const code = dto.manufacturerCode?.trim() ?? '';
+        const brandId = dto.brandId ?? '';
+        const categoryId = dto.categoryId ?? '';
+        const rules = categoryId ? await this.attributeRules(tx, categoryId) : [];
+        const isBearing = rules.some((r) => r.step === SPEC_STEP_DIMENSIONS);
+        const input: ProductDraftInput = {
+          manufacturerCode: code || null,
+          brandId: brandId || null,
+          categoryId: categoryId || null,
+          isBearing,
+          salePrice: dto.salePrice ?? null,
+          dimensions: { innerDiameter: dto.innerDiameter ?? null, outerDiameter: dto.outerDiameter ?? null, width: dto.width ?? null },
+          attributes,
+          cost: canViewCosts ? (dto.cost ?? null) : null,
+          weight: dto.weight ?? null,
+          tariffCode: dto.tariffCode ?? null,
+          entryDate: dto.entryDate ?? null,
+          minStock: request.minStock ?? null,
+          maxStock: request.maxStock ?? null,
+          today: todayInLaPaz(),
+        };
+        const errors = validateProductDraft(input, rules, { draft: false });
+
+        // references are checked before the field rules, as in creation
+        const brand = brandId ? await tx.brand.findFirst({ where: { id: brandId }, select: { id: true, name: true } }) : null;
+        if (brandId && !brand) throw new UnprocessableEntityException({ code: 'BRAND_NOT_FOUND', message: 'Brand not found' });
+        const category = categoryId ? await tx.category.findFirst({ where: { id: categoryId }, select: { id: true, name: true } }) : null;
+        if (categoryId && !category) throw new UnprocessableEntityException({ code: 'CATEGORY_NOT_FOUND', message: 'Category not found' });
+        assertValid(errors);
+        if (!brand || !category) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request' });
+        if (dto.countryId) {
+          const country = await tx.country.findFirst({ where: { id: dto.countryId }, select: { id: true } });
+          if (!country) throw new UnprocessableEntityException({ code: 'COUNTRY_NOT_FOUND', message: 'Country not found' });
+        }
+        const taken = await this.codeAvailability(brand.id, code, id);
+        if (!taken.available) {
+          throw new ConflictException({
+            code: 'DUPLICATE_MANUFACTURER_CODE',
+            message: 'A product with this manufacturer code already exists for the brand',
+            details: { productId: taken.productId },
+          });
+        }
+
+        const before = snapshotOf(stored);
+        const measures = measuresOf({ ...dto, attributes });
+        const after: ProductSnapshot = {
+          manufacturerCode: code,
+          name: dto.name?.trim() || `${category.name} ${brand.name} ${code}`,
+          brandId: brand.id,
+          categoryId: category.id,
+          countryId: dto.countryId ?? null,
+          unit: dto.unit ?? 'UN',
+          salePrice: dto.salePrice ?? null,
+          cost: canViewCosts ? (dto.cost ?? null) : before.cost,
+          ...measures,
+          attributes,
+          sectors: dto.sectors ?? [],
+          tariffCode: dto.tariffCode ?? null,
+          supplierName: dto.supplierName ?? null,
+          entryDate: dto.entryDate ?? null,
+          photos: dto.photos ?? [],
+          datasheetKey: dto.datasheetKey ?? null,
+        };
+        const change = diffProduct(before, after);
+
+        const warehouseId = thresholdTouched && request.thresholdBranchId ? await this.receivingWarehouse(tx, request.thresholdBranchId) : null;
+        const thresholdChange = warehouseId ? await this.thresholdChange(tx, id, warehouseId, request) : null;
+        if (!Object.keys(change.after).length && !thresholdChange) {
+          return { id, sku: stored.sku, updatedAt: stored.updatedAt.toISOString() };
+        }
+        const audited: ProductChange = {
+          before: { ...change.before, ...thresholdChange?.before },
+          after: { ...change.after, ...thresholdChange?.after },
+        };
+
+        // `updated_at` moves with every save: it is what the next editor's lock compares against
+        await tx.product.updateMany({
+          where: { id, companyId },
+          data: {
+            manufacturerCode: after.manufacturerCode,
+            brandId: after.brandId,
+            categoryId: after.categoryId,
+            countryId: after.countryId,
+            name: after.name,
+            unit: after.unit,
+            salePrice: after.salePrice ?? '0.00',
+            sectors: [...after.sectors],
+            tariffCode: after.tariffCode,
+            supplierName: after.supplierName,
+            entryDate: after.entryDate ? calendarDate(after.entryDate) : null,
+            attributes: attributes as Prisma.InputJsonObject,
+            photos: [...after.photos],
+            datasheetUrl: after.datasheetKey,
+            updatedById: userId,
+            ...(canViewCosts ? { cost: after.cost } : {}),
+          },
+        });
+        await this.saveDimensions(tx, companyId, id, { ...dto, attributes });
+        if (warehouseId && thresholdChange) await this.saveThreshold(tx, companyId, id, warehouseId, thresholdChange.values);
+
+        await this.audit.log(
+          { action: 'inventory.product.update', entity: 'Product', entityId: id, before: audited.before, after: audited.after },
+          tx as unknown as Prisma.TransactionClient,
+        );
+        const saved = await tx.product.findFirstOrThrow({ where: { id, companyId }, select: { updatedAt: true } });
+        await this.outbox.publish(
+          'inventory.product-updated',
+          { productId: id, sku: stored.sku, fields: Object.keys(audited.after) },
+          { tx, companyId, idempotencyKey: `inventory.product-updated:${id}:${saved.updatedAt.getTime()}` },
+        );
+        return { id, sku: stored.sku, updatedAt: saved.updatedAt.toISOString() };
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException({
+          code: 'DUPLICATE_MANUFACTURER_CODE',
+          message: 'A product with this manufacturer code already exists for the brand',
+        });
+      }
+      throw err;
+    }
+  }
+
+  /** The thresholds of the warehouse as the edit leaves them and what differs from the stored row; null when nothing does. */
+  private async thresholdChange(tx: TenantTransaction, productId: string, warehouseId: string, request: ProductUpdateDto) {
+    const stored = await tx.stockThreshold.findUnique({ where: { productId_warehouseId: { productId, warehouseId } } });
+    const was = { minStock: stored?.minStock ?? null, maxStock: stored?.maxStock ?? null, location: stored?.location ?? null };
+    const values = {
+      minStock: request.minStock === undefined ? was.minStock : request.minStock,
+      maxStock: request.maxStock === undefined ? was.maxStock : request.maxStock,
+      location: request.location === undefined ? was.location : request.location,
+    };
+    // a minimum above the maximum is refused whichever of the two the request sent
+    if (values.minStock !== null && values.maxStock !== null && values.minStock > values.maxStock) {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: 'Invalid request',
+        details: [{ field: 'maxStock', code: 'MAX_BELOW_MIN' }],
+      });
+    }
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+    for (const field of ['minStock', 'maxStock', 'location'] as const) {
+      if (values[field] !== was[field]) {
+        before[field] = was[field];
+        after[field] = values[field];
+      }
+    }
+    return Object.keys(after).length ? { before, after, values } : null;
+  }
+
   /** Attribute definitions of a category, falling back to its parent's when it has none (as the wizard shows them). */
   private async attributeRules(tx: TenantTransaction, categoryId: string): Promise<(AttributeRule & { step: number })[]> {
     const order = [{ step: 'asc' as const }, { sortOrder: 'asc' as const }];
@@ -410,17 +626,7 @@ export class ProductCommandsService {
   }
 
   private async saveDimensions(tx: TenantTransaction, companyId: string, productId: string, dto: ProductWriteDto) {
-    // categories without a dimensions step (seals) keep d, D and B as technical fields: they fill the columns too
-    const attributeMeasure = (key: string): string | null => {
-      const value = dto.attributes?.[key];
-      return typeof value === 'number' || typeof value === 'string' ? String(value) : null;
-    };
-    const values = {
-      innerDiameter: dto.innerDiameter ?? attributeMeasure('innerDiameter'),
-      outerDiameter: dto.outerDiameter ?? attributeMeasure('outerDiameter'),
-      width: dto.width ?? attributeMeasure('width'),
-      weight: dto.weight ?? null,
-    };
+    const values = measuresOf(dto);
     if (Object.values(values).every((v) => v === null)) {
       await tx.productDimension.deleteMany({ where: { productId } });
       return;
@@ -432,7 +638,13 @@ export class ProductCommandsService {
     });
   }
 
-  private async saveThreshold(tx: TenantTransaction, companyId: string, productId: string, warehouseId: string, dto: ProductWriteDto) {
+  private async saveThreshold(
+    tx: TenantTransaction,
+    companyId: string,
+    productId: string,
+    warehouseId: string,
+    dto: { minStock?: number | null; maxStock?: number | null; location?: string | null },
+  ) {
     if (dto.minStock === undefined && dto.maxStock === undefined && dto.location === undefined) return;
     const values = { minStock: dto.minStock ?? null, maxStock: dto.maxStock ?? null, location: dto.location ?? null };
     await tx.stockThreshold.upsert({
@@ -485,11 +697,61 @@ function assertValid(errors: ProductFieldError[]): void {
   throw new UnprocessableEntityException({ code: 'PRICE_REQUIRED', message: 'The product needs a sale price' });
 }
 
+/** An edit cannot change stock, the receiving branch or the status: asking for it is a 400, not a silent skip. */
+function assertEditableShape(dto: ProductUpdateDto): void {
+  const sent = PRODUCT_READONLY_FIELDS.filter((field) => (dto as unknown as Record<string, unknown>)[field] !== undefined);
+  if (!sent.length) return;
+  throw new BadRequestException({
+    code: 'FIELD_NOT_EDITABLE',
+    message: 'These fields cannot be edited here',
+    details: sent.map((field) => ({ field, code: 'FIELD_NOT_EDITABLE' })),
+  });
+}
+
+/** d, D, B and weight as stored. Categories without a dimensions step (seals) keep them as technical fields: they fill the columns too. */
+function measuresOf(dto: Pick<ProductWriteDto, 'attributes' | 'innerDiameter' | 'outerDiameter' | 'width' | 'weight'>) {
+  const attributeMeasure = (key: string): string | null => {
+    const value = dto.attributes?.[key];
+    return typeof value === 'number' || typeof value === 'string' ? String(value) : null;
+  };
+  return {
+    innerDiameter: dto.innerDiameter ?? attributeMeasure('innerDiameter'),
+    outerDiameter: dto.outerDiameter ?? attributeMeasure('outerDiameter'),
+    width: dto.width ?? attributeMeasure('width'),
+    weight: dto.weight ?? null,
+  };
+}
+
+/** The stored product as the edit form sees it, to compare with what the form sends back. */
+function snapshotOf(p: Prisma.ProductGetPayload<{ include: { dimensions: true } }>): ProductSnapshot {
+  return {
+    manufacturerCode: p.manufacturerCode,
+    name: p.name,
+    brandId: p.brandId,
+    categoryId: p.categoryId,
+    countryId: p.countryId,
+    unit: p.unit,
+    salePrice: p.salePrice.toFixed(2),
+    cost: p.cost ? p.cost.toFixed(4) : null,
+    innerDiameter: p.dimensions?.innerDiameter?.toString() ?? null,
+    outerDiameter: p.dimensions?.outerDiameter?.toString() ?? null,
+    width: p.dimensions?.width?.toString() ?? null,
+    weight: p.dimensions?.weight?.toString() ?? null,
+    attributes: p.attributes && typeof p.attributes === 'object' && !Array.isArray(p.attributes) ? (p.attributes as Record<string, unknown>) : {},
+    sectors: p.sectors,
+    tariffCode: p.tariffCode,
+    supplierName: p.supplierName,
+    entryDate: p.entryDate ? p.entryDate.toISOString().slice(0, 10) : null,
+    photos: Array.isArray(p.photos) ? (p.photos as string[]) : [],
+    datasheetKey: p.datasheetUrl,
+  };
+}
+
 /** Rejects the shapes the DTO cannot check: a date that does not exist, and a minimum above the maximum. */
 function assertWizardShape(dto: ProductWriteDto): void {
   const details: { field: string; code: string }[] = [];
   if (dto.entryDate && !calendarDate(dto.entryDate)) details.push({ field: 'entryDate', code: 'INVALID_DATE' });
-  if (dto.minStock !== undefined && dto.maxStock !== undefined && dto.minStock > dto.maxStock) {
+  if (typeof dto.minStock === 'number' && typeof dto.maxStock === 'number' && dto.minStock > dto.maxStock) {
     details.push({ field: 'maxStock', code: 'MAX_BELOW_MIN' });
   }
   if (details.length) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details });

@@ -3,6 +3,7 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsObject,
   IsOptional,
@@ -157,19 +158,36 @@ export class ProductWriteDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  minStock?: number;
+  minStock?: number | null;
 
   @ApiPropertyOptional({ minimum: 0 })
   @IsOptional()
   @IsInt()
   @Min(0)
-  maxStock?: number;
+  maxStock?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(60)
   location?: string | null;
+}
+
+/**
+ * Body of `PATCH /inventory/products/:id` (HU-INV-07). It reuses the wizard shape; `status`, `branchId` and `initialStock`
+ * stay declared so the service can refuse them with `FIELD_NOT_EDITABLE` (an unknown field would be a generic 400).
+ */
+export class ProductUpdateDto extends ProductWriteDto {
+  /** The `updatedAt` the form was loaded with; another edit in between makes the save a 409. */
+  @ApiProperty({ example: '2026-10-22T10:00:00.000Z' })
+  @IsISO8601()
+  expectedUpdatedAt!: string;
+
+  /** Branch whose main warehouse holds the thresholds being edited. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  thresholdBranchId?: string;
 }
 
 /** Fields of `POST /inventory/uploads` next to the file. */

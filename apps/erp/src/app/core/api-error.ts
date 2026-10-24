@@ -32,6 +32,11 @@ const MESSAGES: Record<string, string> = {
   WAREHOUSE_INACTIVE: 'El almacén está inactivo y no puede recibir stock.',
   MAX_BELOW_MIN: 'El stock máximo no puede ser menor que el mínimo.',
   INVALID_DATE: 'La fecha de ingreso no es válida.',
+  /** Shown when an edit is refused because brand or category are locked by stock movements (code PRODUCT_HAS_MOVEMENTS). */
+  PRODUCT_FIELDS_LOCKED: 'La marca y la categoría no se pueden cambiar: el producto ya tiene movimientos.',
+  PRODUCT_MODIFIED: 'Otro usuario modificó este producto. Recarga para ver los cambios.',
+  FIELD_NOT_EDITABLE: 'Hay campos que no se pueden editar aquí, como el stock.',
+  NOT_EDITABLE_DRAFT: 'Este producto es un borrador. Continúalo desde el listado de borradores.',
   VALIDATION_FAILED: 'Revisa los datos ingresados.',
 };
 

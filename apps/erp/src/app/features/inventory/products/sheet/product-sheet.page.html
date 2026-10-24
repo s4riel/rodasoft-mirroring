@@ -56,7 +56,7 @@
           {{ p.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
         </rs-status-pill>
         <div rsActions class="header-actions">
-          <button *rsCan="'inventory.products.edit'" rsButton variant="secondary" type="button" (click)="comingSoon()">
+          <button *rsCan="'inventory.products.edit'" rsButton variant="secondary" type="button" (click)="edit()">
             <rs-icon name="edit" [size]="16" /> Editar
           </button>
           <button *rsCan="'inventory.adjustments.create'" rsButton variant="brand" type="button" (click)="comingSoon()">

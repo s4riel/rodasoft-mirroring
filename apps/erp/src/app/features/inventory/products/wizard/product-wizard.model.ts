@@ -4,6 +4,7 @@ import type {
   AttributeRule,
   ProductDraftErrorCode,
   ProductDraftInput,
+  ProductUpdateRequest,
   ProductWriteRequest,
   WizardStepKey,
 } from '@rodasoft/domain';
@@ -220,6 +221,38 @@ export function toWriteRequest(
   };
   if (withCost) body.cost = decimalOf(values.cost) ?? null;
   return body;
+}
+
+/**
+ * Body of `PATCH /inventory/products/:id` (HU-INV-07): the whole form without stock, receiving branch or status. The
+ * thresholds only travel when the user touched them, for the branch whose main warehouse holds them; an emptied one is
+ * sent as null so it is cleared.
+ */
+export function toUpdateRequest(
+  values: WizardFormValues,
+  definitions: readonly AttributeDefinitionItem[],
+  {
+    categoryId,
+    withCost,
+    expectedUpdatedAt,
+    thresholdBranchId,
+  }: { categoryId: string | null; withCost: boolean; expectedUpdatedAt: string; thresholdBranchId: string | null },
+): ProductUpdateRequest {
+  const request = toWriteRequest(values, definitions, { status: 'ACTIVE', categoryId, withCost });
+  delete request.status;
+  delete request.branchId;
+  delete request.initialStock;
+  delete request.minStock;
+  delete request.maxStock;
+  delete request.location;
+  const update: ProductUpdateRequest = { ...request, expectedUpdatedAt };
+  if (thresholdBranchId) {
+    update.thresholdBranchId = thresholdBranchId;
+    update.minStock = stockOf(values.minStock) ?? null;
+    update.maxStock = stockOf(values.maxStock) ?? null;
+    update.location = textOf(values.location) ?? null;
+  }
+  return update;
 }
 
 /** Visible text of a field error code (Spanish, IN-03 error states). */

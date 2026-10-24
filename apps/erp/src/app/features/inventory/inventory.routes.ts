@@ -33,6 +33,13 @@ export const INVENTORY_ROUTES: Route[] = [
         loadComponent: () => import('./products/wizard/product-wizard.page').then((m) => m.ProductWizardPage),
       },
       {
+        path: 'products/:id/edit',
+        canActivate: [requiresPermission('inventory.products.edit')],
+        title: 'Editar producto · ERP',
+        data: { mode: 'edit' },
+        loadComponent: () => import('./products/wizard/product-wizard.page').then((m) => m.ProductWizardPage),
+      },
+      {
         path: 'products/:id/created',
         canActivate: [requiresPermission('inventory.products.edit')],
         title: 'Producto creado · ERP',

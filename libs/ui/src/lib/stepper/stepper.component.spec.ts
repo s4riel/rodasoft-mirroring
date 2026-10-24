@@ -35,4 +35,41 @@ describe('StepperComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('li.item').length).toBe(6);
     expect(fixture.nativeElement.querySelectorAll('.tag').length).toBe(0);
   });
+
+  it('marks the completed steps as done wherever the current step is', async () => {
+    const fixture = TestBed.createComponent(StepperComponent);
+    fixture.componentRef.setInput('steps', STEPS);
+    fixture.componentRef.setInput('current', 2);
+    fixture.componentRef.setInput('completed', [1, 2, 3, 4]);
+    await fixture.whenStable();
+    const el: HTMLElement = fixture.nativeElement;
+    // the current step stays the current one; the other three are done, with their connectors
+    expect(el.querySelectorAll('li.item.done').length).toBe(3);
+    expect(el.querySelectorAll('li.item.current').length).toBe(1);
+    expect(el.querySelectorAll('li.item.upcoming').length).toBe(0);
+    expect(el.querySelectorAll('li.item.done rs-icon').length).toBe(3);
+  });
+
+  it('is not clickable unless it is interactive', async () => {
+    const fixture = TestBed.createComponent(StepperComponent);
+    fixture.componentRef.setInput('steps', STEPS);
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelectorAll('button').length).toBe(0);
+  });
+
+  it('emits the 1-based step the user picks when it is interactive', async () => {
+    const fixture = TestBed.createComponent(StepperComponent);
+    fixture.componentRef.setInput('steps', STEPS);
+    fixture.componentRef.setInput('interactive', true);
+    const picked: number[] = [];
+    fixture.componentInstance.stepSelected.subscribe((step) => picked.push(step));
+    await fixture.whenStable();
+    const buttons = fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>;
+    expect(buttons.length).toBe(4);
+    buttons[3].click();
+    buttons[0].click();
+    expect(picked).toEqual([4, 1]);
+    // the focusable element carries the current-step announcement
+    expect(fixture.nativeElement.querySelectorAll('button[aria-current="step"]').length).toBe(1);
+  });
 });

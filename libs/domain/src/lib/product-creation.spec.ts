@@ -1,7 +1,10 @@
 import {
   type AttributeRule,
   completedRequiredSteps,
+  diffProduct,
+  editableFields,
   type ProductDraftInput,
+  type ProductSnapshot,
   todayInLaPaz,
   validateFieldFormats,
   validateProductDraft,
@@ -180,5 +183,83 @@ describe('validateFieldFormats', () => {
   it('gives today in La Paz, a day behind UTC late in the evening', () => {
     expect(todayInLaPaz(new Date('2026-10-23T02:00:00Z'))).toBe('2026-10-22');
     expect(todayInLaPaz(new Date('2026-10-23T14:00:00Z'))).toBe('2026-10-23');
+  });
+});
+
+const stored: ProductSnapshot = {
+  manufacturerCode: '6205-2RS',
+  name: 'Rodamientos SKF 6205-2RS',
+  brandId: 'brand-1',
+  categoryId: 'cat-1',
+  countryId: 'country-1',
+  unit: 'UN',
+  salePrice: '45.50',
+  cost: '30.0000',
+  innerDiameter: '25.000',
+  outerDiameter: '52.000',
+  width: '15.000',
+  weight: null,
+  attributes: { seal: 'Abierto', dynamicLoad: 14.8 },
+  sectors: ['Minería'],
+  tariffCode: null,
+  supplierName: null,
+  entryDate: null,
+  photos: [],
+  datasheetKey: null,
+};
+
+describe('diffProduct', () => {
+  it('is empty when nothing changed, even if decimals are written differently', () => {
+    const after: ProductSnapshot = { ...stored, salePrice: '45.5', innerDiameter: '25', cost: '30', attributes: { seal: 'Abierto', dynamicLoad: '14.80' }, tariffCode: '' };
+    expect(diffProduct(stored, after)).toEqual({ before: {}, after: {} });
+  });
+
+  it('reports only the changed fields, with both sides', () => {
+    const after: ProductSnapshot = { ...stored, salePrice: '49.90', width: '16', sectors: ['Minería', 'Industria'] };
+    expect(diffProduct(stored, after)).toEqual({
+      before: { salePrice: '45.50', width: '15.000', sectors: ['Minería'] },
+      after: { salePrice: '49.90', width: '16', sectors: ['Minería', 'Industria'] },
+    });
+  });
+
+  it('flattens the technical fields as attributes.<key>, including added and removed ones', () => {
+    const after: ProductSnapshot = { ...stored, attributes: { seal: '2RS', rows: 2 } };
+    expect(diffProduct(stored, after)).toEqual({
+      before: { 'attributes.seal': 'Abierto', 'attributes.dynamicLoad': 14.8, 'attributes.rows': null },
+      after: { 'attributes.seal': '2RS', 'attributes.dynamicLoad': null, 'attributes.rows': 2 },
+    });
+  });
+
+  it('treats a cleared field as a change to null', () => {
+    expect(diffProduct(stored, { ...stored, cost: null, countryId: null })).toEqual({
+      before: { cost: '30.0000', countryId: 'country-1' },
+      after: { cost: null, countryId: null },
+    });
+  });
+});
+
+describe('editableFields', () => {
+  it('never lets stock, the receiving branch or the status change', () => {
+    for (const hasMovements of [false, true]) {
+      for (const canViewCost of [false, true]) {
+        const fields = editableFields({ hasMovements, canViewCost });
+        expect([fields.initialStock, fields.branchId, fields.status]).toEqual([false, false, false]);
+      }
+    }
+  });
+
+  it('allows brand and category while the product has no movements', () => {
+    const fields = editableFields({ hasMovements: false, canViewCost: true });
+    expect([fields.brandId, fields.categoryId, fields.cost, fields.salePrice]).toEqual([true, true, true, true]);
+  });
+
+  it('locks brand and category once the product has movements', () => {
+    const fields = editableFields({ hasMovements: true, canViewCost: true });
+    expect([fields.brandId, fields.categoryId]).toEqual([false, false]);
+    expect([fields.manufacturerCode, fields.salePrice, fields.minStock]).toEqual([true, true, true]);
+  });
+
+  it('only lets who can see costs change them', () => {
+    expect(editableFields({ hasMovements: false, canViewCost: false }).cost).toBe(false);
   });
 });

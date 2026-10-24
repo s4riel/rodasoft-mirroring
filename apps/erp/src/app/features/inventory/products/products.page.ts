@@ -342,7 +342,7 @@ export class ProductsPage {
       });
   }
 
-  /** IN-01c · Row menu: view, duplicate and delete are built; edit and adjust arrive with their own stories. */
+  /** IN-01c · Row menu: view, edit, duplicate and delete are built; adjust arrives with its own story. */
   protected onRowAction(event: { id: string; key: string }) {
     const product = this.items().find((p) => p.id === event.id);
     if (!product) return;
@@ -354,6 +354,12 @@ export class ProductsPage {
       case 'view': {
         // a draft has no sheet yet: it opens in the creation wizard (HU-INV-06)
         const path = product.status === 'DRAFT' ? [product.id, 'draft'] : [product.id];
+        void this.router.navigate(['/inventory/products', ...path]);
+        return;
+      }
+      case 'edit': {
+        // a draft is edited in the creation wizard (HU-INV-06); a finished product in the edit wizard (HU-INV-07)
+        const path = product.status === 'DRAFT' ? [product.id, 'draft'] : [product.id, 'edit'];
         void this.router.navigate(['/inventory/products', ...path]);
         return;
       }

@@ -1,8 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import type {
   ProductDetail,
@@ -14,6 +14,9 @@ import { RS_PERMISSIONS } from '@rodasoft/ui';
 import { ContextStore } from '../../../../core/context.store';
 import { PRODUCT_SHEET_ROUTE } from './product-sheet.routes';
 import { ProductSheetPage } from './product-sheet.page';
+
+@Component({ template: '' })
+class EditStubPage {}
 
 const URL = '/api/v1/inventory/products/p1';
 const EQUIVALENTS_URL = `${URL}/equivalents`;
@@ -94,7 +97,10 @@ describe('ProductSheetPage', () => {
     const permissions = new Set(granted);
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'inventory', children: [PRODUCT_SHEET_ROUTE] }]),
+        provideRouter([
+          { path: 'inventory/products/:id/edit', component: EditStubPage },
+          { path: 'inventory', children: [PRODUCT_SHEET_ROUTE] },
+        ]),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
@@ -261,12 +267,22 @@ describe('ProductSheetPage', () => {
     expect(text(h)).not.toContain('Ajustar stock');
   });
 
-  it('shows the coming-soon toast from Editar', async () => {
+  it('opens the edit wizard from Editar', async () => {
     const h = await open();
     respond(detail());
     await settle(h);
     const edit = Array.from(el(h).querySelectorAll('button')).find((b) => b.textContent?.includes('Editar')) as HTMLButtonElement;
     edit.click();
+    await settle(h);
+    expect(TestBed.inject(Router).url).toBe('/inventory/products/p1/edit');
+  });
+
+  it('keeps the coming-soon toast for Ajustar stock', async () => {
+    const h = await open();
+    respond(detail());
+    await settle(h);
+    const adjust = Array.from(el(h).querySelectorAll('button')).find((b) => b.textContent?.includes('Ajustar stock')) as HTMLButtonElement;
+    adjust.click();
     await settle(h);
     expect(text(h)).toContain('Esta acción estará disponible próximamente.');
   });
