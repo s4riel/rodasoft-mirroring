@@ -6,6 +6,7 @@ import {
   CanDirective,
   EmptyStateIllustratedComponent,
   IconComponent,
+  NoteComponent,
   PageHeaderComponent,
   SkeletonComponent,
   StatusPillComponent,
@@ -16,6 +17,8 @@ import {
 } from '@rodasoft/ui';
 import type { ProductFilterOptions } from '@rodasoft/domain';
 import { filter, map, startWith } from 'rxjs';
+import { problemOf } from '../../../../core/api-error';
+import { DeactivateProductDialog } from '../deactivate-product.dialog';
 import { DuplicateProductDialog } from '../duplicate-product.dialog';
 import { formatMeasure } from '../product-list.mapper';
 import { ProductsApi } from '../products-api.service';
@@ -35,9 +38,11 @@ const TAB_PATHS: Record<SheetTab, string> = { data: '', equivalents: 'equivalent
   imports: [
     ButtonComponent,
     CanDirective,
+    DeactivateProductDialog,
     DuplicateProductDialog,
     EmptyStateIllustratedComponent,
     IconComponent,
+    NoteComponent,
     PageHeaderComponent,
     RouterLink,
     RouterOutlet,
@@ -133,6 +138,33 @@ export class ProductSheetPage {
           this.toast.danger('No pudimos cargar las marcas e industrias. Inténtalo de nuevo.');
         },
       });
+  }
+
+  protected readonly deactivateOpen = signal(false);
+  protected readonly reactivating = signal(false);
+
+  /** IN-18a · Opens the deactivate dialog. */
+  protected deactivate() {
+    this.deactivateOpen.set(true);
+  }
+
+  /** Reactivating needs no confirmation: it only makes the product sellable again. */
+  protected reactivate() {
+    const id = this.store.product()?.id;
+    if (!id || this.reactivating()) return;
+    this.reactivating.set(true);
+    this.api.reactivate(id).subscribe({
+      next: () => {
+        this.reactivating.set(false);
+        this.toast.success('Producto reactivado');
+        this.store.retry();
+      },
+      error: (err: unknown) => {
+        this.reactivating.set(false);
+        this.toast.danger(problemOf(err).message);
+        this.store.retry();
+      },
+    });
   }
 
   /** Stock adjustment arrives with HU-INV-16. */

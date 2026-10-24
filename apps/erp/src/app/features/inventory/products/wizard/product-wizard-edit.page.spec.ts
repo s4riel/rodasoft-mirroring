@@ -41,6 +41,7 @@ const product = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   name: 'Rodamientos SKF 6205-2RS',
   unit: 'UN',
   status: 'ACTIVE',
+  hasMovements: false,
   brand: { id: 'b-skf', name: 'SKF', logoUrl: null },
   country: { id: 'c-se', code: 'SE', name: 'Suecia' },
   category: { id: 'k-bearings', name: 'Rodamientos', icon: 'bearing' },

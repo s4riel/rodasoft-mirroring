@@ -9,6 +9,7 @@ import {
   formatSku,
   fieldIconOf,
   hasActiveFilters,
+  isSellable,
   marginPercent,
   parseSkuNumber,
   parseMeasurement,
@@ -131,6 +132,14 @@ describe('buildDuplicate', () => {
     expect(copy.dimensions).toBeNull();
     expect(copy.salePrice).toBe('120.50');
     expect(copy.photos).toEqual([]);
+  });
+});
+
+describe('isSellable', () => {
+  it('only an active product can be sold', () => {
+    expect(isSellable('ACTIVE')).toBe(true);
+    expect(isSellable('INACTIVE')).toBe(false);
+    expect(isSellable('DRAFT')).toBe(false);
   });
 });
 

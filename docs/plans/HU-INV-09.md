@@ -14,7 +14,7 @@ HU-INV-05 already made delete refuse a product with movements: `remove()` return
 | Audited and reversible | Int test: audit entries `inventory.product.deactivate` / `.reactivate`, and the outbox event `inventory.product-status-changed` |
 
 ## Model
-Migration `20261023100000_product_deactivation` adds two nullable columns to `products`:
+Migration `20261024162520_product_deactivation` adds two nullable columns to `products`:
 - `deactivated_at` (`timestamptz`, `@map`);
 - `deactivated_by_id` (uuid, FK to users, `onDelete: Restrict`).
 
@@ -62,7 +62,7 @@ None apply directly. Whether an inactive product with stock shows in reports is 
 - **IN-18a and IN-18b texts:** compare with Figma during the build.
 
 ## Files expected to change
-- `apps/api/prisma/{schema.prisma, migrations/20261023100000_product_deactivation/}`
+- `apps/api/prisma/{schema.prisma, migrations/20261024162520_product_deactivation/}`
 - `libs/domain/src/lib/{state-machine.ts, product-catalog.ts, permissions.ts, specs}`
 - `apps/api/src/modules/inventory/{products.controller.ts, dto.ts, product-commands.service.ts, products.service.ts, *.int.spec.ts}`
 - `apps/api/src/common/outbox/outbox.service.ts`

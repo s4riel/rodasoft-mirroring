@@ -25,6 +25,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   branchStock: 24,
   salePrice: '245.00',
   status: 'ACTIVE',
+  hasMovements: false,
   ...over,
 });
 

@@ -100,7 +100,7 @@ test('duplicates a product choosing the industry and deletes the copy', async ({
   await expect(dataRows(page).first()).toContainText('6205-2RS');
   await dataRows(page).first().getByRole('button', { name: /Acciones de/ }).click();
   const items = page.getByRole('menuitem');
-  await expect(items).toHaveText([/Ver detalles/, /Editar/, /Duplicar/, /Ajustar stock/, /Eliminar/]);
+  await expect(items).toHaveText([/Ver detalles/, /Editar/, /Duplicar/, /Ajustar stock/, /Desactivar \/ Reactivar/, /Eliminar/]);
   await items.filter({ hasText: 'Duplicar' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'Duplicar producto' });
@@ -131,7 +131,7 @@ test('duplicates a product choosing the industry and deletes the copy', async ({
   await expect(dataRows(page)).toHaveCount(0);
 });
 
-test('refuses to delete a product that has stock', async ({ page }) => {
+test('does not offer to delete a product that has stock', async ({ page }) => {
   // Never click Eliminar on an arbitrary row: a product without stock would really be deleted. Target the seeded
   // 6206-2RS (every seeded product has stock rows) and make sure the row shown has stock before confirming.
   await page.getByRole('searchbox', { name: 'Buscar productos' }).fill('6206-2RS');
@@ -149,11 +149,11 @@ test('refuses to delete a product that has stock', async ({ page }) => {
 
   await target!.getByRole('button', { name: /Acciones de/ }).click();
   await page.getByRole('menuitem', { name: 'Eliminar' }).click();
-  await page
-    .getByRole('dialog', { name: /¿Eliminar/ })
-    .getByRole('button', { name: 'Eliminar' })
-    .click();
-  await expect(page.getByText('No se puede eliminar: tiene stock registrado. Desactívalo en su lugar.')).toBeVisible();
+  // HU-INV-09 (IN-18b): the dialog already knows it has movements, so it offers to deactivate instead of a delete that would fail
+  const dialog = page.getByRole('dialog', { name: /¿Eliminar/ });
+  await expect(dialog).toContainText('Tiene movimientos: solo puede desactivarse');
+  await expect(dialog.getByRole('button', { name: 'Eliminar' })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
   await expect(target!).toBeVisible();
 });
 

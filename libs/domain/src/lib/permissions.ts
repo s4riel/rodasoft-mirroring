@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   // Inventory
   'inventory.products.view': 'Ver productos y stock',
   'inventory.products.edit': 'Crear y editar productos',
+  'inventory.products.deactivate': 'Desactivar y reactivar productos',
   'inventory.products.delete': 'Eliminar productos',
   'inventory.costs.view': 'Ver costos',
   'inventory.adjustments.create': 'Registrar ajustes de inventario',

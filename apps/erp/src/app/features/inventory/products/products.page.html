@@ -191,9 +191,25 @@
   [heading]="'¿Eliminar ' + (deleteTarget()?.manufacturerCode ?? '') + '?'"
   [(open)]="deleteOpen"
 >
-  Esta acción elimina el producto del catálogo y no se puede deshacer. Si tiene stock registrado, desactívalo en su lugar.
+  @if (deleteBlocked()) {
+    <rs-note type="warning" title="Tiene movimientos: solo puede desactivarse">
+      Su historial de stock se conserva, por eso no se puede eliminar. Al desactivarlo deja de mostrarse en ventas y en la tienda.
+    </rs-note>
+  } @else {
+    Esta acción elimina el producto del catálogo y no se puede deshacer. Si tiene stock registrado, desactívalo en su lugar.
+  }
   <div slot="footer" class="dialog-actions">
     <button rsButton variant="secondary" type="button" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</button>
-    <button rsButton variant="danger" type="button" [loading]="deleting()" (click)="confirmDelete()">Eliminar</button>
+    @if (deleteBlocked()) {
+      @if (canDeactivateTarget()) {
+      <button *rsCan="'inventory.products.deactivate'" rsButton variant="brand" type="button" (click)="deactivateInstead()">
+        <rs-icon name="pause" [size]="16" /> Desactivar
+      </button>
+      }
+    } @else {
+      <button rsButton variant="danger" type="button" [loading]="deleting()" (click)="confirmDelete()">Eliminar</button>
+    }
   </div>
 </rs-modal>
+
+<rs-deactivate-product-dialog [(open)]="deactivateOpen" [product]="deactivateTarget()" (deactivated)="retry()" />

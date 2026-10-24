@@ -15,10 +15,14 @@ import {
   editableFields,
   equivalencePairsForCopy,
   formatSku,
+  InvalidTransitionError,
   MOVEMENT_LOCKED_FIELDS,
   parseSkuNumber,
   PRODUCT_READONLY_FIELDS,
   type ProductChange,
+  type ProductLifecycleStatus,
+  productStatusMachine,
+  type ProductStatusResponse,
   type ProductDraftInput,
   type ProductFieldError,
   type ProductSnapshot,
@@ -202,6 +206,65 @@ export class ProductCommandsService {
     }
   }
 
+  /**
+   * Deactivates or reactivates a product (HU-INV-09). The product keeps its stock, levels, movements and equivalences:
+   * only the status and who/when change, so the history stays intact. One transaction: the row lock, the transition of
+   * `productStatusMachine`, the audit entry and the outbox event.
+   */
+  async setStatus(id: string, event: 'deactivate' | 'reactivate'): Promise<ProductStatusResponse> {
+    const companyId = this.companyId();
+    const userId = this.cls.get('userId') ?? null;
+    return this.prisma.tenant.$transaction(async (tx) => {
+      // the lock serializes this with a concurrent edit, finalize or delete of the same product
+      await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
+      const stored = await tx.product.findFirst({ where: { id, companyId }, select: { sku: true, status: true } });
+      if (!stored) throw notFound();
+
+      let to: ProductLifecycleStatus;
+      try {
+        to = productStatusMachine.next(stored.status, event);
+      } catch (err) {
+        if (!(err instanceof InvalidTransitionError)) throw err;
+        throw new ConflictException({
+          code: 'INVALID_STATUS_TRANSITION',
+          message: `A ${stored.status.toLowerCase()} product cannot be ${event}d`,
+          details: { status: stored.status, event },
+        });
+      }
+
+      const deactivating = to === 'INACTIVE';
+      const { count } = await tx.product.updateMany({
+        where: { id, companyId, status: stored.status },
+        data: {
+          status: to,
+          deactivatedAt: deactivating ? new Date() : null,
+          deactivatedById: deactivating ? userId : null,
+          updatedById: userId,
+        },
+      });
+      // the lock makes this impossible; if it ever happens nothing is audited for a change that did not occur
+      if (count !== 1) throw notFound();
+
+      await this.audit.log(
+        {
+          action: `inventory.product.${event}`,
+          entity: 'Product',
+          entityId: id,
+          before: { status: stored.status },
+          after: { status: to },
+        },
+        tx as unknown as Prisma.TransactionClient,
+      );
+      const saved = await tx.product.findFirstOrThrow({ where: { id, companyId }, select: { updatedAt: true } });
+      await this.outbox.publish(
+        'inventory.product-status-changed',
+        { productId: id, sku: stored.sku, from: stored.status, to },
+        { tx, companyId, idempotencyKey: `inventory.product-status-changed:${id}:${saved.updatedAt.getTime()}` },
+      );
+      return { id, sku: stored.sku, status: to, updatedAt: saved.updatedAt.toISOString() };
+    });
+  }
+
   async remove(id: string): Promise<void> {
     const companyId = this.companyId();
     await this.prisma.tenant.$transaction(async (tx) => {
@@ -274,6 +337,8 @@ export class ProductCommandsService {
 
         const status: 'ACTIVE' | 'DRAFT' = dto.status ?? (existing ? 'DRAFT' : 'ACTIVE');
         const draft = status === 'DRAFT';
+        // finishing a draft is the machine's `activate` transition (the stored row is a draft here, checked above)
+        if (existing && !draft) productStatusMachine.next('DRAFT', 'activate');
         // missing identity fields are empty strings here; the validation below refuses them before any lookup
         const code = dto.manufacturerCode?.trim() ?? '';
         const brandId = dto.brandId ?? '';

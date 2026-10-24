@@ -78,7 +78,7 @@ export class ProductsService {
     const catalogEmpty = total === 0 && !(await this.prisma.tenant.product.findFirst({ select: { id: true } }));
 
     const ids = rows.map((r) => r.id);
-    const [totals, branchTotals] = await Promise.all([
+    const [totals, branchTotals, movementCounts] = await Promise.all([
       this.prisma.tenant.stockLevel.groupBy({
         by: ['productId'],
         where: { productId: { in: ids } },
@@ -91,7 +91,10 @@ export class ProductsService {
             _sum: { quantity: true },
           })
         : Promise.resolve([]),
+      // one query for the page: which products have history (they can only be deactivated, not deleted)
+      this.prisma.tenant.stockMovement.groupBy({ by: ['productId'], where: { productId: { in: ids } } }),
     ]);
+    const withMovements = new Set(movementCounts.map((m) => m.productId));
     const totalByProduct = new Map(totals.map((t) => [t.productId, t._sum.quantity ?? 0]));
     const branchByProduct = new Map(branchTotals.map((t) => [t.productId, t._sum.quantity ?? 0]));
 
@@ -128,6 +131,7 @@ export class ProductsService {
         branchStock: query.branchId ? (branchByProduct.get(r.id) ?? 0) : null,
         salePrice: r.salePrice.toFixed(2),
         status: r.status,
+        hasMovements: withMovements.has(r.id),
       };
     });
 
@@ -155,9 +159,10 @@ export class ProductsService {
     if (!p) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
 
     const attributes = isRecord(p.attributes) ? p.attributes : {};
-    const [specs, stockByBranch, actors] = await Promise.all([
+    const [specs, stockByBranch, movementCount, actors] = await Promise.all([
       this.specsOf(p.categoryId, p.category.parent?.id ?? null, attributes),
       this.stockByBranch(id),
+      this.prisma.tenant.stockMovement.count({ where: { productId: id } }),
       // `User` is global (not tenant-scoped); the ids come from a product already loaded through `prisma.tenant`
       this.prisma.user.findMany({
         where: { id: { in: [p.createdById, p.updatedById].filter((v): v is string => !!v) } },
@@ -176,6 +181,7 @@ export class ProductsService {
       name: p.name,
       unit: p.unit,
       status: p.status,
+      hasMovements: movementCount > 0,
       brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl },
       country: p.country ?? p.brand.country,
       category: parent
@@ -354,6 +360,8 @@ export class ProductsService {
     if (q.brandId) and.push({ brandId: q.brandId });
     // drafts (HU-INV-06) stay out of the list unless filtered for; `status` is only ACTIVE or INACTIVE in the filter
     and.push({ status: q.status ?? { not: 'DRAFT' } });
+    // the contract for sales, the POS and the web store (HU-INV-09): only what `isSellable` accepts
+    if (q.sellable) and.push({ status: 'ACTIVE' });
     // a root category also matches the products of its subcategories
     if (q.categoryId) and.push({ OR: [{ categoryId: q.categoryId }, { category: { parentId: q.categoryId } }] });
     if (q.subcategoryId) and.push({ categoryId: q.subcategoryId });

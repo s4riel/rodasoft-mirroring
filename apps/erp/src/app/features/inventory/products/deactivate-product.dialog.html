@@ -1,0 +1,22 @@
+<rs-modal
+  variant="confirmation"
+  closeLabel="Cerrar"
+  [heading]="'¿Desactivar ' + (product()?.manufacturerCode ?? '') + '?'"
+  [(open)]="open"
+>
+  <div class="body">
+    <p class="text">
+      El producto dejará de mostrarse en ventas y en la tienda. Conserva su historial y su stock, y puedes reactivarlo cuando
+      quieras.
+    </p>
+    @if (submitError(); as message) {
+      <rs-note type="danger">{{ message }}</rs-note>
+    }
+  </div>
+  <div slot="footer" class="actions">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button rsButton variant="brand" type="button" [loading]="saving()" (click)="confirm()">
+      <rs-icon name="pause" [size]="16" /> Desactivar
+    </button>
+  </div>
+</rs-modal>

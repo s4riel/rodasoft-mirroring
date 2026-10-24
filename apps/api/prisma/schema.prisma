@@ -155,6 +155,7 @@ model User {
   createdEquivalences  Equivalence[]   @relation("EquivalenceCreatedBy")
   approvedEquivalences Equivalence[]   @relation("EquivalenceApprovedBy")
   updatedProducts      Product[]       @relation("ProductUpdatedBy")
+  deactivatedProducts  Product[]       @relation("ProductDeactivatedBy")
   refreshTokens        RefreshToken[]
   passwordResets       PasswordReset[]
   stockMovements       StockMovement[]
@@ -438,6 +439,9 @@ model Product {
   datasheetUrl     String?       @map("datasheet_url")
   createdById      String?      @map("created_by_id") @db.Uuid
   updatedById      String?      @map("updated_by_id") @db.Uuid
+  /// set while the product is INACTIVE (HU-INV-09); cleared on reactivation
+  deactivatedAt    DateTime?    @map("deactivated_at") @db.Timestamptz(3)
+  deactivatedById  String?      @map("deactivated_by_id") @db.Uuid
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -453,6 +457,7 @@ model Product {
   equivalencesAsB Equivalence[]     @relation("EquivalenceProductB")
   createdBy       User?             @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy       User?             @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  deactivatedBy   User?             @relation("ProductDeactivatedBy", fields: [deactivatedById], references: [id], onDelete: Restrict)
 
   @@unique([companyId, sku])
   @@unique([companyId, brandId, manufacturerCode])
