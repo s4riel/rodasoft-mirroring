@@ -1,0 +1,129 @@
+<rs-modal
+  variant="form"
+  closeLabel="Cerrar"
+  [heading]="step() === 'upload' ? 'Importar productos' : 'Revisa la importación'"
+  [size]="step() === 'upload' ? 'default' : 'wide'"
+  [(open)]="open"
+>
+  @if (step() === 'upload') {
+    <div class="step">
+      <p class="subtitle">Sube tu catálogo en Excel. Antes de guardar nada revisarás cada fila.</p>
+
+      <rs-file-dropzone
+        title="Arrastra tu archivo aquí"
+        formatsLabel="Formato admitido:"
+        formats="XLSX"
+        limit="Máx. 5 MB"
+        buttonLabel="Seleccionar archivo"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        [invalid]="!!fileError()"
+        [disabled]="busy()"
+        (filesSelected)="onFiles($event)"
+      >
+        <rs-icon name="document" [size]="24" />
+      </rs-file-dropzone>
+
+      @if (fileError(); as message) {
+        <rs-note type="danger">{{ message }}</rs-note>
+      }
+
+      @if (file(); as selected) {
+        <rs-file-item [name]="selected.name" [detail]="fileDetail(selected)" status="done" removeLabel="Quitar archivo" (removed)="removeFile()">
+          <rs-icon name="document" [size]="20" />
+        </rs-file-item>
+      }
+
+      <button rsButton variant="ghost" class="template" type="button" [disabled]="downloading()" (click)="downloadTemplate()">
+        <rs-icon name="export" [size]="16" /> Descargar plantilla
+      </button>
+
+      <rs-radio-card-group class="modes" aria-label="Qué hacer con los productos que ya existen" [value]="mode()" (valueChange)="setMode($event)">
+        <rs-radio-card value="create_only" label="Solo crear nuevos" description="Los productos que ya existen se omiten." />
+        <rs-radio-card
+          value="create_or_update"
+          label="Crear y actualizar existentes"
+          description="Se busca por código y marca; las celdas vacías no cambian nada."
+        />
+      </rs-radio-card-group>
+
+      @if (submitError(); as message) {
+        <rs-note type="danger">{{ message }}</rs-note>
+      }
+    </div>
+  } @else {
+    @if (summary(); as s) {
+      <div class="step">
+        <div class="kpis">
+          <rs-kpi-card label="Válidas" [value]="'' + s.valid" />
+          <rs-kpi-card label="Con error" [value]="'' + s.withError" />
+          <rs-kpi-card label="Con advertencia" [value]="'' + s.withWarning" />
+          <rs-kpi-card label="Nuevas" [value]="'' + s.toCreate" />
+          <rs-kpi-card label="A actualizar" [value]="'' + s.toUpdate" />
+        </div>
+        @if (stockLine(); as line) {
+          <p class="stock-line">{{ line }}</p>
+        }
+
+        <div class="chips" role="group" aria-label="Filtrar filas">
+          @for (chip of filters; track chip.key) {
+            <rs-filter-chip
+              [label]="chip.label"
+              [showMedia]="false"
+              [selected]="filter() === chip.key"
+              (selectedChange)="setFilter(chip.key)"
+            />
+          }
+        </div>
+
+        <rs-doc-table
+          size="md"
+          tableLabel="Filas del archivo"
+          emptyLabel="No hay filas con este filtro."
+          [columns]="columns"
+          [rows]="tableRows()"
+        >
+          <footer slot="footer" class="pager">
+            <span class="range">{{ rangeLabel() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [(page)]="page"
+              [pageCount]="pageCount()"
+            />
+          </footer>
+        </rs-doc-table>
+
+        @if (unknownColumns(); as columnsText) {
+          <rs-note type="warning" title="Columnas ignoradas">{{ columnsText }}</rs-note>
+        }
+        @if (s.valid === 0) {
+          <rs-note type="danger" title="No hay filas válidas">Corrige el archivo y vuelve a subirlo.</rs-note>
+        } @else {
+          <rs-note type="info">Solo se importarán las filas válidas.</rs-note>
+        }
+        @if (submitError(); as message) {
+          <rs-note type="danger">{{ message }}</rs-note>
+        }
+      </div>
+    }
+  }
+
+  <div slot="footer" class="actions">
+    @if (step() === 'upload') {
+      <button rsButton variant="secondary" type="button" [disabled]="busy()" (click)="cancel()">Cancelar</button>
+      <button rsButton variant="brand" type="button" [disabled]="!file()" [loading]="loading()" (click)="review()">Revisar</button>
+    } @else {
+      <button rsButton variant="secondary" type="button" [disabled]="committing()" (click)="back()">Volver</button>
+      @if (summary()?.withError) {
+        <button rsButton variant="secondary" type="button" [disabled]="downloading() || committing()" (click)="downloadErrors()">
+          <rs-icon name="export" [size]="16" /> Descargar errores
+        </button>
+      }
+      <button rsButton variant="brand" type="button" [disabled]="!summary()?.valid" [loading]="committing()" (click)="confirm()">
+        {{ confirmLabel() }}
+      </button>
+    }
+  </div>
+</rs-modal>

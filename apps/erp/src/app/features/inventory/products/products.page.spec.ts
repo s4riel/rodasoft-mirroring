@@ -108,6 +108,40 @@ describe('ProductsPage', () => {
     expect(t).toContain('Subtotal');
   });
 
+  it('puts Importar right before Exportar, with its own icon, and opens the import dialog', async () => {
+    const h = await open();
+    flushList(response([item()]));
+    flushOptions();
+    h.detectChanges();
+    await h.fixture.whenStable();
+
+    const root = h.routeNativeElement as HTMLElement;
+    const actions = Array.from(root.querySelectorAll<HTMLButtonElement>('.header-actions > button'));
+    expect(actions.map((b) => b.textContent?.trim())).toEqual(['Importar', 'Exportar', 'Nuevo producto']);
+    expect(actions[0].querySelector('rs-icon')?.getAttribute('name')).toBe('import');
+    expect(actions[1].querySelector('rs-icon')?.getAttribute('name')).toBe('export');
+
+    expect(root.querySelector('[role=dialog]')).toBeNull();
+    actions[0].click();
+    h.detectChanges();
+    await h.fixture.whenStable();
+    expect(root.querySelector('[role=dialog]')?.textContent).toContain('Importar productos');
+  });
+
+  it('reloads the list after an import', async () => {
+    const h = await open();
+    flushList(response([item()]));
+    flushOptions();
+    h.detectChanges();
+    await h.fixture.whenStable();
+
+    const dialog = h.fixture.debugElement.query((d) => d.name === 'rs-import-products-dialog');
+    dialog.triggerEventHandler('imported', { created: 1, updated: 0, skipped: 0, stockMovements: 0 });
+    h.detectChanges();
+
+    flushList(response([item(), item({ id: 'p2', manufacturerCode: 'NEW-1' })]));
+  });
+
   it('hides header actions the role does not have', async () => {
     const h = await open('/products', ['inventory.products.view']);
     flushList(response([item()]));

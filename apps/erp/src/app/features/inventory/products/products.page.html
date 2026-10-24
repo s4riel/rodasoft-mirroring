@@ -6,7 +6,7 @@
   breadcrumbLabel="Ruta de navegación"
 >
   <div rsActions class="header-actions">
-    <button *rsCan="'inventory.products.import'" rsButton variant="secondary" type="button" (click)="comingSoon()">
+    <button *rsCan="'inventory.products.import'" rsButton variant="secondary" type="button" (click)="openImport()">
       <rs-icon name="import" [size]="16" /> Importar
     </button>
     <button *rsCan="'inventory.products.export'" rsButton variant="secondary" type="button" (click)="comingSoon()">
@@ -182,6 +182,8 @@
 }
 
 <rs-toast-outlet closeLabel="Cerrar" />
+
+<rs-import-products-dialog [(open)]="importOpen" (imported)="retry()" />
 
 <rs-duplicate-product-dialog [(open)]="duplicateOpen" [product]="duplicateTarget()" [options]="options()" />
 

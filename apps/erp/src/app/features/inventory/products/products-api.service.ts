@@ -17,6 +17,9 @@ import type {
   ProductWarehouseStockResponse,
   EquivalenceLinkResponse,
   EquivalenceSuggestionsResponse,
+  ImportCommitResponse,
+  ImportMode,
+  ImportPreviewResponse,
   ProductEditModel,
   ProductUpdateRequest,
   ProductUpdateResponse,
@@ -161,6 +164,26 @@ export class ProductsApi {
     return this.http.patch<ProductWriteResponse>(`/api/v1/inventory/products/${id}/draft`, body);
   }
 
+  /** IN-21a · The template with the tenant's warehouse columns (HU-INV-10). */
+  importTemplate(): Observable<Blob> {
+    return this.http.get('/api/v1/inventory/products/import/template', { responseType: 'blob' });
+  }
+
+  /** IN-21b · Reads and checks the file; nothing is written. */
+  importPreview(file: File, mode: ImportMode): Observable<ImportPreviewResponse> {
+    return this.http.post<ImportPreviewResponse>('/api/v1/inventory/products/import/preview', importBody(file, mode));
+  }
+
+  /** Writes the valid rows of the file; the server checks the file again. */
+  importCommit(file: File, mode: ImportMode): Observable<ImportCommitResponse> {
+    return this.http.post<ImportCommitResponse>('/api/v1/inventory/products/import/commit', importBody(file, mode));
+  }
+
+  /** The file's rows that have errors, in an .xlsx with the problems in an "Errores" column. */
+  importErrorReport(file: File, mode: ImportMode): Observable<Blob> {
+    return this.http.post('/api/v1/inventory/products/import/error-report', importBody(file, mode), { responseType: 'blob' });
+  }
+
   equivalenceSuggestions(id: string): Observable<EquivalenceSuggestionsResponse> {
     return this.http.get<EquivalenceSuggestionsResponse>(`/api/v1/inventory/products/${id}/equivalence-suggestions`);
   }
@@ -168,4 +191,11 @@ export class ProductsApi {
   linkEquivalence(productAId: string, productBId: string): Observable<EquivalenceLinkResponse> {
     return this.http.post<EquivalenceLinkResponse>('/api/v1/inventory/equivalences', { productAId, productBId });
   }
+}
+
+function importBody(file: File, mode: ImportMode): FormData {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('mode', mode);
+  return body;
 }

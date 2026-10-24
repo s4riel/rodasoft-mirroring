@@ -8,6 +8,10 @@ export interface CompanySettings {
   'inventory.skuPrefix': string;
   /** Whether a movement may leave a warehouse below zero (design-notes rule 2). */
   'inventory.allowNegativeStock': boolean;
+  /** Most rows an Excel product import accepts (HU-INV-10). */
+  'inventory.import.maxRows': number;
+  /** Whether the import creates the brands it does not find (decision #33). Not supported yet: `true` is refused. */
+  'inventory.import.createMissingBrands': boolean;
   /** Transfers above this many pieces need approval (decision #36). Null = no limit. */
   'transfers.approvalThresholdPieces': number | null;
   /** Transfers above this value need approval (decision #36). Null = no limit. */
@@ -21,6 +25,8 @@ export type CompanySettingKey = keyof CompanySettings;
 export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'inventory.skuPrefix': 'RL-',
   'inventory.allowNegativeStock': false,
+  'inventory.import.maxRows': 2000,
+  'inventory.import.createMissingBrands': false,
   'transfers.approvalThresholdPieces': null,
   'transfers.approvalThresholdValue': null,
   'adjustments.approvalThresholdValue': null,
@@ -38,6 +44,7 @@ export function settingOrDefault<K extends CompanySettingKey>(key: K, stored: un
   if (stored === undefined || stored === null) return fallback;
   if (MONEY_SETTING_KEYS.has(key)) return (typeof stored === 'string' ? stored : fallback) as CompanySettings[K];
   if (typeof fallback === 'boolean') return (typeof stored === 'boolean' ? stored : fallback) as CompanySettings[K];
+  if (typeof fallback === 'number') return (typeof stored === 'number' && Number.isInteger(stored) && stored > 0 ? stored : fallback) as CompanySettings[K];
   if (typeof fallback === 'string') return (typeof stored === 'string' ? stored : fallback) as CompanySettings[K];
   if (typeof stored === 'number' || typeof stored === 'string') return stored as CompanySettings[K];
   return fallback;

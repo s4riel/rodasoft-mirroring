@@ -39,6 +39,12 @@ const MESSAGES: Record<string, string> = {
   NOT_EDITABLE_DRAFT: 'Este producto es un borrador. Continúalo desde el listado de borradores.',
   INVALID_STATUS_TRANSITION: 'El estado del producto cambió. Actualiza para ver su estado actual.',
   VALIDATION_FAILED: 'Revisa los datos ingresados.',
+  UNSUPPORTED_FILE_TYPE: 'Solo se aceptan archivos Excel (.xlsx).',
+  FILE_TOO_LARGE: 'El archivo supera el límite de 5 MB.',
+  IMPORT_INVALID_TEMPLATE: 'El archivo no tiene el formato de la plantilla. Descárgala y vuelve a intentar.',
+  IMPORT_TOO_MANY_ROWS: 'El archivo tiene demasiadas filas. Divídelo en partes más pequeñas.',
+  NOT_SUPPORTED: 'Esta opción todavía no está disponible.',
+  NO_PERMISSION: 'No tienes permiso para esta acción.',
 };
 
 export function problemOf(err: unknown): ApiProblem {

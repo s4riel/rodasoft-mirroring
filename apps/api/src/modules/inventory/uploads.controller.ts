@@ -52,7 +52,7 @@ const fieldsPipe = new ValidationPipe({
  * gives that error the FILE_TOO_LARGE code of the upload contract.
  */
 @Injectable()
-class UploadLimitInterceptor implements NestInterceptor {
+export class UploadLimitInterceptor implements NestInterceptor {
   intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       catchError((err: unknown) => {

@@ -39,6 +39,7 @@ import { ContextStore } from '../../../core/context.store';
 import { branchStockSubtotal, flagOf, PRODUCTS_PAGE_SIZE, thumbIconOf, toTableRow } from './product-list.mapper';
 import { DeactivateProductDialog } from './deactivate-product.dialog';
 import { DuplicateProductDialog } from './duplicate-product.dialog';
+import { ImportProductsDialog } from './import/import-products.dialog';
 import { ProductsApi } from './products-api.service';
 
 type FilterKey = 'countryId' | 'categoryId' | 'subcategoryId' | 'brandId' | 'status';
@@ -80,6 +81,7 @@ const STATUS_LABELS: Record<ProductStatusFilter, string> = { ACTIVE: 'Activo', I
     FilterBarProductsComponent,
     FilterChipComponent,
     IconComponent,
+    ImportProductsDialog,
     ModalComponent,
     NoteComponent,
     PageHeaderComponent,
@@ -156,6 +158,7 @@ export class ProductsPage {
     };
   });
 
+  protected readonly importOpen = signal(false);
   protected readonly duplicateOpen = signal(false);
   protected readonly duplicateTarget = signal<ProductListItem | null>(null);
   protected readonly deleteOpen = signal(false);
@@ -446,6 +449,11 @@ export class ProductsPage {
   /** Opens the creation wizard at its first screen: the category cards (IN-03a). */
   protected createProduct() {
     void this.router.navigate(['/inventory/products/new']);
+  }
+
+  /** IN-21a · Opens the Excel import dialog; the list reloads after it imports something. */
+  protected openImport() {
+    this.importOpen.set(true);
   }
 
   /** Actions of the header and the row menu arrive with their own stories. */

@@ -10,6 +10,7 @@ import { ModalComponent } from './modal.component';
       [(open)]="open"
       heading="Anular factura"
       variant="form"
+      [size]="size()"
       (closed)="closedCount = closedCount + 1"
     >
       <input id="field" />
@@ -19,6 +20,7 @@ import { ModalComponent } from './modal.component';
 })
 class HostComponent {
   readonly open = signal(false);
+  readonly size = signal<'default' | 'wide'>('default');
   closedCount = 0;
 }
 
@@ -44,6 +46,16 @@ describe('ModalComponent', () => {
     const title = dialog.querySelector('h2') as HTMLElement;
     expect(title.textContent).toBe('Anular factura');
     expect(dialog.getAttribute('aria-labelledby')).toBe(title.id);
+  });
+
+  it('usa el ancho normal salvo que se pida wide', async () => {
+    const fixture = await openModal();
+    const panel = () => fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel().getAttribute('data-size')).toBe('default');
+
+    fixture.componentInstance.size.set('wide');
+    await fixture.whenStable();
+    expect(panel().getAttribute('data-size')).toBe('wide');
   });
 
   it('enfoca el primer control del cuerpo al abrir', async () => {

@@ -25,6 +25,10 @@
 .panel[data-variant='form'] {
   max-width: 520px;
 }
+/* no Figma token for the width of a dialog with a table: 960px fits the 5-column preview of the import */
+.panel[data-size='wide'] {
+  max-width: 960px;
+}
 .header {
   display: flex;
   align-items: flex-start;
