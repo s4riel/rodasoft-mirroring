@@ -14,11 +14,12 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type {
   EquivalenceLinkResponse,
+  EquivalenceListResponse,
   EquivalenceSuggestionsResponse,
   ProductEquivalentsResponse,
 } from '@rodasoft/domain';
 import { RequirePermissions } from '../access/require-permissions.decorator';
-import { ListEquivalentsQueryDto } from './dto';
+import { ListEquivalencesQueryDto, ListEquivalentsQueryDto } from './dto';
 import { EquivalencesService } from './equivalences.service';
 import { EquivalenceCandidatesDto, LinkEquivalenceDto } from './product-write.dto';
 
@@ -55,6 +56,12 @@ const idPipe = new ParseUUIDPipe({
 @Controller('inventory')
 export class EquivalencesController {
   constructor(private readonly equivalences: EquivalencesService) {}
+
+  @Get('equivalences')
+  @RequirePermissions('inventory.products.view')
+  listAll(@Query(queryPipe) query: ListEquivalencesQueryDto): Promise<EquivalenceListResponse> {
+    return this.equivalences.list(query);
+  }
 
   @Get('products/:id/equivalents')
   @RequirePermissions('inventory.products.view')

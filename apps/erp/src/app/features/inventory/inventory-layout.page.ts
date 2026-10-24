@@ -18,7 +18,7 @@ import { SubNavComponent, SubNavItem } from '@rodasoft/ui';
 export class InventoryLayoutPage {
   protected readonly tabs: SubNavItem[] = [
     { key: 'products', label: 'Productos', route: '/inventory/products' },
-    { key: 'equivalences', label: 'Equivalencias', disabled: true },
+    { key: 'equivalences', label: 'Equivalencias', route: '/inventory/equivalences' },
     { key: 'warehouses', label: 'Almacenes', disabled: true },
     { key: 'transfers', label: 'Transferencias', disabled: true },
     { key: 'adjustments', label: 'Ajustes', disabled: true },

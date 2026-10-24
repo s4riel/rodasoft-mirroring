@@ -2,11 +2,14 @@
  * Integration test against the real Postgres (DATABASE_URL). Creates two throw-away companies
  * and removes them at the end, so it is safe to run against the dev database.
  */
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
 import { normalizePair } from '@rodasoft/domain';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../../common/audit/audit.service';
+import { PermissionsGuard } from '../access/permissions.guard';
+import { EquivalencesController } from './equivalences.controller';
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import { tenantExtension } from '../../common/prisma/tenant.extension';
 import { EquivalencesService } from './equivalences.service';
@@ -222,6 +225,129 @@ describe('EquivalencesService (integration, real Postgres)', () => {
     current = b.companyId;
     await expect(service.listForProduct(original, {})).rejects.toBeInstanceOf(NotFoundException);
     expect((await service.listForProduct(foreign, {})).items).toEqual([]);
+  });
+
+  describe('company-wide list (HU-INV-11)', () => {
+    it('lists each pair once with both products, its kind and its differences', async () => {
+      const res = await service.list({});
+      expect(res).toMatchObject({ total: 4, page: 1, linksEmpty: false });
+      expect(res.items).toHaveLength(4);
+      const toDdu = res.items.find((i) => [i.productA.id, i.productB.id].includes(diffSeal));
+      expect(toDdu).toBeDefined();
+      expect(new Set([toDdu!.productA.id, toDdu!.productB.id])).toEqual(new Set([original, diffSeal]));
+      expect(toDdu).toMatchObject({ kind: 'WITH_DIFFERENCES' });
+      expect(toDdu!.differences.map((d) => d.key)).toEqual(['seal']);
+      // a pair is stored in one direction only, so no link repeats
+      expect(new Set(res.items.map((i) => i.id)).size).toBe(4);
+    });
+
+    it('describes each side with code, brand, measures and the total stock', async () => {
+      const res = await service.list({});
+      const sides = res.items.flatMap((i) => [i.productA, i.productB]);
+      const skf = sides.find((p) => p.id === original)!;
+      expect(skf).toMatchObject({
+        manufacturerCode: '6205-2RS',
+        brand: { name: 'SKF' },
+        dimensions: { innerDiameter: '25', outerDiameter: '52', width: '15' },
+        totalStock: 24,
+        status: 'ACTIVE',
+      });
+      expect(sides.find((p) => p.id === exact)).toMatchObject({ totalStock: 6, brand: { name: 'NTN' } });
+      expect(sides.find((p) => p.id === diffCage)).toMatchObject({ totalStock: 0 });
+      expect(JSON.stringify(res)).not.toContain('cost');
+    });
+
+    it('lists the newest link first and returns the date of creation', async () => {
+      const res = await service.list({});
+      const times = res.items.map((i) => Date.parse(i.createdAt));
+      expect(times).toEqual([...times].sort((x, y) => y - x));
+      expect(res.items[0].createdBy).toBeNull();
+    });
+
+    it('filters by kind, computing it before the page is cut', async () => {
+      expect((await service.list({ kind: 'EXACT' })).items.map((i) => i.kind)).toEqual(['EXACT']);
+      const diff = await service.list({ kind: 'WITH_DIFFERENCES' });
+      expect([diff.total, diff.items.every((i) => i.kind === 'WITH_DIFFERENCES')]).toEqual([2, true]);
+      expect((await service.list({ kind: 'INCOMPATIBLE' })).total).toBe(1);
+      const second = await service.list({ kind: 'WITH_DIFFERENCES', page: 2, pageSize: 1 });
+      expect([second.total, second.items.length]).toEqual([2, 1]);
+    });
+
+    it('filters by the brand of either side', async () => {
+      const ntn = await service.list({ brandId: a.brands['NTN'] });
+      expect(ntn.items.map((i) => i.kind)).toEqual(['EXACT']);
+      // SKF is the original, which is side A in some links and side B in others
+      expect((await service.list({ brandId: a.brands['SKF'] })).total).toBe(4);
+      expect((await service.list({ brandId: a.brands['NSK'] })).total).toBe(2);
+    });
+
+    it('filters by category, a root one matching its subcategories', async () => {
+      const root = await base.category.findFirstOrThrow({ where: { companyId: a.companyId, parentId: null } });
+      expect((await service.list({ categoryId: root.id })).total).toBe(4);
+      expect((await service.list({ categoryId: a.balls })).total).toBe(4);
+      expect((await service.list({ categoryId: a.rollers })).total).toBe(0);
+    });
+
+    it('searches the code of either side, ignoring case', async () => {
+      expect((await service.list({ q: '6205-2z' })).total).toBe(1);
+      // the original appears on every link
+      expect((await service.list({ q: '6205-2RS' })).total).toBe(4);
+      expect((await service.list({ q: '  nothing  ' })).total).toBe(0);
+    });
+
+    it('combines the filters', async () => {
+      const res = await service.list({ brandId: a.brands['NSK'], kind: 'WITH_DIFFERENCES', q: 'DDU' });
+      expect(res.total).toBe(1);
+    });
+
+    it('paginates and keeps the total', async () => {
+      const first = await service.list({ page: 1, pageSize: 3 });
+      const second = await service.list({ page: 2, pageSize: 3 });
+      expect([first.items.length, second.items.length, first.total, second.total]).toEqual([3, 1, 4, 4]);
+      expect(new Set([...first.items, ...second.items].map((i) => i.id)).size).toBe(4);
+      expect((await service.list({ page: 9 })).items).toEqual([]);
+    });
+
+    it('tells a company without links from a search without results', async () => {
+      expect(await service.list({ q: 'nothing' })).toMatchObject({ total: 0, linksEmpty: false });
+      current = b.companyId;
+      expect(await service.list({})).toMatchObject({ items: [], total: 0, linksEmpty: true });
+    });
+
+    it("never shows another company's links", async () => {
+      current = b.companyId;
+      const other = await product(b, 'SKF', 'FOREIGN-2');
+      await link(b.companyId, foreign, other);
+      const res = await service.list({});
+      expect(res.total).toBe(1);
+      expect(res.items[0].productA.manufacturerCode.startsWith('FOREIGN')).toBe(true);
+      expect(JSON.stringify(res)).not.toContain('6205');
+      current = a.companyId;
+      expect(JSON.stringify(await service.list({ pageSize: 100 }))).not.toContain('FOREIGN');
+    });
+
+    describe('permissions', () => {
+      const guardFor = (granted: string[]) =>
+        new PermissionsGuard(new Reflector(), { permissions: async () => new Set(granted) } as never);
+      const contextOf = (handler: unknown) =>
+        ({
+          getHandler: () => handler,
+          getClass: () => EquivalencesController,
+          switchToHttp: () => ({ getRequest: () => ({ user: { mid: 'm1' } }) }),
+        }) as never;
+
+      it('lets a user who can only view read the list but answers 403 when they try to link', async () => {
+        const viewer = guardFor(['inventory.products.view']);
+        await expect(viewer.canActivate(contextOf(EquivalencesController.prototype.listAll))).resolves.toBe(true);
+        const refused = viewer.canActivate(contextOf(EquivalencesController.prototype.link));
+        await expect(refused).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(refused).rejects.toMatchObject({ response: { code: 'NO_PERMISSION', details: { missing: ['inventory.equivalences.link'] } } });
+      });
+
+      it('refuses the list to a user who cannot view products', async () => {
+        await expect(guardFor([]).canActivate(contextOf(EquivalencesController.prototype.listAll))).rejects.toBeInstanceOf(ForbiddenException);
+      });
+    });
   });
 
   describe('integrity', () => {

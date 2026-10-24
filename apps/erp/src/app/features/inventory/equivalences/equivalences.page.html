@@ -1,0 +1,179 @@
+<rs-page-header
+  title="Equivalencias"
+  description="Productos de distintas marcas que se pueden usar uno en lugar del otro."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button *rsCan="'inventory.equivalences.link'" rsButton variant="brand" type="button" (click)="comingSoon()">
+      <rs-icon name="link" [size]="16" /> Vincular equivalencias
+    </button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" aria-live="polite">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver equivalencias"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  @if (readOnly()) {
+    <section class="readonly" aria-label="Modo solo lectura">
+      <rs-illustration name="no-access" />
+      <rs-note type="info" title="Modo solo lectura">
+        Puedes consultar las equivalencias, pero no vincular productos. Pide el permiso al administrador de tu empresa.
+      </rs-note>
+    </section>
+  }
+
+  <rs-filter-bar-products
+    searchPlaceholder="Buscar por código de cualquiera de los dos productos"
+    searchLabel="Buscar equivalencias"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select
+        leadingIcon="category"
+        placeholder="Categoría"
+        ariaLabel="Categoría"
+        [options]="categoryOptions()"
+        [value]="filters().categoryId"
+        (valueChange)="setFilter('categoryId', $event)"
+      />
+      <rs-select
+        leadingIcon="tag"
+        placeholder="Marca"
+        ariaLabel="Marca"
+        [options]="brandOptions()"
+        [value]="filters().brandId"
+        (valueChange)="setFilter('brandId', $event)"
+      />
+      <rs-select
+        leadingIcon="check"
+        placeholder="Tipo de equivalencia"
+        ariaLabel="Tipo de equivalencia"
+        [options]="kindOptions"
+        [value]="filters().kind"
+        (valueChange)="setFilter('kind', $event)"
+      />
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando equivalencias">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="rect" width="var(--space-10)" height="var(--space-10)" />
+            <rs-skeleton shape="text" width="20%" height="var(--space-4)" />
+            <rs-skeleton shape="rect" width="var(--space-10)" height="var(--space-10)" />
+            <rs-skeleton shape="text" width="20%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las equivalencias" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-equivalents"
+            heading="Aún no hay equivalencias"
+            description="Cuando vincules productos de distintas marcas con las mismas medidas, aparecerán aquí."
+            [showAction]="!readOnly()"
+          >
+            <button *rsCan="'inventory.equivalences.link'" rsButton variant="brand" type="button" (click)="comingSoon()">
+              <rs-icon name="link" [size]="16" /> Vincular equivalencias
+            </button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No encontramos equivalencias"
+            description="Prueba con otros filtros o con otro código."
+          >
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="md" tableLabel="Equivalencias entre marcas" [columns]="columns" [rows]="rows()">
+          <ng-template rsDocCell="a" let-row>
+            @if (productOf(row.id, 'A'); as product) {
+              <ng-container *ngTemplateOutlet="side; context: { $implicit: product }" />
+            }
+          </ng-template>
+          <ng-template rsDocCell="swap">
+            <span class="swap">
+              <rs-icon name="transfer" [size]="16" />
+              <span class="rs-visually-hidden">equivale a</span>
+            </span>
+          </ng-template>
+          <ng-template rsDocCell="b" let-row>
+            @if (productOf(row.id, 'B'); as product) {
+              <ng-container *ngTemplateOutlet="side; context: { $implicit: product }" />
+            }
+          </ng-template>
+          <ng-template rsDocCell="stock" let-row>
+            <span class="stock">
+              @for (stock of stockOf(row.id); track $index) {
+                <span class="stock-cell" [attr.title]="($index === 0 ? 'Producto A' : 'Producto B') + ': ' + stock.quantity">
+                  @if (stock.out) {
+                    <rs-stock-flag level="out" label="Agotado" />
+                  }
+                  {{ stock.quantity }}
+                </span>
+              }
+            </span>
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeLabel() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<ng-template #side let-product>
+  <button type="button" class="product" [attr.aria-label]="'Abrir ' + product.manufacturerCode + ' ' + product.brand.name" (click)="openProduct(product)">
+    <rs-product-thumb [src]="product.photoUrl" [icon]="thumbIcon(product)" />
+    <span class="product-text">
+      <span class="code">{{ product.manufacturerCode }}</span>
+      <span class="brand">
+        @if (flagOf(product); as code) {
+          <rs-flag [country]="code" />
+        }
+        {{ product.brand.name }}
+      </span>
+    </span>
+  </button>
+</ng-template>
+
+<rs-toast-outlet closeLabel="Cerrar" />

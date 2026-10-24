@@ -45,6 +45,12 @@ export const INVENTORY_ROUTES: Route[] = [
         title: 'Producto creado · ERP',
         loadComponent: () => import('./products/wizard/product-created.page').then((m) => m.ProductCreatedPage),
       },
+      {
+        // the page shows its own no-permission state, as the product list does
+        path: 'equivalences',
+        title: 'Equivalencias · ERP',
+        loadComponent: () => import('./equivalences/equivalences.page').then((m) => m.EquivalencesPage),
+      },
       PRODUCT_SHEET_ROUTE,
     ],
   },

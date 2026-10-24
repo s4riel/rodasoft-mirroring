@@ -62,15 +62,89 @@ const BEARINGS: [string, string, number, number, number][] = [
 const UNIT_OF: Record<string, string> = { 'CAD-80': 'M', 'KIT-INST': 'JGO' };
 
 /**
- * Equivalents of the 6205-2RS (25 × 52 × 15, same type): code, brand and the specifications that differ from the
- * original. The load capacities are pinned so a link is EXACT unless a seal or cage differs (HU-INV-04).
+ * Equivalents of demo bearings, linked as direct pairs (HU-INV-04, HU-INV-11): the original's code, then each equivalent's
+ * code, brand and the specifications that differ from the original. The load capacities of the originals and their
+ * equivalents are pinned (`EQUIVALENT_BASE`), so a link is EXACT unless a listed specification differs. The 6205-2RS keeps
+ * exactly these three equivalents (the product sheet e2e counts them).
  */
 const EQUIVALENT_BASE = { dynamicLoad: 17.8, staticLoad: 10.8 };
-const EQUIVALENTS_OF_6205: { code: string; brand: string; attrs: Record<string, unknown> }[] = [
-  { code: '6205-2RSR', brand: 'NTN', attrs: {} },
-  { code: '6205-DDU', brand: 'NSK', attrs: { seal: 'DDU (goma, sin contacto)' } },
-  { code: '6205-2Z', brand: 'SKF', attrs: { seal: '2Z (metálico)', cage: 'Poliamida' } },
+const EQUIVALENTS: { original: string; items: { code: string; brand: string; attrs: Record<string, unknown> }[] }[] = [
+  {
+    original: '6205-2RS',
+    items: [
+      { code: '6205-2RSR', brand: 'NTN', attrs: {} },
+      { code: '6205-DDU', brand: 'NSK', attrs: { seal: 'DDU (goma, sin contacto)' } },
+      { code: '6205-2Z', brand: 'SKF', attrs: { seal: '2Z (metálico)', cage: 'Poliamida' } },
+    ],
+  },
+  {
+    // two exact, one with a different seal
+    original: '6204-2RS',
+    items: [
+      { code: '6204-2RSR', brand: 'NTN', attrs: {} },
+      { code: '6204-2RS1', brand: 'INA', attrs: {} },
+      { code: '6204-2Z', brand: 'FAG', attrs: { seal: '2Z (metálico)' } },
+    ],
+  },
+  {
+    // one exact, one with several differences (seal, clearance and tolerance)
+    original: '6206-2RS',
+    items: [
+      { code: '6206-2RSR', brand: 'NTN', attrs: {} },
+      { code: '6206-2RSH', brand: 'NSK', attrs: { internalClearance: 'C3', toleranceClass: 'P6 · ABEC 3' } },
+    ],
+  },
+  {
+    // cylindrical rollers: cage material
+    original: 'NU208',
+    items: [
+      { code: 'NU208-ETN', brand: 'NSK', attrs: {} },
+      { code: 'NU208-E-TVP2', brand: 'FAG', attrs: { cage: 'Poliamida' } },
+    ],
+  },
+  {
+    // tapered rollers: tolerance class
+    original: '30206',
+    items: [
+      { code: '30206-J2', brand: 'NSK', attrs: {} },
+      { code: '30206-XL', brand: 'NTN', attrs: { toleranceClass: 'P5 · ABEC 5' } },
+    ],
+  },
+  {
+    // spherical rollers: internal clearance and cage
+    original: '22212',
+    items: [{ code: '22212-E1', brand: 'FAG', attrs: { internalClearance: 'C3', cage: 'Latón' } }],
+  },
 ];
+const EQUIVALENT_ORIGINALS = new Set(EQUIVALENTS.map((e) => e.original));
+
+/**
+ * Links whose measures differ (kind INCOMPATIBLE, "Medidas distintas"): they cannot be made in the ERP once HU-INV-13
+ * warns, but old data can have them after a product's measures are edited.
+ */
+const MISMATCHED_LINKS: [string, string][] = [['6204-2RS', '6206-2RS']];
+
+
+/**
+ * Demo technical specifications of the products that are not bearings, keyed by manufacturer code, to check the sheet's
+ * "Especificaciones técnicas" card for each category's fields. RET-4072 is partly filled and TAPA-6205 has none on purpose:
+ * the card must show only the fields that have a value, and its empty message.
+ */
+const OTHER_SPECS: Record<string, Record<string, unknown>> = {
+  'RET-3052': { innerDiameter: 30, outerDiameter: 52, width: 7, material: 'NBR (nitrilo)', lipType: 'Labio simple con resorte', maxTemperature: 100, spring: 'Sí' },
+  'RET-4072': { innerDiameter: 40, outerDiameter: 72, width: 10, material: 'FKM (Viton)', maxTemperature: 200 },
+  'A-45': { material: 'Caucho EPDM con cuerda de poliéster', mainMeasure: 'A45 · 1143 mm', model: 'Perfil clásico A' },
+  'B-60': { material: 'Caucho EPDM con cuerda de poliéster', mainMeasure: 'B60 · 1549 mm', model: 'Perfil clásico B', technicalNotes: 'Resistente al aceite y al calor' },
+  'POLEA-2A': { material: 'Hierro fundido', mainMeasure: 'Ø 150 mm', model: 'Doble canal A', capacity: 'Agujero cónico 1210' },
+  'CAD-80': { material: 'Acero al carbono', mainMeasure: 'Paso 25,4 mm (#80)', model: 'Simple', capacity: 'Carga de rotura 55 kN', technicalNotes: 'Se vende por metro' },
+  'PIN-80-15': { material: 'Acero SAE 1045 templado', mainMeasure: '15 dientes', model: 'Simple #80', capacity: 'Agujero 25 mm' },
+  'GR-LGMT2': { material: 'Aceite mineral con jabón de litio', mainMeasure: 'NLGI 2', model: 'Uso general', capacity: 'Cartucho de 400 g', technicalNotes: 'Temperatura de -30 a 120 °C' },
+  'GR-LGHP2': { material: 'Aceite sintético con poliurea', mainMeasure: 'NLGI 2', model: 'Alta temperatura', capacity: 'Cartucho de 400 g', technicalNotes: 'Temperatura de -40 a 150 °C' },
+  'EXT-RODAM': { material: 'Acero forjado', mainMeasure: 'Rango 30 a 90 mm', model: 'Extractor de 3 garras' },
+  'KIT-INST': { material: 'Acero y bronce', mainMeasure: 'Diámetros 10 a 50 mm', model: 'Juego de 36 piezas', capacity: 'Maletín' },
+  'MANG-6205': { material: 'Acero', mainMeasure: 'Para eje de 25 mm', model: 'Manguito de fijación H305' },
+  'ACO-L095': { material: 'Hierro fundido con elastómero', mainMeasure: 'Agujero máx. 24 mm', model: 'Acople elástico L095', capacity: '11 N·m' },
+};
 
 const OTHERS: [string, string, string][] = [
   ['Retenes y sellos', 'RET-3052', 'Retén 30x52x7'],
@@ -290,7 +364,7 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
             tariffCode: '8482.10.00',
             supplierName: 'Proveedor DEMO',
             sectors: 'Minería, Industria',
-            ...(r.code === '6205-2RS' ? EQUIVALENT_BASE : {}),
+            ...(EQUIVALENT_ORIGINALS.has(r.code) ? EQUIVALENT_BASE : {}),
             ...(opts.attrs ?? {}),
           },
         },
@@ -355,11 +429,30 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
 
   for (const [i, r] of rows.entries()) await upsertProduct(r, brandNames[i % brandNames.length]);
 
-  // Equivalents of the 6205-2RS from other brands, linked as direct pairs. New SKUs continue after the highest one.
-  const original = await prisma.product.findFirst({ where: { companyId, manufacturerCode: '6205-2RS' }, select: { id: true } });
-  if (original) {
-    for (const eq of EQUIVALENTS_OF_6205) {
-      const row = { code: eq.code, category: 'Rígidos de bolas', name: `Rodamiento ${eq.code}`, dims: [25, 52, 15] as [number, number, number] };
+  // only products that have no specifications yet, so a re-run keeps what was edited in the ERP
+  for (const [code, attributes] of Object.entries(OTHER_SPECS)) {
+    for (const p of await prisma.product.findMany({ where: { companyId, manufacturerCode: code }, select: { id: true, attributes: true } })) {
+      const current = p.attributes && typeof p.attributes === 'object' ? Object.keys(p.attributes) : [];
+      if (!current.length) await prisma.product.update({ where: { id: p.id }, data: { attributes: attributes as object } });
+    }
+  }
+
+  // Equivalents of the demo bearings from other brands, linked as direct pairs. New SKUs continue after the highest one.
+  const linkProducts = async (idA: string, idB: string) => {
+    const [productAId, productBId] = normalizePair(idA, idB);
+    await prisma.equivalence.upsert({
+      where: { companyId_productAId_productBId: { companyId, productAId, productBId } },
+      update: {},
+      create: { companyId, productAId, productBId },
+    });
+  };
+  for (const group of EQUIVALENTS) {
+    const original = await prisma.product.findFirst({ where: { companyId, manufacturerCode: group.original }, select: { id: true } });
+    const spec = BEARINGS.find(([code]) => code === group.original);
+    if (!original || !spec) continue;
+    const [, category, d, D, B] = spec;
+    for (const eq of group.items) {
+      const row = { code: eq.code, category, name: `Rodamiento ${eq.code}`, dims: [d, D, B] as [number, number, number] };
       const existing = await prisma.product.findFirst({ where: { companyId, brandId: brandId.get(eq.brand)!, manufacturerCode: eq.code } });
       let sku = existing?.sku;
       if (!sku) {
@@ -368,13 +461,14 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
       }
       await upsertProduct(row, eq.brand, { sku, attrs: { ...EQUIVALENT_BASE, ...eq.attrs } });
       const other = await prisma.product.findFirstOrThrow({ where: { companyId, brandId: brandId.get(eq.brand)!, manufacturerCode: eq.code }, select: { id: true } });
-      const [productAId, productBId] = normalizePair(original.id, other.id);
-      await prisma.equivalence.upsert({
-        where: { companyId_productAId_productBId: { companyId, productAId, productBId } },
-        update: {},
-        create: { companyId, productAId, productBId },
-      });
+      await linkProducts(original.id, other.id);
     }
+  }
+  for (const [codeA, codeB] of MISMATCHED_LINKS) {
+    const [x, y] = await Promise.all(
+      [codeA, codeB].map((manufacturerCode) => prisma.product.findFirst({ where: { companyId, manufacturerCode }, select: { id: true } })),
+    );
+    if (x && y) await linkProducts(x.id, y.id);
   }
 
   // Performance fixture: SEED_BULK_PRODUCTS=5000 pnpm db:seed
