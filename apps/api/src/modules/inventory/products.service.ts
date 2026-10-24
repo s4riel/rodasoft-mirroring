@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   clampPage,
@@ -8,6 +8,7 @@ import {
   parseMeasurement,
   type ProductBranchStock,
   type ProductDetail,
+  type ProductEditModel,
   type ProductFilterOptions,
   type ProductListItem,
   type ProductListResponse,
@@ -201,6 +202,32 @@ export class ProductsService {
       updatedAt: p.updatedAt.toISOString(),
       createdBy: actor(p.createdById),
       updatedBy: actor(p.updatedById),
+    };
+  }
+
+  /**
+   * What the edit wizard opens with (HU-INV-07): the sheet of the product plus whether it has movements (they lock brand
+   * and category). A draft is edited through the draft flow of the creation wizard.
+   */
+  async editModel(id: string, includeCost: boolean): Promise<ProductEditModel> {
+    const product = await this.detail(id, includeCost);
+    if (product.status === 'DRAFT') {
+      throw new ConflictException({ code: 'NOT_EDITABLE_DRAFT', message: 'A draft is edited from the creation wizard' });
+    }
+    const [movements, row, thresholds] = await Promise.all([
+      this.prisma.tenant.stockMovement.count({ where: { productId: id } }),
+      this.prisma.tenant.product.findFirst({ where: { id }, select: { countryId: true, entryDate: true } }),
+      this.prisma.tenant.stockThreshold.findMany({
+        where: { productId: id, warehouse: { isMain: true } },
+        select: { minStock: true, maxStock: true, location: true, warehouse: { select: { branchId: true } } },
+      }),
+    ]);
+    return {
+      product,
+      hasMovements: movements > 0,
+      countryId: row?.countryId ?? null,
+      entryDate: row?.entryDate ? row.entryDate.toISOString().slice(0, 10) : null,
+      thresholds: thresholds.map((t) => ({ branchId: t.warehouse.branchId, minStock: t.minStock, maxStock: t.maxStock, location: t.location })),
     };
   }
 

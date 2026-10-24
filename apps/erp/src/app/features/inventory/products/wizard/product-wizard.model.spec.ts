@@ -8,6 +8,7 @@ import {
   invalidStockFields,
   isLongText,
   placeholderOf,
+  toUpdateRequest,
   toWriteRequest,
   uploadDetailOf,
   uploadProblemOf,
@@ -159,5 +160,37 @@ describe('long text and placeholders', () => {
     expect(placeholderOf(def({ type: 'NUMBER' }))).toBe('0');
     expect(placeholderOf(def({ type: 'ENUM' }))).toBe('Selecciona una opción');
     expect(placeholderOf(def({ key: 'technicalNotes', label: 'Observaciones técnicas' }))).toBe('Escribe observaciones técnicas del producto');
+  });
+
+  describe('toUpdateRequest', () => {
+    const update = (over: Partial<WizardFormValues> = {}, thresholdBranchId: string | null = null) =>
+      toUpdateRequest(values(over), definitions, {
+        categoryId: 'r-1',
+        withCost: true,
+        expectedUpdatedAt: '2026-10-23T15:00:00.000Z',
+        thresholdBranchId,
+      });
+
+    it('carries the lock value and the whole form, and never the stock, the receiving branch or the status', () => {
+      const body = update();
+
+      expect(body).toMatchObject({ expectedUpdatedAt: '2026-10-23T15:00:00.000Z', manufacturerCode: '6205-2RS', brandId: 'b-skf', categoryId: 'k-2', salePrice: '245.00', cost: '120.00' });
+      for (const field of ['status', 'branchId', 'initialStock', 'minStock', 'maxStock', 'location', 'thresholdBranchId']) {
+        expect(body).not.toHaveProperty(field);
+      }
+    });
+
+    it('sends the thresholds with their branch when asked, and an emptied one as null so it is cleared', () => {
+      const body = update({ minStock: '5', maxStock: '', location: ' B-2 ' }, 'br-1');
+
+      expect(body).toMatchObject({ thresholdBranchId: 'br-1', minStock: 5, maxStock: null, location: 'B-2' });
+      expect(update({ location: '' }, 'br-1').location).toBeNull();
+    });
+
+    it('leaves the cost out for who cannot see costs', () => {
+      const body = toUpdateRequest(values(), definitions, { categoryId: 'r-1', withCost: false, expectedUpdatedAt: 'x', thresholdBranchId: null });
+
+      expect(body).not.toHaveProperty('cost');
+    });
   });
 });

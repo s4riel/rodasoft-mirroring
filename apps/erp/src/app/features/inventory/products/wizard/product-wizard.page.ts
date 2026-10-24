@@ -21,6 +21,7 @@ import {
   type EquivalenceSuggestion,
   fieldIconOf,
   type ProductDetail,
+  type ProductEditModel,
   type ProductFilterOptions,
   type ProductSpec,
   type WizardStepKey,
@@ -52,7 +53,7 @@ import {
 } from '@rodasoft/ui';
 import { catchError, debounceTime, forkJoin, map, merge, of, type Subscription, switchMap } from 'rxjs';
 import { equivalencePill } from '../sheet/equivalents/equivalence-pill';
-import { problemOf } from '../../../../core/api-error';
+import { messageFor, problemOf } from '../../../../core/api-error';
 import { ContextStore } from '../../../../core/context.store';
 import { flagOf } from '../product-list.mapper';
 import { ProductsApi } from '../products-api.service';
@@ -66,6 +67,7 @@ import {
   formatSize,
   isLongText,
   placeholderOf,
+  toUpdateRequest,
   toWriteRequest,
   uploadDetailOf,
   uploadProblemOf,
@@ -109,6 +111,10 @@ interface PendingUpload {
 /**
  * IN-03 · Creation wizard (HU-INV-06). `/inventory/products/new/:categoryId` creates a product; `/inventory/products/:id/draft`
  * resumes a draft. The steps come from `wizardSteps`: bearings have 6, the other categories 4.
+ *
+ * IN-20 · Edit (HU-INV-07). `/inventory/products/:id/edit` (route data `mode: 'edit'`) opens the same steps filled with the
+ * stored product: every step is reachable and one "Guardar cambios" saves everything at the end. Stock is read-only, and
+ * brand, category and subcategory are locked once the product has movements.
  */
 @Component({
   selector: 'rs-product-wizard-page',
@@ -148,7 +154,17 @@ export class ProductWizardPage {
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  /** Set when resuming a draft: saves then update that product. A new product is created once and the page moves on. */
+  /** Edit mode (HU-INV-07): the route says so; the product is loaded from the API instead of a draft or a category. */
+  protected readonly isEdit = this.route.snapshot.data['mode'] === 'edit';
+  /** The product being edited, as loaded: its lock value (`updatedAt`), whether it has movements and its stock. */
+  protected readonly editState = signal<ProductEditModel | null>(null);
+  protected readonly hasMovements = computed(() => this.editState()?.hasMovements ?? false);
+  /** Set when the save finds that someone else edited the product meanwhile (409 `PRODUCT_MODIFIED`). */
+  protected readonly modifiedOpen = signal(false);
+  protected readonly lockedHint = 'No editable: el producto ya tiene movimientos';
+  /** True while `prefill` runs, so the changes it makes to the form are not taken as the user changing the category. */
+  private prefilling = false;
+  /** Set when resuming a draft or editing: saves then update that product. A new product is created once and the page moves on. */
   protected readonly productId = signal<string | null>(this.route.snapshot.paramMap.get('id'));
   protected readonly rootId = signal<string | null>(this.route.snapshot.paramMap.get('categoryId'));
   protected readonly options = signal<ProductFilterOptions | null>(null);
@@ -250,6 +266,8 @@ export class ProductWizardPage {
     brandId: new FormControl<string | null>(null),
     countryId: new FormControl<string | null>(null),
     subcategoryId: new FormControl<string | null>(null),
+    /** The root category: only shown (and changeable) when editing; creation picks it on the categories screen. */
+    rootCategoryId: new FormControl<string | null>(null),
     innerDiameter: new FormControl('', { nonNullable: true }),
     outerDiameter: new FormControl('', { nonNullable: true }),
     width: new FormControl('', { nonNullable: true }),
@@ -275,6 +293,13 @@ export class ProductWizardPage {
   protected readonly completed = computed(() => {
     this.formValues();
     const done = new Set<WizardStepKey>();
+    if (this.isEdit) {
+      // an existing product has every step filled: a step only stops being done when its fields stop passing the rules
+      for (const { key } of this.steps()) {
+        if (!(key === 'identification' && this.taken()) && this.stepProblems(key).length === 0) done.add(key);
+      }
+      return done;
+    }
     // a step is done when the final rules find nothing wrong in its fields (the same check "Siguiente" makes)
     if (!this.taken() && this.stepProblems('identification').length === 0) done.add('identification');
     if (this.steps().some((s) => s.key === 'dimensions') && this.stepProblems('dimensions').length === 0) done.add('dimensions');
@@ -305,11 +330,15 @@ export class ProductWizardPage {
   });
   /** True once the user wrote or kept a name of their own; clearing the field gives the automatic name back. */
   private readonly customName = signal(false);
-  protected readonly title = computed(() => (this.productId() ? 'Borrador de producto' : 'Nuevo producto'));
+  protected readonly title = computed(() => {
+    if (this.isEdit) return `Editar ${this.editState()?.product.manufacturerCode ?? ''}`.trim();
+    return this.productId() ? 'Borrador de producto' : 'Nuevo producto';
+  });
   /** IN-03c header line: step, category, step name and whether the step is required. */
   protected readonly subtitle = computed(() => {
     const step = this.steps()[this.stepIndex()];
     const label = WIZARD_STEP_LABELS[step?.key ?? 'identification'];
+    if (this.isEdit) return `Editando · Paso ${this.stepIndex() + 1} de ${this.steps().length} · ${label} · los cambios se guardan al final`;
     return `Paso ${this.stepIndex() + 1} de ${this.steps().length} · ${this.root()?.name ?? ''} · ${label} · ${step?.required ? 'requerido' : 'opcional'}`;
   });
   protected readonly progressItems = computed(() =>
@@ -354,12 +383,20 @@ export class ProductWizardPage {
     const current = this.form.controls.sectors.value.filter((s) => s !== sector);
     this.form.controls.sectors.setValue(on ? [...current, sector] : current);
   }
-  protected readonly breadcrumbs = [
+  protected readonly breadcrumbs = computed(() => [
     { label: 'Inicio', link: '/' },
     { label: 'Inventario', link: '/inventory' },
     { label: 'Productos', link: '/inventory/products' },
-    { label: 'Nuevo producto' },
-  ];
+    { label: this.isEdit ? this.title() : 'Nuevo producto' },
+  ]);
+  /** Steps shown as done in the stepper: every filled step in edit mode; `null` keeps "the ones before the current". */
+  protected readonly stepperCompleted = computed(() =>
+    this.isEdit ? this.steps().flatMap((s, i) => (this.completed().has(s.key) ? [i + 1] : [])) : null,
+  );
+  protected readonly skuText = computed(() => this.editState()?.product.sku ?? 'Se asigna al crear');
+  protected readonly rootOptions = computed<SelectOption[]>(() => (this.options()?.categories ?? []).map((c) => ({ value: c.id, label: c.name })));
+  protected readonly currentStock = computed(() => this.editState()?.product.totalStock ?? 0);
+  protected readonly thresholdBranchName = computed(() => this.ctx.branches().find((b) => b.id === this.form.controls.branchId.value)?.name ?? null);
 
   constructor() {
     effect(() => {
@@ -377,7 +414,7 @@ export class ProductWizardPage {
       .subscribe((result) =>
         this.searchResults.set(
           (result?.items ?? [])
-            .filter((item) => !this.candidates().some((c) => c.productId === item.id))
+            .filter((item) => item.id !== this.productId() && !this.candidates().some((c) => c.productId === item.id))
             .map((item) => ({ productId: item.id, code: item.manufacturerCode, brand: item.brand.name })),
         ),
       );
@@ -387,7 +424,18 @@ export class ProductWizardPage {
       const brand = this.options()?.brands.find((b) => b.id === brandId);
       if (brand?.countryId && !this.form.controls.countryId.value) this.form.controls.countryId.setValue(brand.countryId);
     });
-    this.form.controls.subcategoryId.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.loadDefinitions());
+    this.form.controls.subcategoryId.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
+      // technical values belong to the category: a category chosen by the user starts them over
+      if (this.isEdit && !this.prefilling) this.draftSpecs = [];
+      this.loadDefinitions();
+    });
+    this.form.controls.rootCategoryId.valueChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
+      if (this.prefilling || !id || id === this.rootId()) return;
+      this.rootId.set(id);
+      this.draftSpecs = [];
+      // emits even when the value is the same, so the definitions of the new category load
+      this.form.controls.subcategoryId.setValue(null);
+    });
     this.form.controls.branchId.setValue(this.ctx.currentBranch()?.id ?? this.ctx.branches()[0]?.id ?? null);
     // every step opens with its first field focused, so the user can start typing right away
     effect(() => {
@@ -441,8 +489,9 @@ export class ProductWizardPage {
       .subscribe({
         next: (options) => {
           this.options.set(options);
-          const draftId = this.productId();
-          if (draftId) this.loadDraft(draftId);
+          const savedId = this.productId();
+          if (savedId && this.isEdit) this.loadEdit(savedId);
+          else if (savedId) this.loadDraft(savedId);
           else this.loadDefinitions();
         },
         error: (err: unknown) => this.loadError.set(problemOf(err).message),
@@ -462,9 +511,40 @@ export class ProductWizardPage {
       });
   }
 
+  /** The product to edit with its lock value; copies it into the form, the current branch's thresholds included. */
+  private loadEdit(id: string) {
+    this.api
+      .editModel(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (model) => {
+          this.editState.set(model);
+          this.prefill(model.product);
+          // the sheet shows the brand's country when the product has none: the form holds the product's own
+          this.form.patchValue({ countryId: model.countryId, entryDate: model.entryDate ?? '' });
+          // the main warehouse's own thresholds: they are what the save replaces, not the branch sum the sheet shows
+          const branch = model.thresholds.find((t) => t.branchId === this.form.controls.branchId.value);
+          this.form.patchValue({
+            minStock: branch?.minStock?.toString() ?? '',
+            maxStock: branch?.maxStock?.toString() ?? '',
+            location: branch?.location ?? '',
+          });
+          for (const control of [this.form.controls.brandId, this.form.controls.subcategoryId, this.form.controls.rootCategoryId]) {
+            if (model.hasMovements) control.disable({ emitEvent: false });
+            else control.enable({ emitEvent: false });
+          }
+          this.form.markAsPristine();
+          this.loadDefinitions();
+        },
+        error: (err: unknown) => this.loadError.set(problemOf(err).message),
+      });
+  }
+
   /** Copies a saved draft into the form, technical fields included (applied when their definitions load). */
   private prefill(product: ProductDetail) {
+    this.prefilling = true;
     this.rootId.set(product.category.id);
+    this.form.controls.rootCategoryId.setValue(product.category.id);
     this.draftSpecs = product.specs;
     this.photoKeys.set(product.photos ?? []);
     for (const key of product.photos ?? []) this.loadPreview(key);
@@ -488,6 +568,7 @@ export class ProductWizardPage {
     });
     // a saved name that differs from the suggestion was written by the user: keep it
     this.customName.set(!!product.name?.trim() && product.name.trim() !== this.suggestedName());
+    this.prefilling = false;
   }
 
   /** Typing in the name field takes it over from the suggestion; emptying it hands it back. */
@@ -688,12 +769,30 @@ export class ProductWizardPage {
       { label: 'Producto', value: [v.manufacturerCode.trim(), this.brandName(), this.categoryLabel()].filter(Boolean).join(' · ') || '—' },
       { label: 'Medidas', value: this.measuresText() ?? '—' },
       { label: 'Precio de venta', value: v.salePrice ? `Bs ${v.salePrice.replace('.', ',')}` : '—' },
-      { label: 'Stock inicial', value: v.initialStock ? [v.initialStock, branch].filter(Boolean).join(' · ') : '—' },
+      this.isEdit
+        ? { label: 'Stock total', value: String(this.currentStock()) }
+        : { label: 'Stock inicial', value: v.initialStock ? [v.initialStock, branch].filter(Boolean).join(' · ') : '—' },
       { label: 'Pasos omitidos', value: skipped.length ? skipped.join(', ') : 'Ninguno' },
     ];
   });
 
   protected loadCandidates() {
+    const savedId = this.productId();
+    if (this.isEdit && savedId) {
+      // the product is saved: the API knows its measures and leaves out itself and what is already linked
+      this.candidatesState.set('loading');
+      this.api
+        .equivalenceSuggestions(savedId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: ({ items }) => {
+            this.candidates.set(items);
+            this.candidatesState.set('ready');
+          },
+          error: () => this.candidatesState.set('error'),
+        });
+      return;
+    }
     const body = this.body('DRAFT');
     const categoryId = body.categoryId;
     if (!categoryId || !body.innerDiameter || !body.outerDiameter || !body.width) {
@@ -730,7 +829,33 @@ export class ProductWizardPage {
 
   protected leave() {
     this.leaveOpen.set(false);
-    void this.router.navigate(['/inventory/products']);
+    const savedId = this.productId();
+    void this.router.navigate(this.isEdit && savedId ? ['/inventory/products', savedId] : ['/inventory/products']);
+  }
+
+  /** "Ajustar stock" links to the adjustments, which arrive with their own story. */
+  protected adjustStock() {
+    this.toast.info('Esta acción estará disponible próximamente.');
+  }
+
+  /** The step the user picked in the stepper (1-based): in edit mode every step is reachable, without validating on the way. */
+  protected selectStep(step: number) {
+    this.stepMessage.set(null);
+    this.stepErrors.set([]);
+    this.attempted.set(false);
+    this.stepIndex.set(Math.min(Math.max(0, step - 1), this.steps().length - 1));
+  }
+
+  /** "Recargar" after another user's edit: starts over from what is saved now. */
+  protected reload() {
+    this.modifiedOpen.set(false);
+    this.mediaChanged.set(false);
+    this.attempted.set(false);
+    this.stepErrors.set([]);
+    this.stepMessage.set(null);
+    this.submitError.set(null);
+    this.linkIds.set([]);
+    this.load();
   }
 
   private loadPreview(key: string) {
@@ -852,6 +977,67 @@ export class ProductWizardPage {
     return null;
   }
 
+  /** Enter in a field and the main button: creating goes step by step; editing saves everything. */
+  protected submit() {
+    if (this.isEdit) this.saveChanges();
+    else this.next();
+  }
+
+  /** "Guardar cambios" (HU-INV-07): checks every step, then one PATCH with the lock value the form was loaded with. */
+  protected saveChanges() {
+    const id = this.productId();
+    const model = this.editState();
+    if (this.saving() || !id || !model) return;
+    const blocked = this.firstStepWithProblem();
+    if (blocked) {
+      this.goTo(blocked, this.stepProblems(blocked), null);
+      return;
+    }
+    if (this.taken()) {
+      this.goTo('identification', [{ field: 'manufacturerCode', code: 'DUPLICATE_MANUFACTURER_CODE' }], null);
+      return;
+    }
+    this.saving.set(true);
+    this.submitError.set(null);
+    const values = this.form.getRawValue() as WizardFormValues;
+    const touched = (['minStock', 'maxStock', 'location'] as const).some((key) => this.form.controls[key].dirty);
+    const body = {
+      ...toUpdateRequest(values, this.definitions(), {
+        categoryId: this.rootId(),
+        withCost: this.canSeeCost(),
+        expectedUpdatedAt: model.product.updatedAt,
+        thresholdBranchId: touched ? values.branchId : null,
+      }),
+      photos: this.photoKeys(),
+      datasheetKey: this.datasheetKey(),
+    };
+    const links = this.linkIds();
+    this.api
+      .update(id, body)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          const done = () => {
+            this.saving.set(false);
+            this.form.markAsPristine();
+            this.mediaChanged.set(false);
+            this.toast.success('Cambios guardados');
+            void this.router.navigate(['/inventory/products', id]);
+          };
+          if (!links.length) return done();
+          // a link that fails must not undo the changes that were just saved, but the user is told
+          forkJoin(links.map((other) => this.api.linkEquivalence(id, other).pipe(map(() => true), catchError(() => of(false)))))
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((results) => {
+              done();
+              const failed = results.filter((ok) => !ok).length;
+              if (failed) this.toast.warning(`No se pudo vincular ${failed === 1 ? 'una equivalencia' : `${failed} equivalencias`}. Vincúlalas desde la ficha.`);
+            });
+        },
+        error: (err: unknown) => this.failed(err),
+      });
+  }
+
   protected saveDraft() {
     if (this.saving()) return;
     this.saving.set(true);
@@ -903,7 +1089,11 @@ export class ProductWizardPage {
   private failed(err: unknown) {
     this.saving.set(false);
     const problem = problemOf(err);
-    if (problem.code === 'DUPLICATE_MANUFACTURER_CODE') {
+    if (problem.code === 'PRODUCT_MODIFIED') {
+      this.modifiedOpen.set(true);
+    } else if (problem.code === 'PRODUCT_HAS_MOVEMENTS') {
+      this.submitError.set(messageFor('PRODUCT_FIELDS_LOCKED'));
+    } else if (problem.code === 'DUPLICATE_MANUFACTURER_CODE') {
       this.taken.set({ productId: this.taken()?.productId ?? null });
       this.goTo('identification', [{ field: 'manufacturerCode', code: 'DUPLICATE_MANUFACTURER_CODE' }], null);
     } else if (problem.code === 'PRICE_REQUIRED') {

@@ -2,7 +2,7 @@
   [title]="title()"
   [description]="subtitle()"
   type="form"
-  [breadcrumbs]="breadcrumbs"
+  [breadcrumbs]="breadcrumbs()"
   breadcrumbLabel="Ruta de navegación"
 />
 
@@ -18,11 +18,18 @@
     <rs-skeleton height="48px" />
   </section>
 } @else {
-  <rs-stepper label="Pasos del producto" [steps]="stepItems()" [current]="stepIndex() + 1" />
+  <rs-stepper
+    label="Pasos del producto"
+    [steps]="stepItems()"
+    [current]="stepIndex() + 1"
+    [completed]="stepperCompleted()"
+    [interactive]="isEdit"
+    (stepSelected)="selectStep($event)"
+  />
 
   <div class="layout">
     <section class="main" aria-label="Datos del producto">
-      <form class="step" id="product-wizard-step" [formGroup]="form" novalidate (ngSubmit)="next()">
+      <form class="step" id="product-wizard-step" [formGroup]="form" novalidate (ngSubmit)="submit()">
         @switch (currentStep()) {
           @case ('identification') {
             <div class="step-card">
@@ -64,7 +71,13 @@
                   </rs-input-group>
                 </rs-field>
 
-                <rs-field label="Marca" forId="wizard-brand" required hint="Define el logo y las equivalencias." [error]="errorText('brandId')">
+                <rs-field
+                  label="Marca"
+                  forId="wizard-brand"
+                  required
+                  [hint]="hasMovements() ? lockedHint : 'Define el logo y las equivalencias.'"
+                  [error]="errorText('brandId')"
+                >
                   <rs-select
                     inputId="wizard-brand"
                     formControlName="brandId"
@@ -74,7 +87,17 @@
                   />
                 </rs-field>
 
-                <rs-field label="Subcategoría" forId="wizard-subcategory" hint="Define los campos técnicos del paso 2.">
+                @if (isEdit) {
+                  <rs-field label="Categoría" forId="wizard-category" [hint]="hasMovements() ? lockedHint : 'Cambiarla reinicia los campos técnicos.'">
+                    <rs-select inputId="wizard-category" formControlName="rootCategoryId" placeholder="Selecciona una categoría" [options]="rootOptions()" />
+                  </rs-field>
+                }
+
+                <rs-field
+                  label="Subcategoría"
+                  forId="wizard-subcategory"
+                  [hint]="hasMovements() ? lockedHint : 'Define los campos técnicos del paso 2.'"
+                >
                   <rs-select inputId="wizard-subcategory" formControlName="subcategoryId" placeholder="Sin subcategoría" [options]="subcategoryOptions()" />
                 </rs-field>
 
@@ -96,7 +119,7 @@
                 <rs-field label="Código interno (SKU)" forId="wizard-sku" hint="Asignado por el sistema.">
                   <rs-input-group>
                     <rs-icon rsInputLeading name="barcode" [size]="16" />
-                    <input rsInput id="wizard-sku" value="Se asigna al crear" readonly />
+                    <input rsInput id="wizard-sku" [value]="skuText()" readonly />
                   </rs-input-group>
                 </rs-field>
 
@@ -228,7 +251,12 @@
                     </rs-input-group>
                   </rs-field>
                 }
-                <rs-field label="Stock mínimo" forId="wizard-min" hint="Genera alerta de stock bajo." [error]="errorText('minStock')">
+                <rs-field
+                  label="Stock mínimo"
+                  forId="wizard-min"
+                  [hint]="isEdit && thresholdBranchName() ? 'Sucursal ' + thresholdBranchName() + '.' : 'Genera alerta de stock bajo.'"
+                  [error]="errorText('minStock')"
+                >
                   <rs-input-group [invalid]="invalid('minStock')">
                     <rs-icon rsInputLeading name="package" [size]="16" />
                     <input rsInput rsNumeric="integer" id="wizard-min" formControlName="minStock" inputmode="numeric" maxlength="7" placeholder="0" />
@@ -246,15 +274,25 @@
                     <input rsInput id="wizard-location" formControlName="location" placeholder="Ej. A-03-2" />
                   </rs-input-group>
                 </rs-field>
-                <rs-field label="Sucursal de ingreso" forId="wizard-branch">
-                  <rs-select inputId="wizard-branch" formControlName="branchId" placeholder="Selecciona una sucursal" [options]="branchOptions()" />
-                </rs-field>
-                <rs-field label="Stock inicial" forId="wizard-stock" [error]="errorText('initialStock')">
-                  <rs-input-group [invalid]="invalid('initialStock')">
-                    <rs-icon rsInputLeading name="package" [size]="16" />
-                    <input rsInput rsNumeric="integer" id="wizard-stock" formControlName="initialStock" inputmode="numeric" maxlength="7" placeholder="0" />
-                  </rs-input-group>
-                </rs-field>
+                @if (isEdit) {
+                  <rs-field label="Stock total" forId="wizard-current-stock" hint="Todas las sucursales. Solo lectura: se cambia con un ajuste de stock.">
+                    <rs-input-group>
+                      <rs-icon rsInputLeading name="package" [size]="16" />
+                      <input rsInput id="wizard-current-stock" class="mono" [value]="currentStock()" readonly />
+                    </rs-input-group>
+                    <button rsButton variant="ghost" type="button" (click)="adjustStock()">Ajustar stock</button>
+                  </rs-field>
+                } @else {
+                  <rs-field label="Sucursal de ingreso" forId="wizard-branch">
+                    <rs-select inputId="wizard-branch" formControlName="branchId" placeholder="Selecciona una sucursal" [options]="branchOptions()" />
+                  </rs-field>
+                  <rs-field label="Stock inicial" forId="wizard-stock" [error]="errorText('initialStock')">
+                    <rs-input-group [invalid]="invalid('initialStock')">
+                      <rs-icon rsInputLeading name="package" [size]="16" />
+                      <input rsInput rsNumeric="integer" id="wizard-stock" formControlName="initialStock" inputmode="numeric" maxlength="7" placeholder="0" />
+                    </rs-input-group>
+                  </rs-field>
+                }
                 <rs-field label="Proveedor habitual" forId="wizard-supplier">
                   <rs-input-group>
                     <rs-icon rsInputLeading name="user" [size]="16" />
@@ -531,19 +569,25 @@
 
   <footer class="actions-panel">
     <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
-    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="saveDraft()">
-          <rs-icon name="edit" [size]="16" /> Guardar borrador
-        </button>
+    @if (!isEdit) {
+      <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="saveDraft()">
+        <rs-icon name="edit" [size]="16" /> Guardar borrador
+      </button>
+    }
     @if (stepIndex() > 0) {
       <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="back()">Atrás</button>
     }
-    @if (currentStep() === 'equivalences') {
-      <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="saveWithoutLinks()">Guardar sin vincular</button>
-    } @else if (optionalStep()) {
-      <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="skip()">Omitir este paso</button>
+    @if (!isEdit) {
+      @if (currentStep() === 'equivalences') {
+        <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="saveWithoutLinks()">Guardar sin vincular</button>
+      } @else if (optionalStep()) {
+        <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="skip()">Omitir este paso</button>
+      }
     }
     <button rsButton variant="brand" type="submit" form="product-wizard-step" [loading]="saving() || verifying()">
-      @if (currentStep() === 'equivalences') {
+      @if (isEdit) {
+        <rs-icon name="check" [size]="16" /> Guardar cambios
+      } @else if (currentStep() === 'equivalences') {
         <rs-icon name="check" [size]="16" /> Guardar producto
       } @else {
         {{ isLastStep() ? "Crear producto" : "Siguiente" }}
@@ -598,9 +642,20 @@
 </ng-template>
 
 <rs-modal variant="confirmation" closeLabel="Cerrar" heading="¿Salir sin guardar?" [(open)]="leaveOpen">
-  Los datos que escribiste se perderán. Puedes guardarlos como borrador antes de salir.
+  @if (isEdit) {
+    Los cambios que hiciste se perderán.
+  } @else {
+    Los datos que escribiste se perderán. Puedes guardarlos como borrador antes de salir.
+  }
   <div slot="footer" class="dialog-actions">
     <button rsButton variant="secondary" type="button" (click)="leaveOpen.set(false)">Seguir editando</button>
     <button rsButton variant="danger" type="button" (click)="leave()">Salir sin guardar</button>
+  </div>
+</rs-modal>
+
+<rs-modal variant="confirmation" closeLabel="Cerrar" heading="Otro usuario modificó este producto" [(open)]="modifiedOpen">
+  Alguien guardó cambios mientras editabas. Recarga para ver los datos actuales; los cambios que hiciste aquí se perderán.
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="brand" type="button" (click)="reload()">Recargar</button>
   </div>
 </rs-modal>

@@ -93,7 +93,13 @@ export class ProductSheetPage {
     void this.router.navigate(next === 'data' ? ['./'] : [TAB_PATHS[next]], { relativeTo: this.route });
   }
 
-  /** Edit and stock adjustment arrive with HU-INV-07 and HU-INV-16. */
+  /** IN-20 · Opens the edit wizard (HU-INV-07). */
+  protected edit() {
+    const id = this.store.product()?.id;
+    if (id) void this.router.navigate(['/inventory/products', id, 'edit']);
+  }
+
+  /** Stock adjustment arrives with HU-INV-16. */
   protected comingSoon() {
     this.toast.info('Esta acción estará disponible próximamente.');
   }

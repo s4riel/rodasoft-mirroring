@@ -18,9 +18,11 @@ import type {
   CategoryAttributeDefinitionsResponse,
   DuplicateProductResponse,
   ProductDetail,
+  ProductEditModel,
   ProductFilterOptions,
   ProductListResponse,
   ProductMovementsResponse,
+  ProductUpdateResponse,
   ProductWarehouseStockResponse,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
@@ -28,7 +30,7 @@ import type { AppClsStore } from '../../common/cls';
 import { MembershipService } from '../access/membership.service';
 import { RequirePermissions } from '../access/require-permissions.decorator';
 import { DuplicateProductDto, ListMovementsQueryDto, ListProductsQueryDto } from './dto';
-import { CodeAvailabilityQueryDto, ProductWriteDto } from './product-write.dto';
+import { CodeAvailabilityQueryDto, ProductUpdateDto, ProductWriteDto } from './product-write.dto';
 import { type CodeAvailabilityResponse, ProductCommandsService, type ProductWriteResponse } from './product-commands.service';
 import { ProductsService } from './products.service';
 import { StockQueriesService } from './stock-queries.service';
@@ -110,12 +112,22 @@ export class ProductsController {
     return this.commands.saveDraft(id, body);
   }
 
+  @Get('products/:id/edit-model')
+  @RequirePermissions('inventory.products.edit')
+  async editModel(@Param('id', idPipe) id: string): Promise<ProductEditModel> {
+    return this.products.editModel(id, await this.canViewCosts());
+  }
+
+  @Patch('products/:id')
+  @RequirePermissions('inventory.products.edit')
+  update(@Param('id', idPipe) id: string, @Body(bodyPipe) body: ProductUpdateDto): Promise<ProductUpdateResponse> {
+    return this.commands.update(id, body);
+  }
+
   @Get('products/:id')
   @RequirePermissions('inventory.products.view')
   async detail(@Param('id', idPipe) id: string): Promise<ProductDetail> {
-    const membershipId = this.cls.get('membershipId');
-    const granted = membershipId ? await this.membership.permissions(membershipId) : new Set<string>();
-    return this.products.detail(id, granted.has('inventory.costs.view'));
+    return this.products.detail(id, await this.canViewCosts());
   }
 
   @Get('products/:id/movements')
@@ -144,5 +156,11 @@ export class ProductsController {
   @RequirePermissions('inventory.products.delete')
   remove(@Param('id', idPipe) id: string): Promise<void> {
     return this.commands.remove(id);
+  }
+
+  private async canViewCosts(): Promise<boolean> {
+    const membershipId = this.cls.get('membershipId');
+    const granted = membershipId ? await this.membership.permissions(membershipId) : new Set<string>();
+    return granted.has('inventory.costs.view');
   }
 }

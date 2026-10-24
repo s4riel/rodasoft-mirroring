@@ -16,6 +16,9 @@ import type {
   ProductWarehouseStockResponse,
   EquivalenceLinkResponse,
   EquivalenceSuggestionsResponse,
+  ProductEditModel,
+  ProductUpdateRequest,
+  ProductUpdateResponse,
   ProductWriteRequest,
   ProductWriteResponse,
 } from '@rodasoft/domain';
@@ -133,6 +136,15 @@ export class ProductsApi {
       }),
       filter((event): event is UploadEvent => event !== null),
     );
+  }
+
+  /** What the edit wizard opens with: the product, whether it has movements, and the lock value (HU-INV-07). */
+  editModel(id: string): Observable<ProductEditModel> {
+    return this.http.get<ProductEditModel>(`/api/v1/inventory/products/${id}/edit-model`);
+  }
+
+  update(id: string, body: ProductUpdateRequest): Observable<ProductUpdateResponse> {
+    return this.http.patch<ProductUpdateResponse>(`/api/v1/inventory/products/${id}`, body);
   }
 
   saveDraft(id: string, body: ProductWriteRequest): Observable<ProductWriteResponse> {

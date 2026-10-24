@@ -17,6 +17,30 @@ ol {
   flex: none;
   white-space: nowrap;
 }
+.hit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.hit:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.hit:hover .label {
+  text-decoration: underline;
+}
+.hit:active .label {
+  color: var(--text-muted);
+}
 .circle {
   display: inline-flex;
   align-items: center;

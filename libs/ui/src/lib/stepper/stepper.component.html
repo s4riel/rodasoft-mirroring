@@ -2,27 +2,37 @@
   @for (step of steps(); track $index; let i = $index; let last = $last) {
     <li
       class="item"
-      [class.done]="i + 1 < current()"
+      [class.done]="isDone(i + 1)"
       [class.current]="i + 1 === current()"
-      [class.upcoming]="i + 1 > current()"
-      [attr.aria-current]="i + 1 === current() ? 'step' : null"
+      [class.upcoming]="!isDone(i + 1) && i + 1 !== current()"
+      [attr.aria-current]="!interactive() && i + 1 === current() ? 'step' : null"
     >
-      <span class="circle">
-        @if (i + 1 < current()) {
-          <rs-icon name="check" [size]="16" />
-        } @else {
-          {{ i + 1 }}
-        }
-      </span>
-      <span class="text">
-        <span class="label">{{ step.label }}</span>
-        @if (step.tag) {
-          <span class="tag">{{ step.tag }}</span>
-        }
-      </span>
+      @if (interactive()) {
+        <button type="button" class="hit" [attr.aria-current]="i + 1 === current() ? 'step' : null" (click)="stepSelected.emit(i + 1)">
+          <ng-container *ngTemplateOutlet="content; context: { $implicit: step, index: i }" />
+        </button>
+      } @else {
+        <ng-container *ngTemplateOutlet="content; context: { $implicit: step, index: i }" />
+      }
     </li>
     @if (!last) {
-      <li class="connector" [class.done]="i + 1 < current()" aria-hidden="true"></li>
+      <li class="connector" [class.done]="isDone(i + 1)" aria-hidden="true"></li>
     }
   }
 </ol>
+
+<ng-template #content let-step let-i="index">
+  <span class="circle">
+    @if (isDone(i + 1)) {
+      <rs-icon name="check" [size]="16" />
+    } @else {
+      {{ i + 1 }}
+    }
+  </span>
+  <span class="text">
+    <span class="label">{{ step.label }}</span>
+    @if (step.tag) {
+      <span class="tag">{{ step.tag }}</span>
+    }
+  </span>
+</ng-template>

@@ -62,6 +62,8 @@ describe('ProductsPage', () => {
         provideRouter([
           { path: 'products', component: ProductsPage },
           { path: 'inventory/products/:id', component: SheetStubPage },
+          { path: 'inventory/products/:id/edit', component: SheetStubPage },
+          { path: 'inventory/products/:id/draft', component: SheetStubPage },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -238,11 +240,17 @@ describe('ProductsPage', () => {
       ).toEqual(['Ver detalles', 'Editar', 'Duplicar', 'Ajustar stock', 'Eliminar']);
     });
 
-    it.each(['Editar', 'Ajustar stock'])('shows the coming-soon toast for %s', async (label) => {
+    it('shows the coming-soon toast for Ajustar stock', async () => {
       const h = await openMenu([...VIEW, 'inventory.products.edit', 'inventory.adjustments.create']);
-      await choose(h, label);
+      await choose(h, 'Ajustar stock');
       expect(text(h)).toContain('Esta acción estará disponible próximamente.');
       expect(el(h).querySelector('rs-duplicate-product-dialog [role=dialog]')).toBeNull();
+    });
+
+    it('opens the edit wizard from Editar', async () => {
+      const h = await openMenu([...VIEW, 'inventory.products.edit']);
+      await choose(h, 'Editar');
+      expect(TestBed.inject(Router).url).toBe('/inventory/products/p1/edit');
     });
 
     it('opens the product sheet from Ver detalles', async () => {
