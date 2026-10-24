@@ -11,6 +11,22 @@ export type ProductStatusFilter = 'ACTIVE' | 'INACTIVE' | 'DRAFT';
 /** Product status (mirrors the Prisma enum). DRAFT is an unfinished product from the creation wizard (HU-INV-06). */
 export type ProductStatus = ProductStatusFilter;
 
+/**
+ * Whether a product can be sold. Only ACTIVE can: sales, quotes, the POS and the web store all use this (and the
+ * API's `?sellable=true`), so a deactivated product stays in the catalog and its history without being offered.
+ */
+export function isSellable(status: ProductStatus): boolean {
+  return status === 'ACTIVE';
+}
+
+/** `POST /inventory/products/:id/deactivate|reactivate`: the product as the status change leaves it. */
+export interface ProductStatusResponse {
+  id: string;
+  sku: string;
+  status: ProductStatus;
+  updatedAt: string;
+}
+
 /** Filters of the product list. There is intentionally no branch filter. */
 export interface ProductListFilters {
   countryId?: string;
@@ -217,6 +233,8 @@ export interface ProductListItem {
   /** Decimal string, scale 2. */
   salePrice: string;
   status: ProductStatus;
+  /** True when the product has stock movements: it can only be deactivated, never deleted (HU-INV-09). */
+  hasMovements: boolean;
 }
 
 export interface ProductListResponse {
@@ -330,6 +348,8 @@ export interface ProductDetail {
   name: string;
   unit: string;
   status: ProductStatus;
+  /** True when the product has stock movements (see `ProductListItem.hasMovements`). */
+  hasMovements: boolean;
   brand: ProductBrandSummary;
   country: ProductCountrySummary | null;
   category: { id: string; name: string; icon: string };

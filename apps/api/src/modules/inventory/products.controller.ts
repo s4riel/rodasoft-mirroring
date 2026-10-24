@@ -22,6 +22,7 @@ import type {
   ProductFilterOptions,
   ProductListResponse,
   ProductMovementsResponse,
+  ProductStatusResponse,
   ProductUpdateResponse,
   ProductWarehouseStockResponse,
 } from '@rodasoft/domain';
@@ -31,7 +32,11 @@ import { MembershipService } from '../access/membership.service';
 import { RequirePermissions } from '../access/require-permissions.decorator';
 import { DuplicateProductDto, ListMovementsQueryDto, ListProductsQueryDto } from './dto';
 import { CodeAvailabilityQueryDto, ProductUpdateDto, ProductWriteDto } from './product-write.dto';
-import { type CodeAvailabilityResponse, ProductCommandsService, type ProductWriteResponse } from './product-commands.service';
+import {
+  type CodeAvailabilityResponse,
+  ProductCommandsService,
+  type ProductWriteResponse,
+} from './product-commands.service';
 import { ProductsService } from './products.service';
 import { StockQueriesService } from './stock-queries.service';
 
@@ -149,6 +154,20 @@ export class ProductsController {
   @RequirePermissions('inventory.products.edit')
   duplicate(@Param('id', idPipe) id: string, @Body(bodyPipe) body: DuplicateProductDto): Promise<DuplicateProductResponse> {
     return this.commands.duplicate(id, body);
+  }
+
+  @Post('products/:id/deactivate')
+  @HttpCode(200)
+  @RequirePermissions('inventory.products.deactivate')
+  deactivate(@Param('id', idPipe) id: string): Promise<ProductStatusResponse> {
+    return this.commands.setStatus(id, 'deactivate');
+  }
+
+  @Post('products/:id/reactivate')
+  @HttpCode(200)
+  @RequirePermissions('inventory.products.deactivate')
+  reactivate(@Param('id', idPipe) id: string): Promise<ProductStatusResponse> {
+    return this.commands.setStatus(id, 'reactivate');
   }
 
   @Delete('products/:id')

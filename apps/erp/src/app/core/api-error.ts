@@ -37,6 +37,7 @@ const MESSAGES: Record<string, string> = {
   PRODUCT_MODIFIED: 'Otro usuario modificó este producto. Recarga para ver los cambios.',
   FIELD_NOT_EDITABLE: 'Hay campos que no se pueden editar aquí, como el stock.',
   NOT_EDITABLE_DRAFT: 'Este producto es un borrador. Continúalo desde el listado de borradores.',
+  INVALID_STATUS_TRANSITION: 'El estado del producto cambió. Actualiza para ver su estado actual.',
   VALIDATION_FAILED: 'Revisa los datos ingresados.',
 };
 

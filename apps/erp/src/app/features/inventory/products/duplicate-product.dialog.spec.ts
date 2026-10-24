@@ -34,6 +34,7 @@ const PRODUCT: ProductListItem = {
   branchStock: null,
   salePrice: '10.00',
   status: 'ACTIVE',
+  hasMovements: false,
 };
 
 @Component({

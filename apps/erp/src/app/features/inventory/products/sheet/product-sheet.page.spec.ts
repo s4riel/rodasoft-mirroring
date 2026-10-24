@@ -63,6 +63,7 @@ const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   name: 'Rodamiento rígido 6205-2RS',
   unit: 'UN',
   status: 'ACTIVE',
+  hasMovements: false,
   brand: { id: 'b1', name: 'SKF', logoUrl: null },
   country: { id: 'c1', code: 'SE', name: 'Suecia' },
   category: { id: 'k1', name: 'Rodamientos', icon: 'bearing' },
@@ -388,6 +389,86 @@ describe('ProductSheetPage', () => {
       const card = el(h).querySelector('[aria-labelledby="equivalents-card-title"]');
       expect(card?.textContent).toContain('No pudimos cargar los equivalentes.');
       expect(card?.textContent).not.toContain('Sin equivalentes registrados.');
+    });
+  });
+
+  describe('deactivate and reactivate (HU-INV-09)', () => {
+    const GRANTED = ['inventory.products.view', 'inventory.products.edit', 'inventory.products.deactivate'];
+    const STATUS_URL = (path: string) => `${URL}/${path}`;
+    const button = (h: RouterTestingHarness, label: string) =>
+      Array.from(el(h).querySelectorAll('button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement | undefined;
+
+    it('offers Desactivar to an active product and no Reactivar', async () => {
+      const h = await open(GRANTED);
+      respond(detail());
+      await settle(h);
+      expect(button(h, 'Desactivar')).toBeDefined();
+      expect(button(h, 'Reactivar')).toBeUndefined();
+      expect(text(h)).not.toContain('Producto inactivo');
+    });
+
+    it('hides both buttons without inventory.products.deactivate', async () => {
+      const h = await open();
+      respond(detail());
+      await settle(h);
+      expect(button(h, 'Desactivar')).toBeUndefined();
+      expect(button(h, 'Reactivar')).toBeUndefined();
+    });
+
+    it('confirms, deactivates and reloads the sheet', async () => {
+      const h = await open(GRANTED);
+      respond(detail());
+      await settle(h);
+      button(h, 'Desactivar')?.click();
+      await settle(h);
+      expect(text(h)).toContain('¿Desactivar 6205-2RS?');
+
+      const confirm = Array.from(el(h).querySelectorAll('[role=dialog] button')).find((b) => b.textContent?.trim() === 'Desactivar') as HTMLButtonElement;
+      confirm.click();
+      await h.fixture.whenStable();
+      const req = http.expectOne(STATUS_URL('deactivate'));
+      expect(req.request.method).toBe('POST');
+      req.flush({ id: 'p1', sku: 'RL-000001', status: 'INACTIVE', updatedAt: '2026-10-24T10:00:00Z' });
+      await settle(h);
+      respond(detail({ status: 'INACTIVE' }));
+      await settle(h);
+      expect(text(h)).toContain('Producto desactivado');
+      expect(text(h)).toContain('Producto inactivo');
+      expect(button(h, 'Reactivar')).toBeDefined();
+      expect(button(h, 'Desactivar')).toBeUndefined();
+    });
+
+    it('shows the Inactivo badge and note on an inactive product and reactivates it without asking', async () => {
+      const h = await open(GRANTED);
+      respond(detail({ status: 'INACTIVE' }));
+      await settle(h);
+      expect(text(h)).toContain('Inactivo');
+      expect(text(h)).toContain('No se muestra en ventas ni en la tienda');
+
+      button(h, 'Reactivar')?.click();
+      await h.fixture.whenStable();
+      expect(el(h).querySelector('[role=dialog]')).toBeNull();
+      const req = http.expectOne(STATUS_URL('reactivate'));
+      expect(req.request.method).toBe('POST');
+      req.flush({ id: 'p1', sku: 'RL-000001', status: 'ACTIVE', updatedAt: '2026-10-24T10:00:00Z' });
+      await settle(h);
+      respond(detail());
+      await settle(h);
+      expect(text(h)).toContain('Producto reactivado');
+      expect(text(h)).not.toContain('Producto inactivo');
+    });
+
+    it('reloads the sheet and reports the conflict when the status changed meanwhile', async () => {
+      const h = await open(GRANTED);
+      respond(detail({ status: 'INACTIVE' }));
+      await settle(h);
+      button(h, 'Reactivar')?.click();
+      await h.fixture.whenStable();
+      http.expectOne(STATUS_URL('reactivate')).flush({ code: 'INVALID_STATUS_TRANSITION', message: 'x' }, { status: 409, statusText: 'Conflict' });
+      await settle(h);
+      respond(detail());
+      await settle(h);
+      expect(text(h)).toContain('El estado del producto cambió.');
     });
   });
 

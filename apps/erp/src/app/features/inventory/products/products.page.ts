@@ -21,6 +21,7 @@ import {
   FilterChipComponent,
   IconComponent,
   ModalComponent,
+  NoteComponent,
   PageHeaderComponent,
   PaginationComponent,
   ProductTableComponent,
@@ -36,6 +37,7 @@ import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
 import { ContextStore } from '../../../core/context.store';
 import { branchStockSubtotal, flagOf, PRODUCTS_PAGE_SIZE, thumbIconOf, toTableRow } from './product-list.mapper';
+import { DeactivateProductDialog } from './deactivate-product.dialog';
 import { DuplicateProductDialog } from './duplicate-product.dialog';
 import { ProductsApi } from './products-api.service';
 
@@ -72,12 +74,14 @@ const STATUS_LABELS: Record<ProductStatusFilter, string> = { ACTIVE: 'Activo', I
     ButtonComponent,
     CanDirective,
     ChipMediaComponent,
+    DeactivateProductDialog,
     DuplicateProductDialog,
     EmptyStateIllustratedComponent,
     FilterBarProductsComponent,
     FilterChipComponent,
     IconComponent,
     ModalComponent,
+    NoteComponent,
     PageHeaderComponent,
     PaginationComponent,
     ProductTableComponent,
@@ -128,6 +132,8 @@ export class ProductsPage {
       items.push({ key: 'edit', label: 'Editar', icon: 'edit' }, { key: 'duplicate', label: 'Duplicar', icon: 'copy' });
     }
     if (this.ctx.can('inventory.adjustments.create')) items.push({ key: 'adjust', label: 'Ajustar stock', icon: 'inventory' });
+    // the table shares one menu between rows, so one item serves both ways: it deactivates an active product and reactivates an inactive one
+    if (this.ctx.can('inventory.products.deactivate')) items.push({ key: 'status', label: 'Desactivar / Reactivar', icon: 'pause' });
     if (this.ctx.can('inventory.products.delete')) {
       items.push({ key: 'delete', label: 'Eliminar', icon: 'trash', danger: true, separated: true });
     }
@@ -155,6 +161,13 @@ export class ProductsPage {
   protected readonly deleteOpen = signal(false);
   protected readonly deleteTarget = signal<ProductListItem | null>(null);
   protected readonly deleting = signal(false);
+  protected readonly deactivateOpen = signal(false);
+  protected readonly deactivateTarget = signal<ProductListItem | null>(null);
+  /** IN-18b · A product with movements is history: the delete dialog only offers to deactivate it. */
+  protected readonly deleteBlocked = computed(() => !!this.deleteTarget()?.hasMovements);
+  /** An inactive product is already deactivated: its blocked delete dialog has nothing left to offer. */
+  protected readonly canDeactivateTarget = computed(() => this.deleteTarget()?.status === 'ACTIVE');
+  private reactivatingId: string | null = null;
 
   protected readonly searchText = signal('');
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -366,6 +379,11 @@ export class ProductsPage {
         this.deleteTarget.set(product);
         this.deleteOpen.set(true);
         return;
+      case 'status':
+        if (product.status === 'ACTIVE') this.askDeactivate(product);
+        else if (product.status === 'INACTIVE') this.reactivate(product);
+        else this.toast.info('Un borrador no se desactiva: continúalo o elimínalo.');
+        return;
       default:
         this.comingSoon();
     }
@@ -373,6 +391,37 @@ export class ProductsPage {
 
   protected cancelDelete() {
     if (!this.deleting()) this.deleteOpen.set(false);
+  }
+
+  /** IN-18b · From the delete dialog of a product with movements: swaps it for the deactivate dialog. */
+  protected deactivateInstead() {
+    const product = this.deleteTarget();
+    if (!product) return;
+    this.deleteOpen.set(false);
+    this.askDeactivate(product);
+  }
+
+  private askDeactivate(product: ProductListItem) {
+    this.deactivateTarget.set(product);
+    this.deactivateOpen.set(true);
+  }
+
+  private reactivate(product: ProductListItem) {
+    // a double click must not send the request twice
+    if (this.reactivatingId === product.id) return;
+    this.reactivatingId = product.id;
+    this.api.reactivate(product.id).subscribe({
+      next: () => {
+        this.reactivatingId = null;
+        this.toast.success('Producto reactivado');
+        this.retry();
+      },
+      error: (err: unknown) => {
+        this.reactivatingId = null;
+        this.toast.danger(problemOf(err).message);
+        this.retry();
+      },
+    });
   }
 
   protected confirmDelete() {

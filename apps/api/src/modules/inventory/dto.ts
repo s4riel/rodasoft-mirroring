@@ -70,6 +70,14 @@ export class ListProductsQueryDto {
   @IsIn(['ACTIVE', 'INACTIVE', 'DRAFT'])
   status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT';
 
+  @ApiPropertyOptional({
+    enum: ['true'],
+    description: 'Only products that can be sold (ACTIVE): the contract for the POS, quotes and the web store',
+  })
+  @IsOptional()
+  @IsIn(['true'])
+  sellable?: 'true';
+
   @ApiPropertyOptional({ description: 'Code, SKU, name, brand or measurement (25x52x15)' })
   @IsOptional()
   @IsString()

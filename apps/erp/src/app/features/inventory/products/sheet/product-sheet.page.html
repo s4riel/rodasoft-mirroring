@@ -62,11 +62,33 @@
           <button *rsCan="'inventory.products.edit'" rsButton variant="secondary" type="button" (click)="edit()">
             <rs-icon name="edit" [size]="16" /> Editar
           </button>
+          @if (p.status === 'INACTIVE') {
+            <button
+              *rsCan="'inventory.products.deactivate'"
+              rsButton
+              variant="secondary"
+              type="button"
+              [loading]="reactivating()"
+              (click)="reactivate()"
+            >
+              <rs-icon name="play" [size]="16" /> Reactivar
+            </button>
+          } @else if (p.status === 'ACTIVE') {
+            <button *rsCan="'inventory.products.deactivate'" rsButton variant="secondary" type="button" (click)="deactivate()">
+              <rs-icon name="pause" [size]="16" /> Desactivar
+            </button>
+          }
           <button *rsCan="'inventory.adjustments.create'" rsButton variant="brand" type="button" (click)="comingSoon()">
             <rs-icon name="adjust" [size]="16" /> Ajustar stock
           </button>
         </div>
       </rs-page-header>
+
+      @if (p.status === 'INACTIVE') {
+        <rs-note type="warning" title="Producto inactivo">
+          No se muestra en ventas ni en la tienda. Conserva su historial y su stock.
+        </rs-note>
+      }
 
       <rs-tabs label="Secciones del producto" [selected]="tab()" (selectedChange)="setTab($event)">
         <rs-tab value="data" label="Datos" />
@@ -80,5 +102,7 @@
 }
 
 <rs-duplicate-product-dialog [(open)]="duplicateOpen" [product]="store.product()" [options]="duplicateOptions()" />
+
+<rs-deactivate-product-dialog [(open)]="deactivateOpen" [product]="store.product()" (deactivated)="store.retry()" />
 
 <rs-toast-outlet closeLabel="Cerrar" />

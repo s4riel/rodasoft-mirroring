@@ -20,6 +20,7 @@ const detail = (): ProductDetail =>
     name: 'Rodamiento 6205-2RS',
     unit: 'UN',
     status: 'ACTIVE',
+    hasMovements: false,
     brand: { id: 'b-fag', name: 'FAG', logoUrl: null },
     country: null,
     category: { id: 'k', name: 'Rodamientos', icon: 'bearing' },

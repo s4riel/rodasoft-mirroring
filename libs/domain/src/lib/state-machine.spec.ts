@@ -1,6 +1,23 @@
-import { InvalidTransitionError, invoiceMachine, transferMachine } from './state-machine';
+import { InvalidTransitionError, invoiceMachine, productStatusMachine, transferMachine } from './state-machine';
 
 describe('state machines', () => {
+  it('a product goes back and forth between active and inactive', () => {
+    const inactive = productStatusMachine.next('ACTIVE', 'deactivate');
+    expect(inactive).toBe('INACTIVE');
+    expect(productStatusMachine.next(inactive, 'reactivate')).toBe('ACTIVE');
+  });
+
+  it('a draft is activated when finished but cannot be deactivated', () => {
+    expect(productStatusMachine.next('DRAFT', 'activate')).toBe('ACTIVE');
+    expect(() => productStatusMachine.next('DRAFT', 'deactivate')).toThrow(InvalidTransitionError);
+    expect(() => productStatusMachine.next('DRAFT', 'reactivate')).toThrow(InvalidTransitionError);
+  });
+
+  it('an inactive product cannot be deactivated again and an active one cannot be reactivated', () => {
+    expect(productStatusMachine.can('INACTIVE', 'deactivate')).toBe(false);
+    expect(productStatusMachine.can('ACTIVE', 'reactivate')).toBe(false);
+  });
+
   it('a transfer over the limit goes through approval', () => {
     let s = transferMachine.next('DRAFT', 'requestApproval');
     s = transferMachine.next(s, 'approve');

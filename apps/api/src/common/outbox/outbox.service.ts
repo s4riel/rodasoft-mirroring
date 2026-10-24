@@ -13,7 +13,8 @@ export type OutboxType =
   | 'invoice.cancel'
   | 'entry.generate'
   | 'inventory.product-created'
-  | 'inventory.product-updated';
+  | 'inventory.product-updated'
+  | 'inventory.product-status-changed';
 
 type Tx = Prisma.TransactionClient | PrismaService | TenantTransaction;
 

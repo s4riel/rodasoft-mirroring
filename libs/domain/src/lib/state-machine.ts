@@ -31,6 +31,20 @@ export function createMachine<S extends string, E extends string>(transitions: T
   };
 }
 
+// ── Product catalog status (HU-INV-09) ──
+export type ProductLifecycleStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+export type ProductStatusEvent = 'activate' | 'deactivate' | 'reactivate';
+
+/**
+ * A draft becomes ACTIVE when it is finished, and can only be deleted, never deactivated. A finished product goes back
+ * and forth between ACTIVE and INACTIVE; nothing returns to DRAFT.
+ */
+export const productStatusMachine = createMachine<ProductLifecycleStatus, ProductStatusEvent>({
+  DRAFT: { activate: 'ACTIVE' },
+  ACTIVE: { deactivate: 'INACTIVE' },
+  INACTIVE: { reactivate: 'ACTIVE' },
+});
+
 // ── Transfers between branches (inventario-transferencias-flujo.md) ──
 export type TransferStatus =
   | 'DRAFT'

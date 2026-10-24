@@ -34,6 +34,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   branchStock: 24,
   salePrice: '245.00',
   status: 'ACTIVE',
+  hasMovements: false,
   ...over,
 });
 
@@ -297,6 +298,122 @@ describe('ProductsPage', () => {
       flushList(response([], { catalogEmpty: true }));
       h.detectChanges();
       expect(text(h)).toContain('Producto eliminado: 6205-2RS');
+    });
+
+    describe('deactivate and delete (HU-INV-09)', () => {
+      const DEACTIVATE = [...VIEW, 'inventory.products.deactivate', 'inventory.products.delete'];
+      const statusUrl = (path: string) => `/api/v1/inventory/products/p1/${path}`;
+      const dialogButton = (h: RouterTestingHarness, label: string) =>
+        Array.from(el(h).querySelectorAll('[role=dialog] button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement | undefined;
+
+      async function openMenuFor(granted: string[], row: ProductListItem) {
+        const h = await open('/products', granted);
+        flushList(response([row]));
+        flushOptions();
+        h.detectChanges();
+        await h.fixture.whenStable();
+        h.detectChanges();
+        (el(h).querySelector('[data-kebab]') as HTMLButtonElement).click();
+        h.detectChanges();
+        return h;
+      }
+
+      it('offers the status item only with inventory.products.deactivate', async () => {
+        expect(menuLabels(await openMenu(VIEW))).not.toContain('Desactivar / Reactivar');
+        TestBed.resetTestingModule();
+        expect(menuLabels(await openMenu(DEACTIVATE))).toEqual(['Ver detalles', 'Desactivar / Reactivar', 'Eliminar']);
+      });
+
+      it('asks for confirmation, deactivates an active product and reloads', async () => {
+        const h = await openMenu(DEACTIVATE);
+        await choose(h, 'Desactivar / Reactivar');
+        expect(text(h)).toContain('¿Desactivar 6205-2RS?');
+        expect(text(h)).toContain('Conserva su historial y su stock');
+        http.expectNone(statusUrl('deactivate'));
+
+        dialogButton(h, 'Desactivar')?.click();
+        await h.fixture.whenStable();
+        const req = http.expectOne(statusUrl('deactivate'));
+        expect(req.request.method).toBe('POST');
+        req.flush({ id: 'p1', sku: 'RL-000001', status: 'INACTIVE', updatedAt: '2026-10-24T10:00:00Z' });
+        await h.fixture.whenStable();
+        flushList(response([item({ status: 'INACTIVE' })]));
+        h.detectChanges();
+        expect(text(h)).toContain('Producto desactivado');
+      });
+
+      it('keeps the dialog open with the error when the status changed meanwhile', async () => {
+        const h = await openMenu(DEACTIVATE);
+        await choose(h, 'Desactivar / Reactivar');
+        dialogButton(h, 'Desactivar')?.click();
+        await h.fixture.whenStable();
+        http
+          .expectOne(statusUrl('deactivate'))
+          .flush({ code: 'INVALID_STATUS_TRANSITION', message: 'x' }, { status: 409, statusText: 'Conflict' });
+        await h.fixture.whenStable();
+        h.detectChanges();
+        expect(text(h)).toContain('El estado del producto cambió.');
+        expect(dialogButton(h, 'Desactivar')).toBeDefined();
+      });
+
+      it('reactivates an inactive product straight away, without asking', async () => {
+        const h = await openMenuFor(DEACTIVATE, item({ status: 'INACTIVE' }));
+        await choose(h, 'Desactivar / Reactivar');
+        expect(el(h).querySelector('[role=dialog]')).toBeNull();
+        const req = http.expectOne(statusUrl('reactivate'));
+        expect(req.request.method).toBe('POST');
+        req.flush({ id: 'p1', sku: 'RL-000001', status: 'ACTIVE', updatedAt: '2026-10-24T10:00:00Z' });
+        await h.fixture.whenStable();
+        flushList(response([item()]));
+        h.detectChanges();
+        expect(text(h)).toContain('Producto reactivado');
+      });
+
+      it('does not deactivate a draft', async () => {
+        const h = await openMenuFor(DEACTIVATE, item({ status: 'DRAFT' }));
+        await choose(h, 'Desactivar / Reactivar');
+        http.expectNone(statusUrl('deactivate'));
+        http.expectNone(statusUrl('reactivate'));
+        expect(text(h)).toContain('Un borrador no se desactiva');
+      });
+
+      it('offers Desactivar instead of Eliminar when the product has movements', async () => {
+        const h = await openMenuFor(DEACTIVATE, item({ hasMovements: true }));
+        await choose(h, 'Eliminar');
+        expect(text(h)).toContain('Tiene movimientos: solo puede desactivarse');
+        expect(dialogButton(h, 'Eliminar')).toBeUndefined();
+
+        dialogButton(h, 'Desactivar')?.click();
+        h.detectChanges();
+        await h.fixture.whenStable();
+        h.detectChanges();
+        expect(text(h)).toContain('¿Desactivar 6205-2RS?');
+        http.expectNone('/api/v1/inventory/products/p1');
+      });
+
+      it('offers no way forward in the delete dialog without the deactivate permission when it has movements', async () => {
+        const h = await openMenuFor([...VIEW, 'inventory.products.delete'], item({ hasMovements: true }));
+        await choose(h, 'Eliminar');
+        expect(text(h)).toContain('Tiene movimientos: solo puede desactivarse');
+        expect(dialogButton(h, 'Eliminar')).toBeUndefined();
+        expect(dialogButton(h, 'Desactivar')).toBeUndefined();
+      });
+
+      it('does not offer Desactivar in the delete dialog of a product that is already inactive', async () => {
+        const h = await openMenuFor(DEACTIVATE, item({ hasMovements: true, status: 'INACTIVE' }));
+        await choose(h, 'Eliminar');
+        expect(text(h)).toContain('Tiene movimientos: solo puede desactivarse');
+        expect(dialogButton(h, 'Desactivar')).toBeUndefined();
+        expect(dialogButton(h, 'Eliminar')).toBeUndefined();
+      });
+
+      it('keeps the plain delete dialog for a product without movements', async () => {
+        const h = await openMenu(DEACTIVATE);
+        await choose(h, 'Eliminar');
+        expect(text(h)).not.toContain('Tiene movimientos');
+        expect(dialogButton(h, 'Eliminar')).toBeDefined();
+        expect(dialogButton(h, 'Desactivar')).toBeUndefined();
+      });
     });
 
     it('explains that a product with stock cannot be deleted', async () => {

@@ -13,6 +13,7 @@ import type {
   ProductListQuery,
   ProductListResponse,
   ProductMovementsResponse,
+  ProductStatusResponse,
   ProductWarehouseStockResponse,
   EquivalenceLinkResponse,
   EquivalenceSuggestionsResponse,
@@ -90,6 +91,15 @@ export class ProductsApi {
 
   duplicate(id: string, body: DuplicateProductRequest): Observable<DuplicateProductResponse> {
     return this.http.post<DuplicateProductResponse>(`/api/v1/inventory/products/${id}/duplicate`, body);
+  }
+
+  /** IN-18a · Stops offering the product for sale; its stock and history stay (HU-INV-09). */
+  deactivate(id: string): Observable<ProductStatusResponse> {
+    return this.http.post<ProductStatusResponse>(`/api/v1/inventory/products/${id}/deactivate`, {});
+  }
+
+  reactivate(id: string): Observable<ProductStatusResponse> {
+    return this.http.post<ProductStatusResponse>(`/api/v1/inventory/products/${id}/reactivate`, {});
   }
 
   remove(id: string): Observable<void> {
