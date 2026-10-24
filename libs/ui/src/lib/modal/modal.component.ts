@@ -16,6 +16,8 @@ import { DOCUMENT } from '@angular/common';
 import { IconComponent } from '../icon/icon.component';
 
 export type ModalVariant = 'confirmation' | 'form';
+/** `wide` is for dialogs that hold a table (the import preview); every other dialog keeps the default width. */
+export type ModalSize = 'default' | 'wide';
 
 const FOCUSABLE = [
   'a[href]',
@@ -53,6 +55,7 @@ export class ModalComponent {
 
   readonly open = model(false);
   readonly variant = input<ModalVariant>('confirmation');
+  readonly size = input<ModalSize>('default');
   readonly heading = input<string>('');
   /** Accessible name when there is no `heading`. */
   readonly label = input<string>('');

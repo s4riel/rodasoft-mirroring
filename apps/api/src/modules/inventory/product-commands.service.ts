@@ -76,9 +76,12 @@ export class ProductCommandsService {
     private readonly outbox: OutboxService,
   ) {}
 
-  /** Creates a product from the wizard: ACTIVE when `status` is ACTIVE (the default), a draft otherwise. */
-  async create(dto: ProductWriteDto): Promise<ProductWriteResponse> {
-    return this.write(null, dto);
+  /**
+   * Creates a product from the wizard: ACTIVE when `status` is ACTIVE (the default), a draft otherwise. The importer
+   * (HU-INV-10) passes its own `tx` so every row and its stock commit together.
+   */
+  async create(dto: ProductWriteDto, tx?: TenantTransaction): Promise<ProductWriteResponse> {
+    return this.write(null, dto, tx);
   }
 
   /** Saves the wizard state of a draft. A PATCH sends the whole form, so missing fields are cleared. */
@@ -316,14 +319,14 @@ export class ProductCommandsService {
    * Creates or saves a product from the wizard (HU-INV-06). One transaction: validation, references, the product,
    * its dimensions, and on activation the initial stock and thresholds, the audit entry and the outbox event.
    */
-  private async write(id: string | null, request: ProductWriteDto): Promise<ProductWriteResponse> {
+  private async write(id: string | null, request: ProductWriteDto, outer?: TenantTransaction): Promise<ProductWriteResponse> {
     const companyId = this.companyId();
     assertWizardShape(request);
     assertUploadKeys(companyId, request);
     const userId = this.cls.get('userId') ?? null;
     const canViewCosts = await this.canViewCosts();
 
-    return this.prisma.tenant.$transaction(async (tx) => {
+    const run = async (tx: TenantTransaction): Promise<ProductWriteResponse> => {
         // a draft save locks its row first, so two saves cannot merge from the same stored state and drop each other's fields
         if (id) await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
         const stored = id ? await tx.product.findFirst({ where: { id, companyId }, include: { dimensions: true } }) : null;
@@ -478,7 +481,8 @@ export class ProductCommandsService {
           );
         }
         return { id: product.id, sku: product.sku, status };
-      });
+    };
+    return outer ? run(outer) : this.prisma.tenant.$transaction(run);
   }
 
   /**
@@ -487,7 +491,7 @@ export class ProductCommandsService {
    * validation as creation, the update, the audit entry (only what changed) and the outbox event. Stock is never written
    * here (design-notes rule 1): only the thresholds of one warehouse.
    */
-  async update(id: string, request: ProductUpdateDto): Promise<ProductUpdateResponse> {
+  async update(id: string, request: ProductUpdateDto, outer?: TenantTransaction): Promise<ProductUpdateResponse> {
     const companyId = this.companyId();
     assertEditableShape(request);
     assertWizardShape(request);
@@ -505,7 +509,7 @@ export class ProductCommandsService {
     }
 
     try {
-      return await this.prisma.tenant.$transaction(async (tx) => {
+      const run = async (tx: TenantTransaction): Promise<ProductUpdateResponse> => {
         // the lock serializes edits of the same product: the second one reads the first one's `updated_at` and is refused
         await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
         const stored = await tx.product.findFirst({ where: { id, companyId }, include: { dimensions: true } });
@@ -650,7 +654,8 @@ export class ProductCommandsService {
           { tx, companyId, idempotencyKey: `inventory.product-updated:${id}:${saved.updatedAt.getTime()}` },
         );
         return { id, sku: stored.sku, updatedAt: saved.updatedAt.toISOString() };
-      });
+      };
+      return await (outer ? run(outer) : this.prisma.tenant.$transaction(run));
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException({

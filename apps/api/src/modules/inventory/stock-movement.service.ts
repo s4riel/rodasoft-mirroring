@@ -39,6 +39,24 @@ export class StockMovementService {
     await tx.stockLevel.deleteMany({ where: { productId, companyId, quantity: 0, reserved: 0 } });
   }
 
+  /**
+   * The on-hand quantity of a product in a warehouse, read under the same lock `apply` takes, and whether the pair has any
+   * history. Callers that decide a movement from the current quantity (the Excel import sets a quantity, it does not add one)
+   * call this first, so the decision and the movement see the same number. The product row is locked before the level,
+   * the same order `apply` uses, so the two cannot deadlock.
+   */
+  async lockedQuantity(tx: TenantTransaction, productId: string, warehouseId: string): Promise<{ quantity: number; hasHistory: boolean }> {
+    const companyId = this.cls.get('companyId');
+    if (!companyId) throw new Error('Stock read outside a company context');
+    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
+    const [level] = await tx.$queryRaw<{ quantity: number }[]>`
+      SELECT quantity FROM stock_levels
+      WHERE product_id = ${productId}::uuid AND warehouse_id = ${warehouseId}::uuid AND company_id = ${companyId}::uuid
+      FOR UPDATE`;
+    const history = await tx.stockMovement.count({ where: { productId, warehouseId, companyId } });
+    return { quantity: level?.quantity ?? 0, hasHistory: history > 0 };
+  }
+
   async apply(tx: TenantTransaction, input: StockMovementInput): Promise<{ balanceAfter: number }> {
     const companyId = this.cls.get('companyId');
     if (!companyId) throw new Error('Stock movement outside a company context');

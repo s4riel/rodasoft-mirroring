@@ -117,7 +117,7 @@ async function main() {
     }
 
     // 4. Company settings with their defaults (HU-INV-06). Thresholds without a value are not stored: the code reads the default.
-    for (const key of ['inventory.skuPrefix', 'inventory.allowNegativeStock'] as const) {
+    for (const key of ['inventory.skuPrefix', 'inventory.allowNegativeStock', 'inventory.import.maxRows', 'inventory.import.createMissingBrands'] as const) {
       await prisma.companySetting.upsert({
         where: { companyId_key: { companyId: company.id, key } },
         update: {},

@@ -10,3 +10,4 @@ export * from './lib/stock';
 export * from './lib/company-settings';
 export * from './lib/product-creation';
 export * from './lib/uploads';
+export * from './lib/product-import';
