@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import type { AttributeDefinitionItem, ProductFilterOptions } from '@rodasoft/domain';
+import { ToastService } from '@rodasoft/ui';
 import { ContextStore } from '../../../../core/context.store';
 import { ProductWizardPage } from './product-wizard.page';
 
@@ -67,6 +68,14 @@ describe('ProductWizardPage', () => {
     h.detectChanges();
   };
   const button = (h: RouterTestingHarness, label: string) => Array.from(root(h).querySelectorAll('button')).find((b) => b.textContent?.includes(label));
+
+  it('shows the toasts raised before arriving, such as "Copia creada" after duplicating (HU-INV-08)', async () => {
+    const h = await open('k-seals', [definition({})]);
+    TestBed.inject(ToastService).success('Copia creada: RL-000009');
+    h.detectChanges();
+
+    expect(root(h).querySelector('rs-toast-outlet')?.textContent).toContain('Copia creada: RL-000009');
+  });
 
   it('says which step it is, and counts the required ones for a category with four steps', async () => {
     const h = await open('k-seals', [definition({})]);

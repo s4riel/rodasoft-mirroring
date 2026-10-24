@@ -110,8 +110,9 @@ test('duplicates a product choosing the industry and deletes the copy', async ({
   await dialog.getByRole('combobox', { name: /Industria/ }).click();
   await page.getByRole('option', { name: 'Japón' }).click();
   await dialog.getByRole('button', { name: 'Crear copia' }).click();
-  await expect(page.getByText(/Copia creada: RL-\d{6}/)).toBeVisible();
-  await expect(dialog).toBeHidden();
+  // HU-INV-08 · the copy (it has a price) opens on its edit screen
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}\/edit$/);
+  await page.goto('/inventory/products');
 
   // the copy shows the chosen industry's flag
   await search.fill(code);
@@ -154,4 +155,47 @@ test('refuses to delete a product that has stock', async ({ page }) => {
     .click();
   await expect(page.getByText('No se puede eliminar: tiene stock registrado. Desactívalo en su lugar.')).toBeVisible();
   await expect(target!).toBeVisible();
+});
+
+/** HU-INV-08 · Duplicar from the product sheet, copying the equivalences; the copy opens on its edit screen. */
+test('duplicates from the product sheet with the equivalences and deletes the copy', async ({ page }) => {
+  const code = `E2E-EQ-${Date.now()}`;
+  const search = page.getByRole('searchbox', { name: 'Buscar productos' });
+
+  await search.fill('6205-2RS');
+  const source = dataRows(page).filter({ has: page.getByText('6205-2RS', { exact: true }) }).first();
+  await expect(source).toBeVisible();
+  await source.getByRole('button', { name: /Acciones de/ }).click();
+  await page.getByRole('menuitem', { name: 'Ver detalles' }).click();
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}$/);
+
+  await page.getByRole('button', { name: 'Duplicar' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Duplicar producto' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Código nuevo').fill(code);
+  await dialog.getByRole('combobox', { name: /Industria/ }).click();
+  await page.getByRole('option', { name: 'Japón' }).click();
+  await dialog.getByRole('button', { name: 'Equivalencias' }).click();
+  await dialog.getByRole('button', { name: 'Crear copia' }).click();
+
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}\/edit$/);
+  const copyId = /products\/([0-9a-f-]{36})\/edit/.exec(page.url())![1];
+
+  try {
+    // the copy is equivalent to the 3 equivalents of the source (6205-2RSR, 6205-DDU, 6205-2Z), plus itself as the original
+    await page.goto(`/inventory/products/${copyId}/equivalents`);
+    const rows = page.locator('rs-doc-table tbody tr');
+    await expect(rows).toHaveCount(4);
+    await expect(rows.nth(0)).toContainText(code);
+    await expect(rows.nth(1)).toContainText('6205-2RSR');
+  } finally {
+    // the copy has no stock: delete it so the demo catalog stays as seeded
+    await page.goto('/inventory/products');
+    await search.fill(code);
+    await expect(dataRows(page)).toHaveCount(1);
+    await dataRows(page).first().getByRole('button', { name: /Acciones de/ }).click();
+    await page.getByRole('menuitem', { name: 'Eliminar' }).click();
+    await page.getByRole('dialog', { name: `¿Eliminar ${code}?` }).getByRole('button', { name: 'Eliminar' }).click();
+    await expect(page.getByText(`Producto eliminado: ${code}`)).toBeVisible();
+  }
 });

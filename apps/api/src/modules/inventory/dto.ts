@@ -17,8 +17,8 @@ import {
 } from 'class-validator';
 import { type DuplicateProductRequest, PRODUCT_PAGE_SIZE_MAX, type ProductCopyPart } from '@rodasoft/domain';
 
-/** Parts the API accepts for a copy; `equivalences` is not supported until HU-INV-13. */
-export const DUPLICATE_COPY_PARTS = ['dimensions', 'specifications', 'price', 'media'] as const;
+/** Parts the API accepts for a copy. */
+export const DUPLICATE_COPY_PARTS = ['dimensions', 'specifications', 'price', 'media', 'equivalences'] as const;
 
 export class DuplicateProductDto implements DuplicateProductRequest {
   @ApiProperty({ description: 'Manufacturer code of the copy; unique per brand' })

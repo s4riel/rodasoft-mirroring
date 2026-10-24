@@ -1,12 +1,12 @@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, model, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, model, output, signal, untracked } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   DEFAULT_COPY_PARTS,
   type DuplicateProductResponse,
   type ProductCopyPart,
   type ProductFilterOptions,
-  type ProductListItem,
 } from '@rodasoft/domain';
 import {
   ButtonComponent,
@@ -19,6 +19,7 @@ import {
   NoteComponent,
   SelectComponent,
   SelectOption,
+  ToastService,
 } from '@rodasoft/ui';
 import { problemOf } from '../../../core/api-error';
 import { flagOf } from './product-list.mapper';
@@ -30,16 +31,26 @@ interface CopyChip {
   disabled: boolean;
 }
 
-/** Equivalences are not copied until HU-INV-13, so that chip is shown disabled. */
+/** What the dialog needs to know about the product it copies; the list rows and the product sheet both fit. */
+export interface DuplicateSourceSummary {
+  id: string;
+  manufacturerCode: string;
+  brand: { id: string; name: string };
+  country: { id: string } | null;
+}
+
 const COPY_CHIPS: readonly CopyChip[] = [
   { part: 'dimensions', label: 'Dimensiones', disabled: false },
   { part: 'specifications', label: 'Especificaciones', disabled: false },
   { part: 'price', label: 'Precio', disabled: false },
   { part: 'media', label: 'Fotos y ficha técnica', disabled: false },
-  { part: 'equivalences', label: 'Equivalencias', disabled: true },
+  { part: 'equivalences', label: 'Equivalencias', disabled: false },
 ];
 
-/** IN-19 · Duplicate product: asks for the new code, brand, industry and what to copy. */
+/**
+ * IN-19 · Duplicate product: asks for the new code, brand, industry and what to copy. Shared by the list and the product
+ * sheet. After copying it opens the copy: the edit screen, or the wizard when the copy is a draft (no price copied).
+ */
 @Component({
   selector: 'rs-duplicate-product-dialog',
   imports: [
@@ -60,10 +71,12 @@ const COPY_CHIPS: readonly CopyChip[] = [
 })
 export class DuplicateProductDialog {
   private readonly api = inject(ProductsApi);
+  private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
 
   readonly open = model(false);
   /** Product being copied; the dialog resets whenever it opens for a product. */
-  readonly product = input<ProductListItem | null>(null);
+  readonly product = input<DuplicateSourceSummary | null>(null);
   readonly options = input.required<ProductFilterOptions>();
   readonly created = output<DuplicateProductResponse>();
 
@@ -111,8 +124,10 @@ export class DuplicateProductDialog {
 
   constructor() {
     effect(() => {
-      const p = this.product();
-      if (!this.open() || !p) return;
+      if (!this.open()) return;
+      // only opening resets the form: a re-emitted product must not wipe the code the user is typing
+      const p = untracked(() => this.product());
+      if (!p) return;
       this.form.reset({ manufacturerCode: '', brandId: p.brand.id, countryId: p.country?.id ?? null });
       this.copy.set(new Set(DEFAULT_COPY_PARTS));
       this.saving.set(false);
@@ -154,6 +169,8 @@ export class DuplicateProductDialog {
           this.saving.set(false);
           this.open.set(false);
           this.created.emit(result);
+          this.toast.success(`Copia creada: ${result.sku}`);
+          void this.router.navigate(['/inventory/products', result.id, result.status === 'DRAFT' ? 'draft' : 'edit']);
         },
         error: (err: unknown) => {
           const problem = problemOf(err);

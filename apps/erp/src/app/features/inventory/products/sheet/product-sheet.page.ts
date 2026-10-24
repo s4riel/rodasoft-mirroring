@@ -1,5 +1,5 @@
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import {
   ButtonComponent,
@@ -14,8 +14,11 @@ import {
   ToastOutletComponent,
   ToastService,
 } from '@rodasoft/ui';
+import type { ProductFilterOptions } from '@rodasoft/domain';
 import { filter, map, startWith } from 'rxjs';
+import { DuplicateProductDialog } from '../duplicate-product.dialog';
 import { formatMeasure } from '../product-list.mapper';
+import { ProductsApi } from '../products-api.service';
 import { formatDate } from './product-sheet.mapper';
 import { ProductSheetStore } from './product-sheet.store';
 
@@ -32,6 +35,7 @@ const TAB_PATHS: Record<SheetTab, string> = { data: '', equivalents: 'equivalent
   imports: [
     ButtonComponent,
     CanDirective,
+    DuplicateProductDialog,
     EmptyStateIllustratedComponent,
     IconComponent,
     PageHeaderComponent,
@@ -52,6 +56,8 @@ export class ProductSheetPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly api = inject(ProductsApi);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly store = inject(ProductSheetStore);
 
   private readonly childPath = toSignal(
@@ -97,6 +103,36 @@ export class ProductSheetPage {
   protected edit() {
     const id = this.store.product()?.id;
     if (id) void this.router.navigate(['/inventory/products', id, 'edit']);
+  }
+
+  protected readonly duplicateOpen = signal(false);
+  protected readonly duplicateOptions = signal<ProductFilterOptions>({ countries: [], brands: [], categories: [] });
+  private optionsLoaded = false;
+  private optionsLoading = false;
+
+  /** IN-19 · Opens the duplicate dialog for this product. The brand and industry options load the first time, before it opens. */
+  protected duplicate() {
+    if (this.optionsLoaded) {
+      this.duplicateOpen.set(true);
+      return;
+    }
+    if (this.optionsLoading) return;
+    this.optionsLoading = true;
+    this.api
+      .filterOptions()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (options) => {
+          this.optionsLoading = false;
+          this.optionsLoaded = true;
+          this.duplicateOptions.set(options);
+          this.duplicateOpen.set(true);
+        },
+        error: () => {
+          this.optionsLoading = false;
+          this.toast.danger('No pudimos cargar las marcas e industrias. Inténtalo de nuevo.');
+        },
+      });
   }
 
   /** Stock adjustment arrives with HU-INV-16. */

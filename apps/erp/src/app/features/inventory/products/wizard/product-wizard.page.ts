@@ -49,6 +49,7 @@ import {
   type SelectOption,
   StatusPillComponent,
   StepperComponent,
+  ToastOutletComponent,
   ToastService,
 } from '@rodasoft/ui';
 import { catchError, debounceTime, forkJoin, map, merge, of, type Subscription, switchMap } from 'rxjs';
@@ -139,6 +140,7 @@ interface PendingUpload {
     StatusPillComponent,
     StepperComponent,
     TextareaDirective,
+    ToastOutletComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './product-wizard.page.html',

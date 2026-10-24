@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import type { DuplicateProductResponse, ProductFilterOptions, ProductListItem } from '@rodasoft/domain';
 import { DuplicateProductDialog } from './duplicate-product.dialog';
 
@@ -51,11 +52,23 @@ class HostComponent {
   readonly created = signal<DuplicateProductResponse | null>(null);
 }
 
+@Component({ template: '' })
+class StubPage {}
+
 describe('DuplicateProductDialog', () => {
   let http: HttpTestingController;
 
   async function setup() {
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'inventory/products/:id/edit', component: StubPage },
+          { path: 'inventory/products/:id/draft', component: StubPage },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
+    });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(HostComponent);
     await fixture.whenStable();
@@ -76,7 +89,7 @@ describe('DuplicateProductDialog', () => {
 
   afterEach(() => http.verify());
 
-  it('shows the source, the required code, the defaults and the disabled equivalences chip', async () => {
+  it('shows the source, the required code, the defaults and the enabled equivalences chip', async () => {
     const { el } = await setup();
     const t = el.textContent ?? '';
     expect(t).toContain('Duplicar producto');
@@ -91,7 +104,8 @@ describe('DuplicateProductDialog', () => {
     expect(byText('Especificaciones').getAttribute('aria-pressed')).toBe('true');
     expect(byText('Precio').getAttribute('aria-pressed')).toBe('true');
     expect(byText('Fotos y ficha técnica').getAttribute('aria-pressed')).toBe('false');
-    expect(byText('Equivalencias').disabled).toBe(true);
+    expect(byText('Equivalencias').disabled).toBe(false);
+    expect(byText('Equivalencias').getAttribute('aria-pressed')).toBe('false');
     // the industry select shows the product's country with its flag
     expect(el.querySelectorAll('rs-select rs-flag')).toHaveLength(1);
     expect(el.querySelector('#duplicate-country')?.textContent).toContain('Suecia');
@@ -122,10 +136,35 @@ describe('DuplicateProductDialog', () => {
       countryId: 'c-se',
       copy: ['dimensions', 'specifications', 'price', 'media'],
     });
-    req.flush({ id: 'p9', sku: 'RL-000009' });
+    req.flush({ id: 'p9', sku: 'RL-000009', status: 'ACTIVE' });
     await fixture.whenStable();
-    expect(host.created()).toEqual({ id: 'p9', sku: 'RL-000009' });
+    expect(host.created()).toEqual({ id: 'p9', sku: 'RL-000009', status: 'ACTIVE' });
     expect(host.open()).toBe(false);
+  });
+
+  it('sends the equivalences part when its chip is selected', async () => {
+    const { el, type, send, fixture } = await setup();
+    await type('EQ-1');
+    Array.from(el.querySelectorAll<HTMLButtonElement>('rs-filter-chip button'))
+      .find((c) => c.textContent?.includes('Equivalencias'))!
+      .click();
+    await fixture.whenStable();
+    await send();
+    const req = http.expectOne('/api/v1/inventory/products/p1/duplicate');
+    expect(req.request.body.copy).toEqual(['dimensions', 'specifications', 'price', 'equivalences']);
+    req.flush({ id: 'p9', sku: 'RL-000009', status: 'ACTIVE' });
+  });
+
+  it.each([
+    ['ACTIVE', '/inventory/products/p9/edit'],
+    ['DRAFT', '/inventory/products/p9/draft'],
+  ])('opens the copy after creating it: a %s copy goes to %s', async (status, url) => {
+    const { type, send, fixture } = await setup();
+    await type('NEW-1');
+    await send();
+    http.expectOne('/api/v1/inventory/products/p1/duplicate').flush({ id: 'p9', sku: 'RL-000009', status });
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe(url);
   });
 
   it('shows an inline error on the code field and stays open on a 409', async () => {

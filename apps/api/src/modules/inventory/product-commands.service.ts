@@ -13,6 +13,7 @@ import {
   type DuplicateProductResponse,
   type DuplicateSource,
   editableFields,
+  equivalencePairsForCopy,
   formatSku,
   MOVEMENT_LOCKED_FIELDS,
   parseSkuNumber,
@@ -144,6 +145,25 @@ export class ProductCommandsService {
           });
         }
 
+        // The copy is linked to every equivalent of the source, not to the source itself. The pairs are written in
+        // canonical order, in the same transaction as the product, so a failed copy leaves no orphan link.
+        let equivalenceCount = 0;
+        if (dto.copy.includes('equivalences')) {
+          const links = await tx.equivalence.findMany({
+            where: { companyId, OR: [{ productAId: source.id }, { productBId: source.id }] },
+            select: { productAId: true, productBId: true },
+          });
+          const equivalentIds = links.map((l) => (l.productAId === source.id ? l.productBId : l.productAId));
+          const pairs = equivalencePairsForCopy(created.id, equivalentIds);
+          if (pairs.length) {
+            const result = await tx.equivalence.createMany({
+              data: pairs.map(([productAId, productBId]) => ({ companyId, productAId, productBId, createdById: this.cls.get('userId') })),
+              skipDuplicates: true,
+            });
+            equivalenceCount = result.count;
+          }
+        }
+
         await this.audit.log(
           {
             action: 'inventory.product.duplicate',
@@ -156,11 +176,20 @@ export class ProductCommandsService {
               brandId: payload.brandId,
               countryId: payload.countryId,
               copy: dto.copy,
+              status: payload.status,
+              equivalenceCount,
             },
           },
           tx as unknown as Prisma.TransactionClient,
         );
-        return { id: created.id, sku };
+        if (payload.status === 'ACTIVE') {
+          await this.outbox.publish(
+            'inventory.product-created',
+            { productId: created.id, sku },
+            { tx, companyId, idempotencyKey: `inventory.product-created:${created.id}` },
+          );
+        }
+        return { id: created.id, sku, status: payload.status };
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
