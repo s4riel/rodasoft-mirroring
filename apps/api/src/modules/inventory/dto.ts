@@ -15,7 +15,12 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { type DuplicateProductRequest, PRODUCT_PAGE_SIZE_MAX, type ProductCopyPart } from '@rodasoft/domain';
+import {
+  type DuplicateProductRequest,
+  type EquivalenceKind,
+  PRODUCT_PAGE_SIZE_MAX,
+  type ProductCopyPart,
+} from '@rodasoft/domain';
 
 /** Parts the API accepts for a copy. */
 export const DUPLICATE_COPY_PARTS = ['dimensions', 'specifications', 'price', 'media', 'equivalences'] as const;
@@ -106,6 +111,44 @@ export class ListProductsQueryDto {
 }
 
 export class ListEquivalentsQueryDto {
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 25, maximum: PRODUCT_PAGE_SIZE_MAX })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(PRODUCT_PAGE_SIZE_MAX)
+  pageSize?: number;
+}
+
+export class ListEquivalencesQueryDto {
+  @ApiPropertyOptional({ description: 'Links where either side is of this brand' })
+  @IsOptional()
+  @IsUUID()
+  brandId?: string;
+
+  @ApiPropertyOptional({ description: 'Links where either side is of this category (a root also matches its subcategories)' })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ enum: ['EXACT', 'WITH_DIFFERENCES', 'INCOMPATIBLE'] })
+  @IsOptional()
+  @IsIn(['EXACT', 'WITH_DIFFERENCES', 'INCOMPATIBLE'])
+  kind?: EquivalenceKind;
+
+  @ApiPropertyOptional({ description: 'Manufacturer code of either side' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)

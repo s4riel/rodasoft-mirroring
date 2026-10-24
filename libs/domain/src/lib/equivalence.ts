@@ -153,3 +153,52 @@ export interface EquivalenceLinkResponse {
   productAId: string;
   productBId: string;
 }
+
+/** One side of a link in the company-wide equivalence table (HU-INV-11). Never carries cost. */
+export interface EquivalenceListProduct {
+  id: string;
+  manufacturerCode: string;
+  brand: ProductBrandSummary;
+  country: ProductCountrySummary | null;
+  /** First photo; null while the product has none. */
+  photoUrl: string | null;
+  /** Glyph of the root category, drawn when there is no photo. */
+  categoryIcon: string;
+  /** d × D × B in mm, decimal strings. */
+  dimensions: EquivalenceMeasures | null;
+  totalStock: number;
+  status: ProductStatus;
+}
+
+/** A saved link, stored once as a canonical pair. `differences` read from side A to side B. */
+export interface EquivalenceListItem {
+  id: string;
+  productA: EquivalenceListProduct;
+  productB: EquivalenceListProduct;
+  kind: EquivalenceKind;
+  differences: EquivalenceDifference[];
+  createdBy: { id: string; name: string } | null;
+  /** ISO instant. */
+  createdAt: string;
+}
+
+export interface EquivalenceFilters {
+  /** Links where either side is of this brand. */
+  brandId?: string;
+  /** Links where either side is of this category (a root category also matches its subcategories). */
+  categoryId?: string;
+  kind?: EquivalenceKind;
+  /** Manufacturer code of either side (contains, case-insensitive). */
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface EquivalenceListResponse {
+  items: EquivalenceListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** True when the company has no links at all, regardless of the filters (first use). */
+  linksEmpty: boolean;
+}

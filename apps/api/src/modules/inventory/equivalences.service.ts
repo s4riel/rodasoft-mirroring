@@ -7,6 +7,9 @@ import {
   type EquivalenceComparable,
   type EquivalenceKind,
   type EquivalenceLinkResponse,
+  type EquivalenceListItem,
+  type EquivalenceListProduct,
+  type EquivalenceListResponse,
   type EquivalenceSuggestion,
   type EquivalenceSuggestionsResponse,
   normalizePair,
@@ -17,7 +20,7 @@ import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AppClsStore } from '../../common/cls';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import type { ListEquivalentsQueryDto } from './dto';
+import type { ListEquivalencesQueryDto, ListEquivalentsQueryDto } from './dto';
 import type { EquivalenceCandidatesDto, LinkEquivalenceDto } from './product-write.dto';
 
 /** Suggestions offered on "Producto creado" (design-notes: 3 suggested equivalents). */
@@ -33,6 +36,27 @@ const productInclude = {
   country: countrySelect,
   dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true } },
 } as const;
+
+const listProductInclude = {
+  ...productInclude,
+  category: { select: { id: true, parentId: true, icon: true, parent: { select: { icon: true } } } },
+} as const;
+const listInclude = {
+  productA: { include: listProductInclude },
+  productB: { include: listProductInclude },
+  createdBy: { select: { id: true, name: true } },
+} as const;
+
+const leanSide = {
+  select: {
+    categoryId: true,
+    attributes: true,
+    dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true } },
+    category: { select: { id: true, parentId: true } },
+  },
+} as const;
+const leanSelect = { id: true, productA: leanSide, productB: leanSide } as const;
+type LeanSide = Prisma.ProductGetPayload<typeof leanSide>;
 
 /**
  * Read side of the equivalences (HU-INV-04). Links are direct pairs stored once; whether a link is exact or has
@@ -138,6 +162,79 @@ export class EquivalencesService {
     }
   }
 
+  /**
+   * The company-wide table of links (HU-INV-11): each pair once, newest first, with both products and the kind computed
+   * from them. Without a `kind` filter the page is cut in SQL and only its rows are compared; with one, the links that
+   * pass the other filters are compared first, because the kind is never stored.
+   */
+  async list(query: ListEquivalencesQueryDto): Promise<EquivalenceListResponse> {
+    const page = clampPage(query.page);
+    const pageSize = clampPageSize(query.pageSize);
+    const where = buildListWhere(query);
+    const orderBy = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
+    const labelCache = new Map<string, Record<string, string>>();
+    const compare = async (a: ListRow['productA'] | LeanSide, b: ListRow['productB'] | LeanSide) => {
+      const category = a.category;
+      let labels = labelCache.get(category.id);
+      if (!labels) {
+        labels = await this.labelsOf(category.id, category.parentId);
+        labelCache.set(category.id, labels);
+      }
+      return compareEquivalents(toComparable(a), toComparable(b), labels);
+    };
+
+    let rows: { row: ListRow; kind: EquivalenceKind; differences: EquivalenceListItem['differences'] }[];
+    let total: number;
+    if (query.kind) {
+      // the kind is never stored: compare every link that passes the other filters, but on lean rows (only what the
+      // comparison reads); the full rows are loaded for the page alone
+      const lean = await this.prisma.tenant.equivalence.findMany({ where, orderBy, select: leanSelect });
+      const compared = await Promise.all(lean.map(async (l) => ({ id: l.id, ...(await compare(l.productA, l.productB)) })));
+      const matching = compared.filter((c) => c.kind === query.kind);
+      total = matching.length;
+      const pageOf = matching.slice((page - 1) * pageSize, page * pageSize);
+      const full = pageOf.length
+        ? await this.prisma.tenant.equivalence.findMany({ where: { id: { in: pageOf.map((m) => m.id) } }, include: listInclude })
+        : [];
+      const byId = new Map(full.map((r) => [r.id, r]));
+      rows = pageOf.flatMap((m) => {
+        const row = byId.get(m.id);
+        return row ? [{ row, kind: m.kind, differences: m.differences }] : [];
+      });
+    } else {
+      const [found, count] = await Promise.all([
+        this.prisma.tenant.equivalence.findMany({ where, orderBy, include: listInclude, skip: (page - 1) * pageSize, take: pageSize }),
+        this.prisma.tenant.equivalence.count({ where }),
+      ]);
+      total = count;
+      rows = await Promise.all(found.map(async (row) => ({ row, ...(await compare(row.productA, row.productB)) })));
+    }
+
+    const stock = rows.length
+      ? await this.prisma.tenant.stockLevel.groupBy({
+          by: ['productId'],
+          where: { productId: { in: rows.flatMap(({ row }) => [row.productAId, row.productBId]) } },
+          _sum: { quantity: true },
+        })
+      : [];
+    const stockOf = new Map(stock.map((s) => [s.productId, s._sum.quantity ?? 0]));
+
+    const items = rows.map(
+      ({ row, kind, differences }): EquivalenceListItem => ({
+        id: row.id,
+        productA: toListProduct(row.productA, stockOf),
+        productB: toListProduct(row.productB, stockOf),
+        kind,
+        differences,
+        createdBy: row.createdBy,
+        createdAt: row.createdAt.toISOString(),
+      }),
+    );
+    // told apart from "no result for these filters": the screen shows another empty state
+    const linksEmpty = total === 0 && (await this.prisma.tenant.equivalence.count()) === 0;
+    return { items, total, page, pageSize, linksEmpty };
+  }
+
   async listForProduct(id: string, query: ListEquivalentsQueryDto): Promise<ProductEquivalentsResponse> {
     const page = clampPage(query.page);
     const pageSize = clampPageSize(query.pageSize);
@@ -221,6 +318,35 @@ export class EquivalencesService {
     }
     return Object.fromEntries(defs.map((d) => [d.key, d.label]));
   }
+}
+
+type ListRow = Prisma.EquivalenceGetPayload<{ include: typeof listInclude }>;
+
+/** A link matches a filter when either of its sides does. */
+function buildListWhere(q: ListEquivalencesQueryDto): Prisma.EquivalenceWhereInput {
+  const eitherSide = (side: Prisma.ProductWhereInput): Prisma.EquivalenceWhereInput => ({ OR: [{ productA: side }, { productB: side }] });
+  const and: Prisma.EquivalenceWhereInput[] = [];
+  if (q.brandId) and.push(eitherSide({ brandId: q.brandId }));
+  // a root category also matches the products of its subcategories
+  if (q.categoryId) and.push(eitherSide({ OR: [{ categoryId: q.categoryId }, { category: { parentId: q.categoryId } }] }));
+  const text = q.q?.trim();
+  if (text) and.push(eitherSide({ manufacturerCode: { contains: text, mode: 'insensitive' } }));
+  return and.length ? { AND: and } : {};
+}
+
+function toListProduct(p: ListRow['productA'], stockOf: ReadonlyMap<string, number>): EquivalenceListProduct {
+  const photos = Array.isArray(p.photos) ? (p.photos as string[]) : [];
+  return {
+    id: p.id,
+    manufacturerCode: p.manufacturerCode,
+    brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl },
+    country: p.country ?? p.brand.country,
+    photoUrl: photos[0] ?? null,
+    categoryIcon: p.category.parent?.icon ?? p.category.icon,
+    dimensions: toComparable(p).dimensions,
+    totalStock: stockOf.get(p.id) ?? 0,
+    status: p.status,
+  };
 }
 
 function toComparable(p: {
