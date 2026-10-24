@@ -3,7 +3,19 @@
 }
 
 <section class="section" aria-labelledby="equivalents-title">
-  <h2 id="equivalents-title" class="section-title">Equivalentes por marca</h2>
+  <div class="section-head">
+    <h2 id="equivalents-title" class="section-title">Equivalentes por marca</h2>
+    @if (state() === 'ready' && !isEmpty()) {
+      <div class="compare">
+        @if (!canCompare()) {
+          <span class="hint">{{ compareHint }}</span>
+        }
+        <button rsButton variant="secondary" type="button" [disabled]="!canCompare()" (click)="compare()">
+          <rs-icon name="transfer" [size]="16" /> Comparar ({{ selectedIds().length }})
+        </button>
+      </div>
+    }
+  </div>
 
   @switch (state()) {
     @case ('loading') {
@@ -35,7 +47,18 @@
           />
         </div>
       } @else {
-        <rs-doc-table size="md" tableLabel="Equivalentes por marca" [columns]="columns" [rows]="rows()" [totals]="totals()">
+        <rs-doc-table
+          size="md"
+          tableLabel="Equivalentes por marca"
+          [columns]="columns"
+          [rows]="rows()"
+          [totals]="totals()"
+          [selectable]="true"
+          [(selectedIds)]="selectedIds"
+          [maxSelected]="compareMax"
+          [maxSelectedLabel]="maxLabel"
+          selectionHeader="Seleccionar para comparar"
+        >
           <ng-template rsDocCell="industry" let-row>
             @if (industryOf(row.id); as industry) {
               <span class="industry">

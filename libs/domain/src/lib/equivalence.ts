@@ -1,6 +1,6 @@
 /** Equivalences between products (HU-INV-04): the comparison rule and the response contracts. */
 import { Decimal } from './money';
-import type { ProductBrandSummary, ProductCountrySummary, ProductStatus } from './product-catalog';
+import { type AttributeKind, attributeValueText, type ProductBrandSummary, type ProductCountrySummary, type ProductStatus } from './product-catalog';
 
 /**
  * - EXACT: same type and d × D × B, and none of the compared specifications differs.
@@ -201,4 +201,139 @@ export interface EquivalenceListResponse {
   pageSize: number;
   /** True when the company has no links at all, regardless of the filters (first use). */
   linksEmpty: boolean;
+}
+
+/** Products the comparator accepts: the screen's limit, not a client setting. */
+export const EQUIVALENCE_COMPARE_MIN = 2;
+export const EQUIVALENCE_COMPARE_MAX = 4;
+
+/** A product as the comparator reads it. */
+export interface EquivalenceCompareProduct extends EquivalenceComparable {
+  productId: string;
+  /** Tapered bearings give T instead of B in the width. */
+  tapered: boolean;
+  /** Industry (country of origin) name. */
+  country: string | null;
+}
+
+/** A technical field of a category, in the order the comparator lists it. */
+export interface EquivalenceCompareDefinition {
+  key: string;
+  label: string;
+  type: AttributeKind;
+  unit: string | null;
+}
+
+export type EquivalenceComparisonGroup = 'MEASURES' | 'SPECS';
+
+/** How one column compares with the reference (the first one). The reference itself is EXACT with no differences. */
+export interface EquivalenceComparisonVerdict {
+  productId: string;
+  kind: EquivalenceKind;
+  differences: EquivalenceDifference[];
+}
+
+/**
+ * One attribute across the products. Measure rows use the keys `innerDiameter`, `outerDiameter` and `width` with the
+ * symbols d, D and B / T as label (the screen names them); `country` is the industry; the rest are the category fields.
+ */
+export interface EquivalenceComparisonRow {
+  key: string;
+  label: string;
+  unit: string | null;
+  group: EquivalenceComparisonGroup;
+  /** One per column, in column order; `null` when the product has no value. */
+  values: (string | null)[];
+  /** Some product's value differs from the others'. */
+  differs: boolean;
+}
+
+export interface EquivalenceComparisonGrid {
+  columns: EquivalenceComparisonVerdict[];
+  rows: EquivalenceComparisonRow[];
+}
+
+const NUMERIC = /^-?\d+([.,]\d+)?$/;
+
+/** Same value: numbers compare as decimals ("14.8" = "14,80"), anything else as text; missing never equals present. */
+function sameValue(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (NUMERIC.test(a) && NUMERIC.test(b)) return Decimal.of(a, 4).eq(Decimal.of(b, 4));
+  return a === b;
+}
+
+function rowOf(
+  key: string,
+  label: string,
+  unit: string | null,
+  group: EquivalenceComparisonGroup,
+  values: (string | null)[],
+): EquivalenceComparisonRow {
+  return { key, label, unit, group, values, differs: values.some((v) => !sameValue(v, values[0])) };
+}
+
+function measureText(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  return text ? text : null;
+}
+
+/**
+ * Lines the products up for the side-by-side comparison (HU-INV-12). The first product is the reference: each other
+ * column is compared with it through `compareEquivalents`, and a row differs when any of its values differs. Rows:
+ * the three measures, the industry, then the category fields with the compared keys first.
+ */
+export function buildEquivalenceComparison(
+  products: readonly EquivalenceCompareProduct[],
+  definitions: readonly EquivalenceCompareDefinition[],
+): EquivalenceComparisonGrid {
+  const [reference] = products;
+  const labels = Object.fromEntries(definitions.map((d) => [d.key, d.label]));
+  const columns = products.map<EquivalenceComparisonVerdict>((p, i) =>
+    i === 0 ? { productId: p.productId, kind: 'EXACT', differences: [] } : { productId: p.productId, ...compareEquivalents(reference, p, labels) },
+  );
+
+  const taperedCount = products.filter((p) => p.tapered).length;
+  const widthLabel = taperedCount === 0 ? 'B' : taperedCount === products.length ? 'T' : 'B / T';
+  const rows: EquivalenceComparisonRow[] = [
+    rowOf('innerDiameter', 'd', 'mm', 'MEASURES', products.map((p) => measureText(p.dimensions?.innerDiameter))),
+    rowOf('outerDiameter', 'D', 'mm', 'MEASURES', products.map((p) => measureText(p.dimensions?.outerDiameter))),
+    rowOf('width', widthLabel, 'mm', 'MEASURES', products.map((p) => measureText(p.dimensions?.width))),
+    rowOf('country', 'country', null, 'SPECS', products.map((p) => measureText(p.country))),
+  ];
+
+  const compared = (key: string) => (EQUIVALENCE_COMPARED_KEYS as readonly string[]).indexOf(key);
+  const ordered = [
+    ...definitions.filter((d) => compared(d.key) >= 0).sort((a, b) => compared(a.key) - compared(b.key)),
+    ...definitions.filter((d) => compared(d.key) < 0),
+  ];
+  for (const d of ordered) {
+    rows.push(rowOf(d.key, d.label, d.unit, 'SPECS', products.map((p) => attributeValueText(p.attributes[d.key]))));
+  }
+  return { columns, rows };
+}
+
+/** Product detail of one column of the comparator. Never carries cost. */
+export interface EquivalenceComparisonColumn extends EquivalenceComparisonVerdict {
+  manufacturerCode: string;
+  brand: ProductBrandSummary;
+  country: ProductCountrySummary | null;
+  /** First photo; null while the product has none. */
+  photoUrl: string | null;
+  /** Glyph of the root category, drawn when there is no photo. */
+  categoryIcon: string;
+  totalStock: number;
+  /** Decimal string, scale 2. */
+  salePrice: string;
+  status: ProductStatus;
+}
+
+export interface EquivalenceComparisonResponse {
+  /** In the order requested; the first one is the reference. */
+  columns: EquivalenceComparisonColumn[];
+  rows: EquivalenceComparisonRow[];
+}
+
+/** Tapered bearings measure T instead of B; they are told apart by their category name ("Rodillos cónicos"). */
+export function isTaperedCategory(name: string): boolean {
+  return /c[oó]nic|tapered/i.test(name);
 }

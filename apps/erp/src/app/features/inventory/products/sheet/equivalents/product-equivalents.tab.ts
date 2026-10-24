@@ -1,7 +1,7 @@
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import type { ProductEquivalentItem, ProductEquivalentsResponse } from '@rodasoft/domain';
+import { EQUIVALENCE_COMPARE_MAX, EQUIVALENCE_COMPARE_MIN, type ProductEquivalentItem, type ProductEquivalentsResponse } from '@rodasoft/domain';
 import {
   ButtonComponent,
   DocTableCellDirective,
@@ -10,6 +10,7 @@ import {
   DocTableRow,
   EmptyStateIllustratedComponent,
   FlagComponent,
+  IconComponent,
   PaginationComponent,
   SkeletonComponent,
   StockFlagComponent,
@@ -45,6 +46,7 @@ const COLUMNS: DocTableColumn[] = [
     DocTableComponent,
     EmptyStateIllustratedComponent,
     FlagComponent,
+    IconComponent,
     PaginationComponent,
     ProductKpisComponent,
     SkeletonComponent,
@@ -72,6 +74,16 @@ export class ProductEquivalentsTab {
   protected readonly data = signal<ProductEquivalentsResponse | null>(null);
 
   protected readonly columns = COLUMNS;
+  protected readonly compareMax = EQUIVALENCE_COMPARE_MAX;
+  protected readonly maxLabel = `Máximo ${EQUIVALENCE_COMPARE_MAX} productos`;
+  protected readonly compareHint = `Elige entre ${EQUIVALENCE_COMPARE_MIN} y ${EQUIVALENCE_COMPARE_MAX} productos`;
+
+  /** Products checked for the comparator (IN-13), in the order they were checked; they survive a page change. */
+  protected readonly selectedIds = signal<readonly string[]>([]);
+  protected readonly canCompare = computed(() => {
+    const n = this.selectedIds().length;
+    return n >= EQUIVALENCE_COMPARE_MIN && n <= EQUIVALENCE_COMPARE_MAX;
+  });
 
   /** The original first (page 1 only), then the equivalents of the page. */
   private readonly items = computed<ProductEquivalentItem[]>(() => {
@@ -85,6 +97,7 @@ export class ProductEquivalentsTab {
     const sourceId = this.data()?.source.productId;
     return this.items().map((i) => ({
       id: i.productId,
+      label: i.manufacturerCode,
       cells: {
         code: i.manufacturerCode,
         brand: i.brand.name,
@@ -153,6 +166,14 @@ export class ProductEquivalentsTab {
       queryParams: { page: page > 1 ? page : null },
       queryParamsHandling: 'merge',
     });
+  }
+
+  /** Opens the comparator with the checked products; the original, when checked, is the reference (first). */
+  protected compare() {
+    if (!this.canCompare()) return;
+    const sourceId = this.data()?.source.productId;
+    const ids = [...this.selectedIds()].sort((a, b) => Number(b === sourceId) - Number(a === sourceId));
+    void this.router.navigate(['/inventory/equivalences/compare'], { queryParams: { ids: ids.join(','), from: this.id() } });
   }
 
   protected retry() {

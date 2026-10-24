@@ -51,6 +51,12 @@ export const INVENTORY_ROUTES: Route[] = [
         title: 'Equivalencias · ERP',
         loadComponent: () => import('./equivalences/equivalences.page').then((m) => m.EquivalencesPage),
       },
+      {
+        // the page shows its own no-permission state, as the equivalence table does
+        path: 'equivalences/compare',
+        title: 'Comparar equivalentes · ERP',
+        loadComponent: () => import('./equivalences/compare/equivalence-compare.page').then((m) => m.EquivalenceComparePage),
+      },
       PRODUCT_SHEET_ROUTE,
     ],
   },

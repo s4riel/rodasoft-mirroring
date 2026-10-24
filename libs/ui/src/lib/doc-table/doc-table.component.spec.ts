@@ -25,6 +25,17 @@ const ROWS: DocTableRow[] = [
       <ng-template rsDocCell="brand" let-row><b class="brand">{{ row.id }}-marca</b></ng-template>
       <div slot="footer" class="foot">1–2 de 2 registros</div>
     </rs-doc-table>
+    <rs-doc-table
+      id="pick"
+      [selectable]="true"
+      [(selectedIds)]="picked"
+      [maxSelected]="2"
+      maxSelectedLabel="Máximo 2 productos"
+      selectionHeader="Seleccionar"
+      [columns]="columns"
+      [rows]="three"
+      [totals]="totals"
+    />
     <rs-doc-table id="empty" [columns]="columns" [rows]="[]" emptyLabel="Sin equivalentes" />
   `,
 })
@@ -32,6 +43,12 @@ class HostComponent {
   readonly columns = COLUMNS;
   readonly rows = ROWS;
   readonly totals = { code: 'Total', stock: 42, diff: null };
+  readonly three: DocTableRow[] = [
+    { id: 'a', label: '6205-2RS', cells: { code: '6205-2RS' } },
+    { id: 'b', label: '6205-DDU', cells: { code: '6205-DDU' } },
+    { id: 'c', label: '6205-2Z', cells: { code: '6205-2Z' } },
+  ];
+  picked: readonly string[] = [];
 }
 
 describe('DocTableComponent', () => {
@@ -39,6 +56,19 @@ describe('DocTableComponent', () => {
     const fixture = TestBed.createComponent(HostComponent);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
+  }
+
+  async function renderPicker() {
+    const fixture = TestBed.createComponent(HostComponent);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const boxes = () => Array.from(el.querySelectorAll<HTMLInputElement>('#pick tbody input[type="checkbox"]'));
+    const click = async (i: number) => {
+      boxes()[i].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+    };
+    return { fixture, el, boxes, click };
   }
 
   it('renders the header, a row per item and the table name', async () => {
@@ -90,5 +120,45 @@ describe('DocTableComponent', () => {
     const el = await render();
     expect(el.querySelector('#empty tbody')?.textContent).toContain('Sin equivalentes');
     expect(el.querySelector('#empty tfoot')).toBeNull();
+  });
+
+  describe('selection', () => {
+    it('has no checkbox column unless it is selectable', async () => {
+      const el = await render();
+      expect(el.querySelector('#full input[type="checkbox"]')).toBeNull();
+      expect(el.querySelectorAll('#full thead th')).toHaveLength(4);
+    });
+
+    it('adds a checkbox per row named after the row, and a hidden header', async () => {
+      const { el, boxes } = await renderPicker();
+      expect(boxes()).toHaveLength(3);
+      expect(Array.from(el.querySelectorAll('#pick tbody .rs-visually-hidden')).map((n) => n.textContent?.trim())).toEqual([
+        '6205-2RS',
+        '6205-DDU',
+        '6205-2Z',
+      ]);
+      expect(el.querySelector('#pick thead th.select')?.textContent?.trim()).toBe('Seleccionar');
+      expect(el.querySelectorAll('#pick tfoot td.select')).toHaveLength(1);
+    });
+
+    it('reports the checked ids two-way and marks the row', async () => {
+      const { fixture, el, boxes, click } = await renderPicker();
+      await click(1);
+      await click(0);
+      expect(fixture.componentInstance.picked).toEqual(['b', 'a']);
+      expect(boxes().map((b) => b.checked)).toEqual([true, true, false]);
+      expect(el.querySelectorAll('#pick tbody tr.selected')).toHaveLength(2);
+      await click(1);
+      expect(fixture.componentInstance.picked).toEqual(['a']);
+    });
+
+    it('disables the unchecked rows once the limit is reached and frees them when one is unchecked', async () => {
+      const { boxes, click } = await renderPicker();
+      await click(0);
+      await click(1);
+      expect(boxes().map((b) => b.disabled)).toEqual([false, false, true]);
+      await click(0);
+      expect(boxes().map((b) => b.disabled)).toEqual([false, false, false]);
+    });
   });
 });

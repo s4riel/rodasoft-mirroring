@@ -13,13 +13,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type {
+  EquivalenceComparisonResponse,
   EquivalenceLinkResponse,
   EquivalenceListResponse,
   EquivalenceSuggestionsResponse,
   ProductEquivalentsResponse,
 } from '@rodasoft/domain';
 import { RequirePermissions } from '../access/require-permissions.decorator';
-import { ListEquivalencesQueryDto, ListEquivalentsQueryDto } from './dto';
+import { CompareEquivalentsQueryDto, ListEquivalencesQueryDto, ListEquivalentsQueryDto } from './dto';
 import { EquivalencesService } from './equivalences.service';
 import { EquivalenceCandidatesDto, LinkEquivalenceDto } from './product-write.dto';
 
@@ -61,6 +62,12 @@ export class EquivalencesController {
   @RequirePermissions('inventory.products.view')
   listAll(@Query(queryPipe) query: ListEquivalencesQueryDto): Promise<EquivalenceListResponse> {
     return this.equivalences.list(query);
+  }
+
+  @Get('equivalences/compare')
+  @RequirePermissions('inventory.products.view')
+  compare(@Query(queryPipe) query: CompareEquivalentsQueryDto): Promise<EquivalenceComparisonResponse> {
+    return this.equivalences.compare(query.ids);
   }
 
   @Get('products/:id/equivalents')

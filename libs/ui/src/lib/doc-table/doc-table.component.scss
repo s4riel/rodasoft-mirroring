@@ -46,6 +46,17 @@ tfoot th {
   background: var(--bg-surface-2);
   font-weight: var(--body-md-strong-weight);
 }
+th.select,
+td.select {
+  width: var(--size-control-lg); /* checkbox column: as wide as a row is high */
+  padding-inline-end: 0;
+}
+.pick {
+  display: inline-flex;
+}
+tbody tr.selected td {
+  background: var(--bg-surface-2);
+}
 .num {
   text-align: end;
 }
