@@ -23,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   COUNTRY_NOT_FOUND: 'La industria elegida ya no existe.',
   PRICE_REQUIRED: 'Falta el precio de venta. Ingrésalo para activar el producto.',
   NOT_A_DRAFT: 'Este producto ya no es un borrador. Ábrelo desde el listado.',
+  COMPARE_INVALID_SELECTION: 'Elige entre 2 y 4 productos para comparar.',
   EQUIVALENCE_EXISTS: 'Estos productos ya están vinculados como equivalentes.',
   SELF_LINK: 'Un producto no puede ser equivalente de sí mismo.',
   BRANCH_NOT_ALLOWED: 'No puedes operar en esta sucursal.',

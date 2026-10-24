@@ -127,6 +127,13 @@ export class ListEquivalentsQueryDto {
   pageSize?: number;
 }
 
+export class CompareEquivalentsQueryDto {
+  @ApiProperty({ description: 'Product ids separated by commas, 2 to 4; the first one is the reference', example: 'id1,id2,id3' })
+  @IsString()
+  @IsNotEmpty()
+  ids!: string;
+}
+
 export class ListEquivalencesQueryDto {
   @ApiPropertyOptional({ description: 'Links where either side is of this brand' })
   @IsOptional()

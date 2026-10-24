@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -8,6 +8,9 @@ import type { ProductDetail, ProductEquivalentItem, ProductEquivalentsResponse }
 import { RS_PERMISSIONS } from '@rodasoft/ui';
 import { ContextStore } from '../../../../../core/context.store';
 import { PRODUCT_SHEET_ROUTE } from '../product-sheet.routes';
+
+@Component({ template: '' })
+class BlankPage {}
 
 const DETAIL_URL = '/api/v1/inventory/products/p1';
 const EQUIVALENTS_URL = `${DETAIL_URL}/equivalents`;
@@ -89,7 +92,7 @@ describe('ProductEquivalentsTab', () => {
     const permissions = new Set(['inventory.products.view']);
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'inventory', children: [PRODUCT_SHEET_ROUTE] }]),
+        provideRouter([{ path: 'inventory', children: [PRODUCT_SHEET_ROUTE] }, { path: 'inventory/equivalences/compare', component: BlankPage }]),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
@@ -128,6 +131,7 @@ describe('ProductEquivalentsTab', () => {
 
     expect(text(h)).toContain('Equivalentes por marca');
     expect(Array.from(el(h).querySelectorAll('rs-doc-table thead th')).map((t) => t.textContent?.trim())).toEqual([
+      'Seleccionar para comparar',
       'Código',
       'Marca',
       'Industria',
@@ -137,7 +141,7 @@ describe('ProductEquivalentsTab', () => {
     ]);
     const rows = Array.from(el(h).querySelectorAll('rs-doc-table tbody tr'));
     expect(rows).toHaveLength(4);
-    expect(rows.map((r) => r.querySelector('td')?.textContent?.trim())).toEqual(['6205-2RS', '6205-2RSR', '6205-DDU', '6205-2Z']);
+    expect(rows.map((r) => r.querySelector('td.code')?.textContent?.trim())).toEqual(['6205-2RS', '6205-2RSR', '6205-DDU', '6205-2Z']);
     expect(rows[0].querySelector('rs-status-pill')?.textContent).toContain('Original');
     expect(rows[1].querySelector('rs-status-pill')?.textContent).toContain('Exacta');
     expect(rows[2].querySelector('rs-status-pill')?.textContent).toContain('Protección / sello');
@@ -146,11 +150,11 @@ describe('ProductEquivalentsTab', () => {
     expect(rows[0].textContent).toContain('FAG');
     expect(rows[0].textContent).toContain('245,00');
     // the brand is plain text; the industry has the flag and the country name
-    expect(rows[0].querySelector('td:nth-child(2) rs-flag')).toBeNull();
-    expect(rows[0].querySelector('td:nth-child(3) rs-flag')).not.toBeNull();
-    expect(rows[0].querySelector('td:nth-child(3)')?.textContent).toContain('Alemania');
-    expect(rows[2].querySelector('td:nth-child(3)')?.textContent).toContain('Japón');
-    expect(rows[3].querySelector('td:nth-child(3)')?.textContent).toContain('Suecia');
+    expect(rows[0].querySelector('td:nth-child(3) rs-flag')).toBeNull();
+    expect(rows[0].querySelector('td:nth-child(4) rs-flag')).not.toBeNull();
+    expect(rows[0].querySelector('td:nth-child(4)')?.textContent).toContain('Alemania');
+    expect(rows[2].querySelector('td:nth-child(4)')?.textContent).toContain('Japón');
+    expect(rows[3].querySelector('td:nth-child(4)')?.textContent).toContain('Suecia');
     // out of stock gets a flag
     expect(rows[3].querySelector('rs-stock-flag[data-level="out"]')).not.toBeNull();
     expect(rows[2].querySelector('rs-stock-flag')).toBeNull();
@@ -175,8 +179,8 @@ describe('ProductEquivalentsTab', () => {
     const h = await open();
     await answer(h, response([item({ country: null })]));
     const row = el(h).querySelectorAll('rs-doc-table tbody tr')[1];
-    expect(row.querySelector('td:nth-child(3)')?.textContent?.trim()).toBe('–');
-    expect(row.querySelector('td:nth-child(3) rs-flag')).toBeNull();
+    expect(row.querySelector('td:nth-child(4)')?.textContent?.trim()).toBe('–');
+    expect(row.querySelector('td:nth-child(4) rs-flag')).toBeNull();
   });
 
   it('words the header and the price KPI as IN-02b does', async () => {
@@ -239,5 +243,64 @@ describe('ProductEquivalentsTab', () => {
     expect(TestBed.inject(Router).url).toContain('page=2');
     http.expectOne((r) => r.url === EQUIVALENTS_URL && r.params.get('page') === '2').flush(response([], { page: 2, total: 25 }));
     await settle(h);
+  });
+
+  describe('compare selection (HU-INV-12)', () => {
+    const boxes = (h: RouterTestingHarness) => Array.from(el(h).querySelectorAll<HTMLInputElement>('rs-doc-table tbody input[type="checkbox"]'));
+    const compareButton = (h: RouterTestingHarness) =>
+      Array.from(el(h).querySelectorAll('button')).find((b) => b.textContent?.includes('Comparar')) as HTMLButtonElement;
+    const pick = async (h: RouterTestingHarness, ...indexes: number[]) => {
+      for (const i of indexes) {
+        boxes(h)[i].click();
+        await settle(h);
+      }
+    };
+    const FIVE = [
+      ...ITEMS,
+      item({ productId: 'e3', manufacturerCode: '6205-ZZ', brand: { id: 'b-ina', name: 'INA', logoUrl: null } }),
+      item({ productId: 'e4', manufacturerCode: '6205-RS', brand: { id: 'b-koy', name: 'KOYO', logoUrl: null } }),
+    ];
+
+    it('adds a checkbox per row, original included, named after the code, and the Comparar button counts them', async () => {
+      const h = await open();
+      await answer(h, response(ITEMS));
+      expect(boxes(h)).toHaveLength(4);
+      expect(el(h).querySelector('rs-doc-table tbody tr .rs-visually-hidden')?.textContent?.trim()).toBe('6205-2RS');
+      expect(compareButton(h).textContent).toContain('Comparar (0)');
+      expect(compareButton(h).disabled).toBe(true);
+      await pick(h, 1);
+      expect(compareButton(h).textContent).toContain('Comparar (1)');
+      expect(compareButton(h).disabled).toBe(true);
+      await pick(h, 2);
+      expect(compareButton(h).textContent).toContain('Comparar (2)');
+      expect(compareButton(h).disabled).toBe(false);
+    });
+
+    it('disables the unchecked rows at four and frees them when one is unchecked', async () => {
+      const h = await open();
+      await answer(h, response(FIVE));
+      await pick(h, 0, 1, 2, 3);
+      expect(compareButton(h).disabled).toBe(false);
+      expect(boxes(h).map((b) => b.disabled)).toEqual([false, false, false, false, true, true]);
+      await pick(h, 3);
+      expect(boxes(h).some((b) => b.disabled)).toBe(false);
+    });
+
+    it('opens the comparator with the checked products, the original first, and remembers the sheet', async () => {
+      const h = await open();
+      await answer(h, response(ITEMS));
+      await pick(h, 2, 0, 3);
+      compareButton(h).click();
+      await settle(h);
+      const url = TestBed.inject(Router).parseUrl(TestBed.inject(Router).url);
+      expect(url.root.children['primary'].segments.map((s) => s.path)).toEqual(['inventory', 'equivalences', 'compare']);
+      expect(url.queryParams).toEqual({ ids: 'p1,e1,e2', from: 'p1' });
+    });
+
+    it('does not offer the comparator when there are no equivalents', async () => {
+      const h = await open();
+      await answer(h, response([], { summary: { brandCount: 0, exact: 0, withDifferences: 0, incompatible: 0 }, totals: { codes: 1, stock: 24 } }));
+      expect(compareButton(h)).toBeUndefined();
+    });
   });
 });

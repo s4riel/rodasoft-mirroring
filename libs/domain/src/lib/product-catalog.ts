@@ -184,6 +184,9 @@ function textOfValue(raw: unknown): string | null {
   return null;
 }
 
+/** Display text of a stored attribute value (comma decimals, Sí/No); `null` when it has none. */
+export const attributeValueText = textOfValue;
+
 /**
  * Everything filled in `products.attributes`, for the list description: first the category's fields in definition order,
  * with their label and unit, then any other stored key (a field the category no longer defines) under its own name, so no

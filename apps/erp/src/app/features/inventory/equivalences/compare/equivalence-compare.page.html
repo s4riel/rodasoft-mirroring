@@ -1,0 +1,135 @@
+<rs-page-header
+  title="Comparar equivalentes"
+  description="Medidas y características de cada producto, lado a lado. Lo que difiere del primero aparece resaltado."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button rsButton variant="secondary" type="button" (click)="goBack()">
+      <rs-icon name="chevron-left" [size]="16" /> Volver
+    </button>
+  </div>
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando comparación">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para comparar equivalentes"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('invalid') {
+    <section class="state" role="alert">
+      <rs-note type="warning" title="Selección no válida">
+        Elige entre {{ minProducts }} y {{ maxProducts }} productos distintos para compararlos.
+      </rs-note>
+      <button rsButton variant="secondary" type="button" (click)="goBack()">Volver a equivalentes</button>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la comparación" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    <div class="toolbar">
+      <rs-switch [(checked)]="onlyDifferences">Solo diferencias</rs-switch>
+      <span class="summary" role="status">
+        {{ differenceCount() }} {{ differenceCount() === 1 ? 'fila difiere' : 'filas difieren' }} del primero
+      </span>
+    </div>
+
+    <div class="scroll" tabindex="0" role="region" aria-label="Comparación de equivalentes">
+      <table class="grid" aria-label="Comparación de equivalentes">
+        <thead>
+          <tr>
+            <th scope="col" class="corner"><span class="rs-visually-hidden">Atributo</span></th>
+            @for (column of columns(); track column.productId; let i = $index) {
+              <th scope="col" class="product">
+                @if (canRemove()) {
+                  <button
+                    rsIconButton
+                    size="sm"
+                    type="button"
+                    class="remove"
+                    [label]="'Quitar ' + column.manufacturerCode + ' de la comparación'"
+                    (click)="remove(column)"
+                  >
+                    <rs-icon name="close" />
+                  </button>
+                }
+                <button
+                  type="button"
+                  class="open"
+                  [attr.aria-label]="'Abrir ' + column.manufacturerCode + ' ' + column.brand.name"
+                  (click)="openProduct(column)"
+                >
+                  <rs-product-thumb [src]="column.photoUrl" [icon]="thumbIcon(column)" />
+                  <span class="code">{{ column.manufacturerCode }}</span>
+                </button>
+                <span class="brand">
+                  @if (flagOf(column); as code) {
+                    <rs-flag [country]="code" />
+                  }
+                  {{ column.brand.name }}
+                </span>
+                @if (pills()[i]; as pill) {
+                  <rs-status-pill [status]="pill.status" [icon]="pill.icon" [tooltip]="pill.tooltip">{{ pill.label }}</rs-status-pill>
+                }
+                <span class="meta">
+                  <span class="stock">
+                    @if (column.totalStock <= 0) {
+                      <rs-stock-flag level="out" label="Agotado" />
+                    }
+                    Stock {{ column.totalStock }}
+                  </span>
+                  <span class="price">{{ price(column) }}</span>
+                </span>
+              </th>
+            }
+          </tr>
+        </thead>
+        @for (group of groups(); track group.group) {
+          <tbody>
+            <tr class="group">
+              <th scope="rowgroup" [attr.colspan]="columns().length + 1">{{ group.title }}</th>
+            </tr>
+            @for (row of group.rows; track row.key) {
+              <tr [class.differs]="row.differs">
+                <th scope="row" class="attribute">
+                  {{ title(row) }}
+                  @if (row.differs) {
+                    <span class="marker"><rs-icon name="alert" [size]="16" /> Difiere</span>
+                  }
+                </th>
+                @for (value of row.values; track $index) {
+                  <td [class.missing]="value === null">{{ text(row, value) }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        } @empty {
+          <tbody>
+            <tr>
+              <td class="none" [attr.colspan]="columns().length + 1">{{ onlyDifferences() ? 'Los productos no tienen diferencias.' : 'No hay datos para comparar.' }}</td>
+            </tr>
+          </tbody>
+        }
+      </table>
+    </div>
+  }
+}

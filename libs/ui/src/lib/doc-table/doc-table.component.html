@@ -2,6 +2,9 @@
   <table [attr.aria-label]="tableLabel() || null">
     <thead>
       <tr>
+        @if (selectable()) {
+          <th scope="col" class="select"><span class="rs-visually-hidden">{{ selectionHeader() }}</span></th>
+        }
         @for (column of columns(); track column.key) {
           <th scope="col" [class.num]="isRight(column)" [style.width]="column.width">{{ column.label }}</th>
         }
@@ -9,7 +12,16 @@
     </thead>
     <tbody>
       @for (row of rows(); track row.id) {
-        <tr>
+        <tr [class.selected]="isSelected(row.id)">
+          @if (selectable()) {
+            <td class="select">
+              <span class="pick" [rsTooltip]="isBlocked(row.id) ? maxSelectedLabel() : null" rsTooltipPosition="right">
+                <rs-checkbox [checked]="isSelected(row.id)" [disabled]="isBlocked(row.id)" (checkedChange)="toggle(row.id, $event)">
+                  <span class="rs-visually-hidden">{{ row.label ?? row.id }}</span>
+                </rs-checkbox>
+              </span>
+            </td>
+          }
           @for (column of columns(); track column.key) {
             <td [class.num]="isRight(column)" [class.code]="typeOf(column) === 'code'">
               @switch (typeOf(column)) {
@@ -38,7 +50,7 @@
       } @empty {
         @if (emptyLabel()) {
           <tr>
-            <td class="empty" [attr.colspan]="columns().length">{{ emptyLabel() }}</td>
+            <td class="empty" [attr.colspan]="colspan()">{{ emptyLabel() }}</td>
           </tr>
         }
       }
@@ -46,6 +58,9 @@
     @if (totals(); as total) {
       <tfoot>
         <tr>
+          @if (selectable()) {
+            <td class="select"></td>
+          }
           @for (column of columns(); track column.key; let first = $first) {
             @if (first) {
               <th scope="row">{{ textOf(total[column.key]) }}</th>

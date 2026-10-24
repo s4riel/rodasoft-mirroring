@@ -1,10 +1,15 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
+  buildEquivalenceComparison,
   clampPage,
   clampPageSize,
   compareEquivalents,
+  EQUIVALENCE_COMPARE_MAX,
+  EQUIVALENCE_COMPARE_MIN,
   type EquivalenceComparable,
+  type EquivalenceCompareDefinition,
+  type EquivalenceComparisonResponse,
   type EquivalenceKind,
   type EquivalenceLinkResponse,
   type EquivalenceListItem,
@@ -12,6 +17,7 @@ import {
   type EquivalenceListResponse,
   type EquivalenceSuggestion,
   type EquivalenceSuggestionsResponse,
+  isTaperedCategory,
   normalizePair,
   type ProductEquivalentItem,
   type ProductEquivalentsResponse,
@@ -27,6 +33,8 @@ import type { EquivalenceCandidatesDto, LinkEquivalenceDto } from './product-wri
 const SUGGESTION_LIMIT = 3;
 /** Candidates shown on the equivalences step, before the product exists. */
 const CANDIDATE_LIMIT = 10;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const KIND_ORDER: Record<EquivalenceKind, number> = { EXACT: 0, WITH_DIFFERENCES: 1, INCOMPATIBLE: 2 };
 
@@ -233,6 +241,81 @@ export class EquivalencesService {
     // told apart from "no result for these filters": the screen shows another empty state
     const linksEmpty = total === 0 && (await this.prisma.tenant.equivalence.count()) === 0;
     return { items, total, page, pageSize, linksEmpty };
+  }
+
+  /**
+   * Side-by-side comparison of 2 to 4 products (HU-INV-12, IN-13), in the order requested; the first one is the
+   * reference. The products need not be linked to each other. Reads only; never exposes `cost`.
+   */
+  async compare(rawIds: string): Promise<EquivalenceComparisonResponse> {
+    const ids = rawIds.split(',').map((id) => id.trim().toLowerCase());
+    const invalid = (message: string) => new BadRequestException({ code: 'COMPARE_INVALID_SELECTION', message, details: { min: EQUIVALENCE_COMPARE_MIN, max: EQUIVALENCE_COMPARE_MAX } });
+    if (ids.length < EQUIVALENCE_COMPARE_MIN || ids.length > EQUIVALENCE_COMPARE_MAX) {
+      throw invalid(`Select between ${EQUIVALENCE_COMPARE_MIN} and ${EQUIVALENCE_COMPARE_MAX} products`);
+    }
+    if (new Set(ids).size !== ids.length) throw invalid('A product can be compared only once');
+    if (!ids.every((id) => UUID.test(id))) throw invalid('Invalid product id');
+
+    const found = await this.prisma.tenant.product.findMany({
+      where: { id: { in: ids } },
+      include: { ...productInclude, category: { select: { id: true, name: true, parentId: true, icon: true, parent: { select: { icon: true } } } } },
+    });
+    if (found.length !== ids.length) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+    const byId = new Map(found.map((p) => [p.id, p]));
+    const products = ids.flatMap((id) => byId.get(id) ?? []);
+    if (products.length !== ids.length) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+
+    const [stock, definitions] = await Promise.all([
+      this.prisma.tenant.stockLevel.groupBy({ by: ['productId'], where: { productId: { in: ids } }, _sum: { quantity: true } }),
+      this.definitionsOf(products.map((p) => p.category)),
+    ]);
+    const stockOf = new Map(stock.map((s) => [s.productId, s._sum.quantity ?? 0]));
+
+    const grid = buildEquivalenceComparison(
+      products.map((p) => ({
+        ...toComparable(p),
+        productId: p.id,
+        tapered: isTaperedCategory(p.category.name),
+        country: (p.country ?? p.brand.country)?.name ?? null,
+      })),
+      definitions,
+    );
+    return {
+      columns: grid.columns.map((verdict, i) => {
+        const p = products[i];
+        const photos = Array.isArray(p.photos) ? (p.photos as string[]) : [];
+        return {
+          ...verdict,
+          manufacturerCode: p.manufacturerCode,
+          brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl },
+          country: p.country ?? p.brand.country,
+          photoUrl: photos[0] ?? null,
+          categoryIcon: p.category.parent?.icon ?? p.category.icon,
+          totalStock: stockOf.get(p.id) ?? 0,
+          salePrice: p.salePrice.toFixed(2),
+          status: p.status,
+        };
+      }),
+      rows: grid.rows,
+    };
+  }
+
+  /** The fields of the categories involved, once each (a category without its own takes its parent's), in definition order. */
+  private async definitionsOf(categories: readonly { id: string; parentId: string | null }[]): Promise<EquivalenceCompareDefinition[]> {
+    const ids = [...new Set(categories.flatMap((c) => (c.parentId ? [c.id, c.parentId] : [c.id])))];
+    const rows = await this.prisma.tenant.attributeDefinition.findMany({
+      where: { categoryId: { in: ids } },
+      select: { categoryId: true, key: true, label: true, type: true, unit: true },
+      orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }, { key: 'asc' }],
+    });
+    const byCategory = new Map<string, typeof rows>();
+    for (const r of rows) byCategory.set(r.categoryId, [...(byCategory.get(r.categoryId) ?? []), r]);
+    const merged = new Map<string, EquivalenceCompareDefinition>();
+    for (const c of categories) {
+      const own = byCategory.get(c.id) ?? (c.parentId ? byCategory.get(c.parentId) : undefined) ?? [];
+      for (const d of own) if (!merged.has(d.key)) merged.set(d.key, { key: d.key, label: d.label, type: d.type, unit: d.unit });
+    }
+    return [...merged.values()];
   }
 
   async listForProduct(id: string, query: ListEquivalentsQueryDto): Promise<ProductEquivalentsResponse> {

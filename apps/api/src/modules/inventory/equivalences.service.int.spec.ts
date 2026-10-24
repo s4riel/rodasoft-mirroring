@@ -2,7 +2,7 @@
  * Integration test against the real Postgres (DATABASE_URL). Creates two throw-away companies
  * and removes them at the end, so it is safe to run against the dev database.
  */
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
 import { normalizePair } from '@rodasoft/domain';
@@ -347,6 +347,103 @@ describe('EquivalencesService (integration, real Postgres)', () => {
       it('refuses the list to a user who cannot view products', async () => {
         await expect(guardFor([]).canActivate(contextOf(EquivalencesController.prototype.listAll))).rejects.toBeInstanceOf(ForbiddenException);
       });
+    });
+  });
+
+  describe('side-by-side comparison (HU-INV-12)', () => {
+    let seals: string;
+
+    beforeAll(async () => {
+      await base.attributeDefinition.create({
+        data: { companyId: a.companyId, categoryId: (await base.category.findFirstOrThrow({ where: { companyId: a.companyId, name: 'Rodamientos' } })).id, key: 'minRadius', label: 'Radio mínimo r', type: 'NUMBER', unit: 'mm', step: 2 },
+      });
+      seals = await product(a, 'FAG', '6205-SEALS', { attributes: { ...ATTRS, minRadius: 1, seal: 'Abierto' } });
+    }, 30_000);
+
+    const rowOf = (res: Awaited<ReturnType<typeof service.compare>>, key: string) => res.rows.find((r) => r.key === key);
+
+    it('returns the columns in the order requested, with the product data and the stock', async () => {
+      const res = await service.compare([diffSeal, original, exact].join(','));
+      expect(res.columns.map((c) => c.manufacturerCode)).toEqual(['6205-DDU', '6205-2RS', '6205-2RSR']);
+      expect(res.columns[0]).toMatchObject({
+        productId: diffSeal,
+        brand: { name: 'NSK' },
+        totalStock: 18,
+        salePrice: '230.00',
+        status: 'ACTIVE',
+        photoUrl: null,
+      });
+      expect(JSON.stringify(res)).not.toContain('cost');
+    });
+
+    it('returns the measures and the real attribute values, with the labels of the definitions', async () => {
+      const res = await service.compare([original, diffSeal, diffCage].join(','));
+      expect(rowOf(res, 'innerDiameter')).toMatchObject({ label: 'd', unit: 'mm', group: 'MEASURES', values: ['25', '25', '25'], differs: false });
+      expect(rowOf(res, 'width')).toMatchObject({ label: 'B', values: ['15', '15', '15'] });
+      expect(rowOf(res, 'seal')).toMatchObject({ label: 'Protección / sello', group: 'SPECS', values: ['2RS', 'DDU', '2Z'], differs: true });
+      expect(rowOf(res, 'cage')).toMatchObject({ label: 'Material de la jaula', values: ['Acero', 'Acero', 'Poliamida'], differs: true });
+      // the compared keys come before the other fields
+      const keys = res.rows.map((r) => r.key);
+      expect(keys.indexOf('seal')).toBeLessThan(keys.indexOf('minRadius'));
+      expect(rowOf(res, 'minRadius')).toMatchObject({ unit: 'mm', values: [null, null, null], differs: false });
+    });
+
+    it('marks each column against the first one, and a different measure as INCOMPATIBLE', async () => {
+      const res = await service.compare([original, exact, diffSeal, tooBig].join(','));
+      expect(res.columns.map((c) => c.kind)).toEqual(['EXACT', 'EXACT', 'WITH_DIFFERENCES', 'INCOMPATIBLE']);
+      expect(res.columns[2].differences.map((d) => d.key)).toEqual(['seal']);
+      expect(rowOf(res, 'outerDiameter')).toMatchObject({ values: ['52', '52', '52', '62'], differs: true });
+    });
+
+    it('compares products that are not linked to each other', async () => {
+      const res = await service.compare([diffSeal, seals].join(','));
+      expect(res.columns.map((c) => c.kind)).toEqual(['EXACT', 'WITH_DIFFERENCES']);
+      expect(rowOf(res, 'seal')?.differs).toBe(true);
+    });
+
+    it('rejects fewer than 2 products, more than 4, duplicates and ids that are not uuids with COMPARE_INVALID_SELECTION', async () => {
+      for (const ids of [original, [original, exact, diffSeal, diffCage, tooBig].join(','), [original, original].join(','), `${original},not-a-uuid`, `${original},`]) {
+        const refused = service.compare(ids);
+        await expect(refused).rejects.toBeInstanceOf(BadRequestException);
+        await expect(refused).rejects.toMatchObject({ response: { code: 'COMPARE_INVALID_SELECTION', details: { min: 2, max: 4 } } });
+      }
+    });
+
+    it('accepts ids in upper case, and sees a mixed-case repeat as a duplicate', async () => {
+      const res = await service.compare([original.toUpperCase(), exact].join(','));
+      expect(res.columns.map((c) => c.productId)).toEqual([original, exact]);
+      const refused = service.compare([original.toUpperCase(), original].join(','));
+      await expect(refused).rejects.toMatchObject({ response: { code: 'COMPARE_INVALID_SELECTION' } });
+    });
+
+    it('answers PRODUCT_NOT_FOUND for an unknown id and for a product of another company', async () => {
+      const refused = service.compare([original, randomUUID()].join(','));
+      await expect(refused).rejects.toBeInstanceOf(NotFoundException);
+      await expect(refused).rejects.toMatchObject({ response: { code: 'PRODUCT_NOT_FOUND' } });
+      await expect(service.compare([original, foreign].join(','))).rejects.toMatchObject({ response: { code: 'PRODUCT_NOT_FOUND' } });
+    });
+
+    it('does not show the data of another company', async () => {
+      current = b.companyId;
+      const mine = await product(b, 'SKF', 'CMP-ONLY-B');
+      const res = await service.compare([foreign, mine].join(','));
+      current = a.companyId;
+      expect(res.columns.map((c) => c.manufacturerCode)).toEqual(['FOREIGN', 'CMP-ONLY-B']);
+      expect(JSON.stringify(res)).not.toContain('6205');
+    });
+
+    it('is open to who can view products and refused to who cannot', async () => {
+      const guardFor = (granted: string[]) => new PermissionsGuard(new Reflector(), { permissions: async () => new Set(granted) } as never);
+      const contextOf = () =>
+        ({
+          getHandler: () => EquivalencesController.prototype.compare,
+          getClass: () => EquivalencesController,
+          switchToHttp: () => ({ getRequest: () => ({ user: { mid: 'm1' } }) }),
+        }) as never;
+      await expect(guardFor(['inventory.products.view']).canActivate(contextOf())).resolves.toBe(true);
+      const refused = guardFor([]).canActivate(contextOf());
+      await expect(refused).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(refused).rejects.toMatchObject({ response: { code: 'NO_PERMISSION', details: { missing: ['inventory.products.view'] } } });
     });
   });
 

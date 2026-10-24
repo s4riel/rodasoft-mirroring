@@ -1,4 +1,14 @@
-import { compareEquivalents, EquivalenceComparable, normalizePair } from './equivalence';
+import {
+  buildEquivalenceComparison,
+  compareEquivalents,
+  EQUIVALENCE_COMPARE_MAX,
+  EQUIVALENCE_COMPARE_MIN,
+  EquivalenceCompareDefinition,
+  EquivalenceCompareProduct,
+  EquivalenceComparable,
+  isTaperedCategory,
+  normalizePair,
+} from './equivalence';
 
 const LABELS = { seal: 'Protección / sello', cage: 'Material de la jaula', dynamicLoad: 'Carga dinámica C' };
 
@@ -94,5 +104,117 @@ describe('normalizePair', () => {
     expect(normalizePair('a0000000-0000-0000-0000-000000000000', '90000000-0000-0000-0000-000000000000')[0]).toBe(
       '90000000-0000-0000-0000-000000000000',
     );
+  });
+});
+
+describe('buildEquivalenceComparison', () => {
+  const DEFS: EquivalenceCompareDefinition[] = [
+    { key: 'minRadius', label: 'Radio mínimo r', type: 'NUMBER', unit: 'mm' },
+    { key: 'cage', label: 'Material de la jaula', type: 'ENUM', unit: null },
+    { key: 'seal', label: 'Protección / sello', type: 'ENUM', unit: null },
+    { key: 'dynamicLoad', label: 'Carga dinámica C', type: 'NUMBER', unit: 'kN' },
+  ];
+  const item = (productId: string, over: Partial<EquivalenceCompareProduct> = {}): EquivalenceCompareProduct => ({
+    ...bearing(),
+    productId,
+    tapered: false,
+    country: 'Suecia',
+    ...over,
+  });
+  const row = (grid: ReturnType<typeof buildEquivalenceComparison>, key: string) => grid.rows.find((r) => r.key === key);
+
+  it('limits the comparison to 2-4 products', () => {
+    expect([EQUIVALENCE_COMPARE_MIN, EQUIVALENCE_COMPARE_MAX]).toEqual([2, 4]);
+  });
+
+  it('lists the three measures and the industry first, then the compared keys, then the other fields', () => {
+    const grid = buildEquivalenceComparison([item('a'), item('b')], DEFS);
+    expect(grid.rows.map((r) => r.key)).toEqual(['innerDiameter', 'outerDiameter', 'width', 'country', 'seal', 'cage', 'dynamicLoad', 'minRadius']);
+    expect(grid.rows.map((r) => r.group)).toEqual(['MEASURES', 'MEASURES', 'MEASURES', 'SPECS', 'SPECS', 'SPECS', 'SPECS', 'SPECS']);
+  });
+
+  it('gives one value per product, in the order given, with the unit and label of the definition', () => {
+    const grid = buildEquivalenceComparison(
+      [item('a'), item('b', { attributes: { ...bearing().attributes, seal: '2Z' } }), item('c', { attributes: {} })],
+      DEFS,
+    );
+    expect(row(grid, 'seal')).toMatchObject({ label: 'Protección / sello', values: ['2RS', '2Z', null] });
+    expect(row(grid, 'dynamicLoad')).toMatchObject({ unit: 'kN', values: ['14,8', '14,8', null] });
+    expect(grid.columns.map((c) => c.productId)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('marks a row as differing when any two values differ', () => {
+    const grid = buildEquivalenceComparison(
+      [item('a'), item('b'), item('c', { attributes: { ...bearing().attributes, cage: 'Poliamida' } })],
+      DEFS,
+    );
+    expect(row(grid, 'cage')?.differs).toBe(true);
+    expect(row(grid, 'seal')?.differs).toBe(false);
+    expect(row(grid, 'country')?.differs).toBe(false);
+  });
+
+  it('treats "25" and "25.000", and 14.8 and "14.80", as equal', () => {
+    const grid = buildEquivalenceComparison(
+      [
+        item('a'),
+        item('b', {
+          dimensions: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000' },
+          attributes: { ...bearing().attributes, dynamicLoad: '14.80' },
+        }),
+      ],
+      DEFS,
+    );
+    expect(grid.rows.filter((r) => r.differs)).toEqual([]);
+  });
+
+  it('differs when a value is missing on one side and is equal when it is missing on all', () => {
+    const grid = buildEquivalenceComparison(
+      [item('a', { attributes: { seal: '2RS' } }), item('b', { attributes: {} })],
+      DEFS,
+    );
+    expect(row(grid, 'seal')?.differs).toBe(true);
+    expect(row(grid, 'minRadius')).toMatchObject({ values: [null, null], differs: false });
+  });
+
+  it('flags a different measure and marks that column INCOMPATIBLE', () => {
+    const other = item('b', { dimensions: { innerDiameter: '25', outerDiameter: '62', width: '15' } });
+    const grid = buildEquivalenceComparison([item('a'), other], DEFS);
+    expect(row(grid, 'outerDiameter')).toMatchObject({ values: ['52', '62'], differs: true });
+    expect(grid.columns[1].kind).toBe('INCOMPATIBLE');
+  });
+
+  it('compares every column with the first: the reference is EXACT, the others carry their differences', () => {
+    const grid = buildEquivalenceComparison(
+      [
+        item('a'),
+        item('b', { attributes: { ...bearing().attributes, seal: '2Z' } }),
+        item('c'),
+        item('d', { attributes: { ...bearing().attributes, cage: 'Poliamida', seal: '2Z' } }),
+      ],
+      DEFS,
+    );
+    expect(grid.columns.map((c) => c.kind)).toEqual(['EXACT', 'WITH_DIFFERENCES', 'EXACT', 'WITH_DIFFERENCES']);
+    expect(grid.columns[0].differences).toEqual([]);
+    expect(grid.columns[3].differences.map((d) => d.key)).toEqual(['seal', 'cage']);
+  });
+
+  it('labels the width B, T when every product is tapered, and B / T when they are mixed', () => {
+    const width = (items: EquivalenceCompareProduct[]) => row(buildEquivalenceComparison(items, DEFS), 'width')?.label;
+    expect(width([item('a'), item('b')])).toBe('B');
+    expect(width([item('a', { tapered: true }), item('b', { tapered: true })])).toBe('T');
+    expect(width([item('a', { tapered: true }), item('b')])).toBe('B / T');
+  });
+
+  it('shows missing dimensions as no value', () => {
+    const grid = buildEquivalenceComparison([item('a'), item('b', { dimensions: null })], DEFS);
+    expect(row(grid, 'width')).toMatchObject({ values: ['15', null], differs: true });
+  });
+});
+
+describe('isTaperedCategory', () => {
+  it('recognizes the tapered roller category', () => {
+    expect(isTaperedCategory('Rodillos cónicos')).toBe(true);
+    expect(isTaperedCategory('Rodillos conicos')).toBe(true);
+    expect(isTaperedCategory('Rígidos de bolas')).toBe(false);
   });
 });

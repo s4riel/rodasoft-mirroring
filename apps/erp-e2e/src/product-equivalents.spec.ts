@@ -49,14 +49,14 @@ test('flags each difference and totals the stock of the original and its equival
   const rows = page.locator('rs-doc-table tbody tr');
   await expect(rows).toHaveCount(4);
 
-  const brands = await rows.locator('td:nth-child(2)').allTextContents();
+  const brands = await rows.locator('td:nth-child(3)').allTextContents();
   expect(brands.map((b) => b.trim())).toEqual(expect.arrayContaining(['NTN', 'NSK', 'SKF']));
 
   // the industry column: the original is German (FAG), the equivalents Japanese (NTN, NSK) and Swedish (SKF)
   await expect(page.getByRole('columnheader', { name: 'Industria' })).toBeVisible();
-  const industries = await rows.locator('td:nth-child(3)').allTextContents();
+  const industries = await rows.locator('td:nth-child(4)').allTextContents();
   expect(industries.map((i) => i.trim())).toEqual(['Alemania', 'Japón', 'Japón', 'Suecia']);
-  await expect(rows.locator('td:nth-child(3) rs-flag')).toHaveCount(4);
+  await expect(rows.locator('td:nth-child(4) rs-flag')).toHaveCount(4);
 
   // every equivalent with differences is flagged with a warning pill that can be focused for its detail
   const warnings = page.locator('rs-doc-table rs-status-pill[data-status="warning"]');
@@ -66,7 +66,7 @@ test('flags each difference and totals the stock of the original and its equival
   await expect(page.getByRole('tooltip')).toContainText('Material de la jaula');
 
   // the total row adds up the stock of the four codes
-  const stocks = await rows.locator('td:nth-child(4)').allTextContents();
+  const stocks = await rows.locator('td:nth-child(5)').allTextContents();
   const sum = stocks.reduce((total, s) => total + Number(s.trim()), 0);
   const total = page.locator('rs-doc-table tfoot');
   await expect(total).toContainText('4 códigos');

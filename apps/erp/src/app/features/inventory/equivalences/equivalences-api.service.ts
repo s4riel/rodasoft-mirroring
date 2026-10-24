@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import type { EquivalenceFilters, EquivalenceListResponse } from '@rodasoft/domain';
+import type { EquivalenceComparisonResponse, EquivalenceFilters, EquivalenceListResponse } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
@@ -14,5 +14,12 @@ export class EquivalencesApi {
       if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
     }
     return this.http.get<EquivalenceListResponse>('/api/v1/inventory/equivalences', { params });
+  }
+
+  /** IN-13 · The products side by side, in the order given; the first one is the reference. */
+  compare(ids: readonly string[]): Observable<EquivalenceComparisonResponse> {
+    return this.http.get<EquivalenceComparisonResponse>('/api/v1/inventory/equivalences/compare', {
+      params: new HttpParams().set('ids', ids.join(',')),
+    });
   }
 }
