@@ -2,9 +2,15 @@ import type { AttributeDefinitionItem } from '@rodasoft/domain';
 import {
   attributesPayload,
   attributeStep,
+  commercialNameOf,
   draftInputOf,
+  formatSize,
   invalidStockFields,
+  isLongText,
+  placeholderOf,
   toWriteRequest,
+  uploadDetailOf,
+  uploadProblemOf,
   type WizardFormValues,
 } from './product-wizard.model';
 
@@ -100,8 +106,58 @@ describe('product wizard model', () => {
     expect(toWriteRequest(values({ initialStock: '24 uds' }), definitions, { status: 'ACTIVE', categoryId: 'r-1', withCost: false }).initialStock).toBeUndefined();
   });
 
+  it('writes sizes with a comma and estimates the time left of an upload', () => {
+    expect(formatSize(3.5 * 1024 * 1024)).toBe('3,5 MB');
+    expect(formatSize(820 * 1024)).toBe('820 KB');
+    expect(uploadDetailOf(1024 * 1024, 2, 2000)).toBe('1,0 MB');
+    expect(uploadDetailOf(1024 * 1024, 40, 4000)).toBe('1,0 MB · 6 s restantes');
+    expect(uploadDetailOf(1024 * 1024, 100, 9000)).toBe('1,0 MB · Procesando…');
+  });
+
+  it('refuses a file of the wrong type or over the limit for its kind', () => {
+    const mb = 1024 * 1024;
+    expect(uploadProblemOf('photo', { name: 'a.jpg', type: 'image/jpeg', size: mb })).toBeNull();
+    expect(uploadProblemOf('photo', { name: 'a.pdf', type: 'application/pdf', size: mb })).toContain('imagen');
+    expect(uploadProblemOf('photo', { name: 'big.png', type: 'image/png', size: 6 * mb })).toContain('5 MB');
+    expect(uploadProblemOf('datasheet', { name: 'f.pdf', type: 'application/pdf', size: 9 * mb })).toBeNull();
+    expect(uploadProblemOf('datasheet', { name: 'f.jpg', type: 'image/jpeg', size: mb })).toContain('PDF');
+  });
+
+  it('suggests the commercial name from category, brand and code, skipping what is missing', () => {
+    expect(commercialNameOf('Rodamientos rígidos', 'SKF', ' 6205-2RS ')).toBe('Rodamientos rígidos SKF 6205-2RS');
+    expect(commercialNameOf('Rodamientos', null, '')).toBe('Rodamientos');
+  });
+
   it('falls back to the root category when no subcategory is chosen', () => {
     const body = toWriteRequest(values({ subcategoryId: null }), definitions, { status: 'DRAFT', categoryId: 'r-1', withCost: false });
     expect(body.categoryId).toBe('r-1');
+  });
+});
+
+describe('long text and placeholders', () => {
+  const def = (over: Partial<AttributeDefinitionItem>): AttributeDefinitionItem => ({
+    key: 'material',
+    label: 'Material',
+    type: 'TEXT',
+    unit: null,
+    options: null,
+    required: false,
+    step: 3,
+    sortOrder: 0,
+    ...over,
+  });
+
+  it('treats the technical notes as long text, and nothing else', () => {
+    expect(isLongText(def({ key: 'technicalNotes', label: 'Observaciones técnicas' }))).toBe(true);
+    expect(isLongText(def({}))).toBe(false);
+    expect(isLongText(def({ key: 'rows', label: 'Número de hileras', type: 'NUMBER' }))).toBe(false);
+  });
+
+  it('gives every technical field a placeholder from its type', () => {
+    expect(placeholderOf(def({}))).toBe('Ingresa material');
+    expect(placeholderOf(def({ type: 'NUMBER', unit: 'kN', label: 'Carga' }))).toBe('0,00 kN');
+    expect(placeholderOf(def({ type: 'NUMBER' }))).toBe('0');
+    expect(placeholderOf(def({ type: 'ENUM' }))).toBe('Selecciona una opción');
+    expect(placeholderOf(def({ key: 'technicalNotes', label: 'Observaciones técnicas' }))).toBe('Escribe observaciones técnicas del producto');
   });
 });

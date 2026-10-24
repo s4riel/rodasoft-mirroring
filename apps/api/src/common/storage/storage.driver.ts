@@ -1,10 +1,14 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { v2 as cloudinary } from 'cloudinary';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 /** Where uploaded files live. The service picks one by configuration; both keep the same key layout. */
 export interface StorageDriver {
-  put(key: string, bytes: Buffer, contentType: string): Promise<void>;
+  /**
+   * Stores the bytes and returns the reference the product keeps: the key on disk, the public URL on Cloudinary. A key that
+   * is already taken is never overwritten: the answer is null so the caller can try the next variant.
+   */
+  put(key: string, bytes: Buffer, contentType: string): Promise<string | null>;
   /** The stored bytes, or null when the key does not exist. */
   get(key: string): Promise<Buffer | null>;
 }
@@ -17,10 +21,16 @@ export class LocalStorageDriver implements StorageDriver {
     this.root = resolve(root);
   }
 
-  async put(key: string, bytes: Buffer): Promise<void> {
+  async put(key: string, bytes: Buffer): Promise<string | null> {
     const path = this.pathOf(key);
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, bytes);
+    try {
+      await writeFile(path, bytes, { flag: 'wx' });
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') return null;
+      throw err;
+    }
+    return key;
   }
 
   async get(key: string): Promise<Buffer | null> {
@@ -40,41 +50,55 @@ export class LocalStorageDriver implements StorageDriver {
   }
 }
 
-export interface S3StorageOptions {
-  bucket: string;
-  region: string;
-  /** For S3-compatible services (MinIO, R2, Spaces); empty for AWS. */
-  endpoint?: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  forcePathStyle: boolean;
+export interface CloudinaryStorageOptions {
+  cloudName: string;
+  apiKey: string;
+  apiSecret: string;
+  /** Root folder inside the Cloudinary account, so several environments can share one account. */
+  folder: string;
 }
 
-/** Production: an S3-compatible bucket. */
-export class S3StorageDriver implements StorageDriver {
-  private readonly client: S3Client;
+/**
+ * Production: Cloudinary. Files are public assets: the product stores the `secure_url` that Cloudinary returns and the
+ * ERP and the store load it straight from the CDN. Images use their key without extension as public id; PDFs are `raw`
+ * assets, whose public id keeps the extension.
+ */
+export class CloudinaryStorageDriver implements StorageDriver {
+  constructor(private readonly options: CloudinaryStorageOptions) {
+    cloudinary.config({ cloud_name: options.cloudName, api_key: options.apiKey, api_secret: options.apiSecret, secure: true });
+  }
 
-  constructor(private readonly options: S3StorageOptions) {
-    this.client = new S3Client({
-      region: options.region,
-      endpoint: options.endpoint || undefined,
-      forcePathStyle: options.forcePathStyle,
-      credentials: { accessKeyId: options.accessKeyId, secretAccessKey: options.secretAccessKey },
+  async put(key: string, bytes: Buffer): Promise<string | null> {
+    const { publicId, resourceType } = this.targetOf(key);
+    return new Promise<string | null>((done, fail) => {
+      const stream = cloudinary.uploader.upload_stream(
+        // `asset_folder` is what the Media Library shows as the folder on accounts with dynamic folders (the default today);
+        // the public id keeps the same path, so the URL is the same on accounts with fixed folders
+        { public_id: publicId, asset_folder: publicId.slice(0, publicId.lastIndexOf('/')), resource_type: resourceType, type: 'upload', overwrite: false },
+        // with `overwrite: false` Cloudinary answers the asset that already uses the id, flagged `existing`
+        // Cloudinary rejects with a plain object ({ message, http_code }), not an Error: wrap it so the cause reaches the log
+        (err, result) =>
+          err || !result
+            ? fail(new Error(`Cloudinary upload failed for ${key}: ${err?.message ?? 'no result'}${err?.http_code ? ` (HTTP ${err.http_code})` : ''}`))
+            : done((result as { existing?: boolean }).existing ? null : result.secure_url),
+      );
+      stream.end(bytes);
     });
   }
 
-  async put(key: string, bytes: Buffer, contentType: string): Promise<void> {
-    await this.client.send(new PutObjectCommand({ Bucket: this.options.bucket, Key: key, Body: bytes, ContentType: contentType }));
+  async get(key: string): Promise<Buffer | null> {
+    const { publicId, resourceType, format } = this.targetOf(key);
+    const url = cloudinary.url(publicId, { resource_type: resourceType, type: 'upload', secure: true, format });
+    const response = await fetch(url);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Cloudinary answered ${response.status} for ${key}`);
+    return Buffer.from(await response.arrayBuffer());
   }
 
-  async get(key: string): Promise<Buffer | null> {
-    try {
-      const out = await this.client.send(new GetObjectCommand({ Bucket: this.options.bucket, Key: key }));
-      const bytes = await out.Body?.transformToByteArray();
-      return bytes ? Buffer.from(bytes) : null;
-    } catch (err) {
-      if ((err as { name?: string }).name === 'NoSuchKey') return null;
-      throw err;
-    }
+  private targetOf(key: string): { publicId: string; resourceType: 'image' | 'raw'; format?: string } {
+    const extension = key.slice(key.lastIndexOf('.') + 1);
+    const path = `${this.options.folder}/${key}`;
+    if (extension === 'pdf') return { publicId: path, resourceType: 'raw' };
+    return { publicId: path.slice(0, path.length - extension.length - 1), resourceType: 'image', format: extension };
   }
 }

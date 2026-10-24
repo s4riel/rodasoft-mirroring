@@ -70,3 +70,10 @@ Written without a compiler and partly without Figma access (the Figma MCP quota 
 
 Known gaps: dark values of `action/primary-hover|pressed` are assumed (`TODO(figma)` in `_tokens.scss`); illustrations and
 flags are redrawn (the Figma asset host is not reachable from the build sandbox) and should be replaced by the exported SVGs.
+
+## File upload (ERP components)
+
+- `rs-file-dropzone` — dashed drop area (icon tile, title, formats, limit, button). Reports the picked or dropped files with `(filesSelected)`; it does not upload. Icon projected, texts as inputs.
+- `rs-file-item` — one row of an upload list: icon or thumbnail (projected), name, detail line, remove button and, while `status="uploading"`, a progress bar with its percentage. `status` is `uploading | done | error`.
+
+Pending in Figma: both were designed from a reference screenshot and still need their component sets in `03 ERP Components`.

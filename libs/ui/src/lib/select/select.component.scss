@@ -55,6 +55,7 @@
 }
 .value.placeholder {
   color: var(--text-muted);
+  opacity: 0.55; /* same as the input placeholder */
 }
 rs-icon,
 rs-field-media {

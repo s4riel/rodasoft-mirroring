@@ -11,7 +11,7 @@
 .row {
   /* Column widths measured from Figma ProductTable (1128): photo, code, product (fluid), description, stocks, price, status, action */
   display: grid;
-  grid-template-columns: 72px 104px minmax(160px, 1fr) 188px 112px 112px 108px 144px 56px;
+  grid-template-columns: 72px 104px minmax(160px, 1fr) minmax(220px, 1.2fr) 112px 112px 108px 144px 56px;
   align-items: center;
   min-height: 72px; /* Figma Table/Row: 72 */
   border-bottom: var(--stroke-default) solid var(--border-default);
@@ -53,6 +53,9 @@
   font-size: var(--label-md-size);
 }
 .code {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-family: var(--font-family-mono);
   font-size: var(--mono-md-size);
   font-weight: 500;
@@ -62,9 +65,25 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+.brand-name,
+.country-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.brand-name {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.country-name {
+  min-width: 0;
+  flex: 0 100 auto; /* the country gives up its room first: the brand matters more */
+}
 .brand {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
   gap: var(--space-2);
   font-size: var(--body-sm-size);
   line-height: var(--body-sm-line-height);
@@ -99,6 +118,15 @@
 }
 .description {
   color: var(--text-primary);
+}
+/* inner span, so the cell padding does not let a third line show; the tooltip has the whole text */
+.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .status {
   --_c: var(--status-idle);

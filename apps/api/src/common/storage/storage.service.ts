@@ -1,13 +1,20 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
 import { UPLOAD_CONTENT_TYPE, UPLOAD_EXTENSION, type UploadKind, type UploadType } from '@rodasoft/domain';
 import type { Env } from '../../config/env';
-import { LocalStorageDriver, S3StorageDriver, type StorageDriver } from './storage.driver';
+import { CloudinaryStorageDriver, LocalStorageDriver, type StorageDriver } from './storage.driver';
+
+/** Most variants (`_v1` … `_v50`) a product code can have per kind. */
+const MAX_VARIANTS = 50;
+
+/** The product code as a file name: letters, digits and dashes only (the `_` is kept for the variant suffix). */
+export function fileNameOf(code: string): string {
+  return code.trim().replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'product';
+}
 
 /**
- * Stores and reads the uploaded files of a company (HU-INV-06): a local folder in development, an S3-compatible bucket in
- * production (`STORAGE_DRIVER`). Keys are `<company>/<kind>/<uuid>.<ext>`. Callers validate the content first
+ * Stores and reads the uploaded files of a company (HU-INV-06): a local folder in development, Cloudinary in
+ * production (`STORAGE_DRIVER`). Keys are `<company>/<kind>/<code>_v<n>.<ext>`. Callers validate the content first
  * (`checkUpload`), so the bytes stored here are already known to be allowed.
  */
 @Injectable()
@@ -16,10 +23,15 @@ export class StorageService {
 
   constructor(private readonly config: ConfigService<Env, true>) {}
 
-  async save(companyId: string, kind: UploadKind, bytes: Buffer, type: UploadType): Promise<string> {
-    const key = `${companyId}/${kind}/${randomUUID()}.${UPLOAD_EXTENSION[type]}`;
-    await this.storage().put(key, bytes, UPLOAD_CONTENT_TYPE[type]);
-    return key;
+  /** Saves under `<company>/<kind>/<code>_v<n>.<ext>`, with the first free variant number for the product code. */
+  async save(companyId: string, kind: UploadKind, bytes: Buffer, type: UploadType, code: string): Promise<string> {
+    const name = fileNameOf(code);
+    for (let variant = 1; variant <= MAX_VARIANTS; variant++) {
+      const key = `${companyId}/${kind}/${name}_v${variant}.${UPLOAD_EXTENSION[type]}`;
+      const stored = await this.storage().put(key, bytes, UPLOAD_CONTENT_TYPE[type]);
+      if (stored) return stored;
+    }
+    throw new ConflictException({ code: 'TOO_MANY_VARIANTS', message: 'This product code has too many files' });
   }
 
   async read(key: string): Promise<Buffer | null> {
@@ -27,25 +39,18 @@ export class StorageService {
   }
 
   private storage(): StorageDriver {
-    this.driver ??= this.config.get('STORAGE_DRIVER', { infer: true }) === 's3' ? this.s3() : new LocalStorageDriver(this.config.get('STORAGE_LOCAL_DIR', { infer: true }));
+    this.driver ??= this.config.get('STORAGE_DRIVER', { infer: true }) === 'cloudinary' ? this.cloudinary() : new LocalStorageDriver(this.config.get('STORAGE_LOCAL_DIR', { infer: true }));
     return this.driver;
   }
 
-  private s3(): StorageDriver {
+  private cloudinary(): StorageDriver {
     const get = <K extends keyof Env>(key: K) => this.config.get(key, { infer: true });
-    const bucket = get('STORAGE_S3_BUCKET');
-    const accessKeyId = get('STORAGE_S3_ACCESS_KEY');
-    const secretAccessKey = get('STORAGE_S3_SECRET_KEY');
-    if (!bucket || !accessKeyId || !secretAccessKey) {
-      throw new InternalServerErrorException({ code: 'STORAGE_NOT_CONFIGURED', message: 'The S3 storage needs a bucket and credentials' });
+    const cloudName = get('CLOUDINARY_CLOUD_NAME');
+    const apiKey = get('CLOUDINARY_API_KEY');
+    const apiSecret = get('CLOUDINARY_API_SECRET');
+    if (!cloudName || !apiKey || !apiSecret) {
+      throw new InternalServerErrorException({ code: 'STORAGE_NOT_CONFIGURED', message: 'The Cloudinary storage needs a cloud name and API credentials' });
     }
-    return new S3StorageDriver({
-      bucket,
-      region: get('STORAGE_S3_REGION'),
-      endpoint: get('STORAGE_S3_ENDPOINT'),
-      accessKeyId,
-      secretAccessKey,
-      forcePathStyle: get('STORAGE_S3_FORCE_PATH_STYLE'),
-    });
+    return new CloudinaryStorageDriver({ cloudName, apiKey, apiSecret, folder: get('CLOUDINARY_FOLDER') });
   }
 }

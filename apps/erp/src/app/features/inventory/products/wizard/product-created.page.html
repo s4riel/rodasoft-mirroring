@@ -109,7 +109,11 @@
       <section class="card">
         <p class="eyebrow">Vista previa</p>
         <div class="product">
-          <span class="brand-mark large" aria-hidden="true">{{ p.brand.name.slice(0, 2).toUpperCase() }}</span>
+          @if (photoSrc(); as src) {
+            <img class="brand-mark large photo" [src]="src" [alt]="'Foto de ' + p.manufacturerCode" />
+          } @else {
+            <span class="brand-mark large" aria-hidden="true">{{ p.brand.name.slice(0, 2).toUpperCase() }}</span>
+          }
           <div class="product-data">
             <span class="product-code">{{ p.manufacturerCode }}</span>
             <span class="product-name">{{ p.subcategory?.name ?? p.category.name }} · {{ p.brand.name }}</span>
@@ -117,7 +121,7 @@
         </div>
         <div class="pills">
           @for (chip of chips(); track $index) {
-            <span class="pill">{{ chip }}</span>
+            <span class="pill"><span class="pill-label">{{ chip.label }}:</span> {{ chip.value }}</span>
           }
         </div>
       </section>

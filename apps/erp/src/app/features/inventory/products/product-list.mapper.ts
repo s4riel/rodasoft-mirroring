@@ -10,13 +10,20 @@ export function formatMeasure(value: string): string {
   return trimmed.replace('.', ',');
 }
 
-/** "Rodillos cónicos, 40×80×19,25 mm"; the measurement part is omitted when the product has none. */
+/**
+ * "Medidas: 40×80×19,25 mm · Peso: 0,13 kg · Sello: 2RS · Material: Acero": the measures and weight when the product has
+ * them and its filled technical fields (dimension fields such as the series, and specifications), each with its label. The type is not repeated: the "Producto" column already shows it. The table clamps the text
+ * to two lines and shows all of it in a tooltip; a product with neither measures nor fields gives an empty text.
+ */
 export function describeProduct(item: ProductListItem): string {
-  const kind = (item.subcategory ?? item.category).name;
   const d = item.dimensions;
-  if (!d?.innerDiameter || !d.outerDiameter || !d.width) return kind;
-  const measure = [d.innerDiameter, d.outerDiameter, d.width].map(formatMeasure).join('×');
-  return `${kind}, ${measure} mm`;
+  const parts: string[] = [];
+  if (d?.innerDiameter && d.outerDiameter && d.width) {
+    parts.push(`Medidas: ${[d.innerDiameter, d.outerDiameter, d.width].map(formatMeasure).join('×')} mm`);
+  }
+  if (d?.weight) parts.push(`Peso: ${formatMeasure(d.weight)} kg`);
+  for (const spec of item.specs ?? []) parts.push(`${spec.label}: ${spec.value}`);
+  return parts.join(' · ');
 }
 
 /**
@@ -44,11 +51,13 @@ export function toTableRow(item: ProductListItem): ProductTableRow {
     photoUrl: item.photoUrl,
     thumbIcon: thumbIconOf(item.category.icon),
     code: item.manufacturerCode,
-    name: item.name,
+    // the "Producto" column shows the type of product: the subcategory, or the category when there is none
+    name: (item.subcategory ?? item.category).name,
     brandName: item.brand.name,
     brandLogoUrl: item.brand.logoUrl,
     country: flagOf(item.country?.code),
-    description: describeProduct(item),
+    countryName: item.country?.name ?? null,
+    description: describeProduct(item) || '–',
     totalStock: item.totalStock,
     branchStock: item.branchStock,
     price: item.salePrice,

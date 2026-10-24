@@ -1,5 +1,6 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { HttpClient, HttpEventType, HttpParams, HttpXhrBackend } from '@angular/common/http';
+import { EnvironmentInjector, inject, Injectable, runInInjectionContext } from '@angular/core';
+import { authInterceptor } from '../../../core/auth/auth.interceptor';
 import type {
   AttributeDefinitionItem,
   CategoryAttributeDefinitionsResponse,
@@ -18,7 +19,7 @@ import type {
   ProductWriteRequest,
   ProductWriteResponse,
 } from '@rodasoft/domain';
-import { map, type Observable } from 'rxjs';
+import { filter, map, type Observable } from 'rxjs';
 
 /** Measures and fields typed so far, to look for equivalents of a product that is not saved yet. */
 export interface EquivalenceCandidatesRequest {
@@ -28,6 +29,9 @@ export interface EquivalenceCandidatesRequest {
   width: string;
   attributes?: Record<string, unknown>;
 }
+
+/** What an upload reports: its progress while the bytes go up, then the stored file. */
+export type UploadEvent = { type: 'progress'; percent: number } | { type: 'done'; response: UploadedFileResponse };
 
 export interface UploadedFileResponse {
   key: string;
@@ -39,6 +43,15 @@ export interface UploadedFileResponse {
 @Injectable({ providedIn: 'root' })
 export class ProductsApi {
   private readonly http = inject(HttpClient);
+  /**
+   * The app talks through `fetch` (`withFetch()`), which cannot report upload progress. Uploads go through this client
+   * instead: the same interceptors (company, token, renewal on 401) over the XHR backend, which does report it.
+   */
+  private readonly uploadHttp = ((): HttpClient => {
+    const xhr = inject(HttpXhrBackend);
+    const injector = inject(EnvironmentInjector);
+    return new HttpClient({ handle: (req) => runInInjectionContext(injector, () => authInterceptor(req, (r) => xhr.handle(r))) });
+  })();
 
   list(query: ProductListQuery): Observable<ProductListResponse> {
     let params = new HttpParams();
@@ -106,11 +119,20 @@ export class ProductsApi {
   }
 
   /** Uploads a photo or a datasheet; the returned key is saved with the product (HU-INV-06 step 4). */
-  upload(file: File, kind: 'photo' | 'datasheet'): Observable<UploadedFileResponse> {
+  upload(file: File, kind: 'photo' | 'datasheet', code: string): Observable<UploadEvent> {
     const body = new FormData();
     body.append('file', file);
     body.append('kind', kind);
-    return this.http.post<UploadedFileResponse>('/api/v1/inventory/uploads', body);
+    body.append('code', code);
+    return this.uploadHttp.post<UploadedFileResponse>('/api/v1/inventory/uploads', body, { observe: 'events', reportProgress: true }).pipe(
+      map((event): UploadEvent | null => {
+        if (event.type === HttpEventType.UploadProgress) {
+          return { type: 'progress', percent: event.total ? Math.round((event.loaded / event.total) * 100) : 0 };
+        }
+        return event.type === HttpEventType.Response && event.body ? { type: 'done', response: event.body } : null;
+      }),
+      filter((event): event is UploadEvent => event !== null),
+    );
   }
 
   saveDraft(id: string, body: ProductWriteRequest): Observable<ProductWriteResponse> {

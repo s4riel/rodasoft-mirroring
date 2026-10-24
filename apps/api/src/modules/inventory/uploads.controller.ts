@@ -66,7 +66,7 @@ class UploadLimitInterceptor implements NestInterceptor {
   }
 }
 
-const FILE_NAME = /^[0-9a-f-]{36}.(jpg|png|webp|pdf)$/;
+const FILE_NAME = /^[A-Za-z0-9-]+_v\d+\.(jpg|png|webp|pdf)$/;
 const FILE_TYPES: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf' };
 
 /** Largest file the parser keeps in memory: the datasheet limit. Each kind is checked against its own limit. */
@@ -120,7 +120,7 @@ export class UploadsController {
     }
     const companyId = this.cls.get('companyId');
     if (!companyId) throw new Error('Missing company in context');
-    const key = await this.storage.save(companyId, fields.kind, file.buffer, checked.type);
+    const key = await this.storage.save(companyId, fields.kind, file.buffer, checked.type, fields.code);
     return { key, kind: fields.kind, contentType: UPLOAD_CONTENT_TYPE[checked.type], size: file.size };
   }
 }

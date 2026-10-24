@@ -15,7 +15,11 @@ export class ProblemFilter implements ExceptionFilter {
     const req = ctx.getRequest<Request>();
     const problem = this.toProblem(exception);
     problem.traceId = (req as any).id;
-    if (problem.status >= 500) this.logger.error(`${req.method} ${req.url}`, exception as Error);
+    if (problem.status >= 500) {
+      // Logger.error takes the stack as its second argument: passing the Error itself dropped the cause from the log
+      const error = exception instanceof Error ? exception : new Error(JSON.stringify(exception));
+      this.logger.error(`${req.method} ${req.url}: ${error.message}`, error.stack);
+    }
     res.status(problem.status).json(problem);
   }
 

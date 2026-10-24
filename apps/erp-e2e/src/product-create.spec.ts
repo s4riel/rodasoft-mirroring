@@ -143,7 +143,7 @@ test('uploads a photo on the last step and saves it with the product', async ({ 
 
   await expect(page.getByRole('heading', { name: 'Fotos y ficha técnica' })).toBeVisible();
   await page.locator('input[type=file][accept^="image"]').setInputFiles({ name: 'foto.png', mimeType: 'image/png', buffer: PNG });
-  await expect(page.locator('img.thumb')).toBeVisible();
+  await expect(page.locator('rs-file-item img')).toBeVisible();
 
   await page.getByRole('button', { name: 'Crear producto' }).click();
   await expect(page.getByRole('heading', { name: 'Producto creado' })).toBeVisible();

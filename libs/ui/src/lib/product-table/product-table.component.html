@@ -14,7 +14,7 @@
   @for (row of rows(); track row.id) {
     <div class="row" role="row">
       <div class="cell" role="cell"><rs-product-thumb [src]="row.photoUrl" [icon]="row.thumbIcon ?? 'bearing'" [alt]="row.name" /></div>
-      <div class="cell code" role="cell">{{ row.code }}</div>
+      <div class="cell code" role="cell" [rsTooltip]="row.code" tabindex="0">{{ row.code }}</div>
       <div class="cell product" role="cell">
         <span class="name">{{ row.name }}</span>
         <span class="brand">
@@ -26,10 +26,13 @@
           <span class="brand-name">{{ row.brandName }}</span>
           @if (row.country) {
             <rs-flag [country]="row.country" />
+            @if (row.countryName) {
+              <span class="country-name" [rsTooltip]="row.countryName">{{ row.countryName }}</span>
+            }
           }
         </span>
       </div>
-      <div class="cell description" role="cell">{{ row.description }}</div>
+      <div class="cell description" role="cell" [rsTooltip]="row.description" tabindex="0"><span class="clamp">{{ row.description }}</span></div>
       <div class="cell num" role="cell">{{ row.totalStock }}</div>
       <div class="cell num branch" role="cell">
         @if (row.branchStock !== null) {

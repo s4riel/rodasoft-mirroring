@@ -1,4 +1,12 @@
-import { type AttributeRule, completedRequiredSteps, type ProductDraftInput, validateProductDraft, wizardSteps } from './product-creation';
+import {
+  type AttributeRule,
+  completedRequiredSteps,
+  type ProductDraftInput,
+  todayInLaPaz,
+  validateFieldFormats,
+  validateProductDraft,
+  wizardSteps,
+} from './product-creation';
 
 const bearing: ProductDraftInput = {
   manufacturerCode: '6205-2RS',
@@ -117,5 +125,60 @@ describe('validateProductDraft', () => {
     expect(validateProductDraft({ ...complete, attributes: { seal: 'Metal' } }, rules, { draft: false })).toEqual([
       { field: 'seal', code: 'ATTRIBUTE_OPTION' },
     ]);
+  });
+});
+
+describe('validateFieldFormats', () => {
+  const codes = (over: Partial<ProductDraftInput>) => validateFieldFormats({ ...complete, ...over }).map((e) => `${e.field}:${e.code}`);
+
+  it('accepts amounts and measures with a comma or a dot', () => {
+    expect(codes({ salePrice: '245,50', cost: '30,1234', weight: '0,13' })).toEqual([]);
+    expect(codes({ salePrice: '245.5', dimensions: { innerDiameter: '25,5', outerDiameter: '52', width: '15' } })).toEqual([]);
+  });
+
+  it('refuses a price that is not money: letters, a thousands separator, more than 2 decimals, a sign', () => {
+    for (const salePrice of ['abc', '1.250,50', '12,345', '-5', '1e3', '12,']) {
+      expect(codes({ salePrice })).toEqual(['salePrice:PRICE_FORMAT']);
+    }
+  });
+
+  it('allows up to 4 decimals on the cost, no more', () => {
+    expect(codes({ cost: '30,1234' })).toEqual([]);
+    expect(codes({ cost: '30,12345' })).toEqual(['cost:COST_FORMAT']);
+  });
+
+  it('refuses measures that are not positive numbers with at most 3 decimals', () => {
+    expect(codes({ dimensions: { innerDiameter: '0', outerDiameter: '52', width: 'x' } })).toEqual([
+      'innerDiameter:MEASURE_FORMAT',
+      'width:MEASURE_FORMAT',
+    ]);
+    expect(codes({ weight: '1,2345' })).toEqual(['weight:MEASURE_FORMAT']);
+  });
+
+  it('wants the bore smaller than the outside diameter', () => {
+    expect(codes({ dimensions: { innerDiameter: '52', outerDiameter: '25', width: '15' } })).toEqual(['outerDiameter:DIAMETER_ORDER']);
+    expect(codes({ dimensions: { innerDiameter: '25', outerDiameter: '25', width: '15' } })).toEqual(['outerDiameter:DIAMETER_ORDER']);
+  });
+
+  it('checks the tariff heading and the entry date', () => {
+    expect(codes({ tariffCode: '8482.10', entryDate: '2026-10-22', today: '2026-10-23' })).toEqual([]);
+    expect(codes({ tariffCode: '84-82' })).toEqual(['tariffCode:TARIFF_FORMAT']);
+    expect(codes({ entryDate: '2026-02-30' })).toEqual(['entryDate:DATE_INVALID']);
+    expect(codes({ entryDate: '2026-12-01', today: '2026-10-23' })).toEqual(['entryDate:DATE_FUTURE']);
+  });
+
+  it('wants the maximum stock to be at least the minimum', () => {
+    expect(codes({ minStock: 10, maxStock: 5 })).toEqual(['maxStock:STOCK_RANGE']);
+    expect(codes({ minStock: 5, maxStock: 5 })).toEqual([]);
+  });
+
+  it('is applied to drafts too, and a bad price is not also reported as missing', () => {
+    expect(validateProductDraft({ ...complete, salePrice: 'abc' }, rules, { draft: true })).toEqual([{ field: 'salePrice', code: 'PRICE_FORMAT' }]);
+    expect(validateProductDraft({ ...complete, salePrice: 'abc' }, rules, { draft: false })).toEqual([{ field: 'salePrice', code: 'PRICE_FORMAT' }]);
+  });
+
+  it('gives today in La Paz, a day behind UTC late in the evening', () => {
+    expect(todayInLaPaz(new Date('2026-10-23T02:00:00Z'))).toBe('2026-10-22');
+    expect(todayInLaPaz(new Date('2026-10-23T14:00:00Z'))).toBe('2026-10-23');
   });
 });

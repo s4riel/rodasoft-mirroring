@@ -28,6 +28,7 @@ const PRODUCT: ProductListItem = {
   category: { id: 'k-1', name: 'Rodamientos', icon: 'bearing' },
   subcategory: null,
   dimensions: null,
+  specs: [],
   totalStock: 0,
   branchStock: null,
   salePrice: '10.00',

@@ -16,6 +16,7 @@ import {
   type ProductDraftInput,
   type ProductFieldError,
   SPEC_STEP_DIMENSIONS,
+  todayInLaPaz,
   validateProductDraft,
   type AttributeRule,
 } from '@rodasoft/domain';
@@ -73,10 +74,13 @@ export class ProductCommandsService {
     return this.write(id, dto);
   }
 
-  /** Live check of the (brand, code) pair. Drafts count, because the unique constraint covers them. */
-  async codeAvailability(brandId: string, code: string): Promise<CodeAvailabilityResponse> {
+  /**
+   * Live check of the (brand, code) pair. Drafts count, because the unique constraint covers them. The comparison ignores
+   * the case ("6205-2rs" is "6205-2RS"): the unique index is exact, so the application is the one that refuses the pair.
+   */
+  async codeAvailability(brandId: string, code: string, excludeId?: string): Promise<CodeAvailabilityResponse> {
     const existing = await this.prisma.tenant.product.findFirst({
-      where: { brandId, manufacturerCode: code.trim() },
+      where: { brandId, manufacturerCode: { equals: code.trim(), mode: 'insensitive' }, ...(excludeId ? { id: { not: excludeId } } : {}) },
       select: { id: true },
     });
     return { available: !existing, productId: existing?.id ?? null };
@@ -249,6 +253,13 @@ export class ProductCommandsService {
           salePrice: dto.salePrice ?? null,
           dimensions: { innerDiameter: dto.innerDiameter ?? null, outerDiameter: dto.outerDiameter ?? null, width: dto.width ?? null },
           attributes: dto.attributes ?? {},
+          cost: dto.cost ?? null,
+          weight: dto.weight ?? null,
+          tariffCode: dto.tariffCode ?? null,
+          entryDate: dto.entryDate ?? null,
+          minStock: dto.minStock ?? null,
+          maxStock: dto.maxStock ?? null,
+          today: todayInLaPaz(),
         };
         // a draft may lack the rest, but not the category: the wizard picks it first and the row needs it
         const errors = validateProductDraft(input, rules, { draft });
@@ -265,6 +276,16 @@ export class ProductCommandsService {
         if (dto.countryId) {
           const country = await tx.country.findFirst({ where: { id: dto.countryId }, select: { id: true } });
           if (!country) throw new UnprocessableEntityException({ code: 'COUNTRY_NOT_FOUND', message: 'Country not found' });
+        }
+
+        // the same code under the same brand, in any case, belongs to another product: refuse before writing anything
+        const taken = await this.codeAvailability(brand.id, code, existing?.id);
+        if (!taken.available) {
+          throw new ConflictException({
+            code: 'DUPLICATE_MANUFACTURER_CODE',
+            message: 'A product with this manufacturer code already exists for the brand',
+            details: { productId: taken.productId },
+          });
         }
 
         // the stock side needs a receiving branch: its main warehouse holds the stock and the thresholds
@@ -506,12 +527,15 @@ function toDuplicateSource(
 }
 
 /**
- * Files come from `POST /inventory/uploads`, whose keys are `<company>/<kind>/<uuid>.<ext>`. A key that does not match
- * this company and kind is refused, so a product cannot point at another company's file.
+ * Files come from `POST /inventory/uploads`, which answers a key `<company>/<kind>/<code>_v<n>.<ext>` on disk, or the Cloudinary
+ * URL of that path. A reference that does not match this company and kind is refused, so a product cannot point at another
+ * company's file.
  */
 function assertUploadKeys(companyId: string, dto: ProductWriteDto): void {
-  const photo = new RegExp(`^${companyId}/photo/[0-9a-f-]{36}\\.(jpg|png|webp)$`);
-  const datasheet = new RegExp(`^${companyId}/datasheet/[0-9a-f-]{36}\\.pdf$`);
+  const reference = (kind: string, ext: string) =>
+    new RegExp(`^(https://res\\.cloudinary\\.com/[\\w-]+/(image|raw)/upload/(v\\d+/)?([\\w-]+/)*)?${companyId}/${kind}/[A-Za-z0-9-]+_v\\d+\\.(${ext})$`);
+  const photo = reference('photo', 'jpg|png|webp');
+  const datasheet = reference('datasheet', 'pdf');
   const details: { field: string; code: string }[] = [];
   for (const key of dto.photos ?? []) if (!photo.test(key)) details.push({ field: 'photos', code: 'INVALID_FILE_KEY' });
   if (dto.datasheetKey && !datasheet.test(dto.datasheetKey)) details.push({ field: 'datasheetKey', code: 'INVALID_FILE_KEY' });

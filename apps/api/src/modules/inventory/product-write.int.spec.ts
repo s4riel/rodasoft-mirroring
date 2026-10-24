@@ -216,7 +216,7 @@ describe('ProductCommandsService create / saveDraft (integration, real Postgres)
   });
 
   it('clears a field sent as null and keeps one that is left out', async () => {
-    const datasheet = `${a.companyId}/datasheet/0190e8a0-0000-7000-8000-0000000000ee.pdf`;
+    const datasheet = `${a.companyId}/datasheet/CLEAR-1_v1.pdf`;
     const draft = await commands.create(
       bearing({ manufacturerCode: 'CLEAR-1', status: 'DRAFT', tariffCode: '8482.10', supplierName: 'Proveedor', datasheetKey: datasheet }),
     );
@@ -242,20 +242,20 @@ describe('ProductCommandsService create / saveDraft (integration, real Postgres)
   });
 
   it('stores the photo and datasheet keys of this company and refuses keys of another company', async () => {
-    const photo = `${a.companyId}/photo/0190e8a0-0000-7000-8000-0000000000aa.jpg`;
-    const datasheet = `${a.companyId}/datasheet/0190e8a0-0000-7000-8000-0000000000bb.pdf`;
+    const photo = `${a.companyId}/photo/FILES-1_v1.jpg`;
+    const datasheet = `${a.companyId}/datasheet/FILES-1_v1.pdf`;
     const created = await commands.create(bearing({ manufacturerCode: 'FILES-1', status: 'DRAFT', photos: [photo], datasheetKey: datasheet }));
     const row = await base.product.findFirstOrThrow({ where: { id: created.id } });
     expect(row.photos).toEqual([photo]);
     expect(row.datasheetUrl).toBe(datasheet);
 
-    const foreign = `${randomUUID()}/photo/0190e8a0-0000-7000-8000-0000000000cc.jpg`;
+    const foreign = `${randomUUID()}/photo/FILES-1_v1.jpg`;
     const err = await rejection(commands.saveDraft(created.id, { status: 'DRAFT', manufacturerCode: 'FILES-1', photos: [foreign] }));
     expect(err).toMatchObject({ status: 400, code: 'VALIDATION_FAILED', details: [{ field: 'photos', code: 'INVALID_FILE_KEY' }] });
   });
 
   it('keeps the stored photos when a later save leaves them out', async () => {
-    const photo = `${a.companyId}/photo/0190e8a0-0000-7000-8000-0000000000dd.png`;
+    const photo = `${a.companyId}/photo/FILES-2_v1.png`;
     const created = await commands.create(bearing({ manufacturerCode: 'FILES-2', status: 'DRAFT', photos: [photo] }));
     await commands.saveDraft(created.id, { status: 'DRAFT', manufacturerCode: 'FILES-2', salePrice: '10.00' });
     expect((await base.product.findFirstOrThrow({ where: { id: created.id } })).photos).toEqual([photo]);
@@ -277,6 +277,12 @@ describe('ProductCommandsService create / saveDraft (integration, real Postgres)
   it('checks the code live per brand (drafts count)', async () => {
     expect(await commands.codeAvailability(a.brandSKF, '6205-2RS')).toMatchObject({ available: false, productId: expect.any(String) });
     expect(await commands.codeAvailability(a.brandSKF, 'FREE-CODE')).toEqual({ available: true, productId: null });
+  });
+
+  it('ignores the case of the code, and refuses a product whose code only differs in case', async () => {
+    expect(await commands.codeAvailability(a.brandSKF, '6205-2rs')).toMatchObject({ available: false, productId: expect.any(String) });
+    const err = await rejection(commands.create(bearing({ manufacturerCode: '6205-2rs', status: 'DRAFT' })));
+    expect(err).toMatchObject({ status: 409, code: 'DUPLICATE_MANUFACTURER_CODE' });
   });
 
   it('validates a non-bearing category without dimensions', async () => {

@@ -13,6 +13,7 @@ import {
   type ProductListResponse,
   type ProductSpec,
   stockAvailability,
+  summarizeSpecs,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
 import type { AppClsStore } from '../../common/cls';
@@ -55,10 +56,22 @@ export class ProductsService {
           category: {
             select: { id: true, name: true, icon: true, parent: { select: { id: true, name: true, icon: true } } },
           },
-          dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true } },
+          dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true, weight: true } },
+          attributes: true,
         },
       }),
     ]);
+
+    // technical fields for the description: one query for the definitions of every category on the page
+    const categoryIds = [...new Set(rows.flatMap((r) => [r.category.id, r.category.parent?.id ?? '']).filter(Boolean))];
+    const definitions = categoryIds.length
+      ? await this.prisma.tenant.attributeDefinition.findMany({
+          where: { categoryId: { in: categoryIds } },
+          orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }, { key: 'asc' }],
+          select: { categoryId: true, key: true, label: true, type: true, unit: true },
+        })
+      : [];
+    const definitionsOf = (categoryId: string) => definitions.filter((d) => d.categoryId === categoryId);
 
     // only an empty result can mean an empty catalog; otherwise the company has products
     const catalogEmpty = total === 0 && !(await this.prisma.tenant.product.findFirst({ select: { id: true } }));
@@ -101,8 +114,15 @@ export class ProductsService {
               innerDiameter: r.dimensions.innerDiameter?.toString() ?? null,
               outerDiameter: r.dimensions.outerDiameter?.toString() ?? null,
               width: r.dimensions.width?.toString() ?? null,
+              weight: r.dimensions.weight?.toString() ?? null,
             }
           : null,
+        // the subcategory's own fields, or its parent's when it has none (same rule as the product sheet)
+        specs: summarizeSpecs(
+          definitionsOf(r.category.id).length ? definitionsOf(r.category.id) : parent ? definitionsOf(parent.id) : [],
+          isRecord(r.attributes) ? r.attributes : {},
+          { hasMeasures: !!(r.dimensions?.innerDiameter && r.dimensions.outerDiameter && r.dimensions.width) },
+        ),
         totalStock: totalByProduct.get(r.id) ?? 0,
         branchStock: query.branchId ? (branchByProduct.get(r.id) ?? 0) : null,
         salePrice: r.salePrice.toFixed(2),

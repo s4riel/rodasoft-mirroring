@@ -49,6 +49,14 @@ export const PRODUCT_DRAFT_ERROR_CODES = [
   'ATTRIBUTE_TYPE',
   'ATTRIBUTE_OPTION',
   'ATTRIBUTE_UNKNOWN',
+  'PRICE_FORMAT',
+  'COST_FORMAT',
+  'MEASURE_FORMAT',
+  'DIAMETER_ORDER',
+  'TARIFF_FORMAT',
+  'DATE_INVALID',
+  'DATE_FUTURE',
+  'STOCK_RANGE',
 ] as const;
 
 export type ProductDraftErrorCode = (typeof PRODUCT_DRAFT_ERROR_CODES)[number];
@@ -74,6 +82,76 @@ export interface ProductDraftInput {
   salePrice: string | null;
   dimensions: { innerDiameter: string | null; outerDiameter: string | null; width: string | null };
   attributes: Readonly<Record<string, unknown>>;
+  /** The fields below are checked for format only when present; amounts and measures accept a comma or a dot. */
+  cost?: string | null;
+  weight?: string | null;
+  tariffCode?: string | null;
+  /** `YYYY-MM-DD`. */
+  entryDate?: string | null;
+  minStock?: number | null;
+  maxStock?: number | null;
+  /** Today in the business timezone (`YYYY-MM-DD`); when given, an entry date after it is refused. */
+  today?: string;
+}
+
+/** Amounts: up to 11 digits and 2 decimals for the price, 4 for the cost; measures: 7 digits and 3 decimals. */
+const PRICE_RE = /^\d{1,11}([.,]\d{1,2})?$/;
+const COST_RE = /^\d{1,10}([.,]\d{1,4})?$/;
+const MEASURE_RE = /^\d{1,7}([.,]\d{1,3})?$/;
+/** Tariff heading as printed on customs papers: "8482", "8482.10", "8482.10.00.00" (dots optional). */
+const TARIFF_RE = /^\d{4}(\.?\d{2}){0,3}$/;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Today as `YYYY-MM-DD` in the business timezone (America/La_Paz). */
+export function todayInLaPaz(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz' }).format(now);
+}
+
+const isBlank = (value: string | null | undefined): boolean => value === null || value === undefined || value.trim() === '';
+
+function isRealDate(text: string): boolean {
+  const match = DATE_RE.exec(text);
+  if (!match) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+/**
+ * Format of the values that are present (blank ones are not checked here: `validateProductDraft` decides which are
+ * required). The field of each error is the field of the form, so the wizard can mark it.
+ */
+export function validateFieldFormats(input: ProductDraftInput): ProductFieldError[] {
+  const errors: ProductFieldError[] = [];
+  const price = input.salePrice?.trim();
+  if (price && !PRICE_RE.test(price)) errors.push({ field: 'salePrice', code: 'PRICE_FORMAT' });
+  const cost = input.cost?.trim();
+  if (cost && !COST_RE.test(cost)) errors.push({ field: 'cost', code: 'COST_FORMAT' });
+
+  const measures = { ...input.dimensions, weight: input.weight ?? null };
+  for (const [field, raw] of Object.entries(measures)) {
+    const value = raw?.trim();
+    if (value && (!MEASURE_RE.test(value) || Number(value.replace(',', '.')) <= 0)) errors.push({ field, code: 'MEASURE_FORMAT' });
+  }
+  const { innerDiameter, outerDiameter } = input.dimensions;
+  if (!errors.some((e) => e.field === 'innerDiameter' || e.field === 'outerDiameter') && !isBlank(innerDiameter) && !isBlank(outerDiameter)) {
+    // the bore is always smaller than the outside of the bearing
+    if (Number((innerDiameter ?? '').replace(',', '.')) >= Number((outerDiameter ?? '').replace(',', '.'))) {
+      errors.push({ field: 'outerDiameter', code: 'DIAMETER_ORDER' });
+    }
+  }
+
+  const tariff = input.tariffCode?.trim();
+  if (tariff && !TARIFF_RE.test(tariff)) errors.push({ field: 'tariffCode', code: 'TARIFF_FORMAT' });
+  const entry = input.entryDate?.trim();
+  if (entry) {
+    if (!isRealDate(entry)) errors.push({ field: 'entryDate', code: 'DATE_INVALID' });
+    else if (input.today && entry > input.today) errors.push({ field: 'entryDate', code: 'DATE_FUTURE' });
+  }
+  if (typeof input.minStock === 'number' && typeof input.maxStock === 'number' && input.maxStock < input.minStock) {
+    errors.push({ field: 'maxStock', code: 'STOCK_RANGE' });
+  }
+  return errors;
 }
 
 /**
@@ -89,14 +167,19 @@ export function validateProductDraft(
 
   if (!input.manufacturerCode?.trim()) errors.push({ field: 'manufacturerCode', code: 'CODE_REQUIRED' });
   if (!input.brandId) errors.push({ field: 'brandId', code: 'BRAND_REQUIRED' });
-  if (draft) return [...errors, ...attributeErrors(input.attributes, definitions, draft)];
+  // the format of what is present is checked in drafts too: a draft keeps what the user typed, so it cannot keep garbage
+  const formats = validateFieldFormats(input);
+  if (draft) return [...errors, ...formats, ...attributeErrors(input.attributes, definitions, draft)];
 
   if (!input.categoryId) errors.push({ field: 'categoryId', code: 'CATEGORY_REQUIRED' });
   if (input.isBearing && !isComplete(input.dimensions)) {
     errors.push({ field: 'dimensions', code: 'DIMENSIONS_REQUIRED' });
   }
-  if (!isPositiveMoney(input.salePrice)) errors.push({ field: 'salePrice', code: 'PRICE_REQUIRED' });
-  return [...errors, ...attributeErrors(input.attributes, definitions, draft)];
+  // a price with a wrong format already has its own error: it is not "missing"
+  if (!formats.some((e) => e.field === 'salePrice') && !isPositiveMoney(input.salePrice)) {
+    errors.push({ field: 'salePrice', code: 'PRICE_REQUIRED' });
+  }
+  return [...errors, ...formats, ...attributeErrors(input.attributes, definitions, draft)];
 }
 
 function isComplete(d: ProductDraftInput['dimensions']): boolean {

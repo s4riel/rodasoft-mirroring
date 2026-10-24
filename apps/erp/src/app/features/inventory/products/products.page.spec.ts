@@ -29,6 +29,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   category: { id: 'k-1', name: 'Rodamientos', icon: 'bearing' },
   subcategory: { id: 'k-2', name: 'Rígidos de bolas' },
   dimensions: { innerDiameter: '25', outerDiameter: '52', width: '15' },
+  specs: [],
   totalStock: 60,
   branchStock: 24,
   salePrice: '245.00',

@@ -78,10 +78,18 @@
                   <rs-select inputId="wizard-subcategory" formControlName="subcategoryId" placeholder="Sin subcategoría" [options]="subcategoryOptions()" />
                 </rs-field>
 
-                <rs-field label="Nombre comercial" forId="wizard-name" hint="Se arma con tipo, código y marca.">
+                <rs-field label="Nombre comercial" forId="wizard-name" hint="Se arma con categoría, marca y código. Puedes editarlo.">
                   <rs-input-group>
                     <rs-icon rsInputLeading name="tag" [size]="16" />
-                    <input rsInput id="wizard-name" formControlName="name" autocomplete="off" maxlength="200" placeholder="Se arma al crear" />
+                    <input
+                      rsInput
+                      id="wizard-name"
+                      formControlName="name"
+                      autocomplete="off"
+                      maxlength="200"
+                      placeholder="Se arma al elegir marca y código"
+                      (input)="onNameInput()"
+                    />
                   </rs-input-group>
                 </rs-field>
 
@@ -122,28 +130,28 @@
                 </div>
               </header>
               <div class="grid-4">
-                <rs-field label="Ø Interior d (mm)" forId="wizard-d" required [error]="errorText('dimensions')">
-                  <rs-input-group [invalid]="invalid('dimensions') && !form.controls.innerDiameter.value.trim()">
+                <rs-field label="Ø Interior d (mm)" forId="wizard-d" required [error]="errorText('innerDiameter') ?? errorText('dimensions')">
+                  <rs-input-group [invalid]="invalid('innerDiameter') || (invalid('dimensions') && !form.controls.innerDiameter.value.trim())">
                     <rs-icon rsInputLeading name="diameter" [size]="16" />
-                    <input rsInput class="mono" id="wizard-d" formControlName="innerDiameter" inputmode="decimal" placeholder="25" />
+                    <input rsInput rsNumeric="decimal" [decimals]="3" class="mono" id="wizard-d" formControlName="innerDiameter" inputmode="decimal" placeholder="25" />
                   </rs-input-group>
                 </rs-field>
-                <rs-field label="Ø Exterior D (mm)" forId="wizard-big-d" required>
-                  <rs-input-group [invalid]="invalid('dimensions') && !form.controls.outerDiameter.value.trim()">
+                <rs-field label="Ø Exterior D (mm)" forId="wizard-big-d" required [error]="errorText('outerDiameter')">
+                  <rs-input-group [invalid]="invalid('outerDiameter') || (invalid('dimensions') && !form.controls.outerDiameter.value.trim())">
                     <rs-icon rsInputLeading name="diameter" [size]="16" />
-                    <input rsInput class="mono" id="wizard-big-d" formControlName="outerDiameter" inputmode="decimal" placeholder="52" />
+                    <input rsInput rsNumeric="decimal" [decimals]="3" class="mono" id="wizard-big-d" formControlName="outerDiameter" inputmode="decimal" placeholder="52" />
                   </rs-input-group>
                 </rs-field>
-                <rs-field label="Ancho B (mm)" forId="wizard-b" required>
-                  <rs-input-group [invalid]="invalid('dimensions') && !form.controls.width.value.trim()">
+                <rs-field label="Ancho B (mm)" forId="wizard-b" required [error]="errorText('width')">
+                  <rs-input-group [invalid]="invalid('width') || (invalid('dimensions') && !form.controls.width.value.trim())">
                     <rs-icon rsInputLeading name="ruler" [size]="16" />
-                    <input rsInput class="mono" id="wizard-b" formControlName="width" inputmode="decimal" placeholder="15" />
+                    <input rsInput rsNumeric="decimal" [decimals]="3" class="mono" id="wizard-b" formControlName="width" inputmode="decimal" placeholder="15" />
                   </rs-input-group>
                 </rs-field>
-                <rs-field label="Peso (kg)" forId="wizard-weight">
-                  <rs-input-group>
+                <rs-field label="Peso (kg)" forId="wizard-weight" [error]="errorText('weight')">
+                  <rs-input-group [invalid]="invalid('weight')">
                     <rs-icon rsInputLeading name="package" [size]="16" />
-                    <input rsInput class="mono" id="wizard-weight" formControlName="weight" inputmode="decimal" placeholder="0,13" />
+                    <input rsInput rsNumeric="decimal" [decimals]="3" class="mono" id="wizard-weight" formControlName="weight" inputmode="decimal" placeholder="0,13" />
                   </rs-input-group>
                 </rs-field>
               </div>
@@ -204,32 +212,32 @@
               }
               <div class="grid-3">
                 <rs-field label="Unidad de medida" forId="wizard-unit">
-                  <rs-select inputId="wizard-unit" formControlName="unit" [options]="unitOptions" />
+                  <rs-select inputId="wizard-unit" formControlName="unit" placeholder="Selecciona una unidad" [options]="unitOptions" />
                 </rs-field>
                 <rs-field label="Precio de venta (Bs)" forId="wizard-price" required [error]="errorText('salePrice')">
                   <rs-input-group [invalid]="invalid('salePrice')">
                     <rs-icon rsInputLeading name="currency" [size]="16" />
-                    <input rsInput id="wizard-price" formControlName="salePrice" inputmode="decimal" placeholder="0,00" />
+                    <input rsInput rsNumeric="decimal" [decimals]="2" id="wizard-price" formControlName="salePrice" inputmode="decimal" placeholder="0,00" />
                   </rs-input-group>
                 </rs-field>
                 @if (canSeeCost()) {
-                  <rs-field label="Costo (Bs)" forId="wizard-cost" hint="Solo Gerencia y Contabilidad.">
-                    <rs-input-group>
+                  <rs-field label="Costo (Bs)" forId="wizard-cost" hint="Solo Gerencia y Contabilidad." [error]="errorText('cost')">
+                    <rs-input-group [invalid]="invalid('cost')">
                       <rs-icon rsInputLeading name="currency" [size]="16" />
-                      <input rsInput id="wizard-cost" formControlName="cost" inputmode="decimal" placeholder="0,00" />
+                      <input rsInput rsNumeric="decimal" [decimals]="4" id="wizard-cost" formControlName="cost" inputmode="decimal" placeholder="0,00" />
                     </rs-input-group>
                   </rs-field>
                 }
-                <rs-field label="Stock mínimo" forId="wizard-min" hint="Genera alerta de stock bajo.">
-                  <rs-input-group>
+                <rs-field label="Stock mínimo" forId="wizard-min" hint="Genera alerta de stock bajo." [error]="errorText('minStock')">
+                  <rs-input-group [invalid]="invalid('minStock')">
                     <rs-icon rsInputLeading name="package" [size]="16" />
-                    <input rsInput id="wizard-min" formControlName="minStock" inputmode="numeric" placeholder="0" />
+                    <input rsInput rsNumeric="integer" id="wizard-min" formControlName="minStock" inputmode="numeric" maxlength="7" placeholder="0" />
                   </rs-input-group>
                 </rs-field>
-                <rs-field label="Stock máximo" forId="wizard-max">
-                  <rs-input-group>
+                <rs-field label="Stock máximo" forId="wizard-max" [error]="errorText('maxStock')">
+                  <rs-input-group [invalid]="invalid('maxStock')">
                     <rs-icon rsInputLeading name="package" [size]="16" />
-                    <input rsInput id="wizard-max" formControlName="maxStock" inputmode="numeric" placeholder="0" />
+                    <input rsInput rsNumeric="integer" id="wizard-max" formControlName="maxStock" inputmode="numeric" maxlength="7" placeholder="0" />
                   </rs-input-group>
                 </rs-field>
                 <rs-field label="Ubicación en almacén" forId="wizard-location" hint="Pasillo · estante · nivel.">
@@ -239,30 +247,30 @@
                   </rs-input-group>
                 </rs-field>
                 <rs-field label="Sucursal de ingreso" forId="wizard-branch">
-                  <rs-select inputId="wizard-branch" formControlName="branchId" [options]="branchOptions()" />
+                  <rs-select inputId="wizard-branch" formControlName="branchId" placeholder="Selecciona una sucursal" [options]="branchOptions()" />
                 </rs-field>
-                <rs-field label="Stock inicial" forId="wizard-stock">
-                  <rs-input-group>
+                <rs-field label="Stock inicial" forId="wizard-stock" [error]="errorText('initialStock')">
+                  <rs-input-group [invalid]="invalid('initialStock')">
                     <rs-icon rsInputLeading name="package" [size]="16" />
-                    <input rsInput id="wizard-stock" formControlName="initialStock" inputmode="numeric" placeholder="0" />
+                    <input rsInput rsNumeric="integer" id="wizard-stock" formControlName="initialStock" inputmode="numeric" maxlength="7" placeholder="0" />
                   </rs-input-group>
                 </rs-field>
                 <rs-field label="Proveedor habitual" forId="wizard-supplier">
                   <rs-input-group>
                     <rs-icon rsInputLeading name="user" [size]="16" />
-                    <input rsInput id="wizard-supplier" formControlName="supplierName" />
+                    <input rsInput id="wizard-supplier" formControlName="supplierName" maxlength="200" autocomplete="off" placeholder="Nombre del proveedor" />
                   </rs-input-group>
                 </rs-field>
               </div>
               <div class="grid-2">
-                <rs-field label="Partida arancelaria" forId="wizard-tariff" hint="Para costos de importación.">
-                  <rs-input-group>
+                <rs-field label="Partida arancelaria" forId="wizard-tariff" hint="Para costos de importación." [error]="errorText('tariffCode')">
+                  <rs-input-group [invalid]="invalid('tariffCode')">
                     <rs-icon rsInputLeading name="document" [size]="16" />
-                    <input rsInput id="wizard-tariff" formControlName="tariffCode" placeholder="Ej. 8482.10" />
+                    <input rsInput id="wizard-tariff" formControlName="tariffCode" maxlength="13" placeholder="Ej. 8482.10" />
                   </rs-input-group>
                 </rs-field>
-                <rs-field label="Fecha de ingreso" forId="wizard-entry">
-                  <input rsInput id="wizard-entry" type="date" formControlName="entryDate" />
+                <rs-field label="Fecha de ingreso" forId="wizard-entry" [error]="errorText('entryDate')">
+                  <input rsInput id="wizard-entry" type="date" formControlName="entryDate" [attr.max]="today" />
                 </rs-field>
               </div>
             </div>
@@ -282,46 +290,73 @@
               }
               <div class="grid-2">
                 <div class="dropzone">
-                  <label class="dz-target">
-                    <input
-                      class="visually-hidden"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      multiple
-                      [disabled]="uploading() !== null"
-                      (change)="onFiles('photo', $event)"
-                    />
-                    <span class="dz-title">Fotos del producto</span>
-                    <span class="dz-hint">Hasta {{ maxPhotos }} imágenes · JPG o PNG · máx. 5 MB</span>
-                  </label>
+                  <rs-file-dropzone
+                    title="Arrastra las fotos aquí"
+                    formatsLabel="Formatos admitidos:"
+                    formats="JPG, PNG, WEBP"
+                    [limit]="'Hasta ' + maxPhotos + ' fotos · máx. 5 MB cada una'"
+                    buttonLabel="Seleccionar fotos"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    [disabled]="photosFull()"
+                    (filesSelected)="onFiles('photo', $event)"
+                  >
+                    <rs-icon name="image" [size]="24" />
+                  </rs-file-dropzone>
                   @for (key of photoKeys(); track key; let i = $index) {
-                    <p class="file-row">
+                    <rs-file-item [name]="fileNameOf(key)" detail="Foto subida" status="done" removeLabel="Quitar foto" (removed)="removePhoto(i)">
                       @if (previews()[key]; as src) {
-                        <img class="thumb" [src]="src" [alt]="'Foto ' + (i + 1)" />
+                        <img [src]="src" [alt]="'Foto ' + (i + 1)" />
                       } @else {
-                        <span>Foto {{ i + 1 }}</span>
+                        <rs-icon name="image" [size]="20" />
                       }
-                      <button rsButton variant="ghost" size="sm" type="button" (click)="removePhoto(i)">Quitar</button>
-                    </p>
+                    </rs-file-item>
+                  }
+                  @for (upload of uploads(); track upload.id) {
+                    @if (upload.kind === 'photo') {
+                      <rs-file-item
+                        [name]="upload.name"
+                        [detail]="upload.detail"
+                        [status]="upload.status"
+                        [progress]="upload.percent"
+                        [removeLabel]="upload.status === 'error' ? 'Descartar' : 'Cancelar subida'"
+                        (removed)="dismissUpload(upload)"
+                      >
+                        <rs-icon name="image" [size]="20" />
+                      </rs-file-item>
+                    }
                   }
                 </div>
                 <div class="dropzone">
-                  <label class="dz-target">
-                    <input
-                      class="visually-hidden"
-                      type="file"
-                      accept="application/pdf"
-                      [disabled]="uploading() !== null"
-                      (change)="onFiles('datasheet', $event)"
-                    />
-                    <span class="dz-title">Ficha técnica</span>
-                    <span class="dz-hint">PDF del fabricante · máx. 10 MB</span>
-                  </label>
-                  @if (datasheetKey()) {
-                    <p class="file-row">
-                      <span>Ficha técnica adjunta</span>
-                      <button rsButton variant="ghost" size="sm" type="button" (click)="removeDatasheet()">Quitar</button>
-                    </p>
+                  <rs-file-dropzone
+                    title="Arrastra la ficha técnica aquí"
+                    formatsLabel="Formato admitido:"
+                    formats="PDF"
+                    limit="PDF del fabricante · máx. 10 MB"
+                    buttonLabel="Seleccionar PDF"
+                    accept="application/pdf"
+                    (filesSelected)="onFiles('datasheet', $event)"
+                  >
+                    <rs-icon name="document" [size]="24" />
+                  </rs-file-dropzone>
+                  @if (datasheetKey(); as sheet) {
+                    <rs-file-item [name]="fileNameOf(sheet)" detail="Ficha técnica adjunta" status="done" removeLabel="Quitar ficha técnica" (removed)="removeDatasheet()">
+                      <rs-icon name="document" [size]="20" />
+                    </rs-file-item>
+                  }
+                  @for (upload of uploads(); track upload.id) {
+                    @if (upload.kind === 'datasheet') {
+                      <rs-file-item
+                        [name]="upload.name"
+                        [detail]="upload.detail"
+                        [status]="upload.status"
+                        [progress]="upload.percent"
+                        [removeLabel]="upload.status === 'error' ? 'Descartar' : 'Cancelar subida'"
+                        (removed)="dismissUpload(upload)"
+                      >
+                        <rs-icon name="document" [size]="20" />
+                      </rs-file-item>
+                    }
                   }
                 </div>
               </div>
@@ -437,7 +472,11 @@
       <section class="card preview">
         <p class="eyebrow">Vista previa</p>
         <div class="product">
-          <span class="brand-mark" aria-hidden="true">{{ brandInitials() }}</span>
+          @if (previewPhoto(); as src) {
+            <img class="brand-mark photo" [src]="src" alt="Foto del producto" />
+          } @else {
+            <span class="brand-mark" aria-hidden="true">{{ brandInitials() }}</span>
+          }
           <div class="product-data">
             <span class="product-code">{{ form.controls.manufacturerCode.value || "—" }}</span>
             <span class="product-name">{{ categoryLabel() ?? "—" }}{{ brandName() ? " · " + brandName() : "" }}</span>
@@ -445,7 +484,7 @@
         </div>
         <div class="pills">
           @for (chip of previewChips(); track $index) {
-            <span class="pill">{{ chip }}</span>
+            <span class="pill"><span class="pill-label">{{ chip.label }}:</span> {{ chip.value }}</span>
           }
         </div>
       </section>
@@ -503,7 +542,7 @@
     } @else if (optionalStep()) {
       <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="skip()">Omitir este paso</button>
     }
-    <button rsButton variant="brand" type="submit" form="product-wizard-step" [loading]="saving()">
+    <button rsButton variant="brand" type="submit" form="product-wizard-step" [loading]="saving() || verifying()">
       @if (currentStep() === 'equivalences') {
         <rs-icon name="check" [size]="16" /> Guardar producto
       } @else {
@@ -514,7 +553,14 @@
 }
 
 <ng-template #attributeField let-definition let-hint="hint">
-  <rs-field [hint]="hint ?? ''" [label]="definition.label + (definition.unit ? ' (' + definition.unit + ')' : '')" [forId]="'attr-' + definition.key" [required]="definition.required" [error]="errorText(definition.key)">
+  <rs-field
+    [class.wide]="isLongText(definition)"
+    [hint]="hint ?? ''"
+    [label]="definition.label + (definition.unit ? ' (' + definition.unit + ')' : '')"
+    [forId]="'attr-' + definition.key"
+    [required]="definition.required"
+    [error]="errorText(definition.key)"
+  >
     @if (definition.type === 'ENUM') {
       <rs-select
         [inputId]="'attr-' + definition.key"
@@ -523,14 +569,28 @@
         [options]="optionsOf(definition)"
         [invalid]="invalid(definition.key)"
       />
+    } @else if (isLongText(definition)) {
+      <textarea
+        rsTextarea
+        autosize
+        rows="3"
+        [id]="'attr-' + definition.key"
+        [formControl]="form.controls.attributes.controls[definition.key]"
+        [placeholder]="placeholderOf(definition)"
+        [invalid]="invalid(definition.key)"
+      ></textarea>
     } @else {
       <rs-input-group [invalid]="invalid(definition.key)">
         <rs-icon rsInputLeading [name]="iconOfField(definition)" [size]="16" />
         <input
           rsInput
+          [rsNumeric]="definition.type === 'NUMBER' ? 'decimal' : null"
+          [decimals]="4"
           [id]="'attr-' + definition.key"
           [formControl]="form.controls.attributes.controls[definition.key]"
           [attr.inputmode]="definition.type === 'NUMBER' ? 'decimal' : null"
+          [placeholder]="placeholderOf(definition)"
+          autocomplete="off"
         />
       </rs-input-group>
     }

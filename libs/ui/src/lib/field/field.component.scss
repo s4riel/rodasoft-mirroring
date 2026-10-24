@@ -1,8 +1,12 @@
 :host {
   display: grid;
+  /* the single track must be able to shrink below the label's text, or a long label overflows its column */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
+  min-width: 0;
 }
 .head {
+  min-width: 0;
   display: flex;
   align-items: center;
   line-height: var(--label-md-line-height);
@@ -10,13 +14,25 @@
   gap: var(--space-2);
 }
 .label {
+  /* one line: the text is cut with an ellipsis (full text in the tooltip) and the asterisk stays visible */
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
   color: var(--text-primary);
   font-size: var(--label-md-size);
   line-height: var(--label-md-line-height);
   font-weight: var(--label-md-weight);
   letter-spacing: var(--label-md-tracking);
 }
+.label-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .required {
+  flex: none;
+  margin-left: var(--space-1);
   color: inherit; /* Figma: the asterisk is part of the label text */
 }
 .msg {

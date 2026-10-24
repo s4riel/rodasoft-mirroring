@@ -1,0 +1,27 @@
+<div class="row">
+  <span class="tile" aria-hidden="true"><ng-content /></span>
+  <div class="text">
+    <span class="name" [title]="name()">{{ name() }}</span>
+    @if (detail()) {
+      <span class="detail">{{ detail() }}</span>
+    }
+  </div>
+  <button type="button" class="remove" [attr.aria-label]="removeLabel()" (click)="removed.emit()">
+    <rs-icon name="close" [size]="16" />
+  </button>
+</div>
+@if (status() === 'uploading') {
+  <div class="progress">
+    <div
+      class="bar"
+      role="progressbar"
+      [attr.aria-label]="name()"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuenow]="percent()"
+    >
+      <span class="fill" [style.width.%]="percent()"></span>
+    </div>
+    <span class="percent">{{ percent() }}%</span>
+  </div>
+}

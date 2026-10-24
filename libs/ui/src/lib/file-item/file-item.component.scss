@@ -1,0 +1,110 @@
+:host {
+  --_c: var(--brand-primary);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  transition: border-color 120ms ease;
+}
+:host(:hover) {
+  border-color: var(--brand-primary);
+}
+:host([data-status='error']) {
+  --_c: var(--status-danger);
+  border-color: var(--status-danger);
+}
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+.tile {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: var(--size-control-md); /* icon tile: same size as the medium controls */
+  height: var(--size-control-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+:host(:hover) .tile,
+:host([data-status='uploading']) .tile {
+  background: var(--brand-primary-soft);
+  color: var(--_c);
+}
+.tile ::ng-deep img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.text {
+  display: grid;
+  min-width: 0;
+}
+.name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.detail {
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+:host([data-status='error']) .detail {
+  color: var(--status-danger);
+}
+.remove {
+  display: grid;
+  place-items: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.remove:hover {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+.remove:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+.bar {
+  height: var(--space-2); /* progress bar: 8 px, as on the product wizard */
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-2);
+  overflow: hidden;
+}
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--_c);
+  transition: width 200ms ease;
+}
+.percent {
+  min-width: 3ch;
+  text-align: right;
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
