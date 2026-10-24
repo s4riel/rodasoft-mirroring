@@ -1,5 +1,6 @@
 /** Product catalog contracts and pure rules shared by the API and the ERP (HU-INV-01, 02, 03). */
 
+import { normalizePair } from './equivalence';
 import { Decimal } from './money';
 
 export const PRODUCT_PAGE_SIZE_DEFAULT = 25;
@@ -60,6 +61,8 @@ export interface DuplicateProductRequest {
 export interface DuplicateProductResponse {
   id: string;
   sku: string;
+  /** DRAFT when the price was not copied: the copy still needs one (HU-INV-06), so it opens in the wizard. */
+  status: 'ACTIVE' | 'DRAFT';
 }
 
 export interface ProductDimensionValues {
@@ -89,7 +92,7 @@ export interface DuplicatePayload {
   categoryId: string;
   name: string;
   unit: string;
-  status: 'ACTIVE';
+  status: 'ACTIVE' | 'DRAFT';
   salePrice: string;
   cost: string | null;
   attributes: Record<string, unknown>;
@@ -100,7 +103,8 @@ export interface DuplicatePayload {
 
 /**
  * What the copy of a product contains. Name, category and unit are always copied; the rest only with its
- * part. The copy is ACTIVE and never inherits stock. Without `price` the copy starts at 0.00 (HU-INV-06 warns).
+ * part. The copy never inherits stock. Without `price` it is a DRAFT at 0.00, because an ACTIVE product needs a
+ * price (HU-INV-06); with `price` it is ACTIVE.
  */
 export function buildDuplicate(source: DuplicateSource, request: DuplicateProductRequest): DuplicatePayload {
   const has = (part: ProductCopyPart) => request.copy.includes(part);
@@ -111,7 +115,7 @@ export function buildDuplicate(source: DuplicateSource, request: DuplicateProduc
     categoryId: source.categoryId,
     name: source.name,
     unit: source.unit,
-    status: 'ACTIVE',
+    status: has('price') ? 'ACTIVE' : 'DRAFT',
     salePrice: has('price') ? source.salePrice : '0.00',
     cost: has('price') ? source.cost : null,
     attributes: has('specifications') ? { ...source.attributes } : {},
@@ -119,6 +123,15 @@ export function buildDuplicate(source: DuplicateSource, request: DuplicateProduc
     datasheetUrl: has('media') ? source.datasheetUrl : null,
     dimensions: has('dimensions') && source.dimensions ? { ...source.dimensions } : null,
   };
+}
+
+/**
+ * Equivalence rows that link a copy to every equivalent of its source, in canonical order (`a < b`). The copy is not
+ * made equivalent to the source itself, and the copy's own id (it cannot be in the list) is never paired with itself.
+ */
+export function equivalencePairsForCopy(copyId: string, equivalentIds: readonly string[]): [string, string][] {
+  const unique = [...new Set(equivalentIds)].filter((id) => id !== copyId);
+  return unique.map((id) => normalizePair(copyId, id));
 }
 
 export interface ProductBrandSummary {

@@ -183,12 +183,7 @@
 
 <rs-toast-outlet closeLabel="Cerrar" />
 
-<rs-duplicate-product-dialog
-  [(open)]="duplicateOpen"
-  [product]="duplicateTarget()"
-  [options]="options()"
-  (created)="onDuplicated($event)"
-/>
+<rs-duplicate-product-dialog [(open)]="duplicateOpen" [product]="duplicateTarget()" [options]="options()" />
 
 <rs-modal
   variant="confirmation"

@@ -2,7 +2,6 @@ import { toObservable, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-i
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import type {
-  DuplicateProductResponse,
   ProductFilterOptions,
   ProductListItem,
   ProductListQuery,
@@ -370,11 +369,6 @@ export class ProductsPage {
       default:
         this.comingSoon();
     }
-  }
-
-  protected onDuplicated(result: DuplicateProductResponse) {
-    this.toast.success(`Copia creada: ${result.sku}`);
-    this.retry();
   }
 
   protected cancelDelete() {

@@ -1,5 +1,6 @@
 import {
   buildDuplicate,
+  equivalencePairsForCopy,
   clampPage,
   clampPageSize,
   summarizeSpecs,
@@ -89,7 +90,7 @@ describe('buildDuplicate', () => {
     copy,
   });
 
-  it('always copies name, category and unit, trims the new code and starts ACTIVE', () => {
+  it('always copies name, category and unit and trims the new code', () => {
     const copy = buildDuplicate(source, request([]));
     expect(copy).toMatchObject({
       manufacturerCode: '6205-2RS-B',
@@ -98,8 +99,13 @@ describe('buildDuplicate', () => {
       categoryId: 'cat-1',
       name: 'Rodamiento 6205-2RS',
       unit: 'UN',
-      status: 'ACTIVE',
     });
+  });
+
+  it('is a DRAFT without price and ACTIVE with it', () => {
+    expect(buildDuplicate(source, request([])).status).toBe('DRAFT');
+    expect(buildDuplicate(source, request(['dimensions', 'specifications'])).status).toBe('DRAFT');
+    expect(buildDuplicate(source, request(['price'])).status).toBe('ACTIVE');
   });
 
   it('copies nothing else when no part is chosen', () => {
@@ -227,5 +233,19 @@ describe('summarizeSpecs measures', () => {
       { label: 'Material', value: 'Goma' },
     ]);
     expect(summarizeSpecs(defs, attributes)).toEqual([{ label: 'Material', value: 'Goma' }]);
+  });
+});
+
+describe('equivalencePairsForCopy', () => {
+  it('pairs the copy with each equivalent in canonical order, without repeats or self links', () => {
+    const pairs = equivalencePairsForCopy('m', ['z', 'a', 'a', 'm']);
+    expect(pairs).toEqual([
+      ['m', 'z'],
+      ['a', 'm'],
+    ]);
+  });
+
+  it('is empty when the source has no equivalents', () => {
+    expect(equivalencePairsForCopy('m', [])).toEqual([]);
   });
 });

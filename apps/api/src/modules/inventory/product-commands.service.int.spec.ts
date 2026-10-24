@@ -4,6 +4,7 @@
  */
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { normalizePair } from '@rodasoft/domain';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../../common/audit/audit.service';
 import type { PrismaService } from '../../common/prisma/prisma.service';
@@ -205,6 +206,95 @@ describe('ProductCommandsService (integration, real Postgres)', () => {
       expect(row.dimensions?.innerDiameter?.toString()).toBe('25');
       expect(row.salePrice.toFixed(2)).toBe('0.00');
       expect(row.cost).toBeNull();
+    });
+
+    it('creates the copy as a DRAFT without price (no created event) and as ACTIVE with it, audited with its status', async () => {
+      const draft = await dup('STATUS-DRAFT', { copy: ['dimensions'] });
+      expect(draft.status).toBe('DRAFT');
+      expect((await base.product.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe('DRAFT');
+      const draftAudit = await base.auditLog.findFirstOrThrow({ where: { companyId: a.companyId, entityId: draft.id } });
+      expect(draftAudit.after).toMatchObject({ status: 'DRAFT', equivalenceCount: 0 });
+      expect(await base.outboxEvent.count({ where: { companyId: a.companyId, idempotencyKey: `inventory.product-created:${draft.id}` } })).toBe(0);
+
+      const active = await dup('STATUS-ACTIVE', { copy: ['price'] });
+      expect(active.status).toBe('ACTIVE');
+      expect((await base.product.findUniqueOrThrow({ where: { id: active.id } })).status).toBe('ACTIVE');
+      const activeAudit = await base.auditLog.findFirstOrThrow({ where: { companyId: a.companyId, entityId: active.id } });
+      expect(activeAudit.after).toMatchObject({ status: 'ACTIVE' });
+      expect(await base.outboxEvent.count({ where: { companyId: a.companyId, idempotencyKey: `inventory.product-created:${active.id}` } })).toBe(1);
+    });
+
+    describe('equivalences', () => {
+      let eq1: string;
+      let eq2: string;
+      let eqSource: string;
+
+      const link = (x: string, y: string, companyId = a.companyId) => {
+        const [productAId, productBId] = normalizePair(x, y);
+        return base.equivalence.create({ data: { companyId, productAId, productBId } });
+      };
+      const newProduct = (companyId: string, brandId: string, categoryId: string, code: string) =>
+        base.product.create({ data: { companyId, sku: `EQ-${code}`, manufacturerCode: code, brandId, categoryId, name: code, salePrice: '1.00' } });
+      const dupEq = (code: string, copy: ('price' | 'equivalences')[] = ['price', 'equivalences']) =>
+        commands.duplicate(eqSource, { manufacturerCode: code, brandId: a.brandSKF, countryId: null, copy });
+      const linksOf = (id: string) => base.equivalence.findMany({ where: { OR: [{ productAId: id }, { productBId: id }] } });
+
+      beforeAll(async () => {
+        eqSource = (await newProduct(a.companyId, a.brandSKF, a.category, 'EQ-SRC')).id;
+        eq1 = (await newProduct(a.companyId, a.brandNSK, a.category, 'EQ-1')).id;
+        eq2 = (await newProduct(a.companyId, a.brandNSK, a.category, 'EQ-2')).id;
+        await link(eqSource, eq1);
+        await link(eq2, eqSource);
+      });
+
+      it('links the copy to every equivalent of the source, in canonical order and not to the source itself', async () => {
+        const copy = await dupEq('EQ-COPY-1');
+        const links = await linksOf(copy.id);
+        expect(links).toHaveLength(2);
+        for (const l of links) expect(l.productAId < l.productBId).toBe(true);
+        const others = links.map((l) => (l.productAId === copy.id ? l.productBId : l.productAId)).sort();
+        expect(others).toEqual([eq1, eq2].sort());
+        expect(others).not.toContain(eqSource);
+        const audit = await base.auditLog.findFirstOrThrow({ where: { companyId: a.companyId, entityId: copy.id } });
+        expect(audit.after).toMatchObject({ equivalenceCount: 2 });
+      });
+
+      it('links a DRAFT copy (no price) to the equivalents too', async () => {
+        const copy = await dupEq('EQ-COPY-DRAFT', ['equivalences']);
+        expect(copy.status).toBe('DRAFT');
+        expect(await linksOf(copy.id)).toHaveLength(2);
+      });
+
+      it('copies no links unless the part is chosen, and none when the source has none', async () => {
+        const without = await dupEq('EQ-COPY-NONE', ['price']);
+        expect(await linksOf(without.id)).toHaveLength(0);
+        const noLinks = await commands.duplicate(source, {
+          manufacturerCode: 'EQ-COPY-EMPTY',
+          brandId: a.brandSKF,
+          countryId: null,
+          copy: ['price', 'equivalences'],
+        });
+        expect(await linksOf(noLinks.id)).toHaveLength(0);
+      });
+
+      it('never reads the links of another company', async () => {
+        const foreignEq = await newProduct(b.companyId, b.brandSKF, b.category, 'EQ-FOREIGN');
+        await link(foreign, foreignEq.id, b.companyId);
+        current = a.companyId;
+        await expect(
+          commands.duplicate(foreign, { manufacturerCode: 'EQ-X', brandId: a.brandSKF, countryId: null, copy: ['equivalences'] }),
+        ).rejects.toBeInstanceOf(NotFoundException);
+        expect(await base.product.count({ where: { companyId: a.companyId, manufacturerCode: 'EQ-X' } })).toBe(0);
+      });
+
+      it('leaves no orphan links when 2 parallel duplicates use the same code', async () => {
+        const before = await base.equivalence.count({ where: { companyId: a.companyId } });
+        const results = await Promise.allSettled([dupEq('EQ-RACE'), dupEq('EQ-RACE')]);
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+        expect(failed.reason.response.code).toBe('DUPLICATE_MANUFACTURER_CODE');
+        expect(await base.equivalence.count({ where: { companyId: a.companyId } })).toBe(before + 2);
+      });
     });
 
     it('rejects an existing code for the same brand with 409', async () => {

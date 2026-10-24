@@ -264,7 +264,35 @@ describe('ProductSheetPage', () => {
     respond(detail());
     await settle(h);
     expect(text(h)).not.toContain('Editar');
+    expect(text(h)).not.toContain('Duplicar');
     expect(text(h)).not.toContain('Ajustar stock');
+  });
+
+  it('opens the duplicate dialog with this product from Duplicar and lands on the copy', async () => {
+    const h = await open();
+    respond(detail());
+    await settle(h);
+    const duplicate = Array.from(el(h).querySelectorAll('button')).find((b) => b.textContent?.includes('Duplicar')) as HTMLButtonElement;
+    duplicate.click();
+    http.expectOne('/api/v1/inventory/filter-options').flush({
+      countries: [{ id: 'c1', code: 'SE', name: 'Suecia' }],
+      brands: [{ id: 'b1', name: 'SKF', logoUrl: null, countryId: 'c1' }],
+      categories: [],
+    });
+    await settle(h);
+    const dialog = el(h).querySelector('rs-duplicate-product-dialog [role=dialog]');
+    expect(dialog?.textContent).toContain('Crea una copia de 6205-2RS · SKF');
+
+    const code = el(h).querySelector('#duplicate-code') as HTMLInputElement;
+    code.value = '6205-2RS-B';
+    code.dispatchEvent(new Event('input'));
+    (el(h).querySelector('button[type=submit]') as HTMLButtonElement).click();
+    await settle(h);
+    const req = http.expectOne('/api/v1/inventory/products/p1/duplicate');
+    expect(req.request.body).toMatchObject({ manufacturerCode: '6205-2RS-B', brandId: 'b1', countryId: 'c1' });
+    req.flush({ id: 'p2', sku: 'RL-000002', status: 'ACTIVE' });
+    await settle(h);
+    expect(TestBed.inject(Router).url).toBe('/inventory/products/p2/edit');
   });
 
   it('opens the edit wizard from Editar', async () => {

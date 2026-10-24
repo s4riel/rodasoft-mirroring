@@ -266,7 +266,7 @@ describe('ProductsPage', () => {
       expect(dialog?.textContent).toContain('Crea una copia de 6205-2RS · SKF');
     });
 
-    it('reloads the list and confirms with the new SKU after duplicating', async () => {
+    it('opens the copy after duplicating', async () => {
       const h = await openMenu([...VIEW, 'inventory.products.edit']);
       await choose(h, 'Duplicar');
       const input = el(h).querySelector('#duplicate-code') as HTMLInputElement;
@@ -274,11 +274,9 @@ describe('ProductsPage', () => {
       input.dispatchEvent(new Event('input'));
       (el(h).querySelector('button[type=submit]') as HTMLButtonElement).click();
       await h.fixture.whenStable();
-      http.expectOne('/api/v1/inventory/products/p1/duplicate').flush({ id: 'p2', sku: 'RL-000002' });
+      http.expectOne('/api/v1/inventory/products/p1/duplicate').flush({ id: 'p2', sku: 'RL-000002', status: 'ACTIVE' });
       await h.fixture.whenStable();
-      flushList(response([item(), item({ id: 'p2', manufacturerCode: '6205-2RS-B' })]));
-      h.detectChanges();
-      expect(text(h)).toContain('Copia creada: RL-000002');
+      expect(TestBed.inject(Router).url).toBe('/inventory/products/p2/edit');
     });
 
     it('asks for confirmation, deletes and reloads', async () => {
