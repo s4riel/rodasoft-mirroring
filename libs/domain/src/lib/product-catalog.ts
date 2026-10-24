@@ -133,6 +133,56 @@ export interface ProductCountrySummary {
   name: string;
 }
 
+/** A technical value of a product as the list shows it in the description: "Material: Acero", "Carga dinámica C: 14,8 kN". */
+export interface ProductListSpec {
+  label: string;
+  value: string;
+}
+
+/** The measures have their own part of the description ("Medidas") when the product has them. */
+const LIST_SPEC_MEASURE_KEYS = ['innerDiameter', 'outerDiameter', 'width'];
+
+/** "technicalNotes" -> "Technical notes": the label of a value that has no definition (a field removed from the category). */
+function labelOfKey(key: string): string {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function textOfValue(raw: unknown): string | null {
+  if (typeof raw === 'string') return raw.trim() || null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw).replace('.', ',');
+  if (typeof raw === 'boolean') return raw ? 'Sí' : 'No';
+  return null;
+}
+
+/**
+ * Everything filled in `products.attributes`, for the list description: first the category's fields in definition order,
+ * with their label and unit, then any other stored key (a field the category no longer defines) under its own name, so no
+ * saved data is left out. Numbers are written with a comma; the first `limit` are kept (the list cell shows two lines and
+ * the tooltip shows them all). The measure fields are left out when `hasMeasures`: the description shows them as "Medidas".
+ */
+export function summarizeSpecs(
+  definitions: readonly { key: string; label: string; type: AttributeKind; unit: string | null }[],
+  attributes: Readonly<Record<string, unknown>>,
+  { limit = 12, hasMeasures = true }: { limit?: number; hasMeasures?: boolean } = {},
+): ProductListSpec[] {
+  const skipped = (key: string) => hasMeasures && LIST_SPEC_MEASURE_KEYS.includes(key);
+  const specs: ProductListSpec[] = [];
+  for (const d of definitions) {
+    if (skipped(d.key)) continue;
+    const text = textOfValue(attributes[d.key]);
+    if (text === null) continue;
+    specs.push({ label: d.label, value: d.unit && d.type === 'NUMBER' ? `${text} ${d.unit}` : text });
+  }
+  const defined = new Set(definitions.map((d) => d.key));
+  for (const [key, raw] of Object.entries(attributes)) {
+    if (defined.has(key) || skipped(key)) continue;
+    const text = textOfValue(raw);
+    if (text !== null) specs.push({ label: labelOfKey(key), value: text });
+  }
+  return specs.slice(0, limit);
+}
+
 export interface ProductListItem {
   id: string;
   sku: string;
@@ -144,8 +194,10 @@ export interface ProductListItem {
   /** Root category; `icon` is the glyph name the ERP draws when the product has no photo. */
   category: { id: string; name: string; icon: string };
   subcategory: { id: string; name: string } | null;
-  /** d × D × B in mm, as strings to avoid float rounding. */
-  dimensions: { innerDiameter: string | null; outerDiameter: string | null; width: string | null } | null;
+  /** d × D × B in mm, and the weight in kg, as strings to avoid float rounding. */
+  dimensions: { innerDiameter: string | null; outerDiameter: string | null; width: string | null; weight?: string | null } | null;
+  /** Filled technical fields, in definition order (see `summarizeSpecs`). */
+  specs: ProductListSpec[];
   totalStock: number;
   /** Stock in the warehouses of the selected branch; null when no branch is selected ("all branches"). */
   branchStock: number | null;

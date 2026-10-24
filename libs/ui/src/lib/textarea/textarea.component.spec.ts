@@ -31,3 +31,24 @@ describe('TextareaDirective', () => {
     expect(el.disabled).toBe(true);
   });
 });
+
+@Component({
+  imports: [TextareaDirective],
+  template: `<textarea id="auto" rsTextarea autosize rows="3">una línea</textarea><textarea id="plain" rsTextarea></textarea>`,
+})
+class AutosizeHostComponent {}
+
+describe('TextareaDirective autosize', () => {
+  it('has no scrollbar or resize handle and sets its own height; a plain one keeps the browser behaviour', async () => {
+    const fixture = TestBed.createComponent(AutosizeHostComponent);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const auto = el.querySelector('#auto') as HTMLTextAreaElement;
+    const plain = el.querySelector('#plain') as HTMLTextAreaElement;
+    expect(auto.style.overflowY).toBe('hidden');
+    expect(auto.style.resize).toBe('none');
+    expect(auto.style.height).not.toBe('');
+    expect(plain.style.overflowY).toBe('');
+    expect(plain.style.height).toBe('');
+  });
+});

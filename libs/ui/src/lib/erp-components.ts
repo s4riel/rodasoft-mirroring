@@ -10,3 +10,5 @@ export * from './data-field/data-field.component';
 export * from './branch-stock-table/branch-stock-table.component';
 export * from './doc-table/doc-table.component';
 export * from './doc-table/doc-table-cell.directive';
+export * from './file-dropzone/file-dropzone.component';
+export * from './file-item/file-item.component';

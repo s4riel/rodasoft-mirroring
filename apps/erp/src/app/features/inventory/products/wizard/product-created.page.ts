@@ -60,6 +60,8 @@ export class ProductCreatedPage {
   protected readonly linked = signal<ReadonlySet<string>>(new Set());
   protected readonly linking = signal<ReadonlySet<string>>(new Set());
   protected readonly error = signal<string | null>(null);
+  /** Source of the first photo in the preview card, once it is ready. */
+  protected readonly photoSrc = signal<string | null>(null);
   protected readonly search = new FormControl('', { nonNullable: true });
   protected readonly searchResults = signal<{ productId: string; code: string; brand: string }[]>([]);
 
@@ -75,14 +77,14 @@ export class ProductCreatedPage {
   protected readonly chips = computed(() => {
     const p = this.product();
     if (!p) return [];
-    const chips: string[] = [];
+    const chips: { label: string; value: string }[] = [];
     const measures = this.measures();
-    if (measures) chips.push(measures);
+    if (measures) chips.push({ label: 'Medidas', value: measures });
     const price = Number(p.pricing.salePrice);
-    if (p.pricing.salePrice && Number.isFinite(price)) chips.push(`Bs ${price.toFixed(2).replace('.', ',')}`);
+    if (p.pricing.salePrice && Number.isFinite(price)) chips.push({ label: 'Precio', value: `Bs ${price.toFixed(2).replace('.', ',')}` });
     const dimensionKeys = ['innerDiameter', 'outerDiameter', 'width'];
     const specs = p.specs.filter((s) => s.value !== null && s.value !== '' && !dimensionKeys.includes(s.key));
-    for (const spec of specs.slice(0, 2)) chips.push(String(spec.value));
+    for (const spec of specs.slice(0, 2)) chips.push({ label: spec.label, value: spec.unit ? `${spec.value} ${spec.unit}` : String(spec.value) });
     return chips;
   });
   protected readonly pending = computed(() => (this.suggestions() ?? []).filter((s) => !this.linked().has(s.productId)));
@@ -92,9 +94,16 @@ export class ProductCreatedPage {
       .detail(this.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (product) => this.product.set(product),
+        next: (product) => {
+          this.product.set(product);
+          this.loadPhoto(product.photos?.[0]);
+        },
         error: (err: unknown) => this.error.set(problemOf(err).message),
       });
+    this.destroyRef.onDestroy(() => {
+      const src = this.photoSrc();
+      if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
+    });
     this.loadSuggestions();
     this.search.valueChanges
       .pipe(
@@ -112,6 +121,19 @@ export class ProductCreatedPage {
             .map((item) => ({ productId: item.id, code: item.manufacturerCode, brand: item.brand.name })),
         ),
       );
+  }
+
+  /** First photo of the product for the preview: a Cloudinary URL is used as is; a file on disk (development) is fetched with the session. */
+  private loadPhoto(reference: string | undefined) {
+    if (!reference) return;
+    if (reference.startsWith('https://')) {
+      this.photoSrc.set(reference);
+      return;
+    }
+    this.api
+      .file(reference)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: (blob) => this.photoSrc.set(URL.createObjectURL(blob)), error: () => undefined });
   }
 
   protected loadSuggestions() {

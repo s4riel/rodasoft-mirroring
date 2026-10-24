@@ -40,7 +40,7 @@ Assumption: 1 main full-stack developer (if someone joins, Web/Store can be para
 | Auth | E-mail + password (argon2) and Google OAuth (passport); short-lived access JWT + refresh in httpOnly cookie; user↔company↔branch membership |
 | Permissions | RBAC with fine-grained permissions (`sales.cancellations.approve`, `inventory.costs.view`…) using CASL; guard per endpoint + directive in Angular |
 | Product search | Postgres `pg_trgm` + full-text over code, brand, size and equivalences. Meilisearch only if the store needs it |
-| Files | S3-compatible storage (Cloudflare R2 or similar): invoice XML and PDF, photos, data sheets, 3D model |
+| Files | Cloudinary: photos and data sheets (invoice XML/PDF and the 3D model storage still to be decided) |
 | PDF | HTML templates → PDF with Playwright (Chromium) in the worker; 80 mm ticket and letter size |
 | Excel | `exceljs` to import (migration, transfer lists, homologation) and export |
 | Payments | `PaymentProvider` interface with adapters: bank QR, card (local aggregator), manual transfer with receipt. Idempotent webhooks |

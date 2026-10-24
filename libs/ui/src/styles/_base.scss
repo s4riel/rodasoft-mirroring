@@ -170,6 +170,7 @@ kbd {
 
   &::placeholder {
     color: var(--text-muted);
+    opacity: 0.55; /* lighter than a typed value; set explicitly because Firefox applies its own */
   }
   &:hover:not(:disabled) {
     background: var(--bg-surface-2);

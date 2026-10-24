@@ -81,7 +81,7 @@ Migration **`product_creation_settings_and_drafts`**:
 
   Add the stock-auditor review rule to the build checklist.
 - **`SettingsService`** (`common/settings`): `get(key)` with a typed default from `COMPANY_SETTING_DEFAULTS`, read through `prisma.tenant`.
-- **`StorageService`** (`common/storage`): an S3-compatible client (env `STORAGE_*`), with a local-disk driver in dev and tests. It stores files by company and product and returns the URLs. Images (jpeg, png, webp) up to 5 MB; PDF up to 10 MB. The limits are configuration values.
+- **`StorageService`** (`common/storage`): a Cloudinary driver in production (env `STORAGE_DRIVER=cloudinary` and `CLOUDINARY_*`; files uploaded as public assets; the product stores the Cloudinary `secure_url` and the ERP and store load it from the CDN). Files are named after the manufacturer code with a variant suffix, `<code>_v1`, `<code>_v2`, …, and an existing name is never overwritten, with a local-disk driver in dev and tests. It stores files by company and product and returns the URLs. Images (jpeg, png, webp) up to 5 MB; PDF up to 10 MB. The limits are configuration values.
 - **`EquivalencesService.link`:** normalizes the pair, sets `created_by_id`, writes an audit entry, and maps the unique violation to `EQUIVALENCE_EXISTS`. HU-INV-13 later adds the incompatibility warning UI and the IN-15 screens.
 
 ## ERP screens

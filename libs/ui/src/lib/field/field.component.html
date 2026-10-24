@@ -1,6 +1,6 @@
 <div class="head">
   <label class="label" [attr.for]="forId()">
-    {{ label() }}
+    <span class="label-text" [rsTooltip]="label()">{{ label() }}</span>
     @if (required()) {
       <span class="required" aria-hidden="true">*</span>
     }

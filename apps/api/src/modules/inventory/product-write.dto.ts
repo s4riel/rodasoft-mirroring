@@ -143,14 +143,14 @@ export class ProductWriteDto {
   @IsArray()
   @ArrayMaxSize(5)
   @IsString({ each: true })
-  @MaxLength(200, { each: true })
+  @MaxLength(500, { each: true }) // a Cloudinary URL is longer than a disk key
   photos?: string[];
 
   /** Storage key of the datasheet PDF, from `POST /inventory/uploads`. */
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(500)
   datasheetKey?: string | null;
 
   @ApiPropertyOptional({ minimum: 0 })
@@ -177,6 +177,13 @@ export class UploadFieldsDto {
   @ApiProperty({ enum: ['photo', 'datasheet'] })
   @IsIn(['photo', 'datasheet'])
   kind!: 'photo' | 'datasheet';
+
+  /** Manufacturer code of the product: the file is named `<code>_v<n>`. */
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  code!: string;
 }
 
 export class CodeAvailabilityQueryDto {

@@ -5,6 +5,7 @@ import { StockFlagComponent } from '../stock-flag/stock-flag.component';
 import { ProductThumbComponent } from '../product-thumb/product-thumb.component';
 import { RowMenuComponent, RowMenuItem } from '../row-menu/row-menu.component';
 import type { IconName } from '../icon/icons';
+import { TooltipDirective } from '../tooltip/tooltip.directive';
 
 export type ProductAvailability = 'available' | 'low' | 'out' | 'inactive';
 
@@ -19,6 +20,8 @@ export interface ProductTableRow {
   /** Brand logo; without it the brand shows its initials (decision #38). */
   brandLogoUrl: string | null;
   country: FlagCountry | null;
+  /** Country name shown next to the flag (e.g. "Alemania"). */
+  countryName?: string | null;
   description: string;
   totalStock: number;
   /** null = no branch selected. */
@@ -64,7 +67,7 @@ export function formatBoliviano(amount: string): string {
  */
 @Component({
   selector: 'rs-product-table',
-  imports: [FlagComponent, IconComponent, ProductThumbComponent, RowMenuComponent, StockFlagComponent],
+  imports: [FlagComponent, IconComponent, ProductThumbComponent, RowMenuComponent, StockFlagComponent, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './product-table.component.html',
   styleUrl: './product-table.component.scss',

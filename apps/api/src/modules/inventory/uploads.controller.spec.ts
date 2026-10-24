@@ -16,7 +16,7 @@ describe('UploadsController', () => {
 
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'rodasoft-uploads-'));
-    const storage = new StorageService(new ConfigService({ STORAGE_LOCAL_DIR: root }) as never);
+    const storage = new StorageService(new ConfigService({ STORAGE_DRIVER: 'local', STORAGE_LOCAL_DIR: root }) as never);
     controller = new UploadsController(storage, { get: () => companyId } as never);
   });
 
@@ -27,20 +27,20 @@ describe('UploadsController', () => {
   const file = (buffer: Buffer) => ({ buffer, size: buffer.length });
 
   it('stores a photo under the company folder and returns its key', async () => {
-    const result = await controller.upload(file(jpeg), { kind: 'photo' });
+    const result = await controller.upload(file(jpeg), { kind: 'photo', code: 'RT-3552' });
 
-    expect(result).toEqual({ key: expect.stringMatching(new RegExp(`^${companyId}/photo/.+[.]jpg$`)), kind: 'photo', contentType: 'image/jpeg', size: jpeg.length });
+    expect(result).toEqual({ key: `${companyId}/photo/RT-3552_v1.jpg`, kind: 'photo', contentType: 'image/jpeg', size: jpeg.length });
     expect(await readFile(join(root, result.key))).toEqual(jpeg);
   });
 
   it('stores a datasheet as a PDF', async () => {
-    const result = await controller.upload(file(pdf), { kind: 'datasheet' });
-    expect(result.key).toMatch(/\/datasheet\/.+\.pdf$/);
+    const result = await controller.upload(file(pdf), { kind: 'datasheet', code: 'RT-3552' });
+    expect(result.key).toBe(`${companyId}/datasheet/RT-3552_v1.pdf`);
     expect(result.contentType).toBe('application/pdf');
   });
 
   it('serves a stored file of the company with its content type', async () => {
-    const { key } = await controller.upload(file(jpeg), { kind: 'photo' });
+    const { key } = await controller.upload(file(jpeg), { kind: 'photo', code: 'SERVE-1' });
     const name = key.split('/')[2];
     const served = await controller.file('photo', name);
     expect(served).toBeInstanceOf(StreamableFile);
@@ -48,21 +48,21 @@ describe('UploadsController', () => {
   });
 
   it('answers 404 for a missing file, a wrong kind or a name that is not an upload', async () => {
-    await expect(controller.file('photo', '0190e8a0-0000-7000-8000-0000000000ff.jpg')).rejects.toBeInstanceOf(NotFoundException);
-    await expect(controller.file('secret', '0190e8a0-0000-7000-8000-0000000000ff.jpg')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.file('photo', 'MISSING_v1.jpg')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.file('secret', 'MISSING_v1.jpg')).rejects.toBeInstanceOf(NotFoundException);
     await expect(controller.file('photo', '../../etc/passwd')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('refuses a missing file with 400 FILE_REQUIRED', async () => {
-    await expect(controller.upload(undefined, { kind: 'photo' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.upload(undefined, { kind: 'photo', code: 'RT-1' })).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('refuses a PDF sent as a photo with 415', async () => {
-    await expect(controller.upload(file(pdf), { kind: 'photo' })).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
+    await expect(controller.upload(file(pdf), { kind: 'photo', code: 'RT-1' })).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
   });
 
   it('refuses a photo over its limit with 413', async () => {
     const big = Buffer.concat([jpeg, Buffer.alloc(5 * 1024 * 1024)]);
-    await expect(controller.upload(file(big), { kind: 'photo' })).rejects.toBeInstanceOf(PayloadTooLargeException);
+    await expect(controller.upload(file(big), { kind: 'photo', code: 'RT-1' })).rejects.toBeInstanceOf(PayloadTooLargeException);
   });
 });

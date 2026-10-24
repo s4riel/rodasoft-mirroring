@@ -26,16 +26,15 @@ export const envSchema = z.object({
   ERP_PUBLIC_URL: z.string().default('http://{company}.localhost:4200'),
 
   SECRETS_KEY: z.string().default(''),
-  /** Local-disk folder for uploads (product photos and datasheets); production uses an S3-compatible bucket. */
+  /** Local-disk folder for uploads (product photos and datasheets); production uses Cloudinary. */
   STORAGE_LOCAL_DIR: z.string().default('./storage-local'),
-  /** `local` for development; `s3` for any S3-compatible bucket in production (needs the STORAGE_S3_* values). */
-  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
-  STORAGE_S3_BUCKET: z.string().default(''),
-  STORAGE_S3_REGION: z.string().default('us-east-1'),
-  STORAGE_S3_ENDPOINT: z.string().default(''),
-  STORAGE_S3_ACCESS_KEY: z.string().default(''),
-  STORAGE_S3_SECRET_KEY: z.string().default(''),
-  STORAGE_S3_FORCE_PATH_STYLE: bool.default(false),
+  /** `local` for development; `cloudinary` in production (needs the CLOUDINARY_* values). */
+  STORAGE_DRIVER: z.enum(['local', 'cloudinary']).default('local'),
+  CLOUDINARY_CLOUD_NAME: z.string().default(''),
+  CLOUDINARY_API_KEY: z.string().default(''),
+  CLOUDINARY_API_SECRET: z.string().default(''),
+  /** Root folder in the Cloudinary account; every key is stored under it. */
+  CLOUDINARY_FOLDER: z.string().default('rodasoft'),
   SMTP_URL: z.string().default('smtp://localhost:1025'),
   MAIL_FROM: z.string().default('Rodalaser ERP <no-reply@rodalaser.com.bo>'),
 });

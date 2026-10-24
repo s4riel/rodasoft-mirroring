@@ -1,3 +1,4 @@
+import { todayInLaPaz } from '@rodasoft/domain';
 import type {
   AttributeDefinitionItem,
   AttributeRule,
@@ -55,9 +56,57 @@ export interface WizardFormValues {
   attributes: Readonly<Record<string, string>>;
 }
 
+const MB = 1024 * 1024;
+/** Size limits of the files (the API is the authority; this only saves a round trip). */
+const UPLOAD_LIMITS = { photo: { bytes: 5 * MB, label: '5 MB', types: ['image/jpeg', 'image/png', 'image/webp'] }, datasheet: { bytes: 10 * MB, label: '10 MB', types: ['application/pdf'] } } as const;
+
+/** "3,5 MB" / "820 KB": sizes are written with a comma in Bolivia. */
+export function formatSize(bytes: number): string {
+  if (bytes >= MB) return `${(bytes / MB).toFixed(1).replace('.', ',')} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** Second line of a file that is uploading: its size and the time left, estimated from the speed so far. */
+export function uploadDetailOf(totalBytes: number, percent: number, elapsedMs: number): string {
+  const size = formatSize(totalBytes);
+  if (percent >= 100) return `${size} · Procesando…`;
+  if (percent < 5 || elapsedMs < 500) return size;
+  const seconds = Math.ceil((elapsedMs / 1000) * ((100 - percent) / percent));
+  return `${size} · ${seconds >= 60 ? `${Math.ceil(seconds / 60)} min` : `${seconds} s`} restantes`;
+}
+
+/** Why a file cannot be uploaded as this kind, or null when it can. */
+export function uploadProblemOf(kind: 'photo' | 'datasheet', file: { name: string; type: string; size: number }): string | null {
+  const limit = UPLOAD_LIMITS[kind];
+  if (!(limit.types as readonly string[]).includes(file.type)) {
+    return kind === 'photo' ? `${file.name}: usa una imagen JPG, PNG o WEBP.` : `${file.name}: la ficha técnica debe ser un PDF.`;
+  }
+  if (file.size > limit.bytes) return `${file.name}: pesa más de ${limit.label}.`;
+  return null;
+}
+
+/** Suggested commercial name: category, brand and code, as the API builds it when the name is left empty. */
+export function commercialNameOf(category: string | null, brand: string | null, code: string): string {
+  return [category, brand, code.trim()].filter((part) => !!part).join(' ');
+}
+
 /** Attributes shown on the dimensions step (bearings only) and on the specifications step (the rest). */
 export function attributeStep(definition: AttributeDefinitionItem, isBearing: boolean): WizardStepKey {
   return isBearing && definition.step === 2 ? 'dimensions' : 'specifications';
+}
+
+/** Free-text fields that hold sentences (technical notes): shown as a wide text area that grows with the text. */
+export function isLongText(definition: AttributeDefinitionItem): boolean {
+  return definition.type === 'TEXT' && /notes|observ/i.test(`${definition.key} ${definition.label}`);
+}
+
+/** Placeholder of a technical field, from its type and label: it says what to write, never a made-up value. */
+export function placeholderOf(definition: AttributeDefinitionItem): string {
+  const label = definition.label.toLowerCase();
+  if (isLongText(definition)) return `Escribe ${label} del producto`;
+  if (definition.type === 'NUMBER') return definition.unit ? `0,00 ${definition.unit}` : '0';
+  if (definition.type === 'ENUM') return 'Selecciona una opción';
+  return `Ingresa ${label}`;
 }
 
 export function attributeRules(definitions: readonly AttributeDefinitionItem[]): AttributeRule[] {
@@ -99,6 +148,13 @@ export function draftInputOf(values: WizardFormValues, categoryId: string | null
       width: values.width.trim() || null,
     },
     attributes: values.attributes,
+    cost: values.cost.trim() || null,
+    weight: values.weight.trim() || null,
+    tariffCode: values.tariffCode.trim() || null,
+    entryDate: values.entryDate.trim() || null,
+    minStock: stockOf(values.minStock) ?? null,
+    maxStock: stockOf(values.maxStock) ?? null,
+    today: todayInLaPaz(),
   };
 }
 
@@ -179,4 +235,12 @@ export const FIELD_ERROR_MESSAGES: Record<string, string> = {
   ATTRIBUTE_TYPE: 'El valor no tiene el formato correcto.',
   ATTRIBUTE_OPTION: 'Elige una de las opciones.',
   ATTRIBUTE_UNKNOWN: 'Este campo no existe en la categoría.',
+  PRICE_FORMAT: 'Usa un monto válido, como 245,50 (hasta 2 decimales).',
+  COST_FORMAT: 'Usa un monto válido, como 120,50 (hasta 4 decimales).',
+  MEASURE_FORMAT: 'Usa un número mayor a 0, con hasta 3 decimales.',
+  DIAMETER_ORDER: 'D debe ser mayor que d.',
+  TARIFF_FORMAT: 'Usa la partida como 8482.10 o 8482.10.00.00.',
+  DATE_INVALID: 'La fecha no es válida.',
+  DATE_FUTURE: 'La fecha de ingreso no puede ser futura.',
+  STOCK_RANGE: 'El máximo no puede ser menor que el mínimo.',
 };

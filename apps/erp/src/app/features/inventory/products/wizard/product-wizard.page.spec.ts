@@ -116,6 +116,41 @@ describe('ProductWizardPage', () => {
     expect(button(h, 'Guardar producto')).toBeDefined();
   });
 
+  it('asks the API for the code on "Siguiente" and stays on the first step when the code is taken', async () => {
+    const h = await open('k-seals', [definition({})]);
+    const page = h.routeDebugElement?.componentInstance as unknown as {
+      form: { controls: { manufacturerCode: { setValue(v: string): void }; brandId: { setValue(v: string): void } } };
+      next(): void;
+    };
+    page.form.controls.manufacturerCode.setValue('RT-3552');
+    page.form.controls.brandId.setValue('b-skf');
+
+    page.next();
+    const request = http.expectOne((r) => r.url === '/api/v1/inventory/products/code-availability' && r.params.get('code') === 'RT-3552');
+    expect(request.request.params.get('brandId')).toBe('b-skf');
+    request.flush({ available: false, productId: 'p-9' });
+    h.detectChanges();
+
+    expect(root(h).querySelector('rs-page-header')?.textContent).toContain('Paso 1 de 4');
+    expect(root(h).textContent).toContain('Ya existe un producto con este código para la marca.');
+  });
+
+  it('moves on when the API says the code is free', async () => {
+    const h = await open('k-seals', [definition({ required: false })]);
+    const page = h.routeDebugElement?.componentInstance as unknown as {
+      form: { controls: { manufacturerCode: { setValue(v: string): void }; brandId: { setValue(v: string): void } } };
+      next(): void;
+    };
+    page.form.controls.manufacturerCode.setValue('FREE-1');
+    page.form.controls.brandId.setValue('b-skf');
+
+    page.next();
+    http.expectOne((r) => r.url === '/api/v1/inventory/products/code-availability').flush({ available: true, productId: null });
+    h.detectChanges();
+
+    expect(root(h).querySelector('rs-page-header')?.textContent).toContain('Paso 2 de 4');
+  });
+
   it('asks before leaving when there is unsaved work', async () => {
     const h = await open('k-seals', [definition({})]);
     const input = root(h).querySelector<HTMLInputElement>('#wizard-code') as HTMLInputElement;

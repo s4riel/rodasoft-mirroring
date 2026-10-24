@@ -2,6 +2,7 @@
 export * from './button/button.component';
 export * from './icon-button/icon-button.component';
 export * from './input/input.component';
+export * from './input/numeric-input.directive';
 export * from './textarea/textarea.component';
 export * from './select/select.component';
 export * from './field/field.component';

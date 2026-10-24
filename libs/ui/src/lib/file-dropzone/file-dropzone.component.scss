@@ -1,0 +1,102 @@
+:host {
+  display: block;
+}
+.zone {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-6);
+  /* empty state is white; the brand color shows on hover and while a file is dragged over */
+  border: var(--stroke-default) dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  text-align: center;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.zone:hover,
+:host([data-dragging]) .zone {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+}
+:host([data-dragging]) .zone {
+  border-style: solid;
+}
+.zone.invalid {
+  border-color: var(--status-danger);
+  background: var(--status-danger-soft);
+}
+:host([aria-disabled='true']) .zone {
+  opacity: 0.6;
+}
+.tile {
+  display: grid;
+  place-items: center;
+  width: var(--size-control-lg); /* icon tile: same height as the large controls */
+  height: var(--size-control-lg);
+  margin-bottom: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.zone:hover .tile,
+:host([data-dragging]) .tile {
+  background: var(--bg-surface);
+  color: var(--brand-primary);
+}
+.title {
+  margin: 0;
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.meta {
+  margin: 0;
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+.meta strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.pick {
+  margin-top: var(--space-3);
+  min-height: var(--size-control-sm);
+  padding: 0 var(--space-5);
+  border: var(--stroke-default) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--label-md-size);
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
+  cursor: pointer;
+}
+.zone:hover .pick:not(:disabled),
+:host([data-dragging]) .pick {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+}
+.pick:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
+}
+.pick:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.pick:disabled {
+  cursor: not-allowed;
+}
+.native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  opacity: 0;
+}

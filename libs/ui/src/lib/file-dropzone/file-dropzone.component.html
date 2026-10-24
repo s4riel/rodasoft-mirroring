@@ -1,0 +1,28 @@
+<div
+  class="zone"
+  [class.invalid]="invalid()"
+  (dragover)="onDragOver($event)"
+  (dragleave)="dragging.set(false)"
+  (drop)="onDrop($event)"
+>
+  <span class="tile" aria-hidden="true"><ng-content /></span>
+  <p class="title">{{ title() }}</p>
+  @if (formats()) {
+    <p class="meta">{{ formatsLabel() }} <strong>{{ formats() }}</strong></p>
+  }
+  @if (limit()) {
+    <p class="meta">{{ limit() }}</p>
+  }
+  <button type="button" class="pick" [disabled]="disabled()" (click)="open()">{{ buttonLabel() }}</button>
+  <input
+    #picker
+    class="native"
+    type="file"
+    tabindex="-1"
+    aria-hidden="true"
+    [attr.accept]="accept() || null"
+    [multiple]="multiple()"
+    [disabled]="disabled()"
+    (change)="onPick($event)"
+  />
+</div>

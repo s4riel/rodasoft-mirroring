@@ -20,6 +20,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   category: { id: 'k1', name: 'Rodamientos', icon: 'bearing' },
   subcategory: { id: 'k2', name: 'Rígidos de bolas' },
   dimensions: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000' },
+  specs: [],
   totalStock: 60,
   branchStock: 24,
   salePrice: '245.00',
@@ -34,10 +35,10 @@ describe('product list mapper', () => {
     expect(formatMeasure('40')).toBe('40');
   });
 
-  it('describes the product with its subcategory and d×D×B', () => {
-    expect(describeProduct(item())).toBe('Rígidos de bolas, 25×52×15 mm');
-    expect(describeProduct(item({ subcategory: null }))).toBe('Rodamientos, 25×52×15 mm');
-    expect(describeProduct(item({ dimensions: null }))).toBe('Rígidos de bolas');
+  it('describes the product with its labelled d×D×B, without repeating the type', () => {
+    expect(describeProduct(item())).toBe('Medidas: 25×52×15 mm');
+    expect(describeProduct(item({ dimensions: null }))).toBe('');
+    expect(toTableRow(item({ dimensions: null })).description).toBe('–');
   });
 
   it('derives availability: inactive, out and available', () => {
@@ -75,5 +76,30 @@ describe('product list mapper', () => {
     expect(branchStockSubtotal([item({ branchStock: 24 }), item({ branchStock: 3 })])).toBe(27);
     expect(branchStockSubtotal([item({ branchStock: null })])).toBeNull();
     expect(branchStockSubtotal([])).toBeNull();
+  });
+});
+
+describe('describeProduct with technical fields', () => {
+  it('adds the filled technical fields after the measures', () => {
+    const withSpecs = item({ specs: [{ label: 'Protección / sello', value: '2RS' }, { label: 'Material', value: 'Acero' }] });
+    expect(describeProduct(withSpecs)).toBe('Medidas: 25×52×15 mm · Protección / sello: 2RS · Material: Acero');
+  });
+
+  it('uses the technical fields when the product has no measures', () => {
+    expect(describeProduct(item({ dimensions: null, subcategory: null, specs: [{ label: 'Material', value: 'Goma' }] }))).toBe('Material: Goma');
+  });
+});
+
+describe('toTableRow name', () => {
+  it('shows the subcategory as the product name, or the category when there is none', () => {
+    expect(toTableRow(item()).name).toBe('Rígidos de bolas');
+    expect(toTableRow(item({ subcategory: null })).name).toBe('Rodamientos');
+  });
+});
+
+describe('describeProduct with weight', () => {
+  it('writes the weight after the measures', () => {
+    const heavy = item({ dimensions: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000', weight: '0.130' } });
+    expect(describeProduct(heavy)).toBe('Medidas: 25×52×15 mm · Peso: 0,13 kg');
   });
 });

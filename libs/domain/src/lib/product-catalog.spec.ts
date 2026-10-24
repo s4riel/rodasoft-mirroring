@@ -2,6 +2,7 @@ import {
   buildDuplicate,
   clampPage,
   clampPageSize,
+  summarizeSpecs,
   DEFAULT_COPY_PARTS,
   DuplicateSource,
   formatSku,
@@ -176,5 +177,55 @@ describe('fieldIconOf', () => {
     expect(fieldIconOf({ type: 'NUMBER', unit: 'mm', key: 'minRadius' })).toBe('diameter');
     expect(fieldIconOf({ type: 'NUMBER', unit: 'mm', key: 'width' })).toBe('ruler');
     expect(fieldIconOf({ type: 'NUMBER', unit: 'kg', key: 'weight' })).toBe('package');
+  });
+});
+
+describe('summarizeSpecs', () => {
+  const defs = [
+    { key: 'innerDiameter', label: 'Ø Interior d', type: 'NUMBER' as const, unit: 'mm' },
+    { key: 'seal', label: 'Protección / sello', type: 'ENUM' as const, unit: null },
+    { key: 'dynamicLoad', label: 'Carga dinámica C', type: 'NUMBER' as const, unit: 'kN' },
+    { key: 'sealed', label: 'Sellado', type: 'BOOLEAN' as const, unit: null },
+    { key: 'technicalNotes', label: 'Observaciones técnicas', type: 'TEXT' as const, unit: null },
+    { key: 'material', label: 'Material', type: 'TEXT' as const, unit: null },
+  ];
+
+  it('keeps the filled fields in definition order, with unit, leaving out the measures and empty values', () => {
+    const attributes = { innerDiameter: 25, seal: '2RS', dynamicLoad: 14.8, sealed: true, technicalNotes: 'Uso intensivo', material: '  ' };
+    expect(summarizeSpecs(defs, attributes)).toEqual([
+      { label: 'Protección / sello', value: '2RS' },
+      { label: 'Carga dinámica C', value: '14,8 kN' },
+      { label: 'Sellado', value: 'Sí' },
+      { label: 'Observaciones técnicas', value: 'Uso intensivo' },
+    ]);
+  });
+
+  it('also keeps stored values whose field the category no longer defines, under the name of their key', () => {
+    expect(summarizeSpecs(defs, { seal: '2RS', oldField: 'x', coating_type: 3, nested: { a: 1 }, flag: false })).toEqual([
+      { label: 'Protección / sello', value: '2RS' },
+      { label: 'Old field', value: 'x' },
+      { label: 'Coating type', value: '3' },
+      { label: 'Flag', value: 'No' },
+    ]);
+  });
+
+  it('stops at the limit', () => {
+    expect(summarizeSpecs(defs, { seal: 'a', dynamicLoad: 1, sealed: false }, { limit: 2 })).toHaveLength(2);
+  });
+});
+
+describe('summarizeSpecs measures', () => {
+  const defs = [
+    { key: 'innerDiameter', label: 'Ø Interior d', type: 'NUMBER' as const, unit: 'mm' },
+    { key: 'material', label: 'Material', type: 'TEXT' as const, unit: null },
+  ];
+  const attributes = { innerDiameter: 40, material: 'Goma' };
+
+  it('keeps the measure fields of a product that has no measures of its own (a seal)', () => {
+    expect(summarizeSpecs(defs, attributes, { hasMeasures: false })).toEqual([
+      { label: 'Ø Interior d', value: '40 mm' },
+      { label: 'Material', value: 'Goma' },
+    ]);
+    expect(summarizeSpecs(defs, attributes)).toEqual([{ label: 'Material', value: 'Goma' }]);
   });
 });

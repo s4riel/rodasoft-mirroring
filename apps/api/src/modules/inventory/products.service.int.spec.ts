@@ -183,7 +183,7 @@ describe('ProductsService (integration, real Postgres)', () => {
       salePrice: '123.50',
       status: 'ACTIVE',
     });
-    expect(item.dimensions).toEqual({ innerDiameter: '25', outerDiameter: '52', width: '15' });
+    expect(item.dimensions).toMatchObject({ innerDiameter: '25', outerDiameter: '52', width: '15' });
     expect(JSON.stringify(res)).not.toContain('70.12');
     expect(item).not.toHaveProperty('cost');
   });

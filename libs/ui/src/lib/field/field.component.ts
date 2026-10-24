@@ -7,6 +7,7 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { TooltipDirective } from '../tooltip/tooltip.directive';
 
 let nextId = 0;
 
@@ -23,6 +24,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'rs-field',
+  imports: [TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.has-error]': '!!error()' },
   templateUrl: './field.component.html',

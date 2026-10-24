@@ -1,5 +1,17 @@
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  ElementRef,
+  inject,
+  Injector,
+  signal,
+  untracked,
+} from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -12,12 +24,15 @@ import {
   type ProductFilterOptions,
   type ProductSpec,
   type WizardStepKey,
+  todayInLaPaz,
   validateProductDraft,
   wizardSteps,
 } from '@rodasoft/domain';
 import {
   ButtonComponent,
   FieldComponent,
+  FileDropzoneComponent,
+  FileItemComponent,
   FilterChipComponent,
   IconComponent,
   type IconName,
@@ -25,7 +40,9 @@ import {
   InputGroupComponent,
   ModalComponent,
   NoteComponent,
+  NumericInputDirective,
   PageHeaderComponent,
+  TextareaDirective,
   SelectComponent,
   SkeletonComponent,
   type SelectOption,
@@ -42,16 +59,25 @@ import { ProductsApi } from '../products-api.service';
 import {
   attributeRules,
   attributeStep,
+  commercialNameOf,
   draftInputOf,
   invalidStockFields,
   FIELD_ERROR_MESSAGES,
+  formatSize,
+  isLongText,
+  placeholderOf,
   toWriteRequest,
+  uploadDetailOf,
+  uploadProblemOf,
   WIZARD_SECTORS,
   WIZARD_STEP_LABELS,
   type WizardFieldError,
   type WizardFormValues,
 } from './product-wizard.model';
 
+/** First control the user can type in or pick from on the current step (the first match in document order). */
+const FIRST_FIELD =
+  '#product-wizard-step input:not([readonly]):not([type=file]):not([type=hidden]), #product-wizard-step textarea, #product-wizard-step button[role=combobox]';
 /** The live code check waits this long after the last keystroke. */
 const CODE_CHECK_DEBOUNCE_MS = 350;
 /** Attribute step that holds the dimensions of a bearing (SPEC_STEP_DIMENSIONS in libs/domain). */
@@ -63,6 +89,23 @@ const DIMENSION_KEYS = ['innerDiameter', 'outerDiameter', 'width'];
 
 type AttributeControls = Record<string, FormControl<string>>;
 
+/** A chip of the preview card: what it is ("Medidas") and its value. */
+interface PreviewChip {
+  label: string;
+  value: string;
+}
+
+/** A file that is uploading (or that failed): shown in the list until it is saved or dismissed. */
+interface PendingUpload {
+  id: number;
+  kind: 'photo' | 'datasheet';
+  name: string;
+  percent: number;
+  status: 'uploading' | 'error';
+  detail: string;
+  cancel: () => void;
+}
+
 /**
  * IN-03 · Creation wizard (HU-INV-06). `/inventory/products/new/:categoryId` creates a product; `/inventory/products/:id/draft`
  * resumes a draft. The steps come from `wizardSteps`: bearings have 6, the other categories 4.
@@ -72,6 +115,8 @@ type AttributeControls = Record<string, FormControl<string>>;
   imports: [
     ButtonComponent,
     FieldComponent,
+    FileDropzoneComponent,
+    FileItemComponent,
     FilterChipComponent,
     IconComponent,
     InputDirective,
@@ -79,6 +124,7 @@ type AttributeControls = Record<string, FormControl<string>>;
     ModalComponent,
     NgTemplateOutlet,
     NoteComponent,
+    NumericInputDirective,
     PageHeaderComponent,
     ReactiveFormsModule,
     RouterLink,
@@ -86,6 +132,7 @@ type AttributeControls = Record<string, FormControl<string>>;
     SkeletonComponent,
     StatusPillComponent,
     StepperComponent,
+    TextareaDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './product-wizard.page.html',
@@ -98,6 +145,8 @@ export class ProductWizardPage {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** Set when resuming a draft: saves then update that product. A new product is created once and the page moves on. */
   protected readonly productId = signal<string | null>(this.route.snapshot.paramMap.get('id'));
@@ -113,8 +162,11 @@ export class ProductWizardPage {
   /** Keys of the photos and the datasheet (POST /inventory/uploads), saved with the product on step 4. */
   protected readonly photoKeys = signal<string[]>([]);
   protected readonly datasheetKey = signal<string | null>(null);
-  protected readonly uploading = signal<'photo' | 'datasheet' | null>(null);
+  protected readonly uploads = signal<PendingUpload[]>([]);
+  private nextUploadId = 0;
   protected readonly uploadError = signal<string | null>(null);
+  /** Latest date the entry date can have: today in La Paz. */
+  protected readonly today = todayInLaPaz();
   protected readonly stepNumber = computed(() => this.stepIndex() + 1);
   /** The hint under the first technical field of the dimensions step (IN-03 step 2). */
   protected readonly dimensionsHint = 'Se completa según d, D y B.';
@@ -146,6 +198,8 @@ export class ProductWizardPage {
   /** Set when the live check finds the code already used by the brand (the duplicate-code state). */
   protected readonly taken = signal<{ productId: string | null } | null>(null);
   protected readonly saving = signal(false);
+  /** True while "Siguiente" waits for the API to confirm the code of the first step. */
+  protected readonly verifying = signal(false);
   private definitionsSub?: Subscription;
   protected readonly submitError = signal<string | null>(null);
 
@@ -244,6 +298,13 @@ export class ProductWizardPage {
     const sub = this.root()?.subcategories.find((s) => s.id === this.form.controls.subcategoryId.value);
     return sub?.name ?? this.root()?.name ?? null;
   });
+  /** The commercial name built from category, brand and code; it follows them until the user types their own. */
+  protected readonly suggestedName = computed(() => {
+    this.formValues();
+    return commercialNameOf(this.categoryLabel(), this.brandName(), this.form.controls.manufacturerCode.value);
+  });
+  /** True once the user wrote or kept a name of their own; clearing the field gives the automatic name back. */
+  private readonly customName = signal(false);
   protected readonly title = computed(() => (this.productId() ? 'Borrador de producto' : 'Nuevo producto'));
   /** IN-03c header line: step, category, step name and whether the step is required. */
   protected readonly subtitle = computed(() => {
@@ -264,14 +325,22 @@ export class ProductWizardPage {
     this.formValues();
     const v = this.form.getRawValue() as WizardFormValues;
     const attrs = v.attributes as Readonly<Record<string, string>>;
-    const chips: string[] = [];
+    const chips: PreviewChip[] = [];
     const measures = v.innerDiameter && v.outerDiameter && v.width ? [v.innerDiameter, v.outerDiameter, v.width] : DIMENSION_KEYS.map((k) => attrs[k] ?? '');
-    if (measures.every(Boolean)) chips.push(`${measures[0]}×${measures[1]}×${measures[2]} mm`);
+    if (measures.every(Boolean)) chips.push({ label: 'Medidas', value: `${measures[0]}×${measures[1]}×${measures[2]} mm` });
     const price = Number(v.salePrice.replace(',', '.'));
-    if (v.salePrice && Number.isFinite(price)) chips.push(`Bs ${price.toFixed(2).replace('.', ',')}`);
+    if (v.salePrice && Number.isFinite(price)) chips.push({ label: 'Precio', value: `Bs ${price.toFixed(2).replace('.', ',')}` });
     const others = Object.entries(attrs).filter(([key, value]) => value && !DIMENSION_KEYS.includes(key));
-    for (const [, value] of others.slice(0, 2)) chips.push(value);
+    for (const [key, value] of others.slice(0, 2)) {
+      const definition = this.definitions().find((d) => d.key === key);
+      chips.push({ label: definition?.label ?? key, value: definition?.unit ? `${value} ${definition.unit}` : value });
+    }
     return chips;
+  });
+  /** The first photo, once its preview is ready: it shows in the preview card as soon as it is uploaded. */
+  protected readonly previewPhoto = computed(() => {
+    const first = this.photoKeys()[0];
+    return first ? (this.previews()[first] ?? null) : null;
   });
   protected readonly brandInitials = computed(() => (this.brandName() ?? '').slice(0, 2).toUpperCase());
 
@@ -320,6 +389,30 @@ export class ProductWizardPage {
     });
     this.form.controls.subcategoryId.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.loadDefinitions());
     this.form.controls.branchId.setValue(this.ctx.currentBranch()?.id ?? this.ctx.branches()[0]?.id ?? null);
+    // every step opens with its first field focused, so the user can start typing right away
+    effect(() => {
+      this.stepIndex();
+      if (!this.options()) return;
+      afterNextRender(
+        () => this.host.nativeElement.querySelector<HTMLElement>(FIRST_FIELD)?.focus(),
+        { injector: this.injector },
+      );
+    });
+    // after "Siguiente" showed errors, they follow the fields: fixing one hides its message right away
+    effect(() => {
+      this.formValues();
+      this.taken();
+      untracked(() => {
+        if (!this.attempted()) return;
+        const errors = this.currentErrors(this.currentStep());
+        this.stepErrors.set(errors);
+        if (!errors.some((e) => e.code === 'PRICE_REQUIRED')) this.stepMessage.set(null);
+      });
+    });
+    effect(() => {
+      const suggested = this.suggestedName();
+      if (!untracked(() => this.customName())) untracked(() => this.form.controls.name.setValue(suggested));
+    });
     effect(() => {
       const index = this.stepIndex();
       untracked(() => this.furthestStep.update((furthest) => Math.max(furthest, index)));
@@ -334,10 +427,7 @@ export class ProductWizardPage {
         ),
         takeUntilDestroyed(),
       )
-      .subscribe((result) => {
-        const used = !!result && !result.available && result.productId !== this.productId();
-        this.taken.set(used ? { productId: result.productId } : null);
-      });
+      .subscribe((result) => this.applyCodeCheck(result));
 
     this.load();
   }
@@ -396,6 +486,13 @@ export class ProductWizardPage {
       supplierName: product.extra.supplierName ?? '',
       tariffCode: product.extra.tariffCode ?? '',
     });
+    // a saved name that differs from the suggestion was written by the user: keep it
+    this.customName.set(!!product.name?.trim() && product.name.trim() !== this.suggestedName());
+  }
+
+  /** Typing in the name field takes it over from the suggestion; emptying it hands it back. */
+  protected onNameInput() {
+    this.customName.set(this.form.controls.name.value.trim() !== '');
   }
 
   /** Technical fields of the chosen subcategory, or of the root category when none is chosen (the API falls back to the parent). */
@@ -426,6 +523,9 @@ export class ProductWizardPage {
     return this.definitions().filter((d) => attributeStep(d, this.isBearing()) === step);
   }
 
+  protected readonly isLongText = isLongText;
+  protected readonly placeholderOf = placeholderOf;
+
   protected optionsOf(definition: AttributeDefinitionItem): SelectOption[] {
     return (definition.options ?? []).map((o) => ({ value: o, label: o }));
   }
@@ -434,9 +534,9 @@ export class ProductWizardPage {
   private errorsOf(step: WizardStepKey, all: readonly WizardFieldError[]): WizardFieldError[] {
     const own: Record<WizardStepKey, string[]> = {
       identification: ['manufacturerCode', 'brandId', 'categoryId'],
-      dimensions: ['dimensions'],
+      dimensions: ['dimensions', 'innerDiameter', 'outerDiameter', 'width', 'weight'],
       specifications: [],
-      'price-inventory': ['salePrice'],
+      'price-inventory': ['salePrice', 'cost', 'tariffCode', 'entryDate', 'minStock', 'maxStock'],
       photos: [],
       equivalences: [],
     };
@@ -476,28 +576,39 @@ export class ProductWizardPage {
     return fieldIconOf({ type: definition.type, unit: definition.unit, key: definition.key }) as IconName;
   }
 
-  protected onFiles(kind: 'photo' | 'datasheet', event: Event) {
-    const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
-    input.value = '';
-    if (!files.length) return;
-    const room = MAX_PHOTOS - this.photoKeys().length;
-    const picked = kind === 'photo' ? files.slice(0, Math.max(0, room)) : files.slice(0, 1);
+  /** Files picked or dropped on a drop area: each one is checked and uploaded on its own, with its own progress. */
+  protected onFiles(kind: 'photo' | 'datasheet', files: File[]) {
+    const code = this.form.controls.manufacturerCode.value.trim();
+    if (!code) {
+      this.uploadError.set('Ingresa el código del fabricante antes de subir archivos: da nombre a cada archivo.');
+      return;
+    }
+    const room = kind === 'photo' ? MAX_PHOTOS - this.photoKeys().length - this.uploads().filter((u) => u.kind === 'photo').length : 1;
+    const picked = files.slice(0, Math.max(0, room));
     if (!picked.length) {
       this.uploadError.set(`Ya hay ${MAX_PHOTOS} fotos. Quita una para agregar otra.`);
       return;
     }
-    this.uploadError.set(null);
-    for (const file of picked) this.upload(kind, file);
+    const problems = picked.map((file) => uploadProblemOf(kind, file)).filter((p): p is string => !!p);
+    this.uploadError.set(problems[0] ?? (files.length > picked.length ? `Solo se subieron ${picked.length} de ${files.length} archivos.` : null));
+    for (const file of picked) if (!uploadProblemOf(kind, file)) this.upload(kind, file, code);
   }
 
-  private upload(kind: 'photo' | 'datasheet', file: File) {
-    this.uploading.set(kind);
-    this.api
-      .upload(file, kind)
+  private upload(kind: 'photo' | 'datasheet', file: File, code: string) {
+    const id = ++this.nextUploadId;
+    const started = Date.now();
+    const patch = (change: Partial<PendingUpload>) =>
+      this.uploads.update((all) => all.map((u) => (u.id === id ? { ...u, ...change } : u)));
+    const subscription = this.api
+      .upload(file, kind, code)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ key }) => {
+        next: (event) => {
+          if (event.type === 'progress') {
+            patch({ percent: event.percent, detail: uploadDetailOf(file.size, event.percent, Date.now() - started) });
+            return;
+          }
+          const { key } = event.response;
           if (kind === 'photo') {
             this.photoKeys.update((keys) => [...keys, key]);
             this.loadPreview(key);
@@ -505,14 +616,30 @@ export class ProductWizardPage {
             this.datasheetKey.set(key);
           }
           this.mediaChanged.set(true);
-          this.uploading.set(null);
+          this.uploads.update((all) => all.filter((u) => u.id !== id));
         },
-        error: (err: unknown) => {
-          this.uploading.set(null);
-          this.uploadError.set(problemOf(err).message);
-        },
+        error: (err: unknown) => patch({ status: 'error', detail: problemOf(err).message }),
       });
+    this.uploads.update((all) => [
+      ...all,
+      { id, kind, name: file.name, percent: 0, status: 'uploading', detail: formatSize(file.size), cancel: () => subscription.unsubscribe() },
+    ]);
   }
+
+  /** The "x" of a row that is still uploading (cancels the request) or that failed (dismisses it). */
+  protected dismissUpload(upload: PendingUpload) {
+    upload.cancel();
+    this.uploads.update((all) => all.filter((u) => u.id !== upload.id));
+  }
+
+  /** File name shown in the list: the last part of the key or of the Cloudinary URL. */
+  protected fileNameOf(reference: string): string {
+    return reference.slice(reference.lastIndexOf('/') + 1);
+  }
+
+  protected readonly photosFull = computed(
+    () => this.photoKeys().length + this.uploads().filter((u) => u.kind === 'photo').length >= MAX_PHOTOS,
+  );
 
   protected removePhoto(index: number) {
     this.photoKeys.update((keys) => keys.filter((_, i) => i !== index));
@@ -607,6 +734,11 @@ export class ProductWizardPage {
   }
 
   private loadPreview(key: string) {
+    // Cloudinary photos are public URLs; only files kept on disk (development) are fetched through the API
+    if (key.startsWith('https://')) {
+      this.previews.update((p) => ({ ...p, [key]: key }));
+      return;
+    }
     this.api
       .file(key)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -626,6 +758,8 @@ export class ProductWizardPage {
   }
 
   protected errorText(name: string): string | null {
+    // the duplicate code found by the API shows under the field as soon as it is known, not only after "Siguiente"
+    if (name === 'manufacturerCode' && this.taken()) return FIELD_ERROR_MESSAGES['DUPLICATE_MANUFACTURER_CODE'];
     const error = this.stepErrors().find((e) => e.field === name);
     return error ? (FIELD_ERROR_MESSAGES[error.code] ?? null) : null;
   }
@@ -641,18 +775,36 @@ export class ProductWizardPage {
     this.stepIndex.update((i) => Math.max(0, i - 1));
   }
 
-  /** "Siguiente" checks the current step. On the last step the same button creates the product. */
+  /**
+   * "Siguiente" checks the current step. On the last step the same button creates the product. On the first step the
+   * code is asked to the API first (not only the live check, which may still be waiting for its pause), so a duplicate
+   * never gets past this step.
+   */
   protected next() {
-    if (this.saving()) return;
+    if (this.saving() || this.verifying()) return;
     this.attempted.set(true);
-    const step = this.currentStep();
-    if (step === 'identification' && this.taken()) {
-      this.stepErrors.set([{ field: 'manufacturerCode', code: 'DUPLICATE_MANUFACTURER_CODE' }]);
-      this.stepMessage.set(null);
+    const code = this.form.controls.manufacturerCode.value.trim();
+    const brandId = this.form.controls.brandId.value;
+    if (this.currentStep() === 'identification' && code && brandId) {
+      this.verifying.set(true);
+      this.api
+        .codeAvailability(brandId, code)
+        .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
+        .subscribe((result) => {
+          this.verifying.set(false);
+          // if the check itself fails, the API still refuses a duplicate when the product is saved
+          if (result) this.applyCodeCheck(result);
+          this.advance();
+        });
       return;
     }
+    this.advance();
+  }
+
+  private advance() {
+    const step = this.currentStep();
     // a step is checked with the final rules: a required field is required before the user moves on
-    const errors = this.stepProblems(step);
+    const errors = this.currentErrors(step);
     if (errors.length) {
       this.stepErrors.set(errors);
       this.stepMessage.set(
@@ -665,6 +817,20 @@ export class ProductWizardPage {
     this.attempted.set(false);
     if (this.isLastStep()) this.create();
     else this.stepIndex.update((i) => i + 1);
+  }
+
+  /** The answer of the API about the (brand, code) pair: a code used by another product marks the field. */
+  private applyCodeCheck(result: { available: boolean; productId: string | null } | null) {
+    const used = !!result && !result.available && result.productId !== this.productId();
+    this.taken.set(used ? { productId: result.productId } : null);
+  }
+
+
+  /** What blocks the step now: its field problems, plus the duplicate code found by the live check. */
+  private currentErrors(step: WizardStepKey): WizardFieldError[] {
+    const problems = this.stepProblems(step);
+    if (step !== 'identification' || !this.taken()) return problems;
+    return [{ field: 'manufacturerCode', code: 'DUPLICATE_MANUFACTURER_CODE' }, ...problems.filter((e) => e.field !== 'manufacturerCode')];
   }
 
   /** Field problems of one step: the domain rules for its fields, plus stock that is not a whole number. */

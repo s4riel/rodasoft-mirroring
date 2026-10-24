@@ -151,6 +151,11 @@
   width: 40px; /* Figma brand mark: 40 px */
   height: 40px;
 }
+/* the first photo replaces the brand initials in the preview */
+.brand-mark.photo {
+  object-fit: cover;
+  background: var(--bg-surface);
+}
 .product .product-code {
   font-family: var(--font-family-mono);
   font-size: var(--mono-md-size);
@@ -173,6 +178,11 @@
   font-size: var(--label-md-size);
   font-weight: var(--label-md-weight);
   color: var(--text-primary);
+  gap: var(--space-1);
+  padding-right: 14px;
+}
+.pill-label {
+  color: var(--text-muted);
 }
 .progress-head {
   display: flex;
