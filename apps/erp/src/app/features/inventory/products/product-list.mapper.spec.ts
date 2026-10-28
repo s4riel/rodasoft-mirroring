@@ -94,13 +94,13 @@ describe('describeProduct with technical fields', () => {
 });
 
 describe('toTableRow name', () => {
-  it('shows the subcategory as the product name, or the category when there is none', () => {
-    expect(toTableRow(item()).name).toBe('Rígidos de bolas');
+  it('shows the category as the product name', () => {
+    expect(toTableRow(item()).name).toBe('Rodamientos');
     expect(toTableRow(item({ subcategory: null })).name).toBe('Rodamientos');
   });
 
-  it('shows "category › subcategory" under the name only when there is a subcategory', () => {
-    expect(toTableRow(item()).categoryPath).toBe('Rodamientos › Rígidos de bolas');
+  it('shows the subcategory under the name, and nothing when there is none', () => {
+    expect(toTableRow(item()).categoryPath).toBe('Rígidos de bolas');
     expect(toTableRow(item({ subcategory: null })).categoryPath).toBe('');
   });
 });
