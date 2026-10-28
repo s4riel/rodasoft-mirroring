@@ -504,21 +504,20 @@ describe('TransfersService (integration, real Postgres)', () => {
       expect(await levelOf(p.id)).toBe(4);
     });
 
-    it('goes to approval over the limit, without moving stock, and sends under it', async () => {
+    it('has no approval step: a transfer of any size goes straight to in transit', async () => {
       const p = await productWithStock(20);
-      await setSetting('transfers.approvalThresholdPieces', 5);
+      // a threshold left over in the company settings from before is ignored
+      await setSetting('transfers.approvalThresholdPieces', 1);
       try {
-        const big = await save([{ productId: p.id, quantity: 6 }]);
-        expect((await service.get(big.id)).needsApproval).toBe(true);
-        const pending = await service.send(big.id, {});
-        expect(pending.status).toBe('PENDING_APPROVAL');
-        expect(await levelOf(p.id)).toBe(20);
-        expect(await base.stockMovement.count({ where: { refId: big.id } })).toBe(0);
-        expect(await base.outboxEvent.count({ where: { companyId, type: 'inventory.transfer.approval-requested', idempotencyKey: `inventory.transfer.approval-requested:${big.id}` } })).toBe(1);
+        const big = await save([{ productId: p.id, quantity: 12 }]);
+        const sent = await service.send(big.id, {});
 
-        const small = await save([{ productId: p.id, quantity: 5 }]);
-        expect((await service.send(small.id, {})).status).toBe('IN_TRANSIT');
-        expect(await levelOf(p.id)).toBe(15);
+        expect(sent.status).toBe('IN_TRANSIT');
+        expect(await levelOf(p.id)).toBe(8);
+        expect(await base.stockMovement.count({ where: { refId: big.id, type: 'TRANSFER_OUT' } })).toBe(1);
+        expect(await base.outboxEvent.count({ where: { companyId, type: 'inventory.transfer.sent', idempotencyKey: `inventory.transfer.sent:${big.id}` } })).toBe(1);
+        expect(await base.outboxEvent.count({ where: { companyId, idempotencyKey: `inventory.transfer.approval-requested:${big.id}` } })).toBe(0);
+        expect(await base.auditLog.count({ where: { companyId, entityId: big.id, action: { contains: 'approval' } } })).toBe(0);
       } finally {
         await clearSetting('transfers.approvalThresholdPieces');
       }
@@ -618,7 +617,7 @@ describe('TransfersService (integration, real Postgres)', () => {
       await base.transfer.update({ where: { id: draft.id }, data: { status: 'PARTIALLY_RECEIVED' } });
       expect(await transit(north)).toBe(3);
 
-      await base.transfer.update({ where: { id: draft.id }, data: { status: 'PENDING_APPROVAL' } });
+      await base.transfer.update({ where: { id: draft.id }, data: { status: 'CANCELLED' } });
       expect(await transit(north)).toBeUndefined();
       await base.transfer.update({ where: { id: draft.id }, data: { status: 'RECEIVED' } });
       expect(await transit(north)).toBeUndefined();

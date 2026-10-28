@@ -5,7 +5,6 @@ import {
   isTransferEditable,
   parseTransferNumber,
   parseTransferPaste,
-  requiresTransferApproval,
   TransferError,
   validateTransferLines,
 } from './transfer';
@@ -84,21 +83,6 @@ describe('validateTransferLines', () => {
   it('does not count an invalid quantity in the pieces or the value', () => {
     const { summary } = validateTransferLines([{ productId: 'p1', quantity: 1.5, unitCost: '9.0000', active: true }], available);
     expect(summary).toMatchObject({ pieces: 0, value: '0.00', errors: 1 });
-  });
-});
-
-describe('requiresTransferApproval', () => {
-  const summary = { pieces: 100, value: '5000.00' };
-
-  it('never asks when both limits are null', () => {
-    expect(requiresTransferApproval(summary, { pieces: null, value: null })).toBe(false);
-  });
-
-  it('asks when the pieces or the value exceed their limit, not when they equal it', () => {
-    expect(requiresTransferApproval(summary, { pieces: 99, value: null })).toBe(true);
-    expect(requiresTransferApproval(summary, { pieces: 100, value: null })).toBe(false);
-    expect(requiresTransferApproval(summary, { pieces: null, value: '4999.99' })).toBe(true);
-    expect(requiresTransferApproval(summary, { pieces: null, value: '5000.00' })).toBe(false);
   });
 });
 

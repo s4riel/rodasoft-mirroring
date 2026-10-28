@@ -17,7 +17,6 @@ import {
   parseMeasurement,
   parseTransferNumber,
   parseTransferPaste,
-  requiresTransferApproval,
   TRANSFER_FILE_MAX_BYTES,
   TRANSFER_LINE_QUANTITY_MAX,
   TRANSFER_OPEN_STATUSES,
@@ -449,9 +448,9 @@ export class TransfersService {
   }
 
   /**
-   * Sends a draft. If its size is over the company's limit it goes to approval instead (no movement yet). Otherwise
-   * every line leaves the origin as a `TRANSFER_OUT` movement and the transfer becomes IN_TRANSIT, all in one transaction:
-   * a line that cannot be taken (stock changed meanwhile) rolls back the whole send.
+   * Sends a draft. There is no approval step (client feedback): every line leaves the origin as a `TRANSFER_OUT` movement and
+   * the transfer becomes IN_TRANSIT at once, all in one transaction: a line that cannot be taken (stock changed
+   * meanwhile) rolls back the whole send.
    */
   async send(id: string, dto: SendTransferDto): Promise<TransferDetail> {
     const granted = await this.assertCanWrite();
@@ -478,11 +477,6 @@ export class TransfersService {
       }
 
       const totals = { pieces: validation.summary.pieces, value: validation.summary.value };
-      if (requiresTransferApproval(totals, await this.approvalLimits(tx))) {
-        await this.requestApproval(tx, { id, number: transfer.number, from: locked.status, totals, userId, companyId });
-        return this.detail(tx, id, granted);
-      }
-
       await this.takeStockOut(tx, id, transfer, products);
       await this.freezeItemCosts(tx, transfer.items, products);
       await this.markSent(tx, { id, transfer, from: locked.status, totals, userId, companyId });
@@ -553,28 +547,6 @@ export class TransfersService {
       ),
     );
     return transfer;
-  }
-
-  /** Over the company's limit the transfer waits for approval: its status changes, no stock moves. */
-  private async requestApproval(
-    tx: TenantTransaction,
-    ctx: { id: string; number: string; from: TransferStatus; totals: TransferTotals; userId: string | null; companyId: string },
-  ): Promise<void> {
-    const { id, number, from, totals, userId, companyId } = ctx;
-    const to = transferMachine.next(from, 'requestApproval');
-    await tx.transfer.update({ where: { id }, data: { status: to, totalPieces: totals.pieces, totalValue: totals.value } });
-    await this.recordAudit(tx, {
-      action: 'inventory.transfer.approval-requested',
-      entity: 'Transfer',
-      entityId: id,
-      before: { status: from },
-      after: { status: to, ...totals },
-    });
-    await this.outbox.publish(
-      'inventory.transfer.approval-requested',
-      { transferId: id, number, ...totals, userId },
-      { tx, companyId, idempotencyKey: `inventory.transfer.approval-requested:${id}` },
-    );
   }
 
   /** Every line leaves the origin as a `TRANSFER_OUT` movement. */
@@ -665,14 +637,6 @@ export class TransfersService {
     if (!warehouse || (allowed && !allowed.includes(warehouse.branchId))) {
       throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'Warehouse not found' });
     }
-  }
-
-  /** The company's thresholds above which a send asks for approval. */
-  private async approvalLimits(tx: TenantTransaction): Promise<{ pieces: number | null; value: string | null }> {
-    return {
-      pieces: await this.settings.get('transfers.approvalThresholdPieces', tx),
-      value: await this.settings.get('transfers.approvalThresholdValue', tx),
-    };
   }
 
   /** Audit entry written in the transaction of the change. */
@@ -780,7 +744,6 @@ export class TransfersService {
     const summary = isDraft
       ? validation.summary
       : { products: t.items.length, pieces: t.totalPieces, value: t.totalValue.toFixed(2), errors: 0, withoutCost: 0 };
-    const limits = await this.approvalLimits(tx);
 
     return {
       id: t.id,
@@ -806,7 +769,6 @@ export class TransfersService {
         };
       }),
       summary: { ...summary, value: canViewCosts ? summary.value : null, withoutCost: canViewCosts ? summary.withoutCost : null },
-      needsApproval: isDraft && requiresTransferApproval(summary, limits),
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
       sentAt: t.sentAt?.toISOString() ?? null,

@@ -1,7 +1,7 @@
 /**
  * Per-company settings (HU-INV-06). Each key is typed here with its default, so code always has a value even when
- * the company has no `company_settings` row. Defaults follow the open client decisions (#32, #36, #37): a missing
- * threshold means the approval is never asked for.
+ * the company has no `company_settings` row. Defaults follow the open client decisions (#32, #37): a missing
+ * threshold means the approval is never asked for. Transfers have no approval step, so no threshold.
  */
 export interface CompanySettings {
   /** Prefix of the internal SKU (decision #32). */
@@ -14,10 +14,6 @@ export interface CompanySettings {
   'inventory.import.createMissingBrands': boolean;
   /** Whether an equivalence link must be approved before it counts (decision #34). Off: it is saved approved, with audit. */
   'inventory.equivalences.requireApproval': boolean;
-  /** Transfers above this many pieces need approval (decision #36). Null = no limit. */
-  'transfers.approvalThresholdPieces': number | null;
-  /** Transfers above this value need approval (decision #36). Null = no limit. */
-  'transfers.approvalThresholdValue': string | null;
   /** Most distinct products one transfer may carry (HU-INV-18). */
   'transfers.maxLines': number;
   /** Adjustments above this value need approval (decision #37). Null = no limit. */
@@ -32,17 +28,12 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'inventory.import.maxRows': 2000,
   'inventory.import.createMissingBrands': false,
   'inventory.equivalences.requireApproval': false,
-  'transfers.approvalThresholdPieces': null,
-  'transfers.approvalThresholdValue': null,
   'transfers.maxLines': 500,
   'adjustments.approvalThresholdValue': null,
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */
-const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>([
-  'transfers.approvalThresholdValue',
-  'adjustments.approvalThresholdValue',
-]);
+const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>(['adjustments.approvalThresholdValue']);
 
 /** Settings are read from the database as JSON; a value that does not match its type falls back to the default. */
 export function settingOrDefault<K extends CompanySettingKey>(key: K, stored: unknown): CompanySettings[K] {

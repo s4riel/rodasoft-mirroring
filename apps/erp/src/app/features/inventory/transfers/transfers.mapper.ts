@@ -20,10 +20,10 @@ export const TRANSFER_STATUS_PILLS: Record<TransferStatus, DocTableStatus> = {
   CANCELLED: { label: 'Cancelada', status: 'idle' },
 };
 
-export const STATUS_OPTIONS: SelectOption[] = (Object.keys(TRANSFER_STATUS_PILLS) as TransferStatus[]).map((value) => ({
-  value,
-  label: TRANSFER_STATUS_PILLS[value].label,
-}));
+/** The statuses a transfer can reach. There is no approval step, so the filter does not offer the approval statuses. */
+const FILTERABLE_STATUSES: readonly TransferStatus[] = ['DRAFT', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'];
+
+export const STATUS_OPTIONS: SelectOption[] = FILTERABLE_STATUSES.map((value) => ({ value, label: TRANSFER_STATUS_PILLS[value].label }));
 
 /** What the URL holds: every filter is optional and the page starts at 1. */
 export interface TransferUrlFilters {

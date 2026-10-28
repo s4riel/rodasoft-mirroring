@@ -22,7 +22,6 @@ const detail = (over: Partial<TransferDetail> = {}): TransferDetail => ({
     { productId: 'p1', sku: 'RL-1', manufacturerCode: '6204-2RS', name: 'Rodamiento', brand: 'SKF', quantity: 6, receivedQuantity: 0, available: 4, unitCost: '5.0000', status: 'OK' },
   ],
   summary: { products: 1, pieces: 6, value: '30.00', errors: 0, withoutCost: 0 },
-  needsApproval: false,
   createdAt: '2026-10-28T15:00:00.000Z',
   updatedAt: '2026-10-28T16:00:00.000Z',
   sentAt: '2026-10-28T16:00:00.000Z',

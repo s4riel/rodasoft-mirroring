@@ -6,6 +6,7 @@ import {
   rangeLabel,
   routeOf,
   rowMenuOf,
+  STATUS_OPTIONS,
   toCsv,
   toQuery,
   toRow,
@@ -65,6 +66,13 @@ describe('detailOf', () => {
     expect(detailOf(item({ status: 'DRAFT', createdBy: null }))).toBe('Borrador');
     expect(detailOf(item({ status: 'PENDING_APPROVAL' }))).toContain('aprobación');
     expect(detailOf(item({ status: 'CANCELLED' }))).toBe('Cancelada');
+  });
+});
+
+describe('STATUS_OPTIONS', () => {
+  it('offers the statuses a transfer can reach, without the approval ones', () => {
+    expect(STATUS_OPTIONS.map((o) => o.value)).toEqual(['DRAFT', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED']);
+    expect(STATUS_OPTIONS.map((o) => o.label).join(' ')).not.toContain('aprobación');
   });
 });
 

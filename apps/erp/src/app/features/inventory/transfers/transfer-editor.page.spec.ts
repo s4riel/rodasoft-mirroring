@@ -60,7 +60,6 @@ const detail = (over: Partial<TransferDetail> = {}): TransferDetail => ({
   note: null,
   lines: [lineDetail()],
   summary: { products: 1, pieces: 2, value: '10.00', errors: 0, withoutCost: 0 },
-  needsApproval: false,
   createdAt: '2026-10-28T15:00:00.000Z',
   updatedAt: '2026-10-28T15:00:00.000Z',
   sentAt: null,
@@ -557,11 +556,12 @@ describe('TransferEditorPage', () => {
       expect(router.url).toBe('/inventory/transfers');
     });
 
-    it('asks for approval instead when the server says the draft is over the limit', async () => {
+    it('has one way to send, whatever the size: "Enviar transferencia", never an approval request', async () => {
       const h = await open('/t1/edit');
-      http.expectOne(`${BASE}/t1`).flush(detail({ needsApproval: true }));
+      http.expectOne(`${BASE}/t1`).flush(detail({ lines: [lineDetail({ quantity: 9, available: 50 })], summary: { products: 1, pieces: 9, value: '45.00', errors: 0, withoutCost: 0 } }));
       await settle(h);
-      expect(buttonByText(h, 'Enviar para aprobación')).toBeDefined();
+      expect(buttonByText(h, 'Enviar transferencia')).toBeDefined();
+      expect(text(h)).not.toContain('aprobación');
     });
 
     it('explains a refused send in Spanish and reloads the lines the server flags', async () => {

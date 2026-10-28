@@ -75,7 +75,8 @@ const SEARCH_DELAY_MS = 250;
 /**
  * IN-06 · Creates or edits a transfer draft: origin and destination, four ways to add products (search, paste, Excel,
  * restock below minimum, the last one for HU-INV-27), and a paginated list of lines whose edits survive page changes.
- * Sending is blocked while any line has an error (decision #35); over the company's limit the button asks for approval.
+ * Sending is blocked while any line has an error (decision #35). There is no approval step: "Enviar transferencia" puts the
+ * transfer in transit at once.
  */
 @Component({
   selector: 'rs-transfer-editor-page',
@@ -234,8 +235,6 @@ export class TransferEditorPage implements ConfirmsLeave {
     );
   });
 
-  protected readonly needsApproval = computed(() => this.saved()?.needsApproval === true);
-  protected readonly sendLabel = computed(() => (this.needsApproval() ? 'Enviar para aprobación' : 'Enviar transferencia'));
   protected readonly canSave = computed(() => this.originId() !== null && this.destinationId() !== null && this.busy() === null && this.dirty());
   protected readonly canSend = computed(
     () => this.originId() !== null && this.destinationId() !== null && this.lines().length > 0 && this.summary().errors === 0 && this.busy() === null,
@@ -549,7 +548,7 @@ export class TransferEditorPage implements ConfirmsLeave {
       .subscribe({
         next: (sent) => {
           this.apply(sent);
-          this.toast.success(sent.status === 'PENDING_APPROVAL' ? `${sent.number} enviada para aprobación` : `${sent.number} enviada: el stock salió del origen`);
+          this.toast.success(`${sent.number} enviada: el stock salió del origen`);
           void this.router.navigate(['/inventory/transfers']);
         },
         error: (err: unknown) => this.submitError.set(this.messageOf(err)),

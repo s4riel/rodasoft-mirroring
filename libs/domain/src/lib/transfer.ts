@@ -124,24 +124,14 @@ export function validateTransferLines(
   return { lines: validated, summary: { products: lines.length, pieces, value: value.toString(), errors, withoutCost } };
 }
 
-/**
- * Whether the transfer must be approved before it leaves (decision #36): more pieces or more value than the company's
- * limit. A limit that is `null` is not applied, so with both `null` nothing needs approval.
- */
-export function requiresTransferApproval(
-  summary: Pick<TransferSummary, 'pieces' | 'value'>,
-  limits: { pieces: number | null; value: string | null },
-): boolean {
-  if (limits.pieces !== null && summary.pieces > limits.pieces) return true;
-  if (limits.value !== null && Decimal.of(summary.value).units > Decimal.of(limits.value).units) return true;
-  return false;
-}
-
 /** Statuses in which a transfer's pieces have left the origin and not all reached the destination. */
 export const TRANSFER_IN_TRANSIT_STATUSES: readonly TransferStatus[] = ['IN_TRANSIT', 'PARTIALLY_RECEIVED'];
 
-/** Statuses of a transfer that is still open: not a draft, and not finished or cancelled. The sub-nav badge counts them. */
-export const TRANSFER_OPEN_STATUSES: readonly TransferStatus[] = ['PENDING_APPROVAL', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED'];
+/**
+ * Statuses of a transfer that is still open: sent and not fully received. The sub-nav badge counts them. There is no
+ * approval step (client feedback): a sent transfer is in transit at once, so the approval statuses are never reached.
+ */
+export const TRANSFER_OPEN_STATUSES: readonly TransferStatus[] = ['IN_TRANSIT', 'PARTIALLY_RECEIVED'];
 
 export interface TransferOpenCountResponse {
   count: number;
@@ -337,8 +327,6 @@ export interface TransferDetail {
   lines: TransferLineDetail[];
   /** `value` is `null` for a viewer without `inventory.costs.view`. */
   summary: Omit<TransferSummary, 'value' | 'withoutCost'> & { value: string | null; withoutCost: number | null };
-  /** True when sending would ask for approval instead of moving the stock. */
-  needsApproval: boolean;
   createdAt: string;
   updatedAt: string;
   sentAt: string | null;

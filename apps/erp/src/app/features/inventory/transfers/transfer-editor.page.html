@@ -289,7 +289,7 @@
         <rs-icon name="edit" [size]="16" /> Guardar borrador
       </button>
       <button *rsCan="'inventory.transfers.create'" rsButton variant="brand" type="button" [disabled]="!canSend()" [loading]="busy() === 'send'" (click)="send()">
-        <rs-icon name="transfer" [size]="16" /> {{ sendLabel() }}
+        <rs-icon name="transfer" [size]="16" /> Enviar transferencia
       </button>
     </div>
   }

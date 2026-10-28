@@ -4,12 +4,12 @@
 Warehouse moves merchandise between branches and needs a fast way to build a transfer of up to 100+ products. What already exists:
 - **State machine:** `transferMachine` in `libs/domain/src/lib/state-machine.ts`: `DRAFT → IN_TRANSIT` (send) or `→ PENDING_APPROVAL → APPROVED → IN_TRANSIT`, then receipt, plus `REJECTED` and `CANCELLED`.
 - **Permissions:** `inventory.transfers.create|approve|receive`.
-- **Settings:** `transfers.approvalThresholdPieces|Value` (decision #36, default `null` = never asks for approval).
+- **No approval:** after client feedback there is no approval flow (HU-INV-19 and 20 left the backlog, and so did decision #36's thresholds): sending a transfer puts it "en tránsito" at once.
 - **Stock:** `StockMovementType` has `TRANSFER_OUT` / `TRANSFER_IN`; `StockMovementService.apply` is the only stock writer and rejects negative stock.
 - **Warehouses:** in `GET /context`.
 - **Missing:** there is no `transfers` model, API or screens.
 
-This story covers the list (IN-05), the editor with its four add methods (IN-06a–d), the draft and **sending**, which takes the stock out of the origin and makes it "en tránsito". Out of scope: insufficient-stock correction UX (HU-INV-19), approval (HU-INV-20, only the "Enviar para aprobación" switch here), receipt (HU-INV-21) and restock-below-minimum (HU-INV-27).
+This story covers the list (IN-05), the editor with its four add methods (IN-06a–d), the draft and **sending**, which takes the stock out of the origin and makes it "en tránsito". Out of scope: receipt (HU-INV-21) and restock-below-minimum (HU-INV-27).
 
 **Branches:** HU-INV-10 (unmerged) adds `exceljs` and a paste/xlsx parsing pattern; HU-INV-16 and 17 are planned. Shared files are `stock-movement.service.ts` (HU-INV-10 and 16), `inventory.routes.ts`, `inventory-layout.page.ts`, `api-error.ts`, `seed.ts` and the document-number sequence (HU-INV-16 `AJ-`). Build on `feat/hu-inv-18` from `main` **after HU-INV-10 merges** (Excel parsing) — or add `exceljs` here if 10 isn't merged yet.
 
@@ -20,7 +20,7 @@ This story covers the list (IN-05), the editor with its four add methods (IN-06a
 | Search by code (IN-06a) | Int test: `GET /inventory/transfers/product-search?warehouseId&q` returns matches by code, brand or measurement with the stock available at the origin. Page spec: typing then Enter adds the first result. A repeated product adds to its quantity instead of duplicating the line |
 | Paste list or Excel (IN-06b / IN-06c) | Domain spec `parseTransferPaste`: comma, tab and semicolon separators, a header row skipped, blank lines, quantities ≤ 0 or non-integer flagged, duplicates summed. Int test: `POST /inventory/transfers/resolve-lines` (paste rows or an uploaded .xlsx/.csv with code + quantity) returns recognized / not found / insufficient stock **before** anything is added. Page spec: the preview modal shows the three groups, and "Agregar" adds only the correct ones |
 | Supports 100 products | Int test: a draft with 150 lines is saved and sent in one tx. Page spec: the lines table is paginated by 10, with internal search and filters Todos / Con error / Sin cambios. Edits persist across pages. The summary shows products, pieces, value and errors. Max lines is the setting `transfers.maxLines` (default 500) |
-| Stock becomes "en tránsito" | Int test (real Postgres): `POST /inventory/transfers/:id/send` writes a `TRANSFER_OUT` movement per line at the origin (`refType 'TRANSFER'`, `refNumber`) and moves the status `DRAFT → IN_TRANSIT` through `transferMachine`, with audit and outbox `inventory.transfer.sent`. The origin stock goes down, and `GET /inventory/products/:id/stock` shows `inTransit` to the destination branch. Sending with any line erroring → 422 `TRANSFER_HAS_ERRORS` (#35). Over a threshold → `PENDING_APPROVAL`, with no movements yet. **Concurrency:** two transfers sending the same scarce stock at once → one succeeds, the other gets 422 `INSUFFICIENT_STOCK` and leaves no partial movements; the level is never negative |
+| Stock becomes "en tránsito" | Int test (real Postgres): `POST /inventory/transfers/:id/send` writes a `TRANSFER_OUT` movement per line at the origin (`refType 'TRANSFER'`, `refNumber`) and moves the status `DRAFT → IN_TRANSIT` through `transferMachine`, with audit and outbox `inventory.transfer.sent`. The origin stock goes down, and `GET /inventory/products/:id/stock` shows `inTransit` to the destination branch. Sending with any line erroring → 422 `TRANSFER_HAS_ERRORS` (#35). There is no approval step: a transfer of any size goes straight to `IN_TRANSIT`. **Concurrency:** two transfers sending the same scarce stock at once → one succeeds, the other gets 422 `INSUFFICIENT_STOCK` and leaves no partial movements; the level is never negative |
 | Empty state with illustration (IN-06d) | Page spec: a new transfer without lines shows `rs-empty-state-illustrated` "Agrega productos" with the 3 add actions; Enviar is disabled |
 
 ## Model
@@ -43,7 +43,6 @@ Migration `20261025120000_transfers`:
 ## Domain (`libs/domain/src/lib/transfer.ts`)
 - `parseTransferPaste(text)` returns `{ rows: {line, code, quantity}[], errors: {line, reason}[] }`. It reuses the separator detection from HU-INV-10 if it exists.
 - `validateTransferLines(lines, availableByProduct)` returns per-line `OK | INSUFFICIENT_STOCK | INVALID_QUANTITY | PRODUCT_INACTIVE` plus a summary `{ products, pieces, value, errors }` (value with `Decimal`).
-- `requiresTransferApproval(summary, settings)` checks pieces > threshold or value > threshold; `null` → false.
 - Rules: origin ≠ destination (`SAME_WAREHOUSE`); the warehouses are active.
 - All status changes go through `transferMachine.transition`.
 
@@ -61,21 +60,20 @@ Migration `20261025120000_transfers`:
 
 - **`send`:** one tx.
   1. Lock the transfer row `FOR UPDATE` and re-validate its lines.
-  2. If approval is required → `requestApproval`, and stop.
-  3. Otherwise, for each line in product-id order (avoids deadlocks), call `StockMovementService.apply(TRANSFER_OUT, -qty)` at the origin, freezing `unit_cost` and the totals, then `send`.
-  4. Write the audit and `OutboxService.publish('inventory.transfer.sent', …, { tx })`.
+  2. For each line in product-id order (avoids deadlocks), call `StockMovementService.apply(TRANSFER_OUT, -qty)` at the origin, freezing `unit_cost` and the totals, then `send`.
+  3. Write the audit and `OutboxService.publish('inventory.transfer.sent', …, { tx })`.
 - Product stock endpoint: add `inTransit` per branch (incoming), read-only.
 - Audit `inventory.transfer.create|update|send|cancel`.
 
 ## ERP screens (`features/inventory/transfers/*`)
 - **Routes and nav:** `inventory/transfers`, `/new`, `/:id`. Enable the "Transferencias" sub-nav entry.
-- **IN-05, list:** `rs-page-header` with "Nueva transferencia" (`*rsCan`), a filter bar, an `rs-doc-table` with `rs-status-pill` per status ("Borrador", "En tránsito", "Pendiente de aprobación"…), `rs-pagination`, skeleton, empty and error states.
+- **IN-05, list:** `rs-page-header` with "Nueva transferencia" (`*rsCan`), a filter bar, an `rs-doc-table` with `rs-status-pill` per status ("Borrador", "En tránsito", "Recibida"…), `rs-pagination`, skeleton, empty and error states.
 - **IN-06, editor:**
   - **Header:** origin and destination `rs-select` (destination excludes the origin) and a note.
   - **Add bar:** an `rs-input` search with a results dropdown (Enter adds the first), "Pegar lista" (an `rs-modal` with an `rs-textarea` → preview), "Importar Excel" (`rs-file-upload` → same preview) and "Reponer bajo mínimo" disabled (HU-INV-27).
   - **Lines:** an `rs-doc-table` paginated by 10, with an `rs-input` number quantity per row, stock at the origin, an error flag on the row, remove, internal search and an `rs-tabs` / segmented filter Todos / Con error / Sin cambios.
   - **Summary bar:** products, pieces, value and errors.
-  - **Actions:** "Guardar borrador", then "Enviar" — or "Enviar para aprobación" when over the threshold. Both are disabled with errors.
+  - **Actions:** "Guardar borrador" and "Enviar transferencia" (the transfer is in transit at once). Enviar is disabled with errors.
   - **Edits:** kept in a signal store across pages; leaving with unsaved changes asks for confirmation.
 - **IN-06d:** `rs-empty-state-illustrated`.
 - **Detail `/:id`:** a read-only view after sending (status, lines, in-transit) — the minimum here; HU-INV-21 extends it.
@@ -83,25 +81,25 @@ Migration `20261025120000_transfers`:
 - **Components:** none new expected. Check `rs-file-upload` and the segmented filter exist; if a "summary bar" component is in Figma, it belongs in `libs/ui`.
 
 ## Tests
-- **Unit (domain):** paste parsing, line validation, approval thresholds, transitions used.
+- **Unit (domain):** paste parsing, line validation, transitions used.
 - **Unit (ERP):** add by search, Enter and duplicates; the paste preview groups; pagination with edits kept; filters; summary; button states; empty state; error mapping.
 - **Integration (real Postgres):**
   - create, update and send draft; 150 lines; branch scope and tenant isolation;
   - resolve-lines for paste and xlsx;
   - send writes the movements, totals, audit and outbox;
-  - errors block sending; the approval branch; cancel a draft;
+  - errors block sending; a transfer of any size goes straight to in transit; cancel a draft;
   - **concurrency:** two simultaneous sends over the same stock, and a send racing a draft edit (`TRANSFER_MODIFIED`).
 - **E2E:** Inventario → Transferencias → Nueva → origin Central, destination Norte → search a code + Enter → paste 3 lines (1 unknown flagged) → Agregar → Enviar → the list shows "En tránsito" → the origin stock goes down on the product sheet.
 
 ## Open decisions used with defaults
 - **#35:** sending is blocked while there are errors (no partial send).
-- **#36:** `transfers.approvalThresholdPieces|Value` default `null` = never asks. Exceeding them only switches to "Enviar para aprobación" here.
+- **#36 (approval limit): dropped.** Client feedback: there is no approval flow.
 - **New setting:** `transfers.maxLines` (default 500), so "supports 100" has headroom.
 
 ## Risks and doubts
 - **"En tránsito" representation:** derived from the transfer items, not a transit warehouse — simpler, and the kardex shows TRANSFER_OUT / IN. If accounting needs a valued transit balance, revisit.
 - **Cost for value:** the product's average cost; a product without cost counts as 0 and gets a warning.
-- **Scope:** the HU-INV-19/20/21 screens are not built here; their hooks are (statuses, `received_quantity`, approval columns).
+- **Scope:** receipt (HU-INV-21) is not built here; its hooks are (statuses, `received_quantity`). The approval statuses and columns (`approved_by_id`, `approved_at`) stay in the model and state machine, unused.
 - **Dependency on HU-INV-10** for Excel parsing and `exceljs`.
 - **Size:** this is the largest inventory story so far; if the build runs long, split the ERP editor (IN-06) from the API into two commits on the same branch.
 
