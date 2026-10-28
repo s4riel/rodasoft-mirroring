@@ -42,6 +42,8 @@ check:
     - name: redis:7-alpine
       alias: redis
   before_script:
+    # the corepack bundled with node 22.12 has outdated npm signing keys ("Cannot find matching keyid")
+    - npm install -g corepack@latest
     - corepack enable
     - pnpm config set store-dir .pnpm-store
     - pnpm install --frozen-lockfile
