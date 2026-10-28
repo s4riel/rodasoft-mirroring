@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   'inventory.products.export': 'Exportar productos a Excel',
   'inventory.equivalences.link': 'Vincular equivalencias',
   'inventory.equivalences.approve': 'Aprobar equivalencias',
+  'inventory.warehouses.manage': 'Gestionar almacenes',
 
   // Sales and POS
   'sales.pos.use': 'Vender en el punto de venta',
@@ -112,7 +113,7 @@ export const DEFAULT_ROLES: Record<string, { name: string; permissions: Permissi
   warehouse: {
     name: 'Almacén',
     permissions: ([...byPrefix('inventory.'), 'purchasing.receipts.record'] as Permission[]).filter(
-      (p) => !['inventory.costs.view', 'inventory.adjustments.approve', 'inventory.transfers.approve', 'inventory.equivalences.approve'].includes(p),
+      (p) => !['inventory.costs.view', 'inventory.adjustments.approve', 'inventory.transfers.approve', 'inventory.equivalences.approve', 'inventory.warehouses.manage'].includes(p),
     ),
   },
   accountant: {

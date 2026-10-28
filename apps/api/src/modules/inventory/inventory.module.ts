@@ -12,9 +12,11 @@ import { StockMovementService } from './stock-movement.service';
 import { StockQueriesService } from './stock-queries.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { UploadsController } from './uploads.controller';
+import { WarehousesController } from './warehouses.controller';
+import { WarehousesService } from './warehouses.service';
 
 @Module({
-  controllers: [ProductsController, ProductImportController, EquivalencesController, StockAdjustmentController, UploadsController],
+  controllers: [ProductsController, ProductImportController, EquivalencesController, StockAdjustmentController, WarehousesController, UploadsController],
   providers: [
     ProductsService,
     ProductCommandsService,
@@ -23,6 +25,7 @@ import { UploadsController } from './uploads.controller';
     StockQueriesService,
     StockMovementService,
     StockAdjustmentService,
+    WarehousesService,
     StorageService,
   ],
 })

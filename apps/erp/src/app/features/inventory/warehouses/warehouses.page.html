@@ -1,0 +1,136 @@
+<rs-page-header
+  title="Almacenes"
+  description="Los almacenes de cada sucursal, para ubicar la mercadería."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button *rsCan="'inventory.warehouses.manage'" rsButton variant="brand" type="button" (click)="openNew()">
+      <rs-icon name="plus" [size]="16" /> Nuevo almacén
+    </button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" aria-live="polite">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver almacenes"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <rs-filter-bar-products
+    searchPlaceholder="Buscar por código o nombre"
+    searchLabel="Buscar almacenes"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select
+        leadingIcon="branch"
+        placeholder="Sucursal"
+        ariaLabel="Sucursal"
+        [options]="branchOptions()"
+        [value]="filters().branchId"
+        (valueChange)="setFilter('branchId', $event)"
+      />
+      <rs-select
+        leadingIcon="check"
+        placeholder="Estado"
+        ariaLabel="Estado"
+        [options]="statusOptions"
+        [value]="filters().status"
+        (valueChange)="setFilter('status', $event)"
+      />
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando almacenes">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="22%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="18%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los almacenes" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="empty-catalog"
+            heading="Aún no hay almacenes"
+            description="Crea el primer almacén de una sucursal para empezar a ubicar la mercadería."
+            [showAction]="canManage()"
+          >
+            <button *rsCan="'inventory.warehouses.manage'" rsButton variant="brand" type="button" (click)="openNew()">
+              <rs-icon name="plus" [size]="16" /> Nuevo almacén
+            </button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No encontramos almacenes"
+            description="Prueba con otros filtros o con otro código."
+          >
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="md" tableLabel="Almacenes por sucursal" [columns]="columns" [rows]="rows()">
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <span class="row-actions">
+                <button
+                  *rsCan="'inventory.warehouses.manage'"
+                  rsIconButton
+                  size="sm"
+                  type="button"
+                  [label]="'Editar ' + item.code"
+                  rsTooltip="Editar almacén"
+                  (click)="openEdit(item)"
+                >
+                  <rs-icon name="edit" [size]="16" />
+                </button>
+              </span>
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ range() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

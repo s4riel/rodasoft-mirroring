@@ -19,7 +19,7 @@ export class InventoryLayoutPage {
   protected readonly tabs: SubNavItem[] = [
     { key: 'products', label: 'Productos', route: '/inventory/products' },
     { key: 'equivalences', label: 'Equivalencias', route: '/inventory/equivalences' },
-    { key: 'warehouses', label: 'Almacenes', disabled: true },
+    { key: 'warehouses', label: 'Almacenes', route: '/inventory/warehouses' },
     { key: 'transfers', label: 'Transferencias', disabled: true },
     { key: 'adjustments', label: 'Ajustes', disabled: true },
     { key: 'kardex', label: 'Kardex', disabled: true },

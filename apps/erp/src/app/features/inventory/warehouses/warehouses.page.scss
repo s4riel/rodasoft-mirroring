@@ -1,0 +1,54 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.filters {
+  display: flex;
+  flex: 1 1 0; /* fills the filter bar's filter row */
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.skeleton {
+  display: grid;
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+.footer {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.range {
+  font-size: var(--body-md-size);
+  color: var(--text-muted);
+}
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

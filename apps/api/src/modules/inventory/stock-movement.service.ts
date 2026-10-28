@@ -66,8 +66,10 @@ export class StockMovementService {
     const [product] = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM products WHERE id = ${input.productId}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
     if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+    // FOR SHARE: editing the warehouse (deactivating it, changing its branch) takes FOR UPDATE on this row, so a movement
+    // in flight and such an edit run one after the other
     const [warehouse] = await tx.$queryRaw<{ id: string; status: string }[]>`
-      SELECT id, status::text AS status FROM warehouses WHERE id = ${input.warehouseId}::uuid AND company_id = ${companyId}::uuid`;
+      SELECT id, status::text AS status FROM warehouses WHERE id = ${input.warehouseId}::uuid AND company_id = ${companyId}::uuid FOR SHARE`;
     if (!warehouse) throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'Warehouse not found' });
     if (warehouse.status !== 'ACTIVE') {
       throw new UnprocessableEntityException({ code: 'WAREHOUSE_INACTIVE', message: 'The warehouse is inactive and cannot receive stock' });
