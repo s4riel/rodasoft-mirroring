@@ -17,14 +17,14 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ## Build order
 
-| Block | Stories |
-|---|---|
+| Block                                             | Stories                                          |
+| ------------------------------------------------- | ------------------------------------------------ |
 | A · Foundations (data model, no story of its own) | see `docs/inventory/design-notes.md` §Data model |
-| B · Products | 01, 02, 03, 05, 06, 07, 08, 09 |
-| C · Stock and kardex | 16, 24, 22, 23 |
-| D · Equivalences | 04, 11, 12, 13 |
-| E · Warehouses and transfers | 17, 18, 19, 20, 21, 27 |
-| F · Excel importer | 10 |
+| B · Products                                      | 01, 02, 03, 05, 06, 07, 08, 09                   |
+| C · Stock and kardex                              | 16, 24, 22, 23                                   |
+| D · Equivalences                                  | 04, 11, 12, 13                                   |
+| E · Warehouses and transfers                      | 17, 18, 19, 20, 21, 27                           |
+| F · Excel importer                                | 10                                               |
 
 ## Stories
 
@@ -266,33 +266,6 @@ Do not implement. Retired screens: IN-04c.
 • Supports 100 products
 • Stock becomes "en tránsito"
 • With no products added: empty state with illustration
-
-### HU-INV-19 · Transfers
-
-- **Block:** E · Warehouses and transfers
-- **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
-- **Screens:** IN-26
-- **Open client decisions:** #35
-
-**Story:** As Warehouse, I want to know which products lack sufficient stock when transferring, so that I can correct before sending.
-
-**Acceptance criteria:**
-
-• Flags the lines without stock and allows adjusting
-
-### HU-INV-20 · Transfers
-
-- **Block:** E · Warehouses and transfers
-- **Role:** Management / Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
-- **Screens:** IN-25
-- **Open client decisions:** #36
-
-**Story:** As Management / Warehouse, I want to approve transfers that exceed the limit, so that I control large movements.
-
-**Acceptance criteria:**
-
-• Stays pending until approved
-• Shows amount and products
 
 ### HU-INV-21 · Transfers
 
