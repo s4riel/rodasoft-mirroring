@@ -57,7 +57,7 @@ export class StockMovementService {
     return { quantity: level?.quantity ?? 0, hasHistory: history > 0 };
   }
 
-  async apply(tx: TenantTransaction, input: StockMovementInput): Promise<{ balanceAfter: number }> {
+  async apply(tx: TenantTransaction, input: StockMovementInput): Promise<{ movementId: string; balanceAfter: number }> {
     const companyId = this.cls.get('companyId');
     if (!companyId) throw new Error('Stock movement outside a company context');
     assertOrigin(input);
@@ -99,7 +99,8 @@ export class StockMovementService {
       where: { productId: input.productId, warehouseId: input.warehouseId },
       data: { quantity: balanceAfter },
     });
-    await tx.stockMovement.create({
+    const movement = await tx.stockMovement.create({
+      select: { id: true },
       data: {
         companyId,
         productId: input.productId,
@@ -115,7 +116,7 @@ export class StockMovementService {
         userId: this.cls.get('userId') ?? null,
       },
     });
-    return { balanceAfter };
+    return { movementId: movement.id, balanceAfter };
   }
 }
 

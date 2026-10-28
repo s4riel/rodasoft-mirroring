@@ -1,5 +1,12 @@
 import { type EquivalenceMeasures, type ProductListItem, sameMeasures } from '@rodasoft/domain';
-import { FLAG_COUNTRIES, FlagCountry, ICON_NAMES, IconName, ProductAvailability, ProductTableRow } from '@rodasoft/ui';
+import {
+  FLAG_COUNTRIES,
+  FlagCountry,
+  ICON_NAMES,
+  IconName,
+  ProductAvailability,
+  ProductTableRow,
+} from '@rodasoft/ui';
 
 /** Product list rows per page (Figma ProductTable10). */
 export const PRODUCTS_PAGE_SIZE = 10;
@@ -77,7 +84,10 @@ export function toReferenceSearchResult(item: ProductListItem): ReferenceSearchR
     measures: d ? { innerDiameter: d.innerDiameter, outerDiameter: d.outerDiameter, width: d.width } : null,
     photoUrl: item.photoUrl,
     icon: thumbIconOf(item.category.icon),
-    dimensions: d?.innerDiameter && d.outerDiameter && d.width ? `${[d.innerDiameter, d.outerDiameter, d.width].map(formatMeasure).join('×')} mm` : null,
+    dimensions:
+      d?.innerDiameter && d.outerDiameter && d.width
+        ? `${[d.innerDiameter, d.outerDiameter, d.width].map(formatMeasure).join('×')} mm`
+        : null,
     specs: specs || null,
     industry: item.country ? { name: item.country.name, flag: flagOf(item.country.code) } : null,
   };
@@ -87,8 +97,15 @@ export function toReferenceSearchResult(item: ProductListItem): ReferenceSearchR
  * Whether a search result can be linked to the product being created: the API only links products of the same type and
  * d × D × B (EQUIVALENCE_INCOMPATIBLE otherwise), so the others are shown but not offered.
  */
-export function canLinkReference(result: Pick<ReferenceSearchResult, 'categoryId' | 'measures'>, product: { categoryId: string | null; measures: EquivalenceMeasures | null }): boolean {
-  return !!product.categoryId && result.categoryId === product.categoryId && sameMeasures(result.measures, product.measures);
+export function canLinkReference(
+  result: Pick<ReferenceSearchResult, 'categoryId' | 'measures'>,
+  product: { categoryId: string | null; measures: EquivalenceMeasures | null },
+): boolean {
+  return (
+    !!product.categoryId &&
+    result.categoryId === product.categoryId &&
+    sameMeasures(result.measures, product.measures)
+  );
 }
 
 export function toTableRow(item: ProductListItem): ProductTableRow {
@@ -98,7 +115,8 @@ export function toTableRow(item: ProductListItem): ProductTableRow {
     thumbIcon: thumbIconOf(item.category.icon),
     code: item.manufacturerCode,
     // the "Producto" column shows the type of product: the subcategory, or the category when there is none
-    name: (item.subcategory ?? item.category).name,
+    name: item.category.name,
+    categoryPath: item.subcategory ? `${item.subcategory.name}` : '',
     brandName: item.brand.name,
     brandLogoUrl: item.brand.logoUrl,
     country: flagOf(item.country?.code),

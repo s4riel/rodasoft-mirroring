@@ -17,6 +17,9 @@
       <div class="cell code" role="cell" [rsTooltip]="row.code" tabindex="0">{{ row.code }}</div>
       <div class="cell product" role="cell">
         <span class="name">{{ row.name }}</span>
+        @if (row.categoryPath) {
+          <span class="category" [rsTooltip]="row.categoryPath">{{ row.categoryPath }}</span>
+        }
         <span class="brand">
           @if (row.brandLogoUrl) {
             <img class="logo" [src]="row.brandLogoUrl" [alt]="row.brandName" />

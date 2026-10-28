@@ -47,6 +47,12 @@ const MESSAGES: Record<string, string> = {
   FILE_TOO_LARGE: 'El archivo supera el límite de 5 MB.',
   IMPORT_INVALID_TEMPLATE: 'El archivo no tiene el formato de la plantilla. Descárgala y vuelve a intentar.',
   IMPORT_TOO_MANY_ROWS: 'El archivo tiene demasiadas filas. Divídelo en partes más pequeñas.',
+  INSUFFICIENT_STOCK: 'No hay stock suficiente en el almacén para esta salida.',
+  STOCK_CHANGED: 'El stock cambió mientras ajustabas. Revisa la cantidad actual e inténtalo de nuevo.',
+  ADJUSTMENT_NEEDS_APPROVAL: 'Este ajuste supera el límite sin aprobación. Regístralo con un ajuste completo para que lo apruebe un responsable.',
+  NO_STOCK_CHANGE: 'El conteo es igual al stock actual: no hay nada que ajustar.',
+  REASON_REQUIRED: 'Elige el motivo del ajuste.',
+  REASON_NOTE_REQUIRED: 'Describe el motivo cuando eliges "Otro".',
   NOT_SUPPORTED: 'Esta opción todavía no está disponible.',
   NO_PERMISSION: 'No tienes permiso para esta acción.',
 };

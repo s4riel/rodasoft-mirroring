@@ -25,6 +25,8 @@ import type {
   ProductUpdateResponse,
   ProductWriteRequest,
   ProductWriteResponse,
+  QuickAdjustmentInput,
+  QuickAdjustmentResponse,
 } from '@rodasoft/domain';
 import { filter, map, type Observable } from 'rxjs';
 
@@ -99,6 +101,11 @@ export class ProductsApi {
   /** IN-18a · Stops offering the product for sale; its stock and history stay (HU-INV-09). */
   deactivate(id: string): Observable<ProductStatusResponse> {
     return this.http.post<ProductStatusResponse>(`/api/v1/inventory/products/${id}/deactivate`, {});
+  }
+
+  /** IN-17 · Quick stock adjustment of one product in one warehouse, with a mandatory reason (HU-INV-16). */
+  adjustStock(id: string, body: QuickAdjustmentInput): Observable<QuickAdjustmentResponse> {
+    return this.http.post<QuickAdjustmentResponse>(`/api/v1/inventory/products/${id}/stock-adjustments`, body);
   }
 
   reactivate(id: string): Observable<ProductStatusResponse> {

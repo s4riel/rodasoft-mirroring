@@ -1,0 +1,106 @@
+<rs-modal variant="form" heading="Ajustar stock" closeLabel="Cerrar" [(open)]="open">
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()" id="adjust-stock-form" novalidate>
+    <p class="subtitle">{{ subtitle() }}</p>
+
+    @if (stockFailed()) {
+      <rs-note type="warning" title="No pudimos leer el stock actual">
+        Puedes ajustar igual, pero sin el stock resultante.
+      </rs-note>
+      <button rsButton variant="secondary" type="button" (click)="retryStock()">Reintentar</button>
+    }
+
+    <fieldset class="kinds">
+      <legend class="kinds-legend">Tipo de ajuste</legend>
+      <div class="chips">
+        @for (chip of kindChips; track chip.kind) {
+          <rs-filter-chip
+            [label]="chip.label"
+            [showMedia]="false"
+            [removeLabel]="'Quitar ' + chip.label"
+            [selected]="kind() === chip.kind"
+            (selectedChange)="setKind(chip.kind, $event)"
+          />
+        }
+      </div>
+    </fieldset>
+
+    <div class="row">
+      <rs-field label="Sucursal" forId="adjust-branch" required>
+        <rs-select
+          inputId="adjust-branch"
+          formControlName="branchId"
+          leadingIcon="branch"
+          placeholder="Selecciona una sucursal"
+          [options]="branchOptions()"
+        />
+      </rs-field>
+
+      <rs-field [label]="isCount() ? 'Cantidad contada' : 'Cantidad'" forId="adjust-quantity" required [error]="quantityMessage()">
+        <rs-input-group [invalid]="!!quantityMessage()">
+          <rs-icon rsInputLeading name="package" [size]="16" />
+          <input
+            rsInput
+            rsNumeric="integer"
+            class="rs-mono"
+            id="adjust-quantity"
+            formControlName="quantity"
+            inputmode="numeric"
+            autocomplete="off"
+            maxlength="7"
+            placeholder="0"
+          />
+        </rs-input-group>
+      </rs-field>
+    </div>
+
+    @if (warehouseOptions().length) {
+      <rs-field label="Almacén" forId="adjust-warehouse" required>
+        <rs-select
+          inputId="adjust-warehouse"
+          formControlName="warehouseId"
+          placeholder="Selecciona un almacén"
+          [options]="warehouseOptions()"
+        />
+      </rs-field>
+    }
+
+    <rs-field label="Motivo" forId="adjust-reason" required>
+      <rs-select inputId="adjust-reason" formControlName="reason" placeholder="Selecciona un motivo" [options]="reasonOptions" />
+    </rs-field>
+
+    <rs-field
+      label="Comentario"
+      forId="adjust-note"
+      hint="Queda en el kardex con tu usuario y la fecha."
+      [required]="isOther()"
+      [error]="noteMessage()"
+    >
+      <input
+        rsInput
+        class="rs-mono"
+        id="adjust-note"
+        formControlName="note"
+        autocomplete="off"
+        [attr.maxlength]="noteMax"
+        [invalid]="!!noteMessage()"
+      />
+    </rs-field>
+
+    @if (stockLoading()) {
+      <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+    } @else if (result(); as r) {
+      <rs-note type="info" [title]="r.title" aria-live="polite">{{ r.detail }}</rs-note>
+    }
+
+    @if (notice(); as n) {
+      <rs-note [type]="n.type">{{ n.message }}</rs-note>
+    }
+  </form>
+
+  <div slot="footer" class="actions">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button rsButton variant="brand" type="submit" form="adjust-stock-form" [disabled]="!canSubmit()" [loading]="saving()">
+      <rs-icon name="check" [size]="16" /> Confirmar ajuste
+    </button>
+  </div>
+</rs-modal>

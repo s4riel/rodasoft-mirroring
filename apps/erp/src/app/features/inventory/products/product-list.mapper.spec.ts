@@ -98,6 +98,11 @@ describe('toTableRow name', () => {
     expect(toTableRow(item()).name).toBe('Rígidos de bolas');
     expect(toTableRow(item({ subcategory: null })).name).toBe('Rodamientos');
   });
+
+  it('shows "category › subcategory" under the name only when there is a subcategory', () => {
+    expect(toTableRow(item()).categoryPath).toBe('Rodamientos › Rígidos de bolas');
+    expect(toTableRow(item({ subcategory: null })).categoryPath).toBe('');
+  });
 });
 
 describe('describeProduct with weight', () => {

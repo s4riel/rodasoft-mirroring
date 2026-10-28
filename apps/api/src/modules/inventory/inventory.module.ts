@@ -6,13 +6,24 @@ import { ProductImportController } from './product-import.controller';
 import { ProductImportService } from './product-import.service';
 import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
+import { StockAdjustmentController } from './stock-adjustment.controller';
+import { StockAdjustmentService } from './stock-adjustment.service';
 import { StockMovementService } from './stock-movement.service';
 import { StockQueriesService } from './stock-queries.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { UploadsController } from './uploads.controller';
 
 @Module({
-  controllers: [ProductsController, ProductImportController, EquivalencesController, UploadsController],
-  providers: [ProductsService, ProductCommandsService, ProductImportService, EquivalencesService, StockQueriesService, StockMovementService, StorageService],
+  controllers: [ProductsController, ProductImportController, EquivalencesController, StockAdjustmentController, UploadsController],
+  providers: [
+    ProductsService,
+    ProductCommandsService,
+    ProductImportService,
+    EquivalencesService,
+    StockQueriesService,
+    StockMovementService,
+    StockAdjustmentService,
+    StorageService,
+  ],
 })
 export class InventoryModule {}

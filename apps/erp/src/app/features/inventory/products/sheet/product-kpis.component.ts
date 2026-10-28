@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import type { ProductDetail, ProductEquivalentsSummary } from '@rodasoft/domain';
 import { KpiCardComponent } from '@rodasoft/ui';
-import { formatMoney, plural, uniformValue } from './product-sheet.mapper';
+import { formatMoney, formatQuantity, plural, uniformValue } from './product-sheet.mapper';
 
 /** KPI row shared by the sheet tabs (IN-02a, IN-02b): total stock, price and equivalents. */
 @Component({
@@ -18,6 +18,7 @@ export class ProductKpisComponent {
   /** `plain` is the IN-02b wording: label "Precio (Bs)" and the amount without the currency prefix. */
   readonly priceStyle = input<'full' | 'plain'>('full');
 
+  protected readonly stockValue = computed(() => formatQuantity(this.product().totalStock, this.product().unit));
   protected readonly stockNote = computed(() => {
     const branches = this.product().stockByBranch;
     const min = uniformValue(branches.map((b) => b.minStock));

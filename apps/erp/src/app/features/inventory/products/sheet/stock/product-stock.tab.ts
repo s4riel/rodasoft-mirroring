@@ -15,7 +15,8 @@ import {
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../../../core/api-error';
 import { ProductsApi } from '../../products-api.service';
-import { plural } from '../product-sheet.mapper';
+import { formatQuantity } from '../product-sheet.mapper';
+import { ProductSheetStore } from '../product-sheet.store';
 
 type LoadState = 'loading' | 'ready' | 'forbidden' | 'error';
 
@@ -46,6 +47,7 @@ const COLUMNS: DocTableColumn[] = [
 export class ProductStockTab {
   private readonly api = inject(ProductsApi);
   private readonly route = inject(ActivatedRoute);
+  private readonly sheet = inject(ProductSheetStore);
 
   private readonly id = toSignal((this.route.parent ?? this.route).paramMap.pipe(map((p) => p.get('id') ?? '')), {
     requireSync: true,
@@ -110,7 +112,7 @@ export class ProductStockTab {
   }
 
   protected totalLabel(total: number): string {
-    return `Total ${total} ${plural(total, 'ud', 'uds')} · el stock se mueve entre sucursales solo con transferencias.`;
+    return `Total ${formatQuantity(total, this.sheet.product()?.unit)} · el stock se mueve entre sucursales solo con transferencias.`;
   }
 
   protected retry() {

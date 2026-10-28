@@ -15,7 +15,7 @@ import {
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../../../core/api-error';
 import { ProductsApi } from '../../products-api.service';
-import { formatDate, plural } from '../product-sheet.mapper';
+import { formatDate, formatQuantity, plural } from '../product-sheet.mapper';
 import { ProductSheetStore } from '../product-sheet.store';
 import { directionLabel, documentText, formatSigned } from './movement.mapper';
 
@@ -52,6 +52,11 @@ export class ProductMovementsTab {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly store = inject(ProductSheetStore);
+
+  /** A quantity with the unit of the product of the sheet. */
+  protected quantity(n: number): string {
+    return formatQuantity(n, this.store.product()?.unit);
+  }
 
   private readonly id = toSignal((this.route.parent ?? this.route).paramMap.pipe(map((p) => p.get('id') ?? '')), {
     requireSync: true,

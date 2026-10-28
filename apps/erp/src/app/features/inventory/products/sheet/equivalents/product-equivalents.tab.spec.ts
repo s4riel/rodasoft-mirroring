@@ -100,7 +100,7 @@ describe('ProductEquivalentsTab', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
-        { provide: ContextStore, useValue: { can: (p: string) => permissions.has(p), branchId: signal('b') } },
+        { provide: ContextStore, useValue: { can: (p: string) => permissions.has(p), branchId: signal('b'), branches: () => [] } },
       ],
     });
     http = TestBed.inject(HttpTestingController);

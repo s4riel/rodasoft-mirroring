@@ -19,6 +19,7 @@ import type { ProductFilterOptions } from '@rodasoft/domain';
 import { filter, map, startWith } from 'rxjs';
 import { problemOf } from '../../../../core/api-error';
 import { DeactivateProductDialog } from '../deactivate-product.dialog';
+import { AdjustStockDialog } from './adjust-stock/adjust-stock.dialog';
 import { DuplicateProductDialog } from '../duplicate-product.dialog';
 import { formatMeasure } from '../product-list.mapper';
 import { ProductsApi } from '../products-api.service';
@@ -36,6 +37,7 @@ const TAB_PATHS: Record<SheetTab, string> = { data: '', equivalents: 'equivalent
 @Component({
   selector: 'rs-product-sheet-page',
   imports: [
+    AdjustStockDialog,
     ButtonComponent,
     CanDirective,
     DeactivateProductDialog,
@@ -167,8 +169,10 @@ export class ProductSheetPage {
     });
   }
 
-  /** Stock adjustment arrives with HU-INV-16. */
-  protected comingSoon() {
-    this.toast.info('Esta acción estará disponible próximamente.');
+  protected readonly adjustOpen = signal(false);
+
+  /** IN-17 · Opens the quick stock adjustment. */
+  protected adjustStock() {
+    this.adjustOpen.set(true);
   }
 }

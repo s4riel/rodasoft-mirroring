@@ -36,7 +36,7 @@ If the code contradicts the plan (for example a model changed since), stop and t
 ## 3. Verification and closing
 
 1. Run `pnpm nx affected -t lint typecheck test` with no errors. If it fails, fix it; do not disable rules or tests.
-2. Run the `reviewer`, `stock-auditor` (if it touches stock) and `ui-checker` (if it touches screens) subagents on the diff and fix what they report.
+2. Run the `reviewer`, `stock-auditor` (if it touches stock), `refactor` and `ui-checker` (if it touches screens) subagents on the diff and fix what they report.
 3. Walk through the acceptance criteria one by one and mark which are covered and by which test.
 4. Do NOT commit. Propose the commit message `feat(<module>): <summary> (<HU-ID>)` and wait for my approval.
 5. Reply with: what was done, which tests cover each criterion, open decisions you used with a default value, what you could NOT verify (for example Figma fidelity or tests you could not run), and what is missing. Report real command results, not assumptions.
