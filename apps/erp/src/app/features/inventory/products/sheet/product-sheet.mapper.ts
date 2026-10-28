@@ -44,6 +44,22 @@ export function formatUnit(unit: string): string {
   return UNIT_NAMES[unit] ?? unit;
 }
 
+const UNIT_FORMS: Record<string, readonly [one: string, many: string]> = {
+  UN: ['pieza', 'piezas'],
+  PAR: ['par', 'pares'],
+  JGO: ['juego', 'juegos'],
+  M: ['metro', 'metros'],
+  KG: ['kilogramo', 'kilogramos'],
+  LT: ['litro', 'litros'],
+};
+
+/** A quantity with the unit of the product, in the form that matches the count: "1 pieza", "121 piezas", "4 pares". */
+export function formatQuantity(n: number, unit: string | null | undefined): string {
+  const forms = unit ? UNIT_FORMS[unit] : undefined;
+  if (forms) return `${n} ${plural(n, forms[0], forms[1])}`;
+  return `${n} ${unit || 'uds'}`;
+}
+
 /** Last path segment of a URL, decoded ("https://x/a/SKF%20x.pdf" -> "SKF x.pdf"). */
 export function fileNameOf(url: string): string {
   const last = url.split('?')[0].split('/').filter(Boolean).pop() ?? url;

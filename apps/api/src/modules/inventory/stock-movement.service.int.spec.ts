@@ -83,8 +83,8 @@ describe('StockMovementService (integration, real Postgres)', () => {
   });
 
   it('creates the level on first use and keeps the balance chain', async () => {
-    expect(await move(productId, warehouseId, 24, 'INITIAL')).toEqual({ balanceAfter: 24 });
-    expect(await move(productId, warehouseId, -4)).toEqual({ balanceAfter: 20 });
+    expect(await move(productId, warehouseId, 24, 'INITIAL')).toMatchObject({ balanceAfter: 24 });
+    expect(await move(productId, warehouseId, -4)).toMatchObject({ balanceAfter: 20 });
     const level = await base.stockLevel.findFirstOrThrow({ where: { productId, warehouseId } });
     expect(level.quantity).toBe(20);
     const movements = await base.stockMovement.findMany({ where: { productId, warehouseId }, orderBy: { createdAt: 'asc' } });

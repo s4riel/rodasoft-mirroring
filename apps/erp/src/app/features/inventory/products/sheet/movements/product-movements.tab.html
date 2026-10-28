@@ -38,7 +38,7 @@
         <div class="kpis">
           <rs-kpi-card label="Entradas (30 días)" [value]="'+' + d.summary.inLast30Days" />
           <rs-kpi-card label="Salidas (30 días)" [value]="'−' + d.summary.outLast30Days" />
-          <rs-kpi-card label="Saldo actual" [value]="d.summary.currentBalance + ' uds'" />
+          <rs-kpi-card label="Saldo actual" [value]="quantity(d.summary.currentBalance)" />
         </div>
       }
 

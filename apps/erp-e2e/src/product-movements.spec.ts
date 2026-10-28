@@ -57,7 +57,7 @@ test('the current balance equals the total of the stock per warehouse', async ({
   expect(headers.map((h) => h.trim())).toEqual(['Sucursal', 'Almacén', 'Ubicación', 'Stock', 'Mín.', 'Máx.']);
 
   const total = await page.locator('rs-doc-table .total').textContent();
-  const units = Number(total?.match(/Total (\d+) uds?/)?.[1]);
+  const units = Number(total?.match(/Total (\d+) piezas?/)?.[1]);
   expect(units).toBe(Number(balance?.replace(/[^\d]/g, '')));
   await expect(page.getByText('el stock se mueve entre sucursales solo con transferencias.')).toBeVisible();
 });

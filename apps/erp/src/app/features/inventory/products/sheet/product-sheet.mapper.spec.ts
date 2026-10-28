@@ -6,6 +6,7 @@ import {
   formatMoney,
   fileNameOf,
   formatPercent,
+  formatQuantity,
   formatUnit,
   specValue,
   toSpecField,
@@ -37,6 +38,18 @@ describe('product sheet mapper', () => {
     expect(formatMoney(undefined)).toBe('–');
     expect(formatPercent('26.5')).toBe('26,5 %');
     expect(formatPercent(null)).toBe('–');
+  });
+
+  it('writes a quantity with the unit of the product, singular or plural', () => {
+    expect(formatQuantity(1, 'UN')).toBe('1 pieza');
+    expect(formatQuantity(121, 'UN')).toBe('121 piezas');
+    expect(formatQuantity(0, 'UN')).toBe('0 piezas');
+    expect(formatQuantity(1, 'PAR')).toBe('1 par');
+    expect(formatQuantity(4, 'PAR')).toBe('4 pares');
+    expect(formatQuantity(12, 'KG')).toBe('12 kilogramos');
+    expect(formatQuantity(3, 'XYZ')).toBe('3 XYZ');
+    expect(formatQuantity(3, '')).toBe('3 uds');
+    expect(formatQuantity(3, undefined)).toBe('3 uds');
   });
 
   it('names units, files and shared per-branch values', () => {

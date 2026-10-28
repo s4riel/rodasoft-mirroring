@@ -109,7 +109,14 @@ describe('ProductSheetPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
-        { provide: ContextStore, useValue: { can: (p: string) => permissions.has(p), branchId: signal('b') } },
+        {
+          provide: ContextStore,
+          useValue: {
+            can: (p: string) => permissions.has(p),
+            branchId: signal('b'),
+            branches: () => [{ id: 'b', code: 0, name: 'Central', warehouses: [{ id: 'w1', code: 'W1', name: 'Principal' }] }],
+          },
+        },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -161,7 +168,7 @@ describe('ProductSheetPage', () => {
     expect(t).toContain('País de origen:');
     expect(t).toContain('Suecia');
     expect(Array.from(el(h).querySelectorAll('.tags li')).map((l) => l.textContent?.trim())).toEqual(['Minería', 'Industria']);
-    expect(t).toContain('60 uds');
+    expect(t).toContain('60 piezas');
     expect(t).toContain('3 sucursales · mínimo 6');
 
     // dimensions card: d, D, B, weight and the dimension-step specs
@@ -310,14 +317,54 @@ describe('ProductSheetPage', () => {
     expect(TestBed.inject(Router).url).toBe('/inventory/products/p1/edit');
   });
 
-  it('keeps the coming-soon toast for Ajustar stock', async () => {
+  it('opens the stock adjustment dialog for this product from Ajustar stock', async () => {
     const h = await open();
     respond(detail());
     await settle(h);
     const adjust = Array.from(el(h).querySelectorAll('button')).find((b) => b.textContent?.includes('Ajustar stock')) as HTMLButtonElement;
     adjust.click();
     await settle(h);
-    expect(text(h)).toContain('Esta acción estará disponible próximamente.');
+    http.expectOne(`${URL}/stock`).flush({ items: [], total: 0 });
+    await settle(h);
+    const dialog = el(h).querySelector('rs-adjust-stock-dialog [role=dialog]');
+    expect(dialog?.textContent).toContain('Tipo de ajuste');
+    expect(dialog?.querySelector('.subtitle')?.textContent).toContain('6205-2RS');
+  });
+
+  it('reloads the sheet after an adjustment so the stock card shows the new numbers', async () => {
+    const h = await open();
+    respond(detail());
+    await settle(h);
+    const adjust = Array.from(el(h).querySelectorAll('button')).find((b) => b.textContent?.includes('Ajustar stock')) as HTMLButtonElement;
+    adjust.click();
+    await settle(h);
+    http.expectOne(`${URL}/stock`).flush({ items: [{ branch: { id: 'b', name: 'Central' }, warehouse: { id: 'w1', name: 'Principal' }, location: null, quantity: 12, minStock: null, maxStock: null, availability: 'available' }], total: 12 });
+    await settle(h);
+
+    const dialogEl = el(h).querySelector('rs-adjust-stock-dialog') as HTMLElement;
+    const click = async (find: () => HTMLElement | undefined) => {
+      find()?.click();
+      await settle(h);
+    };
+    const pick = async (id: string, label: string) => {
+      await click(() => dialogEl.querySelector(`#${id}`) as HTMLElement);
+      await click(() => Array.from(dialogEl.querySelectorAll<HTMLElement>('[role=option]')).find((o) => o.textContent?.includes(label)));
+    };
+    await pick('adjust-reason', 'Merma');
+    await click(() => Array.from(dialogEl.querySelectorAll<HTMLElement>('rs-filter-chip button')).find((b) => b.textContent?.includes('Salida')));
+    const quantity = dialogEl.querySelector('#adjust-quantity') as HTMLInputElement;
+    quantity.value = '2';
+    quantity.dispatchEvent(new Event('input'));
+    await settle(h);
+
+    await click(() => Array.from(dialogEl.querySelectorAll<HTMLElement>('button')).find((b) => b.textContent?.trim() === 'Confirmar ajuste'));
+    http.expectOne(`${URL}/stock-adjustments`).flush({ movementId: 'm1', refNumber: 'AJ-000123', balanceAfter: 10, totalStock: 22 });
+    await settle(h);
+
+    // the store reloads the product and its equivalents
+    respond(detail({ totalStock: 22 }));
+    await settle(h);
+    expect(el(h).querySelector('rs-adjust-stock-dialog [role=dialog]')).toBeNull();
   });
 
   it('opens the Movimientos and Stock por almacén tabs with their own requests', async () => {

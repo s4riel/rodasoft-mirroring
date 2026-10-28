@@ -31,7 +31,7 @@ test('shows the sheet with identity, flag, KPI total matching the stock per bran
   await expect(page.getByRole('heading', { name: 'Stock por sucursal' })).toBeVisible();
   const quantities = await page.locator('.stock-list .qty').allTextContents();
   const sum = quantities.reduce((total, q) => total + Number(q.trim()), 0);
-  await expect(page.locator('rs-kpi-card', { hasText: 'Stock total' }).locator('.value')).toHaveText(`${sum} uds`);
+  await expect(page.locator('rs-kpi-card', { hasText: 'Stock total' }).locator('.value')).toHaveText(`${sum} piezas`);
   await expect(page.locator('.stock-total')).toContainText(String(sum));
 });
 

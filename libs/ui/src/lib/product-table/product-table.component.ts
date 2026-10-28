@@ -16,6 +16,8 @@ export interface ProductTableRow {
   thumbIcon?: IconName;
   code: string;
   name: string;
+  /** "Category › Subcategory" shown under the name; empty when the product has no subcategory. */
+  categoryPath?: string;
   brandName: string;
   /** Brand logo; without it the brand shows its initials (decision #38). */
   brandLogoUrl: string | null;

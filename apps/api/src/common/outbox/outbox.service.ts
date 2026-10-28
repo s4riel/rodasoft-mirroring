@@ -14,7 +14,8 @@ export type OutboxType =
   | 'entry.generate'
   | 'inventory.product-created'
   | 'inventory.product-updated'
-  | 'inventory.product-status-changed';
+  | 'inventory.product-status-changed'
+  | 'inventory.stock.changed';
 
 type Tx = Prisma.TransactionClient | PrismaService | TenantTransaction;
 
