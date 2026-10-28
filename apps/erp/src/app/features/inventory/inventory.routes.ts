@@ -57,6 +57,23 @@ export const INVENTORY_ROUTES: Route[] = [
         title: 'Vincular equivalencia · ERP',
         loadComponent: () => import('./equivalences/link/equivalence-link.page').then((m) => m.EquivalenceLinkPage),
       },
+      {
+        // the page shows its own no-permission state, as the product list does
+        path: 'warehouses',
+        title: 'Almacenes · ERP',
+        loadComponent: () => import('./warehouses/warehouses.page').then((m) => m.WarehousesPage),
+      },
+      {
+        // the forms show their own no-permission state: the shared guard words its message for products
+        path: 'warehouses/new',
+        title: 'Nuevo almacén · ERP',
+        loadComponent: () => import('./warehouses/warehouse-form.page').then((m) => m.WarehouseFormPage),
+      },
+      {
+        path: 'warehouses/:id/edit',
+        title: 'Editar almacén · ERP',
+        loadComponent: () => import('./warehouses/warehouse-form.page').then((m) => m.WarehouseFormPage),
+      },
       PRODUCT_SHEET_ROUTE,
     ],
   },

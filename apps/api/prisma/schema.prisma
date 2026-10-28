@@ -120,6 +120,8 @@ model Warehouse {
   isMain         Boolean      @default(false) @map("is_main")
   /// the online store only sells from published warehouses
   visibleInStore Boolean      @default(true) @map("visible_in_store")
+  /// address or physical reference of the warehouse (IN-30)
+  locationNote   String?      @map("location_note")
   status         RecordStatus @default(ACTIVE)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)

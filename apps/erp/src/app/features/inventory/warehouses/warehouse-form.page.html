@@ -1,0 +1,150 @@
+<rs-page-header
+  [title]="title"
+  description="Un almacén es un lugar físico de una sucursal donde se guarda mercadería."
+  type="form"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para gestionar almacenes"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('loading') {
+    <section class="card" role="status" aria-busy="true" aria-label="Cargando el almacén">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+    </section>
+  }
+  @case ('not-found') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated
+        illustration="no-results"
+        heading="No encontramos este almacén"
+        description="Vuelve al listado y elige otro almacén."
+      >
+        <button rsButton variant="secondary" type="button" (click)="cancel()">Volver a almacenes</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el almacén" description="Revisa tu conexión e inténtalo de nuevo.">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    <form id="warehouse-form" class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <section class="card" aria-labelledby="warehouse-card-title">
+        <h2 id="warehouse-card-title" class="card-title">Datos del almacén</h2>
+
+        <div class="row">
+          <rs-field label="Código" forId="warehouse-code" required hint="Se guarda en mayúsculas. Por ejemplo, HK-02." [error]="codeMessage()">
+            <input
+              rsInput
+              class="mono"
+              id="warehouse-code"
+              formControlName="code"
+              autocomplete="off"
+              maxlength="12"
+              [invalid]="!!codeMessage()"
+              (blur)="normalizeCode()"
+            />
+          </rs-field>
+
+          <rs-field label="Nombre" forId="warehouse-name" required [error]="nameMessage()">
+            <input rsInput id="warehouse-name" formControlName="name" autocomplete="off" [attr.maxlength]="nameMax" [invalid]="!!nameMessage()" />
+          </rs-field>
+        </div>
+
+        <rs-field
+          label="Sucursal"
+          forId="warehouse-branch"
+          required
+          [hint]="branchLocked() ? 'No se puede cambiar: el almacén ya tiene movimientos.' : ''"
+          [error]="branchMessage()"
+        >
+          <rs-select
+            inputId="warehouse-branch"
+            formControlName="branchId"
+            leadingIcon="branch"
+            placeholder="Selecciona una sucursal"
+            [options]="branchOptions()"
+            [invalid]="!!branchMessage()"
+          />
+        </rs-field>
+
+        <rs-field
+          label="Ubicación"
+          forId="warehouse-location"
+          hint="Dirección o referencia física. Es opcional."
+          [error]="form.controls.locationNote.errors ? 'Usa como máximo ' + noteMax + ' caracteres.' : null"
+        >
+          <textarea rsTextarea autosize rows="2" id="warehouse-location" formControlName="locationNote" [attr.maxlength]="noteMax"></textarea>
+        </rs-field>
+      </section>
+
+      <section class="card" aria-labelledby="warehouse-options-title">
+        <h2 id="warehouse-options-title" class="card-title">Opciones</h2>
+
+        <div class="option">
+          <rs-switch formControlName="isMain" inputId="warehouse-main" onText="Sí" offText="No">Almacén principal de la sucursal</rs-switch>
+          <p class="option-hint">
+            @if (mainLocked()) {
+              Para cambiar el principal, marca otro almacén de la sucursal como principal.
+            } @else {
+              Recibe el stock inicial de los productos nuevos de la sucursal. Solo hay uno por sucursal.
+            }
+          </p>
+        </div>
+
+        <div class="option">
+          <rs-switch formControlName="visibleInStore" inputId="warehouse-store" onText="Sí" offText="No">Visible en la tienda en línea</rs-switch>
+          <p class="option-hint">La tienda vende solo con el stock de los almacenes visibles.</p>
+        </div>
+
+        @if (editing) {
+          <div class="option">
+            <rs-switch formControlName="active" inputId="warehouse-active" onText="Activo" offText="Inactivo">Estado del almacén</rs-switch>
+            <p class="option-hint">{{ statusHint() }}</p>
+          </div>
+        }
+      </section>
+
+      @if (submitError(); as error) {
+        <rs-note type="danger" title="No se pudo guardar" role="alert">
+          {{ error.message }}
+          @if (error.code === 'WAREHOUSE_MODIFIED') {
+            <button rsButton variant="secondary" size="sm" type="button" (click)="load()">Recargar</button>
+          }
+        </rs-note>
+      }
+
+      <footer class="actions-panel">
+        <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+        <button rsButton variant="brand" type="submit" [disabled]="!canSave()" [loading]="saving()">
+          <rs-icon name="check" [size]="16" /> {{ editing ? 'Guardar cambios' : 'Crear almacén' }}
+        </button>
+      </footer>
+    </form>
+  }
+}
+
+<rs-modal variant="confirmation" closeLabel="Cerrar" heading="¿Cambiar el almacén principal?" [(open)]="swapOpen">
+  <p class="swap-text">{{ swapText() }}</p>
+  <div slot="footer" class="swap-actions">
+    <button rsButton variant="secondary" type="button" (click)="swapOpen.set(false)">Cancelar</button>
+    <button rsButton variant="brand" type="button" (click)="confirmSwap()">Cambiar principal</button>
+  </div>
+</rs-modal>
+
+<rs-toast-outlet closeLabel="Cerrar" />
