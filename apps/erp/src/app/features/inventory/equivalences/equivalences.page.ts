@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import type { EquivalenceListItem, EquivalenceListProduct, EquivalenceListResponse, ProductFilterOptions } from '@rodasoft/domain';
 import {
   ButtonComponent,
+  IconButtonComponent,
   CanDirective,
   DocTableCellDirective,
   DocTableColumn,
@@ -21,9 +22,11 @@ import {
   SelectComponent,
   SelectOption,
   SkeletonComponent,
+  StatusPillComponent,
   StockFlagComponent,
   ToastOutletComponent,
   ToastService,
+  TooltipDirective,
 } from '@rodasoft/ui';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
@@ -31,6 +34,7 @@ import { ContextStore } from '../../../core/context.store';
 import { flagOf, thumbIconOf } from '../products/product-list.mapper';
 import { ProductsApi } from '../products/products-api.service';
 import { EquivalencesApi } from './equivalences-api.service';
+import { EquivalenceUnlinkDialog, type UnlinkTarget } from './link/equivalence-unlink.dialog';
 import {
   EQUIVALENCES_PAGE_SIZE,
   EquivalenceUrlFilters,
@@ -50,6 +54,7 @@ const COLUMNS: DocTableColumn[] = [
   { key: 'measures', label: 'Medidas', type: 'text' },
   { key: 'kind', label: 'Tipo', type: 'status' },
   { key: 'stock', label: 'Stock', type: 'custom', align: 'end' },
+  { key: 'actions', label: 'Acciones', type: 'custom', align: 'end' },
 ];
 
 /** IN-15a / IN-15b / IN-15f · Equivalence table between brands: every saved link, with filters, empty and read-only states. */
@@ -57,10 +62,12 @@ const COLUMNS: DocTableColumn[] = [
   selector: 'rs-equivalences-page',
   imports: [
     ButtonComponent,
+    IconButtonComponent,
     CanDirective,
     DocTableCellDirective,
     DocTableComponent,
     EmptyStateIllustratedComponent,
+    EquivalenceUnlinkDialog,
     FilterBarProductsComponent,
     FlagComponent,
     IconComponent,
@@ -72,8 +79,10 @@ const COLUMNS: DocTableColumn[] = [
     ProductThumbComponent,
     SelectComponent,
     SkeletonComponent,
+    StatusPillComponent,
     StockFlagComponent,
     ToastOutletComponent,
+    TooltipDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './equivalences.page.html',
@@ -109,6 +118,10 @@ export class EquivalencesPage {
       page: Math.max(1, Number(q.get('page')) || 1),
     };
   });
+
+  protected readonly unlinkOpen = signal(false);
+  protected readonly unlinkTarget = signal<UnlinkTarget | null>(null);
+  protected readonly approvingId = signal<string | null>(null);
 
   protected readonly searchText = signal('');
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -246,9 +259,39 @@ export class EquivalencesPage {
     void this.router.navigate(['/inventory/products', product.id]);
   }
 
-  /** Linking from here has no product to start from; HU-INV-13 builds the link flow. */
-  protected comingSoon() {
-    this.toast.info('Esta acción estará disponible próximamente.');
+  /** IN-15c · The link form, with no product of its own (the list has none to start from). */
+  protected openLink() {
+    void this.router.navigate(['/inventory/equivalences/new']);
+  }
+
+  protected itemOf(rowId: string): EquivalenceListItem | null {
+    return this.itemById().get(rowId) ?? null;
+  }
+
+  protected askUnlink(item: EquivalenceListItem) {
+    this.unlinkTarget.set({
+      id: item.id,
+      pairLabel: `${item.productA.manufacturerCode} · ${item.productA.brand.name} y ${item.productB.manufacturerCode} · ${item.productB.brand.name}`,
+    });
+    this.unlinkOpen.set(true);
+  }
+
+  /** Decision #34 · Approves a pending link. */
+  protected approve(item: EquivalenceListItem) {
+    if (this.approvingId()) return;
+    this.approvingId.set(item.id);
+    this.api.approve(item.id).subscribe({
+      next: () => {
+        this.approvingId.set(null);
+        this.toast.success('Equivalencia aprobada');
+        this.retry();
+      },
+      error: (err: unknown) => {
+        this.approvingId.set(null);
+        this.toast.danger(problemOf(err).message);
+        this.retry();
+      },
+    });
   }
 
   private navigate(queryParams: Record<string, string | null>) {

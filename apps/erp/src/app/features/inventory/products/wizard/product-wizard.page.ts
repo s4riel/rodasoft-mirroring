@@ -51,12 +51,14 @@ import {
   StepperComponent,
   ToastOutletComponent,
   ToastService,
+  FlagComponent,
+  ProductThumbComponent,
 } from '@rodasoft/ui';
 import { catchError, debounceTime, forkJoin, map, merge, of, type Subscription, switchMap } from 'rxjs';
 import { equivalencePill } from '../sheet/equivalents/equivalence-pill';
 import { messageFor, problemOf } from '../../../../core/api-error';
 import { ContextStore } from '../../../../core/context.store';
-import { flagOf } from '../product-list.mapper';
+import { canLinkReference, flagOf, type ReferenceSearchResult, toReferenceSearchResult } from '../product-list.mapper';
 import { ProductsApi } from '../products-api.service';
 import {
   attributeRules,
@@ -121,6 +123,8 @@ interface PendingUpload {
   selector: 'rs-product-wizard-page',
   imports: [
     ButtonComponent,
+    FlagComponent,
+    ProductThumbComponent,
     FieldComponent,
     FileDropzoneComponent,
     FileItemComponent,
@@ -199,7 +203,7 @@ export class ProductWizardPage {
   protected readonly candidatesState = signal<'idle' | 'loading' | 'ready' | 'error'>('idle');
   protected readonly linkIds = signal<readonly string[]>([]);
   protected readonly search = new FormControl('', { nonNullable: true });
-  protected readonly searchResults = signal<{ productId: string; code: string; brand: string }[]>([]);
+  protected readonly searchResults = signal<ReferenceSearchResult[]>([]);
   // leaving with unsaved work asks first; previews are object URLs of the uploaded photos
   protected readonly leaveOpen = signal(false);
   protected readonly mediaChanged = signal(false);
@@ -417,7 +421,7 @@ export class ProductWizardPage {
         this.searchResults.set(
           (result?.items ?? [])
             .filter((item) => item.id !== this.productId() && !this.candidates().some((c) => c.productId === item.id))
-            .map((item) => ({ productId: item.id, code: item.manufacturerCode, brand: item.brand.name })),
+            .map(toReferenceSearchResult),
         ),
       );
     this.destroyRef.onDestroy(() => Object.values(this.previews()).forEach((url) => URL.revokeObjectURL(url)));
@@ -742,6 +746,19 @@ export class ProductWizardPage {
   protected noteOf(candidate: EquivalenceSuggestion): string {
     if (candidate.kind === 'EXACT') return 'Mismas medidas y características.';
     return `Difiere en: ${candidate.differences.map((d) => d.label.toLowerCase()).join(', ')}.`;
+  }
+
+  /** The search results with whether each can be linked: the API only links the same type and measures. */
+  protected readonly searchRows = computed(() => {
+    this.formValues();
+    return this.searchResults().map((result) => ({ result, linkable: this.canLink(result) }));
+  });
+
+  /** Whether a search result can be linked to the product being typed: same type and measures. */
+  protected canLink(result: ReferenceSearchResult): boolean {
+    const body = this.body('DRAFT');
+    const measures = body.innerDiameter && body.outerDiameter && body.width ? { innerDiameter: body.innerDiameter, outerDiameter: body.outerDiameter, width: body.width } : null;
+    return canLinkReference(result, { categoryId: body.categoryId ?? null, measures });
   }
 
   protected isLinked(productId: string): boolean {
@@ -1075,13 +1092,17 @@ export class ProductWizardPage {
     const links = this.linkIds();
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (created) => {
-        const done = () => {
+        // the product sheet opens right away; a link that fails must not undo the product that was just saved, but the user is told
+        const done = (failed = 0) => {
           this.saving.set(false);
-          void this.router.navigate(['/inventory/products', created.id, 'created']);
+          this.toast.success('Producto creado correctamente.');
+          if (failed) this.toast.warning(`No se pudo vincular ${failed === 1 ? 'una equivalencia' : `${failed} equivalencias`}. Vincúlalas desde la ficha.`);
+          void this.router.navigate(['/inventory/products', created.id]);
         };
         if (!links.length) return done();
-        // a link that fails (for example a pair that already exists) must not undo the product that was just saved
-        forkJoin(links.map((id) => this.api.linkEquivalence(created.id, id).pipe(catchError(() => of(null))))).subscribe(done);
+        forkJoin(links.map((id) => this.api.linkEquivalence(created.id, id).pipe(map(() => true), catchError(() => of(false)))))
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe((results) => done(results.filter((ok) => !ok).length));
       },
       error: (err: unknown) => this.failed(err),
     });

@@ -1,0 +1,147 @@
+<rs-page-header
+  title="Vincular equivalencia"
+  description="Relaciona un rodamiento con su equivalente de otra marca y registra en qué se diferencian."
+  type="form"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@if (originState() === 'error') {
+  <rs-note type="danger" title="No pudimos abrir el producto de origen">
+    Vuelve a la ficha del producto e inténtalo de nuevo.
+  </rs-note>
+} @else {
+  <section class="card" aria-labelledby="link-card-title">
+    <h2 id="link-card-title" class="card-title">Datos de la equivalencia</h2>
+
+    <div class="row">
+      <rs-field label="Rodamiento de origen" forId="link-origin" hint="Busca por código, medida o marca.">
+        <ng-container *ngTemplateOutlet="picker; context: { side: 'origin', id: 'link-origin' }" />
+      </rs-field>
+
+      <rs-field label="Rodamiento equivalente" forId="link-equivalent" [hint]="'Debe ser de una marca distinta al origen.'" [error]="equivalentError()">
+        <ng-container *ngTemplateOutlet="picker; context: { side: 'equivalent', id: 'link-equivalent' }" />
+      </rs-field>
+    </div>
+
+    <div class="row">
+      <rs-field label="Tipo de equivalencia" forId="link-type" hint="Exacta, con diferencias o sustituto.">
+        <rs-select
+          inputId="link-type"
+          leadingIcon="subcategory"
+          placeholder="Elige los dos productos primero"
+          [options]="typeOptions"
+          [value]="type()"
+          [disabled]="typeDisabled()"
+          (valueChange)="onType($event)"
+        />
+      </rs-field>
+
+      <rs-field label="Registrada por" forId="link-registered-by">
+        <input rsInput id="link-registered-by" class="mono" readonly [value]="registeredBy()" />
+      </rs-field>
+    </div>
+
+    @if (previewState() === 'loading') {
+      <div role="status" aria-busy="true" aria-label="Comprobando el vínculo">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      </div>
+    } @else if (differenceTexts().length && !equivalentError()) {
+      <ul class="differences" aria-label="Diferencias detectadas">
+        @for (text of differenceTexts(); track text) {
+          <li>{{ text }}</li>
+        }
+      </ul>
+    }
+
+    <rs-field label="Diferencias observadas" forId="link-notes" hint="Se muestra al vendedor antes de ofrecer el equivalente.">
+      <textarea
+        rsTextarea
+        autosize
+        rows="2"
+        id="link-notes"
+        [attr.maxlength]="notesMax"
+        [value]="notes()"
+        (input)="onNotes($any($event.target).value)"
+      ></textarea>
+    </rs-field>
+  </section>
+
+  @if (blockNote(); as message) {
+    <rs-note type="danger" title="No se pudo guardar">{{ message }}</rs-note>
+  } @else {
+    <rs-note type="info" title="Se registra con usuario y fecha">Quién aprueba el vínculo está PENDIENTE de definir con el cliente.</rs-note>
+  }
+
+  <footer class="actions-panel">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button rsButton variant="brand" type="button" [disabled]="!canSave()" [loading]="saving()" (click)="save()">
+      <rs-icon name="check" [size]="16" /> Guardar equivalencia
+    </button>
+  </footer>
+}
+
+<ng-template #picker let-side="side" let-id="id">
+  @let chosen = side === 'origin' ? origin() : equivalent();
+  @let locked = side === 'origin' && !!fromProductId;
+  @let results = side === 'origin' ? originResults() : equivalentResults();
+  @let searching = side === 'origin' ? originSearching() : equivalentSearching();
+  @let loadingOrigin = side === 'origin' && originState() === 'loading';
+  @if (loadingOrigin) {
+    <div role="status" aria-busy="true" aria-label="Cargando el producto de origen">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+    </div>
+  } @else if (chosen; as product) {
+    <div class="chosen" [id]="id" [class.chosen--error]="side === 'equivalent' && !!equivalentError()">
+      <rs-icon [name]="side === 'origin' ? 'barcode' : 'bearing'" [size]="16" />
+      <span class="chosen-text" [class.mono]="side === 'origin'" [attr.title]="measures(product)">{{ label(product) }}</span>
+      @if (!locked) {
+        <button rsButton variant="ghost" size="sm" type="button" [attr.aria-label]="'Cambiar ' + (side === 'origin' ? 'el rodamiento de origen' : 'el rodamiento equivalente')" (click)="clear(side)">
+          Cambiar
+        </button>
+      }
+    </div>
+  } @else {
+    <rs-input-group [invalid]="false">
+      <rs-icon rsInputLeading name="search" [size]="16" />
+      <input
+        rsInput
+        type="search"
+        autocomplete="off"
+        placeholder="Código, medida o marca"
+        [id]="id"
+        [attr.aria-label]="side === 'origin' ? 'Buscar rodamiento de origen' : 'Buscar rodamiento equivalente'"
+        [value]="side === 'origin' ? originQuery() : equivalentQuery()"
+        (input)="setQuery(side, $any($event.target).value)"
+      />
+    </rs-input-group>
+    @if (searching) {
+      <div role="status" aria-busy="true" aria-label="Buscando productos">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      </div>
+    } @else if (results) {
+      @if (results.length) {
+        <ul class="results" [attr.aria-label]="'Resultados de la búsqueda'">
+          @for (product of results; track product.id) {
+            <li>
+              <button type="button" class="result" (click)="pick(side, product)">
+                <rs-product-thumb [src]="product.photoUrl" [icon]="thumbIcon(product)" />
+                <span class="product-text">
+                  <span class="code">{{ label(product) }}</span>
+                  <span class="brand">
+                    @if (flagOf(product); as code) {
+                      <rs-flag [country]="code" />
+                    }
+                    {{ measures(product) }}
+                  </span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="empty" role="status">{{ searchFailed() ? 'No pudimos buscar productos. Intenta de nuevo.' : 'No encontramos productos con esa búsqueda.' }}</p>
+      }
+    }
+  }
+</ng-template>

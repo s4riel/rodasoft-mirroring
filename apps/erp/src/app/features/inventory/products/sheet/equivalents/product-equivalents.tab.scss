@@ -59,3 +59,10 @@
   border: var(--stroke-default) solid var(--border-default);
   border-radius: var(--radius-md);
 }
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

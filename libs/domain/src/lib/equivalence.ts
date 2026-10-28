@@ -5,7 +5,7 @@ import { type AttributeKind, attributeValueText, type ProductBrandSummary, type 
 /**
  * - EXACT: same type and d × D × B, and none of the compared specifications differs.
  * - WITH_DIFFERENCES: same type and d × D × B, but at least one compared specification differs.
- * - INCOMPATIBLE: the type or d × D × B differ, so it is not an equivalent (HU-INV-13 uses this to warn).
+ * - INCOMPATIBLE: the type or d × D × B differ, so it is not an equivalent (HU-INV-13 refuses to link it).
  */
 export type EquivalenceKind = 'EXACT' | 'WITH_DIFFERENCES' | 'INCOMPATIBLE';
 
@@ -112,6 +112,13 @@ export interface ProductEquivalentItem {
   status: ProductStatus;
   kind: EquivalenceKind;
   differences: EquivalenceDifference[];
+  /** The link behind this row; null for the original, which has none. */
+  equivalenceId: string | null;
+  approvalState: EquivalenceApprovalState;
+  /** The user classified the link as a substitute (IN-15c). */
+  substitute: boolean;
+  /** Observed differences, free text; null when none was written. */
+  notes: string | null;
 }
 
 export interface ProductEquivalentsSummary {
@@ -154,6 +161,88 @@ export interface EquivalenceLinkResponse {
   productBId: string;
 }
 
+/** A link waits for approval only when the company requires it (decision #34) and nobody approved it yet. */
+export type EquivalenceApprovalState = 'APPROVED' | 'PENDING_APPROVAL';
+
+export function equivalenceApprovalState(approvedAt: Date | string | null, requireApproval: boolean): EquivalenceApprovalState {
+  return requireApproval && !approvedAt ? 'PENDING_APPROVAL' : 'APPROVED';
+}
+
+export interface LinkEquivalenceInput {
+  productAId: string;
+  productBId: string;
+  /** A functional replacement that is not a technical equivalent (the "Sustituto" type of IN-15c). */
+  substitute?: boolean;
+  /** Observed differences, shown to the seller before offering the equivalent. At most `EQUIVALENCE_NOTES_MAX` characters. */
+  notes?: string;
+}
+
+export const EQUIVALENCE_NOTES_MAX = 500;
+
+/** The measure that differs between two products; `T` replaces `B` when both are tapered bearings. */
+export interface EquivalenceMeasureDifference {
+  key: 'd' | 'D' | 'B' | 'T';
+  a: string | null;
+  b: string | null;
+}
+
+/** A product as the link validation reads it. */
+export interface EquivalenceLinkProduct extends EquivalenceComparable {
+  id: string;
+  /** Tapered bearings measure T instead of B. */
+  tapered?: boolean;
+}
+
+export interface EquivalenceLinkValidation {
+  /** Same product on both sides: it cannot be linked. */
+  selfLink: boolean;
+  /** The pair is already linked (in either order). */
+  exists: boolean;
+  /** Type or d × D × B differ; then `kind` is INCOMPATIBLE. */
+  typeDiffers: boolean;
+  kind: EquivalenceKind;
+  /** Measures that differ, in the order d, D, B/T. Empty when only the type differs. */
+  measureDifferences: EquivalenceMeasureDifference[];
+  /** Compared specifications that differ (EXACT and WITH_DIFFERENCES only). */
+  differences: EquivalenceDifference[];
+}
+
+/** Response of `POST /inventory/equivalences/validate`: the validation plus the link that already exists, if any. */
+export interface EquivalenceValidationResponse extends EquivalenceLinkValidation {
+  equivalenceId: string | null;
+}
+
+/**
+ * Checks a pair before linking (HU-INV-13): not itself, not already linked, and compatible measurements. It reuses
+ * `compareEquivalents`, so the verdict is the one every list and the comparator show. An incompatible pair may still
+ * be linked after the user confirms (the caller decides); a self-link and a duplicate never.
+ */
+export function validateEquivalenceLink(
+  a: EquivalenceLinkProduct,
+  b: EquivalenceLinkProduct,
+  options: { exists: boolean },
+  labels: Readonly<Record<string, string>> = {},
+): EquivalenceLinkValidation {
+  const selfLink = a.id === b.id;
+  const { kind, differences } = compareEquivalents(a, b, labels);
+  const typeDiffers = kind === 'INCOMPATIBLE';
+  const widthKey = a.tapered && b.tapered ? 'T' : 'B';
+  const measureDifferences: EquivalenceMeasureDifference[] = [];
+  if (typeDiffers) {
+    const pairs = [
+      ['d', 'innerDiameter'],
+      ['D', 'outerDiameter'],
+      [widthKey, 'width'],
+    ] as const;
+    for (const [key, field] of pairs) {
+      const x = a.dimensions?.[field] ?? null;
+      const y = b.dimensions?.[field] ?? null;
+      if (!sameMeasure(x, y)) measureDifferences.push({ key, a: x, b: y });
+    }
+  }
+  return { selfLink, exists: options.exists, typeDiffers, kind, measureDifferences, differences };
+}
+
 /** One side of a link in the company-wide equivalence table (HU-INV-11). Never carries cost. */
 export interface EquivalenceListProduct {
   id: string;
@@ -180,6 +269,9 @@ export interface EquivalenceListItem {
   createdBy: { id: string; name: string } | null;
   /** ISO instant. */
   createdAt: string;
+  approvalState: EquivalenceApprovalState;
+  substitute: boolean;
+  notes: string | null;
 }
 
 export interface EquivalenceFilters {

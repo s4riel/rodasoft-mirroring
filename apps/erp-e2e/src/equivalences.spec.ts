@@ -13,6 +13,8 @@ test('lists the seeded links from the Inventory sub-navigation, filters by brand
   await page.getByRole('link', { name: 'Equivalencias' }).click();
   await expect(page).toHaveURL(/\/inventory\/equivalences$/);
   await expect(page.getByRole('heading', { name: 'Equivalencias', level: 1 })).toBeVisible();
+  // newest links first: narrow to the 6205 family so the assertions do not depend on how many links the seed made
+  await page.goto('/inventory/equivalences?q=6205');
 
   const rows = page.locator('rs-doc-table tbody tr');
   await expect(rows.first()).toBeVisible();

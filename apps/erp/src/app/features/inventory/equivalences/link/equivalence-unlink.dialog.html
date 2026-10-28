@@ -1,0 +1,16 @@
+<rs-modal variant="confirmation" closeLabel="Cerrar" heading="¿Desvincular equivalencia?" [(open)]="open">
+  <div class="body">
+    <p class="text">
+      {{ target()?.pairLabel }} dejarán de aparecer como equivalentes. Los productos y su stock no cambian, y puedes volver a vincularlos.
+    </p>
+    @if (submitError(); as message) {
+      <rs-note type="danger">{{ message }}</rs-note>
+    }
+  </div>
+  <div slot="footer" class="actions">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button rsButton variant="danger" type="button" [loading]="saving()" (click)="confirm()">
+      Desvincular
+    </button>
+  </div>
+</rs-modal>

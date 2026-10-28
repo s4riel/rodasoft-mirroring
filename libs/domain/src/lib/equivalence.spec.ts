@@ -6,8 +6,11 @@ import {
   EquivalenceCompareDefinition,
   EquivalenceCompareProduct,
   EquivalenceComparable,
+  equivalenceApprovalState,
+  EquivalenceLinkProduct,
   isTaperedCategory,
   normalizePair,
+  validateEquivalenceLink,
 } from './equivalence';
 
 const LABELS = { seal: 'Protección / sello', cage: 'Material de la jaula', dynamicLoad: 'Carga dinámica C' };
@@ -216,5 +219,90 @@ describe('isTaperedCategory', () => {
     expect(isTaperedCategory('Rodillos cónicos')).toBe(true);
     expect(isTaperedCategory('Rodillos conicos')).toBe(true);
     expect(isTaperedCategory('Rígidos de bolas')).toBe(false);
+  });
+});
+
+describe('validateEquivalenceLink', () => {
+  const product = (id: string, over: Partial<EquivalenceLinkProduct> = {}): EquivalenceLinkProduct => ({ id, ...bearing(), ...over });
+  const measures = (innerDiameter: string, outerDiameter: string, width: string) => ({ dimensions: { innerDiameter, outerDiameter, width } });
+
+  it('flags a product linked to itself', () => {
+    expect(validateEquivalenceLink(product('a'), product('a'), { exists: false }).selfLink).toBe(true);
+    expect(validateEquivalenceLink(product('a'), product('b'), { exists: false }).selfLink).toBe(false);
+  });
+
+  it('reports a pair that is already linked', () => {
+    expect(validateEquivalenceLink(product('a'), product('b'), { exists: true }).exists).toBe(true);
+    expect(validateEquivalenceLink(product('a'), product('b'), { exists: false }).exists).toBe(false);
+  });
+
+  it('is EXACT with nothing to list when everything matches', () => {
+    expect(validateEquivalenceLink(product('a'), product('b'), { exists: false })).toEqual({
+      selfLink: false,
+      exists: false,
+      typeDiffers: false,
+      kind: 'EXACT',
+      measureDifferences: [],
+      differences: [],
+    });
+  });
+
+  it('is WITH_DIFFERENCES, compatible, when only a specification differs', () => {
+    const other = product('b', { attributes: { ...bearing().attributes, seal: '2Z' } });
+    const result = validateEquivalenceLink(product('a'), other, { exists: false }, LABELS);
+    expect(result).toMatchObject({ kind: 'WITH_DIFFERENCES', typeDiffers: false, measureDifferences: [] });
+    expect(result.differences).toEqual([{ key: 'seal', label: 'Protección / sello', source: '2RS', other: '2Z' }]);
+  });
+
+  it.each([
+    ['d', measures('20', '52', '15'), { key: 'd', a: '25', b: '20' }],
+    ['D', measures('25', '62', '15'), { key: 'D', a: '52', b: '62' }],
+    ['B', measures('25', '52', '17'), { key: 'B', a: '15', b: '17' }],
+  ])('is INCOMPATIBLE and lists only the %s that differs', (_name, dims, expected) => {
+    const result = validateEquivalenceLink(product('a'), product('b', dims), { exists: false });
+    expect(result).toMatchObject({ kind: 'INCOMPATIBLE', typeDiffers: true });
+    expect(result.measureDifferences).toEqual([expected]);
+  });
+
+  it('lists every measure that differs, in the order d, D, B', () => {
+    const result = validateEquivalenceLink(product('a'), product('b', measures('20', '47', '14')), { exists: false });
+    expect(result.measureDifferences.map((m) => m.key)).toEqual(['d', 'D', 'B']);
+  });
+
+  it('is INCOMPATIBLE with the same measures when the type differs, and lists no measure', () => {
+    const result = validateEquivalenceLink(product('a'), product('b', { categoryId: 'rollers' }), { exists: false });
+    expect(result).toMatchObject({ kind: 'INCOMPATIBLE', typeDiffers: true, measureDifferences: [] });
+  });
+
+  it('names the width T when both bearings are tapered, B otherwise', () => {
+    const tapered = (id: string, width: string) => product(id, { tapered: true, categoryId: 'tapered', ...measures('25', '52', width) });
+    expect(validateEquivalenceLink(tapered('a', '15'), tapered('b', '17'), { exists: false }).measureDifferences).toEqual([{ key: 'T', a: '15', b: '17' }]);
+    const mixed = validateEquivalenceLink(tapered('a', '15'), product('b', { categoryId: 'tapered', ...measures('25', '52', '17') }), { exists: false });
+    expect(mixed.measureDifferences).toEqual([{ key: 'B', a: '15', b: '17' }]);
+  });
+
+  it('compares decimal strings by value', () => {
+    const result = validateEquivalenceLink(product('a'), product('b', measures('25.000', '52.0', '15.00')), { exists: false });
+    expect(result.kind).toBe('EXACT');
+  });
+
+  it('treats a missing measure as a difference', () => {
+    const result = validateEquivalenceLink(product('a'), product('b', { dimensions: { innerDiameter: '25', outerDiameter: '52', width: null } }), { exists: false });
+    expect(result.measureDifferences).toEqual([{ key: 'B', a: '15', b: null }]);
+  });
+});
+
+describe('equivalenceApprovalState', () => {
+  it('is approved when the company does not require approval, whatever the date', () => {
+    expect(equivalenceApprovalState(null, false)).toBe('APPROVED');
+  });
+
+  it('is pending when approval is required and nobody approved the link', () => {
+    expect(equivalenceApprovalState(null, true)).toBe('PENDING_APPROVAL');
+  });
+
+  it('is approved when approval is required and the link was approved', () => {
+    expect(equivalenceApprovalState(new Date(), true)).toBe('APPROVED');
+    expect(equivalenceApprovalState('2026-10-24T10:00:00Z', true)).toBe('APPROVED');
   });
 });

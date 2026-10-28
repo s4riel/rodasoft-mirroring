@@ -10,7 +10,15 @@ export function describeDifference(d: EquivalenceDifference): string {
  * Pill of an equivalent (Figma IN-02b "Diferencia"). The long form names the first difference and counts the
  * rest, with every difference in the tooltip; the short form (sheet card) only says there are differences.
  */
-export function equivalencePill(item: Pick<ProductEquivalentItem, 'kind' | 'differences'>, form: 'long' | 'short' = 'long'): DocTableStatus {
+export function equivalencePill(
+  item: Pick<ProductEquivalentItem, 'kind' | 'differences'> & { substitute?: boolean; notes?: string | null },
+  form: 'long' | 'short' = 'long',
+): DocTableStatus {
+  // a substitute is not a technical equivalent: it is told apart from the verdict, with the differences and the note in the tooltip
+  if (item.substitute && item.kind !== 'INCOMPATIBLE') {
+    const detail = [...item.differences.map(describeDifference), ...(item.notes ? [item.notes] : [])];
+    return { label: 'Sustituto', status: 'info', icon: 'info', ...(detail.length ? { tooltip: detail.join(' · ') } : {}) };
+  }
   switch (item.kind) {
     case 'EXACT':
       return { label: 'Exacta', status: 'success', icon: 'check' };

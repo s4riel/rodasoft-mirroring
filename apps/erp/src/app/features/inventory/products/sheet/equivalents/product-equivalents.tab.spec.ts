@@ -52,10 +52,14 @@ const item = (over: Partial<ProductEquivalentItem>): ProductEquivalentItem => ({
   status: 'ACTIVE',
   kind: 'WITH_DIFFERENCES',
   differences: [{ key: 'seal', label: 'Protección / sello', source: '2RS', other: 'DDU' }],
+  equivalenceId: 'link-1',
+  approvalState: 'APPROVED',
+  substitute: false,
+  notes: null,
   ...over,
 });
 
-const ORIGINAL = item({ productId: 'p1', manufacturerCode: '6205-2RS', brand: { id: 'b-fag', name: 'FAG', logoUrl: null }, country: { id: 'c-de', code: 'DE', name: 'Alemania' }, kind: 'EXACT', differences: [], totalStock: 24, salePrice: '245.00' });
+const ORIGINAL = item({ equivalenceId: null, productId: 'p1', manufacturerCode: '6205-2RS', brand: { id: 'b-fag', name: 'FAG', logoUrl: null }, country: { id: 'c-de', code: 'DE', name: 'Alemania' }, kind: 'EXACT', differences: [], totalStock: 24, salePrice: '245.00' });
 
 const response = (items: ProductEquivalentItem[], over: Partial<ProductEquivalentsResponse> = {}): ProductEquivalentsResponse => ({
   source: ORIGINAL,
@@ -88,11 +92,11 @@ const ITEMS = [
 describe('ProductEquivalentsTab', () => {
   let http: HttpTestingController;
 
-  async function open(url = '/inventory/products/p1/equivalents') {
-    const permissions = new Set(['inventory.products.view']);
+  async function open(url = '/inventory/products/p1/equivalents', granted = ['inventory.products.view']) {
+    const permissions = new Set(granted);
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'inventory', children: [PRODUCT_SHEET_ROUTE] }, { path: 'inventory/equivalences/compare', component: BlankPage }]),
+        provideRouter([{ path: 'inventory', children: [PRODUCT_SHEET_ROUTE] }, { path: 'inventory/equivalences/compare', component: BlankPage }, { path: 'inventory/equivalences/new', component: BlankPage }]),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
@@ -138,6 +142,7 @@ describe('ProductEquivalentsTab', () => {
       'Stock',
       'Precio (Bs)',
       'Diferencia',
+      'Acciones',
     ]);
     const rows = Array.from(el(h).querySelectorAll('rs-doc-table tbody tr'));
     expect(rows).toHaveLength(4);
@@ -301,6 +306,98 @@ describe('ProductEquivalentsTab', () => {
       const h = await open();
       await answer(h, response([], { summary: { brandCount: 0, exact: 0, withDifferences: 0, incompatible: 0 }, totals: { codes: 1, stock: 24 } }));
       expect(compareButton(h)).toBeUndefined();
+    });
+  });
+
+  describe('linking (HU-INV-13)', () => {
+    const LINK = 'inventory.equivalences.link';
+    const APPROVE = 'inventory.equivalences.approve';
+    const VIEW = 'inventory.products.view';
+    const buttonIn = (scope: ParentNode, label: string) =>
+      Array.from(scope.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim().includes(label) || b.getAttribute('aria-label')?.includes(label));
+    const PENDING = [item({ productId: 'e1', equivalenceId: 'link-e1', approvalState: 'PENDING_APPROVAL' }), item({ productId: 'e2', equivalenceId: 'link-e2', manufacturerCode: '6205-2Z' })];
+    /** A change reloads the whole sheet: the detail and the first equivalents are asked again, then the tab's page. */
+    const reloaded = async (h: RouterTestingHarness) => {
+      http.expectOne(DETAIL_URL).flush(detail());
+      http.match((r) => r.url === EQUIVALENTS_URL && r.params.get('pageSize') === '3').forEach((r) => r.flush(response([])));
+      await settle(h);
+      http.expectOne((r) => r.url === EQUIVALENTS_URL && r.params.get('pageSize') === '10').flush(response([]));
+      await settle(h);
+    };
+
+    it('offers Vincular to who can link, and not to who can only view', async () => {
+      const h = await open(undefined, [VIEW, LINK]);
+      await answer(h, response(ITEMS));
+      expect(buttonIn(el(h), 'Vincular')).toBeDefined();
+
+      TestBed.resetTestingModule();
+      const viewer = await open(undefined, [VIEW]);
+      await answer(viewer, response(ITEMS));
+      expect(buttonIn(el(viewer), 'Vincular')).toBeUndefined();
+      expect(buttonIn(el(viewer), 'Desvincular')).toBeUndefined();
+    });
+
+    it('also offers Vincular when the product has no equivalents yet', async () => {
+      const h = await open(undefined, [VIEW, LINK]);
+      await answer(h, response([], { summary: { brandCount: 0, exact: 0, withDifferences: 0, incompatible: 0 }, totals: { codes: 1, stock: 24 } }));
+      expect(buttonIn(el(h), 'Vincular')).toBeDefined();
+      expect(text(h)).toContain('Sin equivalentes registrados');
+    });
+
+    it('opens the link form with the product of the sheet as the origin', async () => {
+      const h = await open(undefined, [VIEW, LINK]);
+      await answer(h, response(ITEMS));
+      buttonIn(el(h), 'Vincular')!.click();
+      await settle(h);
+      const router = TestBed.inject(Router);
+      const url = router.parseUrl(router.url);
+      expect(url.root.children['primary'].segments.map((s) => s.path)).toEqual(['inventory', 'equivalences', 'new']);
+      expect(url.queryParams).toEqual({ productId: 'p1' });
+    });
+
+    it('marks pending links, never the original, and lets who can approve do it', async () => {
+      const h = await open(undefined, [VIEW, LINK, APPROVE]);
+      await answer(h, response(PENDING));
+      const rows = Array.from(el(h).querySelectorAll('rs-doc-table tbody tr'));
+      // original, e1 (pending), e2
+      expect(rows[0].textContent).not.toContain('Pendiente');
+      expect(buttonIn(rows[0], 'Desvincular')).toBeUndefined();
+      expect(rows[1].textContent).toContain('Pendiente');
+      expect(buttonIn(rows[1], 'Aprobar')).toBeDefined();
+      expect(rows[2].textContent).not.toContain('Pendiente');
+      expect(buttonIn(rows[2], 'Aprobar')).toBeUndefined();
+
+      buttonIn(rows[1], 'Aprobar')!.click();
+      const approve = http.expectOne('/api/v1/inventory/equivalences/link-e1/approve');
+      expect(approve.request.method).toBe('POST');
+      approve.flush(null, { status: 204, statusText: 'No Content' });
+      await settle(h);
+      await reloaded(h);
+    });
+
+    it('shows the pending mark but no approve action to who cannot approve', async () => {
+      const h = await open(undefined, [VIEW, LINK]);
+      await answer(h, response(PENDING));
+      expect(text(h)).toContain('Pendiente');
+      expect(buttonIn(el(h), 'Aprobar')).toBeUndefined();
+    });
+
+    it('asks before unlinking an equivalent, names both products, and reloads the sheet', async () => {
+      const h = await open(undefined, [VIEW, LINK]);
+      await answer(h, response(PENDING));
+      const row = el(h).querySelectorAll('rs-doc-table tbody tr')[2];
+      buttonIn(row, 'Desvincular')!.click();
+      await settle(h);
+      const dialog = el(h).querySelector('rs-equivalence-unlink-dialog')!;
+      expect(dialog.textContent).toContain('6205-2RS · FAG y 6205-2Z · NSK');
+      http.expectNone('/api/v1/inventory/equivalences/link-e2');
+
+      buttonIn(dialog, 'Desvincular')!.click();
+      const del = http.expectOne('/api/v1/inventory/equivalences/link-e2');
+      expect(del.request.method).toBe('DELETE');
+      del.flush(null, { status: 204, statusText: 'No Content' });
+      await settle(h);
+      await reloaded(h);
     });
   });
 });
