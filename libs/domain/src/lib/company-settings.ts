@@ -18,6 +18,8 @@ export interface CompanySettings {
   'transfers.approvalThresholdPieces': number | null;
   /** Transfers above this value need approval (decision #36). Null = no limit. */
   'transfers.approvalThresholdValue': string | null;
+  /** Most distinct products one transfer may carry (HU-INV-18). */
+  'transfers.maxLines': number;
   /** Adjustments above this value need approval (decision #37). Null = no limit. */
   'adjustments.approvalThresholdValue': string | null;
 }
@@ -32,6 +34,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'inventory.equivalences.requireApproval': false,
   'transfers.approvalThresholdPieces': null,
   'transfers.approvalThresholdValue': null,
+  'transfers.maxLines': 500,
   'adjustments.approvalThresholdValue': null,
 };
 

@@ -1,0 +1,275 @@
+<rs-page-header
+  [title]="title()"
+  description="Elige el origen y el destino, y agrega los productos que se mueven."
+  type="form"
+  [breadcrumbs]="breadcrumbs()"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la transferencia">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para crear transferencias"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la transferencia" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    <section class="card" aria-label="Origen y destino">
+      <div class="row">
+        <rs-field
+          label="Origen"
+          forId="transfer-origin"
+          required
+          [hint]="originLocked() ? 'Quita los productos para cambiar el origen.' : 'El stock de cada producto se revisa en este almacén.'"
+        >
+          <rs-select
+            inputId="transfer-origin"
+            leadingIcon="warehouse"
+            placeholder="Elige el almacén de origen"
+            ariaLabel="Almacén de origen"
+            [options]="originOptions()"
+            [value]="originId()"
+            [disabled]="originLocked() || busy() !== null"
+            (valueChange)="setOrigin($event)"
+          />
+        </rs-field>
+        <rs-field label="Destino" forId="transfer-destination" required>
+          <rs-select
+            inputId="transfer-destination"
+            leadingIcon="warehouse"
+            placeholder="Elige el almacén de destino"
+            ariaLabel="Almacén de destino"
+            [options]="destinationOptions()"
+            [value]="destinationId()"
+            [disabled]="busy() !== null"
+            (valueChange)="setDestination($event)"
+          />
+        </rs-field>
+      </div>
+      <rs-field label="Nota" forId="transfer-note" hint="Opcional. Se ve en el detalle de la transferencia.">
+        <textarea rsTextarea id="transfer-note" rows="2" maxlength="500" [value]="note()" (input)="onNote($event)"></textarea>
+      </rs-field>
+    </section>
+
+    <section class="card" aria-label="Agregar productos">
+      <div class="add-bar">
+        <div class="search">
+          <input
+            #searchBox
+            rsInput
+            type="search"
+            autocomplete="off"
+            aria-label="Buscar producto por código, marca o medida"
+            placeholder="Buscar por código, marca o medida y presiona Enter"
+            [disabled]="!canAdd()"
+            [value]="searchText()"
+            (input)="onSearchInput($event)"
+            (keydown.enter)="onSearchEnter($event)"
+            (keydown.escape)="closeResults()"
+          />
+          @if (results().length) {
+            <!-- a plain list of buttons: each result is reachable with Tab, so no listbox keyboard model is needed -->
+            <ul class="results" aria-label="Resultados de la búsqueda">
+              @for (item of results(); track item.id) {
+                <li>
+                  <button type="button" class="result" (click)="addFromSearch(item)">
+                    <span class="result-code">{{ item.manufacturerCode }}</span>
+                    <span class="result-name">{{ item.name }} · {{ item.brand }}</span>
+                    <span class="result-stock">Stock: {{ item.available }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+        <button rsButton variant="secondary" type="button" [disabled]="!canAdd()" (click)="openList('paste')">
+          <rs-icon name="document" [size]="16" /> Pegar lista
+        </button>
+        <button rsButton variant="secondary" type="button" [disabled]="!canAdd()" (click)="openList('file')">
+          <rs-icon name="import" [size]="16" /> Importar Excel
+        </button>
+        <button rsButton variant="secondary" type="button" disabled rsTooltip="Disponible próximamente">
+          <rs-icon name="inventory" [size]="16" /> Reponer bajo mínimo
+        </button>
+      </div>
+      @if (!originId()) {
+        <p class="hint">Elige el almacén de origen para agregar productos.</p>
+      }
+    </section>
+
+    @if (lines().length === 0) {
+      <section class="state">
+        <rs-empty-state-illustrated
+          illustration="empty-transfer"
+          heading="Agrega productos"
+          description="Busca por código, pega una lista o importa un Excel con código y cantidad."
+        >
+          <div class="empty-actions">
+            <button rsButton variant="brand" type="button" [disabled]="!canAdd()" (click)="focusSearch()">
+              <rs-icon name="search" [size]="16" /> Buscar producto
+            </button>
+            <button rsButton variant="secondary" type="button" [disabled]="!canAdd()" (click)="openList('paste')">Pegar lista</button>
+            <button rsButton variant="secondary" type="button" [disabled]="!canAdd()" (click)="openList('file')">Importar Excel</button>
+          </div>
+        </rs-empty-state-illustrated>
+      </section>
+    } @else {
+      <section class="lines" aria-label="Productos de la transferencia">
+        <div class="lines-bar">
+          <div class="chips" role="group" aria-label="Filtrar productos">
+            @for (chip of filters; track chip.key) {
+              <rs-filter-chip [label]="chip.label" [showMedia]="false" [selected]="filter() === chip.key" (selectedChange)="setFilter(chip.key)" />
+            }
+          </div>
+          <input
+            rsInput
+            type="search"
+            class="lines-search"
+            autocomplete="off"
+            aria-label="Buscar en los productos de la transferencia"
+            placeholder="Buscar en la lista"
+            [value]="lineSearch()"
+            (input)="onLineSearch($event)"
+          />
+        </div>
+
+        @if (noMatches()) {
+          <div class="state">
+            <rs-empty-state-illustrated
+              illustration="no-results"
+              heading="Ningún producto coincide"
+              description="Prueba con otro filtro o con otra búsqueda."
+              [showAction]="false"
+            />
+          </div>
+        } @else {
+          <rs-doc-table size="md" tableLabel="Productos de la transferencia" [columns]="columns" [rows]="rows()">
+            <ng-template rsDocCell="quantity" let-row>
+              <input
+                rsInput
+                rsNumeric="integer"
+                class="quantity"
+                inputmode="numeric"
+                autocomplete="off"
+                [attr.aria-label]="'Cantidad de ' + row.label"
+                [value]="quantityOf(row.id)"
+                [disabled]="busy() !== null"
+                (input)="onQuantity(row.id, $event)"
+              />
+            </ng-template>
+            <ng-template rsDocCell="actions" let-row>
+              <span class="row-actions">
+                <button
+                  rsIconButton
+                  size="sm"
+                  type="button"
+                  [label]="'Quitar ' + row.label"
+                  rsTooltip="Quitar producto"
+                  [disabled]="busy() !== null"
+                  (click)="remove(row.id)"
+                >
+                  <rs-icon name="trash" [size]="16" />
+                </button>
+              </span>
+            </ng-template>
+            <div slot="footer" class="footer">
+              <span class="range">{{ lines().length }} {{ lines().length === 1 ? 'producto' : 'productos' }} en la transferencia</span>
+              <rs-pagination
+                label="Paginación"
+                previousLabel="Anterior"
+                nextLabel="Siguiente"
+                [showLabels]="true"
+                [page]="page()"
+                [pageCount]="pageCount()"
+                (pageChange)="goToPage($event)"
+              />
+            </div>
+          </rs-doc-table>
+        }
+      </section>
+    }
+
+    <section class="summary" aria-label="Resumen de la transferencia">
+      <dl class="totals">
+        <div class="total">
+          <dt>Productos</dt>
+          <dd>{{ summary().products }}</dd>
+        </div>
+        <div class="total">
+          <dt>Piezas</dt>
+          <dd>{{ summary().pieces }}</dd>
+        </div>
+        @if (showValue()) {
+          <div class="total">
+            <dt>Valor</dt>
+            <dd>{{ valueLabel() }}</dd>
+          </div>
+        }
+        <div class="total" [class.has-errors]="summary().errors > 0">
+          <dt>Errores</dt>
+          <dd>{{ summary().errors }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    @if (submitError(); as message) {
+      <rs-note type="danger">{{ message }}</rs-note>
+    }
+    @if (summary().errors > 0) {
+      <rs-note type="warning">Corrige los productos con error para poder enviar. Puedes guardar el borrador mientras tanto.</rs-note>
+    }
+
+    <div class="actions">
+      @if (saved()) {
+        <button rsButton variant="ghost" type="button" [disabled]="busy() !== null" (click)="cancelOpen.set(true)">Cancelar transferencia</button>
+      }
+      <span class="spacer"></span>
+      <button *rsCan="'inventory.transfers.create'" rsButton variant="secondary" type="button" [disabled]="!canSave()" [loading]="busy() === 'save'" (click)="saveDraft()">
+        Guardar borrador
+      </button>
+      <button *rsCan="'inventory.transfers.create'" rsButton variant="brand" type="button" [disabled]="!canSend()" [loading]="busy() === 'send'" (click)="send()">
+        {{ sendLabel() }}
+      </button>
+    </div>
+  }
+}
+
+@if (originId(); as origin) {
+  <rs-transfer-list-dialog [(open)]="listOpen" [mode]="listMode()" [warehouseId]="origin" (added)="addFromList($event)" />
+}
+
+<rs-modal variant="confirmation" heading="¿Cancelar la transferencia?" closeLabel="Cerrar" [(open)]="cancelOpen">
+  <p>El borrador se cancela y ya no se puede enviar. No se mueve ningún stock.</p>
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" (click)="cancelOpen.set(false)">Volver</button>
+    <button rsButton variant="brand" type="button" [loading]="busy() === 'cancel'" (click)="confirmCancel()">Cancelar transferencia</button>
+  </div>
+</rs-modal>
+
+<rs-modal variant="confirmation" heading="Tienes cambios sin guardar" closeLabel="Cerrar" [open]="leaveOpen()" (closed)="decideLeave(false)">
+  <p>Si sales ahora, los cambios de este borrador se pierden.</p>
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" (click)="decideLeave(false)">Seguir editando</button>
+    <button rsButton variant="brand" type="button" (click)="decideLeave(true)">Salir sin guardar</button>
+  </div>
+</rs-modal>
+
+<rs-toast-outlet closeLabel="Cerrar" />

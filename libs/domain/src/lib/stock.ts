@@ -70,6 +70,8 @@ export interface ProductWarehouseStockItem {
   warehouse: { id: string; name: string };
   location: string | null;
   quantity: number;
+  /** Pieces sent to this warehouse by transfers that have not been received yet (HU-INV-18). */
+  inTransit: number;
   minStock: number | null;
   maxStock: number | null;
   availability: StockAvailability;

@@ -13,3 +13,4 @@ export * from './lib/product-creation';
 export * from './lib/uploads';
 export * from './lib/product-import';
 export * from './lib/warehouse';
+export * from './lib/transfer';

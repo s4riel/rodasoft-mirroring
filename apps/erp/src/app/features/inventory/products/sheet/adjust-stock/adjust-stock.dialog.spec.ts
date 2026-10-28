@@ -30,6 +30,7 @@ const stockOf = (...rows: [string, number, number?][]): ProductWarehouseStockRes
     warehouse: { id, name: id },
     location: null,
     quantity,
+    inTransit: 0,
     minStock: minStock ?? null,
     maxStock: null,
     availability: 'available' as const,

@@ -16,7 +16,9 @@ export type OutboxType =
   | 'inventory.product-updated'
   | 'inventory.product-status-changed'
   | 'inventory.stock.changed'
-  | 'inventory.warehouse.changed';
+  | 'inventory.warehouse.changed'
+  | 'inventory.transfer.sent'
+  | 'inventory.transfer.approval-requested';
 
 type Tx = Prisma.TransactionClient | PrismaService | TenantTransaction;
 

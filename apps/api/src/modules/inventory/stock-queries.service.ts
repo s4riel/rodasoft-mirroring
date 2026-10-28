@@ -8,6 +8,7 @@ import {
   type ProductMovementsResponse,
   type ProductWarehouseStockResponse,
   stockAvailability,
+  TRANSFER_IN_TRANSIT_STATUSES,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
 import type { AppClsStore } from '../../common/cls';
@@ -96,11 +97,18 @@ export class StockQueriesService {
    */
   async stockByWarehouse(productId: string): Promise<ProductWarehouseStockResponse> {
     await this.assertProduct(productId);
+    const inTransitByWarehouse = await this.inTransit(productId);
     const warehouses = await this.prisma.tenant.warehouse.findMany({
       where: {
         branch: { status: 'ACTIVE' },
         AND: [
-          { OR: [{ stockLevels: { some: { productId } } }, { stockThresholds: { some: { productId } } }] },
+          {
+            OR: [
+              { stockLevels: { some: { productId } } },
+              { stockThresholds: { some: { productId } } },
+              { id: { in: [...inTransitByWarehouse.keys()] } },
+            ],
+          },
           await this.scope(),
         ],
       },
@@ -123,12 +131,32 @@ export class StockQueriesService {
         warehouse: { id: w.id, name: w.name },
         location: threshold?.location ?? null,
         quantity,
+        inTransit: inTransitByWarehouse.get(w.id) ?? 0,
         minStock,
         maxStock: threshold?.maxStock ?? null,
         availability: stockAvailability(quantity, minStock),
       };
     });
     return { items, total: items.reduce((sum, i) => sum + i.quantity, 0) };
+  }
+
+  /**
+   * Pieces on their way to each destination warehouse: sent, not yet received. Derived from the transfer items (there is
+   * no transit warehouse), so a receipt (HU-INV-21) lowers it by raising `receivedQuantity`.
+   */
+  private async inTransit(productId: string): Promise<Map<string, number>> {
+    const items = await this.prisma.tenant.transferItem.findMany({
+      where: { productId, transfer: { status: { in: [...TRANSFER_IN_TRANSIT_STATUSES] } } },
+      select: { quantity: true, receivedQuantity: true, transfer: { select: { destinationWarehouseId: true } } },
+    });
+    const byWarehouse = new Map<string, number>();
+    for (const item of items) {
+      const pending = item.quantity - item.receivedQuantity;
+      if (pending <= 0) continue;
+      const warehouseId = item.transfer.destinationWarehouseId;
+      byWarehouse.set(warehouseId, (byWarehouse.get(warehouseId) ?? 0) + pending);
+    }
+    return byWarehouse;
   }
 
   private async assertProduct(productId: string) {

@@ -20,7 +20,7 @@ export class InventoryLayoutPage {
     { key: 'products', label: 'Productos', route: '/inventory/products' },
     { key: 'equivalences', label: 'Equivalencias', route: '/inventory/equivalences' },
     { key: 'warehouses', label: 'Almacenes', route: '/inventory/warehouses' },
-    { key: 'transfers', label: 'Transferencias', disabled: true },
+    { key: 'transfers', label: 'Transferencias', route: '/inventory/transfers' },
     { key: 'adjustments', label: 'Ajustes', disabled: true },
     { key: 'kardex', label: 'Kardex', disabled: true },
   ];

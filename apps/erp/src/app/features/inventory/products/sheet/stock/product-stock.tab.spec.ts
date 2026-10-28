@@ -17,6 +17,7 @@ const RESPONSE: ProductWarehouseStockResponse = {
       warehouse: { id: 'w1', name: 'Almacén principal' },
       location: 'A-03-2',
       quantity: 6,
+      inTransit: 4,
       minStock: 6,
       maxStock: 60,
       availability: 'low',
@@ -26,6 +27,7 @@ const RESPONSE: ProductWarehouseStockResponse = {
       warehouse: { id: 'w2', name: 'Almacén norte' },
       location: null,
       quantity: 0,
+      inTransit: 0,
       minStock: null,
       maxStock: null,
       availability: 'out',
@@ -59,6 +61,13 @@ describe('ProductStockTab', () => {
   afterEach(() => http.verify());
 
   const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+  it('shows the pieces in transit only for the warehouses that have some', () => {
+    http.expectOne(URL).flush(RESPONSE);
+    fixture.detectChanges();
+    expect(text()).toContain('En tránsito: 4');
+    expect(text().match(/En tránsito/g)).toHaveLength(1);
+  });
 
   it('shows a row per warehouse with its flag, thresholds and the total', () => {
     http.expectOne(URL).flush(RESPONSE);
