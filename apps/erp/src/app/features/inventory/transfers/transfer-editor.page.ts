@@ -6,6 +6,7 @@ import type { TransferDetail, TransferProductSearchItem, TransferSaveInput, Tran
 import {
   ALL_BRANCHES,
   ButtonComponent,
+  CheckboxComponent,
   CanDirective,
   DocTableCellDirective,
   DocTableColumn,
@@ -37,6 +38,7 @@ import { ContextStore } from '../../../core/context.store';
 import { formatMoney } from '../products/sheet/product-sheet.mapper';
 import {
   addProduct,
+  countLines,
   EditorLine,
   errorOf,
   fromDetail,
@@ -62,7 +64,7 @@ type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
 const COLUMNS: DocTableColumn[] = [
   { key: 'code', label: 'Código', type: 'code' },
   { key: 'product', label: 'Producto', type: 'text' },
-  { key: 'available', label: 'Stock en origen', type: 'number' },
+  { key: 'available', label: 'Stock origen', type: 'number' },
   { key: 'quantity', label: 'Cantidad', type: 'custom', align: 'end' },
   { key: 'status', label: 'Estado', type: 'status' },
   { key: 'actions', label: 'Acciones', type: 'custom', align: 'end' },
@@ -79,6 +81,7 @@ const SEARCH_DELAY_MS = 250;
   selector: 'rs-transfer-editor-page',
   imports: [
     ButtonComponent,
+    CheckboxComponent,
     CanDirective,
     DocTableCellDirective,
     DocTableComponent,
@@ -138,6 +141,10 @@ export class TransferEditorPage implements ConfirmsLeave {
   protected readonly searchText = signal('');
   protected readonly results = signal<readonly TransferProductSearchItem[]>([]);
   protected readonly searchBusy = signal(false);
+  /** The results ticked so far, by product; they survive a refined search and are added together. */
+  private readonly picked = signal<ReadonlyMap<string, TransferProductSearchItem>>(new Map());
+  protected readonly pickedCount = computed(() => this.picked().size);
+  protected readonly allPicked = computed(() => this.results().length > 0 && this.results().every((r) => this.picked().has(r.id)));
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
   private searchSeq = 0;
 
@@ -171,6 +178,12 @@ export class TransferEditorPage implements ConfirmsLeave {
       .filter((w) => w.canSendFrom && (branchId === ALL_BRANCHES || w.branch.id === branchId || w.id === selected))
       .map((w) => ({ value: w.id, label: `${w.branch.name} · ${w.name}` }));
   });
+  /** The signed-in user, shown as the "Responsable" of the transfer (the server records who creates it). */
+  protected readonly responsibleId = computed(() => this.ctx.context()?.user.id ?? null);
+  protected readonly responsibleOptions = computed<SelectOption[]>(() => {
+    const user = this.ctx.context()?.user;
+    return user ? [{ value: user.id, label: user.name }] : [];
+  });
   protected readonly destinationOptions = computed<SelectOption[]>(() =>
     this.warehouses()
       .filter((w) => w.id !== this.originId())
@@ -198,11 +211,15 @@ export class TransferEditorPage implements ConfirmsLeave {
           code: l.manufacturerCode,
           product: `${l.name} · ${l.brand}`,
           available: l.available,
-          status: error ? { label: LINE_ERROR_LABELS[error], status: 'danger' as const, icon: 'alert' as const } : null,
+          status: error
+            ? { label: LINE_ERROR_LABELS[error], status: 'danger' as const, icon: 'alert' as const }
+            : { label: 'Disponible', status: 'success' as const, icon: 'check' as const },
         },
       };
     }),
   );
+  /** How many lines each filter chip would show ("Todos 100", "Con error 2", "Sin cambios 98"), whatever the search says. */
+  protected readonly lineCounts = computed(() => countLines(this.lines()));
   protected readonly noMatches = computed(() => this.lines().length > 0 && this.shown().length === 0);
 
   /** The draft has changes the server does not have: the header, the note or any line. */
@@ -316,7 +333,7 @@ export class TransferEditorPage implements ConfirmsLeave {
     const id = value ? String(value) : null;
     this.originId.set(id);
     if (id !== null && id === this.destinationId()) this.destinationId.set(null);
-    this.results.set([]);
+    this.closeResults();
   }
 
   protected setDestination(value: unknown) {
@@ -336,7 +353,7 @@ export class TransferEditorPage implements ConfirmsLeave {
     if (!text.trim() || !this.canAdd()) {
       // a search still in flight is for text that is gone: its answer must not fill the list
       this.searchSeq += 1;
-      this.results.set([]);
+      this.closeResults();
       return;
     }
     this.searchTimer = setTimeout(() => this.runSearch().subscribe(), SEARCH_DELAY_MS);
@@ -378,11 +395,50 @@ export class TransferEditorPage implements ConfirmsLeave {
     this.lines.update((lines) => addProduct(lines, item));
     this.requestedPage.set(1);
     this.searchText.set('');
-    this.results.set([]);
+    this.closeResults();
   }
 
+  /** Closes the list and forgets what was ticked in it. */
   protected closeResults() {
     this.results.set([]);
+    this.picked.set(new Map());
+  }
+
+  protected isPicked(id: string): boolean {
+    return this.picked().has(id);
+  }
+
+  protected togglePicked(item: TransferProductSearchItem) {
+    this.picked.update((current) => {
+      const next = new Map(current);
+      if (!next.delete(item.id)) next.set(item.id, item);
+      return next;
+    });
+  }
+
+  /** Ticks every result, or clears the ticks when every result is already ticked. */
+  protected togglePickedAll() {
+    const everyOne = this.allPicked();
+    this.picked.update((current) => {
+      const next = new Map(current);
+      for (const item of this.results()) {
+        if (everyOne) next.delete(item.id);
+        else next.set(item.id, item);
+      }
+      return next;
+    });
+  }
+
+  /** Adds every ticked product with quantity 1 (one already in the list adds to its quantity), and empties the search. */
+  protected addPicked() {
+    const items = [...this.picked().values()];
+    if (!items.length) return;
+    this.submitError.set(null);
+    this.lines.update((lines) => items.reduce((acc, item) => addProduct(acc, item), lines));
+    this.requestedPage.set(1);
+    this.searchText.set('');
+    this.results.set([]);
+    this.picked.set(new Map());
   }
 
   /** "Cancelar": back to the list. The leave guard asks first when there are unsaved changes. */

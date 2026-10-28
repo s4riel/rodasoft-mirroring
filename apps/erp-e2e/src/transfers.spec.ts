@@ -32,7 +32,7 @@ async function newTransfer(page: Page) {
   await choose(page, 'transfer-destination', DESTINATION);
 }
 
-/** The stock of the origin shown on the line, read from its "Stock en origen" cell. */
+/** The stock of the origin shown on the line, read from its "Stock origen" cell. */
 async function stockOnLine(page: Page, code: string): Promise<number> {
   const cell = line(page, code).locator('td').nth(2);
   return Number((await cell.innerText()).replace(/\D/g, ''));
@@ -109,4 +109,23 @@ test('asks before leaving a draft with unsaved changes', async ({ page }) => {
   await modal(page).getByRole('button', { name: 'Seguir editando' }).click();
   await expect(page).toHaveURL(/\/inventory\/transfers\/new$/);
   await expect(line(page, SEARCHED)).toBeVisible();
+});
+
+test('ticks several found products and adds them with one button', async ({ page }) => {
+  await newTransfer(page);
+  await page.getByRole('searchbox', { name: 'Buscar por código, marca o medida' }).fill('6205');
+
+  const results = page.locator('.results-list input[type="checkbox"]');
+  await expect(results.first()).toBeVisible();
+  expect(await results.count()).toBeGreaterThanOrEqual(2);
+  const add = page.getByRole('button', { name: /Agregar seleccionados/ });
+  await expect(add).toBeDisabled();
+
+  await results.nth(0).check();
+  await results.nth(1).check();
+  await expect(page.getByText('2 seleccionados')).toBeVisible();
+  await add.click();
+
+  await expect(page.locator('rs-doc-table tbody tr')).toHaveCount(2);
+  await expect(page.locator('.results')).toHaveCount(0);
 });

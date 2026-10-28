@@ -140,6 +140,15 @@ export function visibleLines(lines: readonly EditorLine[], filter: LineFilter, s
   });
 }
 
+/** The number of lines behind each filter chip. */
+export function countLines(lines: readonly EditorLine[]): Record<LineFilter, number> {
+  return {
+    all: lines.length,
+    error: lines.filter((l) => errorOf(l) !== null).length,
+    unchanged: lines.filter((l) => l.savedQuantity === l.quantity).length,
+  };
+}
+
 export function pageOf<T>(items: readonly T[], page: number): T[] {
   const from = (page - 1) * TRANSFER_LINES_PAGE_SIZE;
   return items.slice(from, from + TRANSFER_LINES_PAGE_SIZE);

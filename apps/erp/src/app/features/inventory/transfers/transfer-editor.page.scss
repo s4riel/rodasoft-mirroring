@@ -12,10 +12,6 @@
   border: var(--stroke-default) solid var(--border-default);
   border-radius: var(--radius-lg);
 }
-.lines {
-  padding: 0;
-  gap: 0;
-}
 .row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
@@ -25,7 +21,7 @@
 .state {
   display: grid;
   place-items: center;
-  padding: var(--space-12) var(--space-6);
+  padding: var(--space-4) var(--space-6); /* Figma "Lista vacía": 16 above and below the illustrated state */
   background: var(--bg-surface);
   border: var(--stroke-default) solid var(--border-default);
   border-radius: var(--radius-lg);
@@ -70,34 +66,52 @@
   top: 100%;
   z-index: 10;
   margin: var(--space-1) 0 0;
-  padding: var(--space-1);
-  list-style: none;
   background: var(--bg-surface);
   border: var(--stroke-default) solid var(--border-default);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
+.results-head,
+.results-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+.results-head {
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+.results-foot {
+  justify-content: flex-end;
+  border-top: var(--stroke-default) solid var(--border-default);
+}
+.results-count {
+  font-size: var(--body-sm-size);
+  color: var(--text-muted);
+}
+.results-list {
+  max-height: 20rem; /* about eight rows, then it scrolls */
+  margin: 0;
+  padding: var(--space-1) 0;
+  overflow-y: auto;
+  list-style: none;
+}
 .result {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  &:hover {
+    background: var(--action-primary-soft);
+  }
+}
+.result-row {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: var(--space-3);
   width: 100%;
-  padding: var(--space-2) var(--space-3);
-  font: inherit;
-  text-align: start;
   color: var(--text-primary);
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  &:hover {
-    background: var(--action-primary-soft);
-  }
-  &:focus-visible {
-    outline: var(--stroke-focus) solid var(--focus-control);
-    outline-offset: var(--focus-offset);
-  }
 }
 .result-code {
   font-family: var(--font-mono);
@@ -114,19 +128,24 @@
 .lines-bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-bottom: var(--stroke-default) solid var(--border-default);
+  align-items: flex-end; /* the chips sit level with the search box, not with its label */
+  gap: var(--space-4);
+}
+.lines-search {
+  flex: 1 1 18rem;
+  min-width: 0;
 }
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  padding-block: var(--space-1);
 }
-.lines-search {
-  flex: 0 1 18rem;
+/* the cell is as wide as its column, so the box lines up with the right-aligned "Cantidad" header */
+.quantity-cell {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
 }
 .quantity {
   width: 6rem;

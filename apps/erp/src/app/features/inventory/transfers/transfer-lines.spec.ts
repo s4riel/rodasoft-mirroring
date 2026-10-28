@@ -2,6 +2,7 @@ import type { TransferResolvedLine } from '@rodasoft/domain';
 import {
   addProduct,
   type AddableProduct,
+  countLines,
   type EditorLine,
   errorOf,
   pageCountOf,
@@ -67,6 +68,19 @@ describe('visibleLines', () => {
     expect(visibleLines(lines, 'all', 'rafaga').map((l) => l.productId)).toEqual(['b']);
     expect(visibleLines(lines, 'all', '6204').map((l) => l.productId)).toEqual(['a']);
     expect(visibleLines(lines, 'error', 'sello')).toEqual([]);
+  });
+});
+
+describe('countLines', () => {
+  it('counts all the lines, the ones with an error and the ones unchanged since the last save', () => {
+    const lines = [
+      line({ productId: 'a', quantity: 1, savedQuantity: 1 }),
+      line({ productId: 'b', quantity: 99, savedQuantity: 5 }),
+      line({ productId: 'c', quantity: 2, savedQuantity: null }),
+      line({ productId: 'd', quantity: 3, savedQuantity: 3 }),
+    ];
+    expect(countLines(lines)).toEqual({ all: 4, error: 1, unchanged: 2 });
+    expect(countLines([])).toEqual({ all: 0, error: 0, unchanged: 0 });
   });
 });
 

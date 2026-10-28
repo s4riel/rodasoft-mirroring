@@ -34,12 +34,7 @@
   @default {
     <section class="card" aria-label="Origen y destino">
       <div class="row">
-        <rs-field
-          label="Origen"
-          forId="transfer-origin"
-          required
-          [hint]="originLocked() ? 'Quita los productos para cambiar el origen.' : 'El stock de cada producto se revisa en este almacén.'"
-        >
+        <rs-field label="Origen" forId="transfer-origin" required [hint]="originLocked() ? 'Quita los productos para cambiar el origen.' : ''">
           <rs-select
             inputId="transfer-origin"
             leadingIcon="branch"
@@ -63,10 +58,18 @@
             (valueChange)="setDestination($event)"
           />
         </rs-field>
+        <!-- the person who creates the transfer: the server records the signed-in user, so this is shown, not chosen -->
+        <rs-field label="Responsable" forId="transfer-responsible">
+          <rs-select
+            inputId="transfer-responsible"
+            leadingIcon="user"
+            ariaLabel="Responsable"
+            [options]="responsibleOptions()"
+            [value]="responsibleId()"
+            [disabled]="true"
+          />
+        </rs-field>
       </div>
-      <rs-field label="Nota" forId="transfer-note" hint="Opcional. Se ve en el detalle de la transferencia.">
-        <textarea rsTextarea id="transfer-note" rows="2" maxlength="500" [value]="note()" (input)="onNote($event)"></textarea>
-      </rs-field>
     </section>
 
     <section class="card" aria-label="Agregar productos">
@@ -91,18 +94,32 @@
             </rs-input-group>
           </rs-field>
           @if (results().length) {
-            <!-- a plain list of buttons: each result is reachable with Tab, so no listbox keyboard model is needed -->
-            <ul class="results" aria-label="Resultados de la búsqueda">
-              @for (item of results(); track item.id) {
-                <li>
-                  <button type="button" class="result" (click)="addFromSearch(item)">
-                    <span class="result-code">{{ item.manufacturerCode }}</span>
-                    <span class="result-name">{{ item.name }} · {{ item.brand }}</span>
-                    <span class="result-stock">Stock: {{ item.available }}</span>
-                  </button>
-                </li>
-              }
-            </ul>
+            <!-- a checklist: tick several products, then add them all with the button. Each row is a native checkbox, so Tab and Space work. -->
+            <div class="results" role="group" aria-label="Resultados de la búsqueda">
+              <div class="results-head">
+                <rs-checkbox [checked]="allPicked()" (checkedChange)="togglePickedAll()">Seleccionar todos</rs-checkbox>
+                <span class="results-count">{{ pickedCount() }} {{ pickedCount() === 1 ? 'seleccionado' : 'seleccionados' }}</span>
+              </div>
+              <ul class="results-list">
+                @for (item of results(); track item.id) {
+                  <li>
+                    <rs-checkbox class="result" [checked]="isPicked(item.id)" (checkedChange)="togglePicked(item)">
+                      <span class="result-row">
+                        <span class="result-code">{{ item.manufacturerCode }}</span>
+                        <span class="result-name">{{ item.name }} · {{ item.brand }}</span>
+                        <span class="result-stock">Stock: {{ item.available }}</span>
+                      </span>
+                    </rs-checkbox>
+                  </li>
+                }
+              </ul>
+              <div class="results-foot">
+                <button rsButton variant="ghost" type="button" (click)="closeResults()">Cerrar</button>
+                <button rsButton variant="brand" type="button" [disabled]="pickedCount() === 0" (click)="addPicked()">
+                  <rs-icon name="plus" [size]="16" /> Agregar seleccionados{{ pickedCount() ? ' (' + pickedCount() + ')' : '' }}
+                </button>
+              </div>
+            </div>
           }
         </div>
         <button rsButton variant="secondary" type="button" [disabled]="!canAdd()" (click)="openList('paste')">
@@ -127,6 +144,7 @@
     @if (lines().length === 0) {
       <section class="state">
         <rs-empty-state-illustrated
+          size="inline"
           illustration="empty-transfer"
           heading="Aún no hay productos en esta transferencia"
           description="Busca por código, pega una lista de códigos con cantidades o importa un Excel."
@@ -135,22 +153,32 @@
       </section>
     } @else {
       <section class="lines" aria-label="Productos de la transferencia">
+        <h2 class="card-title">Productos de la transferencia</h2>
         <div class="lines-bar">
+          <rs-field class="lines-search" label="Buscar en la lista" forId="transfer-line-search">
+            <rs-input-group>
+              <rs-icon rsInputLeading name="search" [size]="16" />
+              <input
+                rsInput
+                id="transfer-line-search"
+                class="mono"
+                type="search"
+                autocomplete="off"
+                [value]="lineSearch()"
+                (input)="onLineSearch($event)"
+              />
+            </rs-input-group>
+          </rs-field>
           <div class="chips" role="group" aria-label="Filtrar productos">
             @for (chip of filters; track chip.key) {
-              <rs-filter-chip [label]="chip.label" [showMedia]="false" [selected]="filter() === chip.key" (selectedChange)="setFilter(chip.key)" />
+              <rs-filter-chip
+                [label]="chip.label + ' ' + lineCounts()[chip.key]"
+                [showMedia]="false"
+                [selected]="filter() === chip.key"
+                (selectedChange)="setFilter(chip.key)"
+              />
             }
           </div>
-          <input
-            rsInput
-            type="search"
-            class="lines-search"
-            autocomplete="off"
-            aria-label="Buscar en los productos de la transferencia"
-            placeholder="Buscar en la lista"
-            [value]="lineSearch()"
-            (input)="onLineSearch($event)"
-          />
         </div>
 
         @if (noMatches()) {
@@ -165,17 +193,19 @@
         } @else {
           <rs-doc-table size="md" tableLabel="Productos de la transferencia" [columns]="columns" [rows]="rows()">
             <ng-template rsDocCell="quantity" let-row>
-              <input
-                rsInput
-                rsNumeric="integer"
-                class="quantity"
-                inputmode="numeric"
-                autocomplete="off"
-                [attr.aria-label]="'Cantidad de ' + row.label"
-                [value]="quantityOf(row.id)"
-                [disabled]="busy() !== null"
-                (input)="onQuantity(row.id, $event)"
-              />
+              <span class="quantity-cell">
+                <input
+                  rsInput
+                  rsNumeric="integer"
+                  class="quantity"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  [attr.aria-label]="'Cantidad de ' + row.label"
+                  [value]="quantityOf(row.id)"
+                  [disabled]="busy() !== null"
+                  (input)="onQuantity(row.id, $event)"
+                />
+              </span>
             </ng-template>
             <ng-template rsDocCell="actions" let-row>
               <span class="row-actions">
@@ -209,6 +239,15 @@
       </section>
     }
 
+    @if (lines().length > 0 || note()) {
+      <section class="card" aria-label="Nota">
+        <rs-field label="Nota" forId="transfer-note" hint="Opcional. Se ve en el detalle de la transferencia.">
+          <textarea rsTextarea id="transfer-note" rows="2" maxlength="500" [value]="note()" (input)="onNote($event)"></textarea>
+        </rs-field>
+      </section>
+    }
+
+    @if (lines().length > 0) {
     <section class="summary" aria-label="Resumen de la transferencia">
       <dl class="totals">
         <div class="total">
@@ -231,6 +270,7 @@
         </div>
       </dl>
     </section>
+    }
 
     @if (submitError(); as message) {
       <rs-note type="danger">{{ message }}</rs-note>

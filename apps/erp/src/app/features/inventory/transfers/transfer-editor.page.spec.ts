@@ -108,7 +108,7 @@ describe('TransferEditorPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
-        { provide: ContextStore, useValue: { can: (p: string) => permissions.has(p), branches: () => [], branchId: branch } },
+        { provide: ContextStore, useValue: { can: (p: string) => permissions.has(p), branches: () => [], branchId: branch, context: () => ({ user: { id: 'u1', name: 'Alberto Andia' } }) } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -152,6 +152,27 @@ describe('TransferEditorPage', () => {
       expect(buttonByText(h, 'Importar Excel')).toBeDefined();
       expect(buttonByText(h, 'Enviar transferencia')?.disabled).toBe(true);
       expect(buttonByText(h, 'Reponer bajo el mínimo')?.disabled).toBe(true);
+    });
+
+    it('shows the signed-in user as the Responsable, without letting it be changed', async () => {
+      const h = await open();
+      await settle(h);
+      expect(text(h)).toContain('Responsable');
+      expect(text(h)).toContain('Alberto Andia');
+      expect(root(h).querySelector<HTMLElement>('#transfer-responsible')?.hasAttribute('disabled')).toBe(true);
+    });
+
+    it('shows no summary and no note while the transfer has no products, as in the Figma frame', async () => {
+      const h = await open();
+      await settle(h);
+      expect(root(h).querySelector('.summary')).toBeNull();
+      expect(root(h).querySelector('#transfer-note')).toBeNull();
+
+      editor(h).setOrigin('w1');
+      editor(h).addFromList([{ product: found(), quantity: 1 }]);
+      await settle(h);
+      expect(root(h).querySelector('.summary')).not.toBeNull();
+      expect(root(h).querySelector('#transfer-note')).not.toBeNull();
     });
 
     it('preselects the origin when the user can send from a single warehouse', async () => {
@@ -244,7 +265,7 @@ describe('TransferEditorPage', () => {
           provideHttpClient(),
           provideHttpClientTesting(),
           { provide: RS_PERMISSIONS, useValue: signal(new Set<string>()) },
-          { provide: ContextStore, useValue: { can: () => false, branches: () => [], branchId: branch } },
+          { provide: ContextStore, useValue: { can: () => false, branches: () => [], branchId: branch, context: () => null } },
         ],
       });
       http = TestBed.inject(HttpTestingController);
@@ -285,6 +306,83 @@ describe('TransferEditorPage', () => {
         await settle(h);
       }
       expect(editor(h).lines()).toEqual([expect.objectContaining({ productId: 'p1', quantity: 2 })]);
+    });
+
+    describe('the results are a checklist', () => {
+      /** Types a text, waits out the typing pause and answers the search with these products. */
+      async function listResults(h: RouterTestingHarness, items: TransferProductSearchItem[]) {
+        searchBox(h).value = '62';
+        searchBox(h).dispatchEvent(new Event('input'));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        searchRequest().flush({ items });
+        await settle(h);
+      }
+      const three = [found({ id: 'p1', manufacturerCode: 'A-1' }), found({ id: 'p2', manufacturerCode: 'A-2' }), found({ id: 'p3', manufacturerCode: 'A-3' })];
+      const boxes = (h: RouterTestingHarness) => Array.from(root(h).querySelectorAll<HTMLInputElement>('.results-list input[type="checkbox"]'));
+      const addButton = (h: RouterTestingHarness) => buttonByText(h, 'Agregar seleccionados');
+
+      it('shows a checkbox per result and a disabled "Agregar seleccionados" until something is ticked', async () => {
+        const h = await withOrigin();
+        await listResults(h, three);
+        expect(boxes(h)).toHaveLength(3);
+        expect(text(h)).toContain('0 seleccionados');
+        expect(addButton(h)?.disabled).toBe(true);
+        // ticking is not adding
+        expect(editor(h).lines()).toEqual([]);
+      });
+
+      it('adds every ticked product with one button, and empties the search', async () => {
+        const h = await withOrigin();
+        await listResults(h, three);
+        boxes(h)[0].click();
+        boxes(h)[2].click();
+        await settle(h);
+        expect(text(h)).toContain('2 seleccionados');
+
+        addButton(h)?.click();
+        await settle(h);
+        expect(editor(h).lines().map((l) => l.productId).sort()).toEqual(['p1', 'p3']);
+        expect(root(h).querySelector('.results')).toBeNull();
+        expect(searchBox(h).value).toBe('');
+      });
+
+      it('ticks and clears every result with "Seleccionar todos"', async () => {
+        const h = await withOrigin();
+        await listResults(h, three);
+        const all = root(h).querySelector<HTMLInputElement>('.results-head input[type="checkbox"]') as HTMLInputElement;
+        all.click();
+        await settle(h);
+        expect(boxes(h).every((b) => b.checked)).toBe(true);
+        expect(text(h)).toContain('3 seleccionados');
+
+        all.click();
+        await settle(h);
+        expect(boxes(h).some((b) => b.checked)).toBe(false);
+      });
+
+      it('adds to the quantity of a product that is already in the list', async () => {
+        const h = await withOrigin();
+        editor(h).addFromList([{ product: three[0], quantity: 2 }]);
+        await listResults(h, three);
+        boxes(h)[0].click();
+        await settle(h);
+        addButton(h)?.click();
+        await settle(h);
+        expect(editor(h).lines()).toEqual([expect.objectContaining({ productId: 'p1', quantity: 3 })]);
+      });
+
+      it('forgets the ticks when the list is closed', async () => {
+        const h = await withOrigin();
+        await listResults(h, three);
+        boxes(h)[1].click();
+        await settle(h);
+        buttonByText(h, 'Cerrar')?.click();
+        await settle(h);
+        expect(root(h).querySelector('.results')).toBeNull();
+
+        await listResults(h, three);
+        expect(text(h)).toContain('0 seleccionados');
+      });
     });
 
     it('says so when nothing matches, and adds nothing', async () => {
@@ -368,6 +466,26 @@ describe('TransferEditorPage', () => {
       editor(h).setFilter('error');
       await settle(h);
       expect(root(h).querySelectorAll('tbody tr').length).toBe(1);
+      expect(text(h)).toContain('Sin stock suficiente');
+    });
+
+    it('titles the card, counts each filter chip and marks the lines without errors as "Disponible"', async () => {
+      const h = await open();
+      editor(h).setOrigin('w1');
+      editor(h).addFromList([
+        { product: found({ id: 'a', available: 5 }), quantity: 6 },
+        { product: found({ id: 'b', available: 5 }), quantity: 2 },
+        { product: found({ id: 'c', available: 5 }), quantity: 1 },
+      ]);
+      await settle(h);
+
+      expect(text(h)).toContain('Productos de la transferencia');
+      expect(text(h)).toContain('Buscar en la lista');
+      expect(text(h)).toContain('Stock origen');
+      const chips = Array.from(root(h).querySelectorAll('rs-filter-chip')).map((c) => c.textContent?.replace(/\s+/g, ' ').trim());
+      expect(chips).toEqual(['Todos 3', 'Con error 1', 'Sin cambios 0']);
+      expect(root(h).querySelectorAll('rs-doc-table tbody tr')).toHaveLength(3);
+      expect((text(h).match(/Disponible/g) ?? []).length).toBe(2);
       expect(text(h)).toContain('Sin stock suficiente');
     });
 
