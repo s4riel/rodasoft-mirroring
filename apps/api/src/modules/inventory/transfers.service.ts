@@ -20,6 +20,7 @@ import {
   requiresTransferApproval,
   TRANSFER_FILE_MAX_BYTES,
   TRANSFER_LINE_QUANTITY_MAX,
+  TRANSFER_OPEN_STATUSES,
   TRANSFER_PAGE_SIZE_DEFAULT,
   TRANSFER_PAGE_SIZE_MAX,
   TRANSFER_REF_TYPE,
@@ -27,6 +28,7 @@ import {
   type TransferDetail,
   type TransferLineGroup,
   type TransferListResponse,
+  type TransferOpenCountResponse,
   type TransferProductSearchResponse,
   type TransferResolveResponse,
   type TransferResolvedLine,
@@ -112,7 +114,16 @@ export class TransfersService {
     if (query.status) and.push({ status: query.status });
     if (query.originWarehouseId) and.push({ originWarehouseId: query.originWarehouseId });
     if (query.destinationWarehouseId) and.push({ destinationWarehouseId: query.destinationWarehouseId });
-    if (query.q) and.push({ number: { contains: query.q, mode: 'insensitive' } });
+    if (query.q) {
+      // the list searches by number or by the branch on either side (IN-05: "Buscar por N.º o sucursal")
+      and.push({
+        OR: [
+          { number: { contains: query.q, mode: 'insensitive' } },
+          { originWarehouse: { branch: { name: { contains: query.q, mode: 'insensitive' } } } },
+          { destinationWarehouse: { branch: { name: { contains: query.q, mode: 'insensitive' } } } },
+        ],
+      });
+    }
     const createdAt: Prisma.DateTimeFilter = {};
     if (query.from) createdAt.gte = dayStart(query.from);
     if (query.to) createdAt.lt = nextDayStart(query.to);
@@ -141,6 +152,7 @@ export class TransfersService {
           originWarehouse: { select: WAREHOUSE_SELECT },
           destinationWarehouse: { select: WAREHOUSE_SELECT },
           createdBy: { select: { name: true } },
+          sentBy: { select: { name: true } },
         },
       }),
     ]);
@@ -157,6 +169,7 @@ export class TransfersService {
         pieces: r.totalPieces,
         value: canViewCosts ? r.totalValue.toFixed(2) : null,
         createdBy: r.createdBy?.name ?? null,
+        sentBy: r.sentBy?.name ?? null,
         createdAt: r.createdAt.toISOString(),
         sentAt: r.sentAt?.toISOString() ?? null,
       })),
@@ -164,6 +177,16 @@ export class TransfersService {
       page,
       pageSize,
     };
+  }
+
+  /** How many transfers visible to the member are still open: the count on the Transferencias tab of the sub-nav. */
+  async openCount(): Promise<TransferOpenCountResponse> {
+    await this.assertCanRead();
+    const allowed = await this.operableBranches();
+    const count = await this.prisma.tenant.transfer.count({
+      where: { AND: [visibleTo(allowed), { status: { in: [...TRANSFER_OPEN_STATUSES] } }] },
+    });
+    return { count };
   }
 
   async get(id: string): Promise<TransferDetail> {

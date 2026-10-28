@@ -53,7 +53,7 @@ export class ListTransfersQueryDto {
   @IsISO8601({ strict: true })
   to?: string;
 
-  @ApiPropertyOptional({ description: 'Matches the transfer number' })
+  @ApiPropertyOptional({ description: 'Matches the transfer number or the name of the origin or destination branch' })
   @IsOptional()
   @Transform(trimmed)
   @IsString()

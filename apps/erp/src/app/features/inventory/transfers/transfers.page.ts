@@ -11,36 +11,40 @@ import {
   EmptyStateIllustratedComponent,
   FilterBarProductsComponent,
   IconComponent,
-  InputDirective,
   PageHeaderComponent,
   PaginationComponent,
+  RowActionComponent,
   SelectComponent,
   SelectOption,
   SkeletonComponent,
   ToastOutletComponent,
+  ToastService,
 } from '@rodasoft/ui';
-import { catchError, map, of, switchMap, tap } from 'rxjs';
+import { catchError, firstValueFrom, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
 import { ContextStore } from '../../../core/context.store';
 import { TransfersApi } from './transfers-api.service';
-import { parseDay, parseStatus, rangeLabel, STATUS_OPTIONS, toQuery, toRow, TRANSFERS_PAGE_SIZE, TransferUrlFilters } from './transfers.mapper';
+import { parseStatus, rangeLabel, rowMenuOf, STATUS_OPTIONS, toCsv, toQuery, toRow, toTotals, TRANSFERS_PAGE_SIZE, TransferUrlFilters } from './transfers.mapper';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
-type FilterKey = 'status' | 'originWarehouseId' | 'destinationWarehouseId' | 'from' | 'to';
+type FilterKey = 'status' | 'originWarehouseId' | 'destinationWarehouseId';
 
+/** "Exportar" reads pages of 100 (the API's largest) and stops after this many, so a huge list cannot hang the tab. */
+const EXPORT_PAGE_SIZE = 100;
+const EXPORT_MAX_PAGES = 50;
+
+/** The columns of the Figma table of IN-05, in its order. */
 const COLUMNS: DocTableColumn[] = [
-  { key: 'number', label: 'Número', type: 'custom' },
-  { key: 'route', label: 'Origen → destino', type: 'text' },
-  { key: 'status', label: 'Estado', type: 'status' },
-  { key: 'products', label: 'Productos', type: 'number' },
-  { key: 'pieces', label: 'Piezas', type: 'number' },
-  { key: 'value', label: 'Valor', type: 'number' },
-  { key: 'createdBy', label: 'Creada por', type: 'text' },
-  { key: 'createdAt', label: 'Creada', type: 'text' },
-  { key: 'sentAt', label: 'Enviada', type: 'text' },
+  { key: 'number', label: 'N.º', type: 'custom', width: '7.5rem' },
+  { key: 'route', label: 'Ruta', type: 'text' },
+  { key: 'detail', label: 'Detalle', type: 'text' },
+  { key: 'products', label: 'Ítems', type: 'number', width: '6.25rem' },
+  { key: 'date', label: 'Fecha', type: 'number', width: '8.125rem' },
+  { key: 'status', label: 'Estado', type: 'status', width: '10rem' },
+  { key: 'actions', label: '', type: 'custom', align: 'end', width: '3.5rem' },
 ];
 
-/** IN-05 · Transfers between warehouses, with filters, loading, empty, error and no-permission states. */
+/** IN-05 · Transfers between branches, with filters, loading, empty, error and no-permission states. */
 @Component({
   selector: 'rs-transfers-page',
   imports: [
@@ -51,9 +55,9 @@ const COLUMNS: DocTableColumn[] = [
     EmptyStateIllustratedComponent,
     FilterBarProductsComponent,
     IconComponent,
-    InputDirective,
     PageHeaderComponent,
     PaginationComponent,
+    RowActionComponent,
     RouterLink,
     SelectComponent,
     SkeletonComponent,
@@ -69,6 +73,7 @@ export class TransfersPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly toast = inject(ToastService);
 
   protected readonly breadcrumbs = [{ label: 'Inicio', link: '/' }, { label: 'Inventario', link: '/inventory' }, { label: 'Transferencias' }];
   protected readonly columns = COLUMNS;
@@ -87,12 +92,11 @@ export class TransfersPage {
       status: parseStatus(q.get('status')),
       originWarehouseId: q.get('originWarehouseId'),
       destinationWarehouseId: q.get('destinationWarehouseId'),
-      from: parseDay(q.get('from')),
-      to: parseDay(q.get('to')),
       page: Math.max(1, Number(q.get('page')) || 1),
     };
   });
 
+  protected readonly exporting = signal(false);
   protected readonly searchText = signal('');
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -103,6 +107,7 @@ export class TransfersPage {
 
   protected readonly items = computed<readonly TransferListItem[]>(() => this.data()?.items ?? []);
   protected readonly rows = computed(() => this.items().map(toRow));
+  protected readonly totals = computed(() => toTotals(this.items()));
   protected readonly total = computed(() => this.data()?.total ?? 0);
   protected readonly pageCount = computed(() => Math.max(1, Math.ceil(this.total() / TRANSFERS_PAGE_SIZE)));
   protected readonly range = computed(() => rangeLabel(this.filters().page, this.items().length, this.total()));
@@ -113,7 +118,7 @@ export class TransfersPage {
 
   protected readonly hasFilters = computed(() => {
     const f = this.filters();
-    return !!(f.status || f.originWarehouseId || f.destinationWarehouseId || f.from || f.to || f.q) || this.searchText().trim() !== '';
+    return !!(f.status || f.originWarehouseId || f.destinationWarehouseId || f.q) || this.searchText().trim() !== '';
   });
   /** The company has no transfers at all: the first-use empty state. */
   protected readonly showEmpty = computed(() => this.state() === 'ready' && this.total() === 0 && !this.hasFilters());
@@ -165,10 +170,6 @@ export class TransfersPage {
     this.navigate({ [key]: value ? String(value) : null, page: null });
   }
 
-  protected onDate(key: 'from' | 'to', event: Event) {
-    this.setFilter(key, (event.target as HTMLInputElement).value);
-  }
-
   protected onSearch(text: string) {
     this.searchText.set(text);
     clearTimeout(this.searchTimer);
@@ -177,7 +178,7 @@ export class TransfersPage {
 
   protected clearAll() {
     clearTimeout(this.searchTimer);
-    this.navigate({ q: null, status: null, originWarehouseId: null, destinationWarehouseId: null, from: null, to: null, page: null });
+    this.navigate({ q: null, status: null, originWarehouseId: null, destinationWarehouseId: null, page: null });
   }
 
   protected goToPage(page: number) {
@@ -207,6 +208,49 @@ export class TransfersPage {
 
   protected openNew() {
     void this.router.navigate(['/inventory/transfers/new']);
+  }
+
+  /** The ⋯ menu of a row: edit a draft, or read any other transfer. */
+  protected menuOf(item: TransferListItem) {
+    return rowMenuOf(item);
+  }
+
+  protected openRow(item: TransferListItem) {
+    void this.router.navigate(this.linkOf(item));
+  }
+
+  /**
+   * "Exportar": the transfers the filters leave, every page of them, as a CSV the user saves. It reads the pages one after
+   * the other (the API caps a page at 100) and stops at a safety limit, which the toast says when it is reached.
+   */
+  protected async exportCsv() {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      const items: TransferListItem[] = [];
+      let page = 1;
+      let total = 0;
+      do {
+        const response = await firstValueFrom(this.api.list({ ...this.params(), page, pageSize: EXPORT_PAGE_SIZE }));
+        items.push(...response.items);
+        total = response.total;
+        page += 1;
+      } while (items.length < total && page <= EXPORT_MAX_PAGES);
+
+      // a byte order mark makes Excel read the accents as UTF-8
+      const blob = new Blob(['﻿', toCsv(items)], { type: 'text/csv;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `transferencias-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      if (items.length < total) this.toast.warning(`Se exportaron ${items.length} de ${total} transferencias. Filtra para exportar el resto.`);
+      else this.toast.success(`${items.length} ${items.length === 1 ? 'transferencia exportada' : 'transferencias exportadas'}`);
+    } catch (err) {
+      this.toast.danger(problemOf(err).message);
+    } finally {
+      this.exporting.set(false);
+    }
   }
 
   private navigate(queryParams: Record<string, string | null>) {

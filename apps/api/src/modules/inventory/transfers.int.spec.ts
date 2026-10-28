@@ -303,6 +303,9 @@ describe('TransfersService (integration, real Postgres)', () => {
       expect((await service.list({ destinationWarehouseId: northAnnex, pageSize: 100 })).items.map((i) => i.id)).toEqual([other.id]);
       expect((await service.list({ originWarehouseId: north, pageSize: 100 })).total).toBe(0);
       expect((await service.list({ q: draft.number })).items.map((i) => i.id)).toEqual([draft.id]);
+      // the search box also takes a branch name, from either side of the transfer
+      expect((await service.list({ q: 'Norte', pageSize: 100 })).items.map((i) => i.id)).toEqual(expect.arrayContaining([draft.id, other.id]));
+      expect((await service.list({ q: 'no-such-branch' })).total).toBe(0);
 
       const today = new Date().toISOString().slice(0, 10);
       expect((await service.list({ from: today, to: today, pageSize: 100 })).total).toBeGreaterThanOrEqual(2);
@@ -454,6 +457,9 @@ describe('TransfersService (integration, real Postgres)', () => {
       expect(saved).toMatchObject({ sentById: userId, totalPieces: 10 });
       expect(saved.totalValue.toFixed(2)).toBe('30.00');
 
+      // the list names who sent it (the "Detalle" column of IN-05)
+      expect((await service.list({ q: draft.number })).items[0]).toMatchObject({ status: 'IN_TRANSIT', createdBy: 'Transferor', sentBy: 'Transferor' });
+
       // the pieces show as incoming at the destination until HU-INV-21 receives them
       const stock = await queries.stockByWarehouse(a.id);
       expect(stock.items.find((i) => i.warehouse.id === north)).toMatchObject({ inTransit: 6, quantity: 0 });
@@ -564,6 +570,36 @@ describe('TransfersService (integration, real Postgres)', () => {
       const sent = await save([{ productId: p.id, quantity: 1 }]);
       await service.send(sent.id, {});
       expect(await codeOf(service.cancel(sent.id))).toBe('INVALID_TRANSITION');
+    });
+  });
+
+  describe('open count', () => {
+    it('counts the transfers still open that the member can see, and no draft, cancelled or received one', async () => {
+      const p = await productWithStock(30);
+      const before = (await service.openCount()).count;
+
+      const draft = await save([{ productId: p.id, quantity: 1 }]);
+      expect((await service.openCount()).count).toBe(before); // a draft is not open
+
+      await service.send(draft.id, {});
+      expect((await service.openCount()).count).toBe(before + 1);
+
+      await base.transfer.update({ where: { id: draft.id }, data: { status: 'RECEIVED' } });
+      expect((await service.openCount()).count).toBe(before);
+      await base.transfer.update({ where: { id: draft.id }, data: { status: 'PARTIALLY_RECEIVED' } });
+      expect((await service.openCount()).count).toBe(before + 1);
+
+      // a member who operates neither branch of it does not count it
+      currentMembership = restrictedMembershipId;
+      const restrictedBefore = (await service.openCount()).count;
+      expect(restrictedBefore).toBeGreaterThanOrEqual(1); // central is one of the sides
+      current = otherCompanyId;
+      expect((await service.openCount()).count).toBe(0);
+    });
+
+    it('is refused without a transfer permission', async () => {
+      granted = new Set(['inventory.products.view']);
+      expect(await codeOf(service.openCount())).toBe('NO_PERMISSION');
     });
   });
 

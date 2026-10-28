@@ -20,6 +20,7 @@ import {
   TRANSFER_FILE_MAX_BYTES,
   type TransferDetail,
   type TransferListResponse,
+  type TransferOpenCountResponse,
   type TransferProductSearchResponse,
   type TransferResolveResponse,
   type TransferWarehousesResponse,
@@ -66,6 +67,11 @@ export class TransfersController {
   }
 
   // the fixed paths come before `:id`, which would otherwise swallow them
+
+  @Get('open-count')
+  openCount(): Promise<TransferOpenCountResponse> {
+    return this.transfers.openCount();
+  }
 
   @Get('warehouses')
   @RequirePermissions('inventory.transfers.create')

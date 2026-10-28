@@ -12,7 +12,7 @@ import type {
   TransferResolveResponse,
   TransferWarehousesResponse,
 } from '@rodasoft/domain';
-import { RS_PERMISSIONS } from '@rodasoft/ui';
+import { ALL_BRANCHES, RS_PERMISSIONS } from '@rodasoft/ui';
 import { ContextStore } from '../../../core/context.store';
 import { TransferEditorPage } from './transfer-editor.page';
 import { unsavedTransferGuard } from './unsaved-transfer.guard';
@@ -85,8 +85,11 @@ interface EditorApi {
 
 describe('TransferEditorPage', () => {
   let http: HttpTestingController;
+  /** The branch chosen in the header toolbar. */
+  const branch = signal<string>(ALL_BRANCHES);
+  beforeEach(() => branch.set(ALL_BRANCHES));
   let page: EditorApi & {
-    originOptions(): { value: string }[];
+    originOptions(): { value: string; label: string }[];
     destinationOptions(): { value: string }[];
   };
 
@@ -105,7 +108,7 @@ describe('TransferEditorPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RS_PERMISSIONS, useValue: signal(permissions) },
-        { provide: ContextStore, useValue: { can: (p: string) => permissions.has(p), branches: () => [] } },
+        { provide: ContextStore, useValue: { can: (p: string) => permissions.has(p), branches: () => [], branchId: branch } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -129,7 +132,7 @@ describe('TransferEditorPage', () => {
     await h.fixture.whenStable();
     h.detectChanges();
   }
-  const searchBox = (h: RouterTestingHarness) => root(h).querySelector<HTMLInputElement>('input[type="search"][aria-label^="Buscar producto"]') as HTMLInputElement;
+  const searchBox = (h: RouterTestingHarness) => root(h).querySelector<HTMLInputElement>('input#transfer-search') as HTMLInputElement;
   const buttonByText = (h: RouterTestingHarness, label: string) =>
     Array.from(root(h).querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim().includes(label));
   const searchRequest = (): TestRequest => http.expectOne((r) => r.url === `${BASE}/product-search`);
@@ -137,18 +140,18 @@ describe('TransferEditorPage', () => {
   afterEach(() => http.verify());
 
   describe('empty state (IN-06d)', () => {
-    it('shows the illustrated empty state with the three ways to add, and Enviar disabled', async () => {
+    it('shows the illustrated empty state, the three ways to add in the card above, and Enviar disabled', async () => {
       const h = await open();
       editor(h).setOrigin('w1');
       await settle(h);
 
       expect(root(h).querySelector('rs-empty-state-illustrated')).not.toBeNull();
-      expect(text(h)).toContain('Agrega productos');
-      expect(buttonByText(h, 'Buscar producto')).toBeDefined();
-      expect(buttonByText(h, 'Pegar lista')).toBeDefined();
+      expect(text(h)).toContain('Aún no hay productos en esta transferencia');
+      expect(buttonByText(h, 'Buscar producto')).toBeUndefined();
+      expect(buttonByText(h, 'Pegar lista de códigos')).toBeDefined();
       expect(buttonByText(h, 'Importar Excel')).toBeDefined();
-      expect(buttonByText(h, 'Enviar')?.disabled).toBe(true);
-      expect(buttonByText(h, 'Reponer bajo mínimo')?.disabled).toBe(true);
+      expect(buttonByText(h, 'Enviar transferencia')?.disabled).toBe(true);
+      expect(buttonByText(h, 'Reponer bajo el mínimo')?.disabled).toBe(true);
     });
 
     it('preselects the origin when the user can send from a single warehouse', async () => {
@@ -174,6 +177,66 @@ describe('TransferEditorPage', () => {
       expect(page.destinationOptions().map((o) => o.value)).toEqual(['w2']);
     });
 
+    describe('the origin follows the branch of the header', () => {
+      const THREE: TransferWarehousesResponse = {
+        items: [
+          { id: 'w1', code: 'H-01', name: 'Principal', branch: { id: 'b1', name: 'Huayna Kapac' }, canSendFrom: true },
+          { id: 'w3', code: 'S-01', name: 'Principal', branch: { id: 'b2', name: 'Sacaba' }, canSendFrom: true },
+          { id: 'w4', code: 'S-02', name: 'Depósito', branch: { id: 'b2', name: 'Sacaba' }, canSendFrom: true },
+          { id: 'w5', code: 'P-01', name: 'Principal', branch: { id: 'b3', name: 'Panamericana' }, canSendFrom: false },
+        ],
+      };
+      const origins = () => page.originOptions().map((o) => o.value);
+
+      it('offers every warehouse the user can send from when the header shows all branches', async () => {
+        const h = await open('/new', ['inventory.transfers.create'], THREE);
+        await settle(h);
+        expect(origins()).toEqual(['w1', 'w3', 'w4']);
+      });
+
+      it('offers only the warehouses of the branch chosen in the header', async () => {
+        branch.set('b2');
+        const h = await open('/new', ['inventory.transfers.create'], THREE);
+        await settle(h);
+        expect(origins()).toEqual(['w3', 'w4']);
+        expect(page.originOptions().map((o) => o.label)).toEqual(['Sacaba · Principal', 'Sacaba · Depósito']);
+      });
+
+      it('preselects the origin when the branch has a single warehouse to send from', async () => {
+        branch.set('b1');
+        const h = await open('/new', ['inventory.transfers.create'], THREE);
+        await settle(h);
+        expect(text(h)).toContain('Huayna Kapac · Principal');
+        expect(origins()).toEqual(['w1']);
+      });
+
+      it('clears the origin of a new transfer when the header changes to another branch, and offers the new branch', async () => {
+        const h = await open('/new', ['inventory.transfers.create'], THREE);
+        editor(h).setOrigin('w3');
+        await settle(h);
+
+        branch.set('b1');
+        await settle(h);
+        // the new branch has one warehouse, so it is chosen for the user
+        expect(origins()).toEqual(['w1']);
+        expect(h.routeNativeElement?.textContent).toContain('Huayna Kapac · Principal');
+        expect(h.routeNativeElement?.textContent).not.toContain('Sacaba · Principal');
+      });
+
+      it('keeps the origin once the transfer has lines, even if the header changes', async () => {
+        const h = await open('/new', ['inventory.transfers.create'], THREE);
+        editor(h).setOrigin('w3');
+        editor(h).addFromList([{ product: found(), quantity: 1 }]);
+        await settle(h);
+
+        branch.set('b1');
+        await settle(h);
+        // the origin that the lines were checked against stays chosen and listed
+        expect(origins()).toEqual(['w1', 'w3']);
+        expect(text(h)).toContain('Sacaba · Principal');
+      });
+    });
+
     it('shows its own message without permission', async () => {
       TestBed.configureTestingModule({
         providers: [
@@ -181,7 +244,7 @@ describe('TransferEditorPage', () => {
           provideHttpClient(),
           provideHttpClientTesting(),
           { provide: RS_PERMISSIONS, useValue: signal(new Set<string>()) },
-          { provide: ContextStore, useValue: { can: () => false, branches: () => [] } },
+          { provide: ContextStore, useValue: { can: () => false, branches: () => [], branchId: branch } },
         ],
       });
       http = TestBed.inject(HttpTestingController);
@@ -320,7 +383,7 @@ describe('TransferEditorPage', () => {
       expect(summary).toMatch(/Piezas\s*8/);
       expect(summary).toMatch(/Errores\s*1/);
       expect(summary).toContain('40,00');
-      expect(buttonByText(h, 'Enviar')?.disabled).toBe(true);
+      expect(buttonByText(h, 'Enviar transferencia')?.disabled).toBe(true);
       expect(text(h)).toContain('Corrige los productos con error');
     });
 

@@ -1,9 +1,10 @@
 import { Location } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, HostListener, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import type { TransferDetail, TransferProductSearchItem, TransferSaveInput, TransferWarehouseOption } from '@rodasoft/domain';
 import {
+  ALL_BRANCHES,
   ButtonComponent,
   CanDirective,
   DocTableCellDirective,
@@ -16,6 +17,7 @@ import {
   IconButtonComponent,
   IconComponent,
   InputDirective,
+  InputGroupComponent,
   ModalComponent,
   NoteComponent,
   NumericInputDirective,
@@ -86,6 +88,7 @@ const SEARCH_DELAY_MS = 250;
     IconButtonComponent,
     IconComponent,
     InputDirective,
+    InputGroupComponent,
     ModalComponent,
     NoteComponent,
     NumericInputDirective,
@@ -110,8 +113,6 @@ export class TransferEditorPage implements ConfirmsLeave {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('id');
-
-  private readonly searchBox = viewChild<ElementRef<HTMLInputElement>>('searchBox');
 
   protected readonly columns = COLUMNS;
   protected readonly filters = LINE_FILTERS;
@@ -157,11 +158,19 @@ export class TransferEditorPage implements ConfirmsLeave {
     { label: this.title() },
   ]);
 
-  protected readonly originOptions = computed<SelectOption[]>(() =>
-    this.warehouses()
-      .filter((w) => w.canSendFrom)
-      .map((w) => ({ value: w.id, label: `${w.branch.name} · ${w.name}` })),
-  );
+  /**
+   * The warehouses to send from follow the branch chosen in the header: with "Sacaba" selected, only Sacaba's warehouses are
+   * offered (all of them when the header shows every branch). The origin already chosen stays in the list, so a draft whose
+   * origin is in another branch still shows it.
+   */
+  protected readonly originOptions = computed<SelectOption[]>(() => {
+    const branchId = this.ctx.branchId();
+    // fixed once the draft is saved or has lines; before that a branch change replaces it
+    const selected = this.id || this.saved() || this.lines().length > 0 ? this.originId() : null;
+    return this.warehouses()
+      .filter((w) => w.canSendFrom && (branchId === ALL_BRANCHES || w.branch.id === branchId || w.id === selected))
+      .map((w) => ({ value: w.id, label: `${w.branch.name} · ${w.name}` }));
+  });
   protected readonly destinationOptions = computed<SelectOption[]>(() =>
     this.warehouses()
       .filter((w) => w.id !== this.originId())
@@ -209,7 +218,7 @@ export class TransferEditorPage implements ConfirmsLeave {
   });
 
   protected readonly needsApproval = computed(() => this.saved()?.needsApproval === true);
-  protected readonly sendLabel = computed(() => (this.needsApproval() ? 'Enviar para aprobación' : 'Enviar'));
+  protected readonly sendLabel = computed(() => (this.needsApproval() ? 'Enviar para aprobación' : 'Enviar transferencia'));
   protected readonly canSave = computed(() => this.originId() !== null && this.destinationId() !== null && this.busy() === null && this.dirty());
   protected readonly canSend = computed(
     () => this.originId() !== null && this.destinationId() !== null && this.lines().length > 0 && this.summary().errors === 0 && this.busy() === null,
@@ -225,15 +234,20 @@ export class TransferEditorPage implements ConfirmsLeave {
       .warehouses()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (r) => {
-          this.warehouses.set(r.items);
-          // a single warehouse to send from needs no choice
-          const origins = r.items.filter((w) => w.canSendFrom);
-          if (!this.id && origins.length === 1) this.originId.set(origins[0].id);
-        },
+        next: (r) => this.warehouses.set(r.items),
         error: (err: unknown) => this.fail(err),
       });
     if (this.id) this.load(this.id);
+
+    // a new transfer follows the header's branch: a single warehouse to send from needs no choice, and an origin the
+    // branch no longer offers is cleared. Once there are lines (or the draft is saved) the origin is fixed.
+    effect(() => {
+      if (this.id || this.saved() || this.lines().length > 0) return;
+      const options = this.originOptions();
+      const origin = this.originId();
+      if (origin && !options.some((o) => o.value === origin)) this.originId.set(null);
+      else if (!origin && options.length === 1) this.originId.set(String(options[0].value));
+    });
   }
 
   /** A browser close or reload with unsaved changes asks too. */
@@ -371,8 +385,9 @@ export class TransferEditorPage implements ConfirmsLeave {
     this.results.set([]);
   }
 
-  protected focusSearch() {
-    this.searchBox()?.nativeElement.focus();
+  /** "Cancelar": back to the list. The leave guard asks first when there are unsaved changes. */
+  protected leave() {
+    void this.router.navigate(['/inventory/transfers']);
   }
 
   protected openList(mode: TransferListMode) {

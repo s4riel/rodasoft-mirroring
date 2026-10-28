@@ -44,23 +44,22 @@ test.beforeEach(async ({ page }) => {
 
 test('a new transfer without products shows the illustrated empty state and cannot be sent', async ({ page }) => {
   await newTransfer(page);
-  await expect(page.getByText('Agrega productos', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Buscar producto' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Pegar lista' }).last()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Importar Excel' }).last()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeDisabled();
+  await expect(page.getByText('Aún no hay productos en esta transferencia', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pegar lista de códigos' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Importar Excel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enviar transferencia' })).toBeDisabled();
 });
 
 test('builds a transfer by search and paste, sends it, and the stock leaves the origin', async ({ page }) => {
   await newTransfer(page);
 
   // IN-06a · search by code and Enter adds the first result
-  await page.getByRole('searchbox', { name: /Buscar producto/ }).fill(SEARCHED);
-  await page.getByRole('searchbox', { name: /Buscar producto/ }).press('Enter');
+  await page.getByRole('searchbox', { name: 'Buscar por código, marca o medida' }).fill(SEARCHED);
+  await page.getByRole('searchbox', { name: 'Buscar por código, marca o medida' }).press('Enter');
   await expect(line(page, SEARCHED)).toBeVisible();
 
   // IN-06b · paste a list: the unknown code is flagged and left out
-  await page.getByRole('button', { name: 'Pegar lista' }).first().click();
+  await page.getByRole('button', { name: 'Pegar lista de códigos' }).click();
   await modal(page).getByRole('textbox', { name: 'Lista de productos' }).fill(`${PASTED}, 1\n${PASTED_TOO}, 2\nNO-SUCH-CODE, 1`);
   await modal(page).getByRole('button', { name: 'Revisar' }).click();
   await expect(modal(page)).toContainText('No encontrado');
@@ -77,7 +76,7 @@ test('builds a transfer by search and paste, sends it, and the stock leaves the 
   await expect(page).toHaveURL(/\/inventory\/transfers\/[0-9a-f-]{36}\/edit$/);
 
   // IN-06 · send: back to the list, where it is in transit
-  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByRole('button', { name: 'Enviar transferencia' }).click();
   await expect(page).toHaveURL(/\/inventory\/transfers$/);
   await expect(page.getByText(/enviada: el stock salió del origen/).last()).toBeVisible();
   await expect(page.locator('rs-doc-table tbody tr').first()).toContainText('En tránsito');
@@ -101,8 +100,8 @@ test('builds a transfer by search and paste, sends it, and the stock leaves the 
 
 test('asks before leaving a draft with unsaved changes', async ({ page }) => {
   await newTransfer(page);
-  await page.getByRole('searchbox', { name: /Buscar producto/ }).fill(SEARCHED);
-  await page.getByRole('searchbox', { name: /Buscar producto/ }).press('Enter');
+  await page.getByRole('searchbox', { name: 'Buscar por código, marca o medida' }).fill(SEARCHED);
+  await page.getByRole('searchbox', { name: 'Buscar por código, marca o medida' }).press('Enter');
   await expect(line(page, SEARCHED)).toBeVisible();
 
   await page.getByRole('link', { name: 'Productos' }).first().click();

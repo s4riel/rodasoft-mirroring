@@ -37,6 +37,24 @@ describe('FilterBarProductsComponent', () => {
     expect(el.querySelector('[data-test="slot"]')).not.toBeNull();
   });
 
+  it('marks the one-row layout only when `inline` is set', () => {
+    @Component({
+      imports: [FilterBarProductsComponent],
+      template: `<rs-filter-bar-products [inline]="inline" searchPlaceholder="Buscar" clearLabel="Limpiar" />`,
+    })
+    class InlineHost {
+      inline = false;
+    }
+    const fixture = TestBed.createComponent(InlineHost);
+    fixture.detectChanges();
+    const bar: HTMLElement = fixture.nativeElement.querySelector('rs-filter-bar-products');
+    expect(bar.hasAttribute('data-inline')).toBe(false);
+    fixture.componentInstance.inline = true;
+    fixture.changeDetectorRef.markForCheck();
+    fixture.detectChanges();
+    expect(bar.hasAttribute('data-inline')).toBe(true);
+  });
+
   it('disables the clear action while nothing is applied', () => {
     const fixture = TestBed.createComponent(HostComponent);
     fixture.componentInstance.clearOff = true;

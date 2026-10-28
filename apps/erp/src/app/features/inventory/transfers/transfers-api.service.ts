@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import type {
   TransferDetail,
   TransferListResponse,
+  TransferOpenCountResponse,
   TransferProductSearchResponse,
   TransferResolveResponse,
   TransferSaveInput,
@@ -36,6 +37,11 @@ export class TransfersApi {
       if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
     }
     return this.http.get<TransferListResponse>(BASE, { params });
+  }
+
+  /** The count on the Transferencias tab: transfers still open that the user can see. */
+  openCount(): Observable<TransferOpenCountResponse> {
+    return this.http.get<TransferOpenCountResponse>(`${BASE}/open-count`);
   }
 
   get(id: string): Observable<TransferDetail> {

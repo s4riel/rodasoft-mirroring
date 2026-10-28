@@ -7,10 +7,10 @@
 .summary {
   display: grid;
   gap: var(--space-4);
-  padding: var(--space-5);
+  padding: var(--space-6);
   background: var(--bg-surface);
   border: var(--stroke-default) solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 .lines {
   padding: 0;
@@ -19,6 +19,7 @@
 .row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  align-items: start;
   gap: var(--space-4);
 }
 .state {
@@ -27,7 +28,7 @@
   padding: var(--space-12) var(--space-6);
   background: var(--bg-surface);
   border: var(--stroke-default) solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 .skeleton {
   display: grid;
@@ -36,7 +37,7 @@
 .add-bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-3);
 }
 .search {
@@ -47,9 +48,20 @@
 .search input {
   width: 100%;
 }
+.card-title {
+  margin: 0;
+  font-size: var(--body-md-strong-size);
+  font-weight: var(--body-md-strong-weight);
+  line-height: var(--body-md-strong-line-height);
+  color: var(--text-primary);
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--mono-md-size);
+}
 .hint {
   margin: 0;
-  font-size: var(--body-md-size);
+  font-size: var(--body-sm-size);
   color: var(--text-muted);
 }
 .results {
@@ -98,12 +110,6 @@
 }
 .result-stock {
   color: var(--text-muted);
-}
-.empty-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-3);
 }
 .lines-bar {
   display: flex;

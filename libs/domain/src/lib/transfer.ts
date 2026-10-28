@@ -140,6 +140,13 @@ export function requiresTransferApproval(
 /** Statuses in which a transfer's pieces have left the origin and not all reached the destination. */
 export const TRANSFER_IN_TRANSIT_STATUSES: readonly TransferStatus[] = ['IN_TRANSIT', 'PARTIALLY_RECEIVED'];
 
+/** Statuses of a transfer that is still open: not a draft, and not finished or cancelled. The sub-nav badge counts them. */
+export const TRANSFER_OPEN_STATUSES: readonly TransferStatus[] = ['PENDING_APPROVAL', 'APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED'];
+
+export interface TransferOpenCountResponse {
+  count: number;
+}
+
 /** A draft is the only status whose lines may still change. */
 export function isTransferEditable(status: TransferStatus): boolean {
   return status === 'DRAFT';
@@ -292,6 +299,8 @@ export interface TransferListItem {
   /** Decimal string; `null` for a viewer without `inventory.costs.view`. */
   value: string | null;
   createdBy: string | null;
+  /** Who sent it; `null` until it is sent. */
+  sentBy: string | null;
   createdAt: string;
   sentAt: string | null;
 }
