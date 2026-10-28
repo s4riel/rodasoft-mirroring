@@ -22,6 +22,9 @@ const item = (over: Partial<EquivalenceListItem> = {}): EquivalenceListItem => (
   differences: [],
   createdBy: null,
   createdAt: '2026-10-24T10:00:00.000Z',
+  approvalState: 'APPROVED',
+  substitute: false,
+  notes: null,
   ...over,
 });
 

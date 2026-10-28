@@ -12,6 +12,8 @@ export interface CompanySettings {
   'inventory.import.maxRows': number;
   /** Whether the import creates the brands it does not find (decision #33). Not supported yet: `true` is refused. */
   'inventory.import.createMissingBrands': boolean;
+  /** Whether an equivalence link must be approved before it counts (decision #34). Off: it is saved approved, with audit. */
+  'inventory.equivalences.requireApproval': boolean;
   /** Transfers above this many pieces need approval (decision #36). Null = no limit. */
   'transfers.approvalThresholdPieces': number | null;
   /** Transfers above this value need approval (decision #36). Null = no limit. */
@@ -27,6 +29,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'inventory.allowNegativeStock': false,
   'inventory.import.maxRows': 2000,
   'inventory.import.createMissingBrands': false,
+  'inventory.equivalences.requireApproval': false,
   'transfers.approvalThresholdPieces': null,
   'transfers.approvalThresholdValue': null,
   'adjustments.approvalThresholdValue': null,

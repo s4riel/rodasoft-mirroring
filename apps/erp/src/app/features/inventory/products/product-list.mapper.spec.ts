@@ -1,11 +1,13 @@
 import type { ProductListItem } from '@rodasoft/domain';
 import {
   availabilityOf,
+  canLinkReference,
   branchStockSubtotal,
   describeProduct,
   flagOf,
   formatMeasure,
   thumbIconOf,
+  toReferenceSearchResult,
   toTableRow,
 } from './product-list.mapper';
 
@@ -102,5 +104,51 @@ describe('describeProduct with weight', () => {
   it('writes the weight after the measures', () => {
     const heavy = item({ dimensions: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000', weight: '0.130' } });
     expect(describeProduct(heavy)).toBe('Medidas: 25×52×15 mm · Peso: 0,13 kg');
+  });
+});
+
+describe('toReferenceSearchResult', () => {
+  it('gives the product photo, the dimensions, the specifications and the industry with its flag', () => {
+    const result = toReferenceSearchResult(
+      item({ photoUrl: 'https://cdn/6205.jpg', specs: [{ label: 'Sello', value: '2RS' }, { label: 'Material', value: 'Acero' }] }),
+    );
+    expect(result).toEqual({
+      productId: 'p1',
+      code: '6205-2RS',
+      brand: 'SKF',
+      categoryId: 'k2',
+      measures: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000' },
+      photoUrl: 'https://cdn/6205.jpg',
+      icon: 'bearing',
+      dimensions: '25×52×15 mm',
+      specs: 'Sello: 2RS · Material: Acero',
+      industry: { name: 'Suecia', flag: 'SE' },
+    });
+  });
+
+  it('leaves out what the product does not have, and gives no flag for an industry without one', () => {
+    const result = toReferenceSearchResult(item({ dimensions: null, specs: [], country: { id: 'c9', code: 'ZZ', name: 'Otro' } }));
+    expect(result).toMatchObject({ photoUrl: null, dimensions: null, specs: null, industry: { name: 'Otro', flag: null } });
+    expect(toReferenceSearchResult(item({ country: null })).industry).toBeNull();
+  });
+});
+
+describe('canLinkReference', () => {
+  const measures = { innerDiameter: '25', outerDiameter: '52', width: '15' };
+  const ref = (over: Partial<Parameters<typeof canLinkReference>[0]> = {}) => ({ categoryId: 'k2', measures: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000' }, ...over });
+
+  it('links a product of the same type and measures, comparing decimals by value', () => {
+    expect(canLinkReference(ref(), { categoryId: 'k2', measures })).toBe(true);
+  });
+
+  it('does not link other measures, another type, or a product with no measures', () => {
+    expect(canLinkReference(ref({ measures: { ...measures, outerDiameter: '62' } }), { categoryId: 'k2', measures })).toBe(false);
+    expect(canLinkReference(ref({ categoryId: 'k9' }), { categoryId: 'k2', measures })).toBe(false);
+    expect(canLinkReference(ref({ measures: null }), { categoryId: 'k2', measures })).toBe(false);
+  });
+
+  it('does not link while the product being created has no category or measures yet', () => {
+    expect(canLinkReference(ref(), { categoryId: null, measures })).toBe(false);
+    expect(canLinkReference(ref(), { categoryId: 'k2', measures: null })).toBe(false);
   });
 });

@@ -29,7 +29,7 @@ const membership = { permissions: async () => new Set(['inventory.costs.view']),
 const settings = new SettingsService(prisma);
 const stock = new StockMovementService(cls, settings);
 const products = new ProductsService(prisma, cls);
-const equivalences = new EquivalencesService(prisma, cls, new AuditService(prisma, cls));
+const equivalences = new EquivalencesService(prisma, cls, new AuditService(prisma, cls), settings);
 const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls), membership, settings, stock, new OutboxService(prisma, cls));
 
 interface Fixture {

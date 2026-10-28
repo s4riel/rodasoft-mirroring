@@ -38,11 +38,15 @@ const equivalent = (over: Partial<ProductEquivalentItem>): ProductEquivalentItem
   status: 'ACTIVE',
   kind: 'WITH_DIFFERENCES',
   differences: [{ key: 'seal', label: 'Protección / sello', source: '2RS', other: 'DDU' }],
+  equivalenceId: 'link-1',
+  approvalState: 'APPROVED',
+  substitute: false,
+  notes: null,
   ...over,
 });
 
 const equivalents = (items: ProductEquivalentItem[] = []): ProductEquivalentsResponse => ({
-  source: equivalent({ productId: 'p1', manufacturerCode: '6205-2RS', kind: 'EXACT', differences: [], totalStock: 24 }),
+  source: equivalent({ equivalenceId: null, productId: 'p1', manufacturerCode: '6205-2RS', kind: 'EXACT', differences: [], totalStock: 24 }),
   items,
   total: items.length,
   page: 1,

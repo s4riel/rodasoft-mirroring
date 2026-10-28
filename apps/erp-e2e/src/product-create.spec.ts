@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
   await login(page);
 });
 
-test('creates a bearing: duplicate code first, then fix, dimensions, missing price, stock and the created screen', async ({ page }) => {
+test('creates a bearing: duplicate code first, then fix, dimensions, missing price, stock and the product sheet', async ({ page }) => {
   // a product that already uses the code for SKF, so the duplicate does not depend on the seed data
   const taken = stamp();
   await startCategory(page, 'Lubricantes y grasas');
@@ -57,7 +57,8 @@ test('creates a bearing: duplicate code first, then fix, dimensions, missing pri
   await page.locator('#wizard-price').fill('80.00');
   await next(page);
   await page.getByRole('button', { name: 'Crear producto' }).click();
-  await expect(page.getByRole('heading', { name: 'Producto creado' })).toBeVisible();
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Producto creado correctamente.')).toBeVisible();
 
   await startCategory(page, 'Rodamientos');
   await identify(page, taken, 'SKF', 'Rígidos de bolas');
@@ -99,19 +100,18 @@ test('creates a bearing: duplicate code first, then fix, dimensions, missing pri
     await candidate.click();
     await expect(page.getByRole('button', { name: 'Vinculado' }).first()).toBeVisible();
   }
+  // a reference of other measures is shown, but it cannot be linked: only the same type and d x D x B are
+  await page.getByPlaceholder('Código, medida o marca').fill('6305-2RS');
+  const other = page.locator('.candidates li').filter({ hasText: '6305-2RS' });
+  await expect(other).toContainText('Medidas distintas');
+  await expect(other.getByRole('button', { name: 'Vincular' })).toBeDisabled();
+
   await page.getByRole('button', { name: 'Guardar producto' }).click();
-
-  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}\/created$/);
-  await expect(page.getByRole('heading', { name: 'Producto creado' })).toBeVisible();
-
-  // link the first suggestion, then the sheet shows the product with its stock
-  const suggestion = page.locator('li').filter({ has: page.getByRole('button', { name: 'Vincular' }) }).first();
-  if (await suggestion.count()) {
-    await suggestion.getByRole('button', { name: 'Vincular' }).click();
-    // the suggestion row shows its state; the toast is transient and may close before the check
-    await expect(page.locator('li').filter({ hasText: 'Vinculado' }).first()).toBeVisible();
-  }
-  await page.getByRole('link', { name: 'Ver producto' }).click();
+  // the product sheet opens right away, with the success message, and shows the stock
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Producto creado correctamente.')).toBeVisible();
+  // every link chosen on the last step was made
+  await expect(page.getByText('No se pudo vincular')).toHaveCount(0);
   await expect(page.locator('rs-kpi-card', { hasText: 'Stock' })).toContainText('24');
 });
 
@@ -129,7 +129,8 @@ test('creates a product of a category with 4 steps', async ({ page }) => {
   await next(page);
   await expect(page.getByRole('button', { name: 'Crear producto' })).toBeVisible();
   await page.getByRole('button', { name: 'Crear producto' }).click();
-  await expect(page.getByRole('heading', { name: 'Producto creado' })).toBeVisible();
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Producto creado correctamente.')).toBeVisible();
 });
 
 test('uploads a photo on the last step and saves it with the product', async ({ page }) => {
@@ -146,7 +147,8 @@ test('uploads a photo on the last step and saves it with the product', async ({ 
   await expect(page.locator('rs-file-item img')).toBeVisible();
 
   await page.getByRole('button', { name: 'Crear producto' }).click();
-  await expect(page.getByRole('heading', { name: 'Producto creado' })).toBeVisible();
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Producto creado correctamente.')).toBeVisible();
 });
 
 test('shows the eight root categories as cards', async ({ page }) => {

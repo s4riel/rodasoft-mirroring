@@ -11,12 +11,36 @@ const item = (over: Partial<ProductEquivalentItem>): ProductEquivalentItem => ({
   status: 'ACTIVE',
   kind: 'EXACT',
   differences: [],
+  equivalenceId: 'link-1',
+  approvalState: 'APPROVED',
+  substitute: false,
+  notes: null,
   ...over,
 });
 
 const SEAL = { key: 'seal', label: 'Protección / sello', source: '2RS', other: 'DDU' };
 const CAGE = { key: 'cage', label: 'Material de la jaula', source: 'Acero', other: null };
 
+
+describe('equivalencePill · substitute', () => {
+  it('says "Sustituto" instead of the verdict, with the differences and the note in the tooltip', () => {
+    const pill = equivalencePill(item({ kind: 'WITH_DIFFERENCES', differences: [SEAL], substitute: true, notes: 'Solo para uso ligero' }));
+    expect(pill).toEqual({
+      label: 'Sustituto',
+      status: 'info',
+      icon: 'info',
+      tooltip: 'Protección / sello: 2RS → DDU · Solo para uso ligero',
+    });
+  });
+
+  it('has no tooltip when a substitute has neither differences nor a note', () => {
+    expect(equivalencePill(item({ kind: 'EXACT', differences: [], substitute: true }))).toEqual({ label: 'Sustituto', status: 'info', icon: 'info' });
+  });
+
+  it('keeps "Medidas distintas" for an incompatible link, even marked as substitute', () => {
+    expect(equivalencePill(item({ kind: 'INCOMPATIBLE', substitute: true })).label).toBe('Medidas distintas');
+  });
+});
 
 describe('equivalencePill', () => {
   it('says "Exacta" with a check for an exact equivalent', () => {

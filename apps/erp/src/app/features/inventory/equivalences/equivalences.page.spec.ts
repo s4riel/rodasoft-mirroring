@@ -39,6 +39,9 @@ const item = (over: Partial<EquivalenceListItem> = {}): EquivalenceListItem => (
   differences: [{ key: 'seal', label: 'Sello', source: '2RS', other: 'DDU' }],
   createdBy: null,
   createdAt: '2026-10-24T10:00:00.000Z',
+  approvalState: 'APPROVED',
+  substitute: false,
+  notes: null,
   ...over,
 });
 
@@ -67,6 +70,7 @@ describe('EquivalencesPage', () => {
         provideRouter([
           { path: 'equivalences', component: EquivalencesPage },
           { path: 'inventory/products/:id', component: SheetStubPage },
+          { path: 'inventory/equivalences/new', component: SheetStubPage },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -260,5 +264,106 @@ describe('EquivalencesPage', () => {
     flushOptions();
     await settle(h);
     expect(text(h)).toContain('No tienes permiso para ver equivalencias');
+  });
+
+  describe('linking (HU-INV-13)', () => {
+    const APPROVE = 'inventory.equivalences.approve';
+    const buttonIn = (scope: ParentNode, label: string) =>
+      Array.from(scope.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim().includes(label) || b.getAttribute('aria-label')?.includes(label));
+    const loaded = async (items: EquivalenceListItem[], granted = [VIEW, LINK]) => {
+      const h = await open('/equivalences', granted);
+      flushList(response(items));
+      flushOptions();
+      await settle(h);
+      return h;
+    };
+    const pending = () => item({ approvalState: 'PENDING_APPROVAL' });
+
+    it('opens the link form from the header, with no product of its own', async () => {
+      const h = await loaded([item()]);
+      buttonIn(root(h), 'Vincular equivalencias')!.click();
+      await settle(h);
+      expect(TestBed.inject(Router).url).toBe('/inventory/equivalences/new');
+    });
+
+    it('opens the link form from the empty state too', async () => {
+      const h = await open();
+      flushList(response([], { linksEmpty: true }));
+      flushOptions();
+      await settle(h);
+      buttonIn(root(h).querySelector('rs-empty-state-illustrated')!, 'Vincular equivalencias')!.click();
+      await settle(h);
+      expect(TestBed.inject(Router).url).toBe('/inventory/equivalences/new');
+    });
+
+    it('marks a link that waits for approval and lets who can approve do it', async () => {
+      const h = await loaded([pending(), item({ id: 'e2' })], [VIEW, LINK, APPROVE]);
+      const rows = root(h).querySelectorAll('rs-doc-table tbody tr');
+      const pills = Array.from(rows[0].querySelectorAll('rs-status-pill')).map((p) => p.textContent?.trim());
+      expect(pills).toContain('Pendiente');
+      expect(rows[1].textContent).not.toContain('Pendiente');
+      expect(buttonIn(rows[1], 'Aprobar')).toBeUndefined();
+
+      buttonIn(rows[0], 'Aprobar')!.click();
+      const approve = http.expectOne('/api/v1/inventory/equivalences/e1/approve');
+      expect(approve.request.method).toBe('POST');
+      approve.flush(null, { status: 204, statusText: 'No Content' });
+      await settle(h);
+      // the list is asked again
+      flushList(response([item()]));
+      await settle(h);
+      expect(text(h)).not.toContain('Pendiente');
+    });
+
+    it('shows the pending mark but no approve action to who cannot approve', async () => {
+      const h = await loaded([pending()]);
+      const row = root(h).querySelector('rs-doc-table tbody tr')!;
+      expect(row.textContent).toContain('Pendiente');
+      expect(buttonIn(row, 'Aprobar')).toBeUndefined();
+    });
+
+    it('reports a failed approval and refreshes the list', async () => {
+      const h = await loaded([pending()], [VIEW, LINK, APPROVE]);
+      buttonIn(root(h), 'Aprobar')!.click();
+      http
+        .expectOne('/api/v1/inventory/equivalences/e1/approve')
+        .flush({ code: 'EQUIVALENCE_ALREADY_APPROVED', message: 'x' }, { status: 409, statusText: 'Conflict' });
+      await settle(h);
+      flushList(response([item()]));
+      await settle(h);
+      expect(root(h).querySelectorAll('rs-doc-table tbody tr')).toHaveLength(1);
+    });
+
+    it('asks before unlinking, names the pair, and refreshes the list afterwards', async () => {
+      const h = await loaded([item()]);
+      // the row action is an icon button: no text, its name names the pair, and a tooltip says what it does
+      const unlink = buttonIn(root(h).querySelector('rs-doc-table tbody tr')!, 'Desvincular')!;
+      expect(unlink.textContent?.trim()).toBe('');
+      expect(unlink.getAttribute('aria-label')).toBe('Desvincular 6205-2RS y 6205-DDU');
+      expect(unlink.querySelector('rs-icon')?.getAttribute('name')).toBe('trash');
+      expect(unlink.getAttribute('rstooltip')).toBe('Desvincular equivalencia');
+      unlink.click();
+      await settle(h);
+      const dialog = root(h).querySelector('rs-equivalence-unlink-dialog')!;
+      expect(dialog.textContent).toContain('¿Desvincular equivalencia?');
+      expect(dialog.textContent).toContain('6205-2RS · SKF y 6205-DDU · NSK');
+      http.expectNone('/api/v1/inventory/equivalences/e1');
+
+      buttonIn(dialog, 'Desvincular')!.click();
+      const del = http.expectOne('/api/v1/inventory/equivalences/e1');
+      expect(del.request.method).toBe('DELETE');
+      del.flush(null, { status: 204, statusText: 'No Content' });
+      await settle(h);
+      flushList(response([], { linksEmpty: true }));
+      await settle(h);
+      expect(text(h)).toContain('Aún no hay equivalencias');
+    });
+
+    it('hides the link, approve and unlink actions from who can only view', async () => {
+      const h = await loaded([pending()], [VIEW]);
+      expect(buttonIn(root(h), 'Vincular equivalencias')).toBeUndefined();
+      expect(buttonIn(root(h), 'Desvincular')).toBeUndefined();
+      expect(buttonIn(root(h), 'Aprobar')).toBeUndefined();
+    });
   });
 });

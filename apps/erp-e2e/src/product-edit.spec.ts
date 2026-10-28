@@ -31,8 +31,7 @@ async function createLubricant(page: Page, code: string) {
   await page.locator('#wizard-price').fill('80.00');
   await next(page);
   await page.getByRole('button', { name: 'Crear producto' }).click();
-  await expect(page.getByRole('heading', { name: 'Producto creado' })).toBeVisible();
-  await page.getByRole('link', { name: 'Ver producto' }).click();
+  await expect(page.getByText('Producto creado correctamente.')).toBeVisible();
   await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}$/);
 }
 

@@ -29,8 +29,8 @@ const base = new TestPrisma();
 const prisma = base as unknown as PrismaService;
 const cls = { get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? 'm1' : null) } as never;
 const membership = { permissions: async () => new Set(), operableBranchIds: async () => null } as never;
-const service = new EquivalencesService(prisma, cls, new AuditService(prisma, cls));
 const settings = new SettingsService(prisma);
+const service = new EquivalencesService(prisma, cls, new AuditService(prisma, cls), settings);
 const commands = new ProductCommandsService(prisma, cls, new AuditService(prisma, cls), membership, settings, new StockMovementService(cls, settings), new OutboxService(prisma, cls));
 
 interface Fixture {

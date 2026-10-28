@@ -474,22 +474,44 @@
                   <input rsInput id="wizard-equiv-search" [formControl]="search" autocomplete="off" placeholder="Código, medida o marca" />
                 </rs-input-group>
               </rs-field>
-              @if (searchResults().length) {
+              @if (searchRows().length) {
                 <ul class="candidates">
-                  @for (result of searchResults(); track result.productId) {
-                    <li>
-                      <span class="brand-mark" aria-hidden="true">{{ result.brand.slice(0, 2).toUpperCase() }}</span>
+                  @for (row of searchRows(); track row.result.productId) {
+                    @let result = row.result;
+                    <li [class.no-pill]="row.linkable">
+                      <rs-product-thumb [src]="result.photoUrl" [icon]="result.icon" />
                       <div class="product-data">
                         <span class="product-code">{{ result.code }} · {{ result.brand }}</span>
-                        <span class="product-name">Resultado de la búsqueda</span>
+                        <span class="result-meta">
+                          @if (result.dimensions; as dimensions) {
+                            <span><span class="meta-label">Dimensiones</span> {{ dimensions }}</span>
+                          }
+                          @if (result.specs; as specs) {
+                            <span><span class="meta-label">Especificaciones</span> {{ specs }}</span>
+                          }
+                          @if (result.industry; as industry) {
+                            <span class="industry">
+                              <span class="meta-label">Industria</span>
+                              @if (industry.flag; as code) {
+                                <rs-flag [country]="code" />
+                              }
+                              {{ industry.name }}
+                            </span>
+                          }
+                        </span>
                       </div>
-                      <button rsButton variant="secondary" type="button" [attr.aria-pressed]="isLinked(result.productId)" (click)="toggleLink(result.productId)">
-                        @if (isLinked(result.productId)) {
-                          <rs-icon name="check" [size]="16" /> Vinculado
-                        } @else {
-                          <rs-icon name="link" [size]="16" /> Vincular
-                        }
-                      </button>
+                      @if (row.linkable) {
+                        <button rsButton variant="secondary" type="button" [attr.aria-pressed]="isLinked(result.productId)" (click)="toggleLink(result.productId)">
+                          @if (isLinked(result.productId)) {
+                            <rs-icon name="check" [size]="16" /> Vinculado
+                          } @else {
+                            <rs-icon name="link" [size]="16" /> Vincular
+                          }
+                        </button>
+                      } @else {
+                        <rs-status-pill status="danger" icon="alert" tooltip="Solo se vinculan productos del mismo tipo y con las mismas medidas d × D × B">Medidas distintas</rs-status-pill>
+                        <button rsButton variant="secondary" type="button" disabled><rs-icon name="link" [size]="16" /> Vincular</button>
+                      }
                     </li>
                   }
                 </ul>

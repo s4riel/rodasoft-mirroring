@@ -419,3 +419,27 @@ rs-field.wide {
   font-size: var(--mono-md-size);
   line-height: var(--mono-md-line-height);
 }
+
+/* data line of a search result: Dimensiones, Especificaciones and Industria with its flag */
+.result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  color: var(--text-muted);
+}
+.meta-label {
+  font-weight: var(--label-md-weight);
+  color: var(--text-primary);
+}
+.industry {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.candidates li.no-pill {
+  grid-template-columns: auto 1fr auto;
+}

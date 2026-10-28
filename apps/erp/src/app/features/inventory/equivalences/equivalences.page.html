@@ -6,7 +6,7 @@
   breadcrumbLabel="Ruta de navegación"
 >
   <div rsActions class="header-actions">
-    <button *rsCan="'inventory.equivalences.link'" rsButton variant="brand" type="button" (click)="comingSoon()">
+    <button *rsCan="'inventory.equivalences.link'" rsButton variant="brand" type="button" (click)="openLink()">
       <rs-icon name="link" [size]="16" /> Vincular equivalencias
     </button>
   </div>
@@ -98,7 +98,7 @@
             description="Cuando vincules productos de distintas marcas con las mismas medidas, aparecerán aquí."
             [showAction]="!readOnly()"
           >
-            <button *rsCan="'inventory.equivalences.link'" rsButton variant="brand" type="button" (click)="comingSoon()">
+            <button *rsCan="'inventory.equivalences.link'" rsButton variant="brand" type="button" (click)="openLink()">
               <rs-icon name="link" [size]="16" /> Vincular equivalencias
             </button>
           </rs-empty-state-illustrated>
@@ -143,6 +143,37 @@
               }
             </span>
           </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <span class="row-actions">
+                @if (item.approvalState === 'PENDING_APPROVAL') {
+                  <rs-status-pill status="warning" icon="alert">Pendiente</rs-status-pill>
+                  <button
+                    *rsCan="'inventory.equivalences.approve'"
+                    rsButton
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    [loading]="approvingId() === item.id"
+                    (click)="approve(item)"
+                  >
+                    Aprobar
+                  </button>
+                }
+                <button
+                  *rsCan="'inventory.equivalences.link'"
+                  rsIconButton
+                  size="sm"
+                  type="button"
+                  [label]="'Desvincular ' + item.productA.manufacturerCode + ' y ' + item.productB.manufacturerCode"
+                  rsTooltip="Desvincular equivalencia"
+                  (click)="askUnlink(item)"
+                >
+                  <rs-icon name="trash" [size]="16" />
+                </button>
+              </span>
+            }
+          </ng-template>
           <div slot="footer" class="footer">
             <span class="range">{{ rangeLabel() }}</span>
             <rs-pagination
@@ -176,4 +207,5 @@
   </button>
 </ng-template>
 
+<rs-equivalence-unlink-dialog [(open)]="unlinkOpen" [target]="unlinkTarget()" (unlinked)="retry()" />
 <rs-toast-outlet closeLabel="Cerrar" />

@@ -31,7 +31,8 @@ async function createLubricant(page: Page, code: string) {
   await page.locator('#wizard-price').fill('80.00');
   await next(page);
   await page.getByRole('button', { name: 'Crear producto' }).click();
-  await expect(page.getByRole('heading', { name: 'Producto creado' })).toBeVisible();
+  await expect(page).toHaveURL(/\/inventory\/products\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Producto creado correctamente.')).toBeVisible();
 }
 
 const dataRows = (page: Page) => page.locator('rs-product-table .row:not(.header):not(.footer)');

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -17,6 +18,7 @@ import type {
   EquivalenceLinkResponse,
   EquivalenceListResponse,
   EquivalenceSuggestionsResponse,
+  EquivalenceValidationResponse,
   ProductEquivalentsResponse,
 } from '@rodasoft/domain';
 import { RequirePermissions } from '../access/require-permissions.decorator';
@@ -89,9 +91,30 @@ export class EquivalencesController {
     return this.equivalences.candidates(body);
   }
 
+  @Post('equivalences/validate')
+  @HttpCode(200)
+  @RequirePermissions('inventory.equivalences.link')
+  validate(@Body(bodyPipe) body: LinkEquivalenceDto): Promise<EquivalenceValidationResponse> {
+    return this.equivalences.validate(body);
+  }
+
   @Post('equivalences')
   @RequirePermissions('inventory.equivalences.link')
   link(@Body(bodyPipe) body: LinkEquivalenceDto): Promise<EquivalenceLinkResponse> {
     return this.equivalences.link(body);
+  }
+
+  @Post('equivalences/:id/approve')
+  @HttpCode(204)
+  @RequirePermissions('inventory.equivalences.approve')
+  approve(@Param('id', idPipe) id: string): Promise<void> {
+    return this.equivalences.approve(id);
+  }
+
+  @Delete('equivalences/:id')
+  @HttpCode(204)
+  @RequirePermissions('inventory.equivalences.link')
+  unlink(@Param('id', idPipe) id: string): Promise<void> {
+    return this.equivalences.unlink(id);
   }
 }

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -248,4 +249,17 @@ export class LinkEquivalenceDto {
   @ApiProperty()
   @IsUUID()
   productBId!: string;
+
+  /** Classifies the link as a substitute instead of an equivalent (IN-15c, "Sustituto"). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  substitute?: boolean;
+
+  /** Observed differences (IN-15c); blank counts as none. */
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }

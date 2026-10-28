@@ -40,12 +40,6 @@ export const INVENTORY_ROUTES: Route[] = [
         loadComponent: () => import('./products/wizard/product-wizard.page').then((m) => m.ProductWizardPage),
       },
       {
-        path: 'products/:id/created',
-        canActivate: [requiresPermission('inventory.products.edit')],
-        title: 'Producto creado · ERP',
-        loadComponent: () => import('./products/wizard/product-created.page').then((m) => m.ProductCreatedPage),
-      },
-      {
         // the page shows its own no-permission state, as the product list does
         path: 'equivalences',
         title: 'Equivalencias · ERP',
@@ -56,6 +50,12 @@ export const INVENTORY_ROUTES: Route[] = [
         path: 'equivalences/compare',
         title: 'Comparar equivalentes · ERP',
         loadComponent: () => import('./equivalences/compare/equivalence-compare.page').then((m) => m.EquivalenceComparePage),
+      },
+      {
+        path: 'equivalences/new',
+        canActivate: [requiresPermission('inventory.equivalences.link')],
+        title: 'Vincular equivalencia · ERP',
+        loadComponent: () => import('./equivalences/link/equivalence-link.page').then((m) => m.EquivalenceLinkPage),
       },
       PRODUCT_SHEET_ROUTE,
     ],

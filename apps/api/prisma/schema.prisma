@@ -578,9 +578,13 @@ model Equivalence {
   productAId   String    @map("product_a_id") @db.Uuid
   productBId   String    @map("product_b_id") @db.Uuid
   createdById  String?   @map("created_by_id") @db.Uuid
-  /// decision #34: approval is optional; nothing sets these until HU-INV-13
+  /// decision #34: approval is optional (setting `inventory.equivalences.requireApproval`); without it a link is saved approved
   approvedById String?   @map("approved_by_id") @db.Uuid
   approvedAt   DateTime? @map("approved_at") @db.Timestamptz(3)
+  /// true when the user classified the link as a substitute: it replaces the product but is not a technical equivalent (IN-15c)
+  substitute Boolean @default(false)
+  /// observed differences, free text shown to the seller before offering the equivalent (IN-15c)
+  notes String? @db.VarChar(500)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company    Company @relation(fields: [companyId], references: [id])

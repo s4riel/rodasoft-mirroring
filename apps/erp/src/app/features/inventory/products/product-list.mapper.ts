@@ -1,4 +1,4 @@
-import type { ProductListItem } from '@rodasoft/domain';
+import { type EquivalenceMeasures, type ProductListItem, sameMeasures } from '@rodasoft/domain';
 import { FLAG_COUNTRIES, FlagCountry, ICON_NAMES, IconName, ProductAvailability, ProductTableRow } from '@rodasoft/ui';
 
 /** Product list rows per page (Figma ProductTable10). */
@@ -43,6 +43,52 @@ export function flagOf(code: string | undefined): FlagCountry | null {
 /** Category glyph for the photo placeholder; an unknown name falls back to the bearing. */
 export function thumbIconOf(name: string): IconName {
   return (ICON_NAMES as readonly string[]).includes(name) ? (name as IconName) : 'bearing';
+}
+
+/** A product found by "Buscar otra referencia" (equivalence step and "Producto creado"): photo, code and its data line. */
+export interface ReferenceSearchResult {
+  productId: string;
+  code: string;
+  brand: string;
+  /** Leaf category: a link needs the same type. */
+  categoryId: string;
+  /** d × D × B as the API knows them; null when the product has none. */
+  measures: EquivalenceMeasures | null;
+  /** First photo; null while the product has none. */
+  photoUrl: string | null;
+  /** Glyph of the root category, drawn when there is no photo. */
+  icon: IconName;
+  /** "25×52×15 mm"; null when the product has no measures. */
+  dimensions: string | null;
+  /** "Sello: 2RS · Material: Acero"; null when no technical field is filled. */
+  specs: string | null;
+  /** Industry (country of origin) with its flag, when known. */
+  industry: { name: string; flag: FlagCountry | null } | null;
+}
+
+export function toReferenceSearchResult(item: ProductListItem): ReferenceSearchResult {
+  const d = item.dimensions;
+  const specs = (item.specs ?? []).map((s) => `${s.label}: ${s.value}`).join(' · ');
+  return {
+    productId: item.id,
+    code: item.manufacturerCode,
+    brand: item.brand.name,
+    categoryId: item.subcategory?.id ?? item.category.id,
+    measures: d ? { innerDiameter: d.innerDiameter, outerDiameter: d.outerDiameter, width: d.width } : null,
+    photoUrl: item.photoUrl,
+    icon: thumbIconOf(item.category.icon),
+    dimensions: d?.innerDiameter && d.outerDiameter && d.width ? `${[d.innerDiameter, d.outerDiameter, d.width].map(formatMeasure).join('×')} mm` : null,
+    specs: specs || null,
+    industry: item.country ? { name: item.country.name, flag: flagOf(item.country.code) } : null,
+  };
+}
+
+/**
+ * Whether a search result can be linked to the product being created: the API only links products of the same type and
+ * d × D × B (EQUIVALENCE_INCOMPATIBLE otherwise), so the others are shown but not offered.
+ */
+export function canLinkReference(result: Pick<ReferenceSearchResult, 'categoryId' | 'measures'>, product: { categoryId: string | null; measures: EquivalenceMeasures | null }): boolean {
+  return !!product.categoryId && result.categoryId === product.categoryId && sameMeasures(result.measures, product.measures);
 }
 
 export function toTableRow(item: ProductListItem): ProductTableRow {

@@ -7,25 +7,30 @@ import {
   compareEquivalents,
   EQUIVALENCE_COMPARE_MAX,
   EQUIVALENCE_COMPARE_MIN,
+  equivalenceApprovalState,
   type EquivalenceComparable,
   type EquivalenceCompareDefinition,
   type EquivalenceComparisonResponse,
   type EquivalenceKind,
+  type EquivalenceLinkProduct,
   type EquivalenceLinkResponse,
   type EquivalenceListItem,
   type EquivalenceListProduct,
   type EquivalenceListResponse,
   type EquivalenceSuggestion,
   type EquivalenceSuggestionsResponse,
+  type EquivalenceValidationResponse,
   isTaperedCategory,
   normalizePair,
   type ProductEquivalentItem,
   type ProductEquivalentsResponse,
+  validateEquivalenceLink,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AppClsStore } from '../../common/cls';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SettingsService } from '../../common/settings/settings.service';
 import type { ListEquivalencesQueryDto, ListEquivalentsQueryDto } from './dto';
 import type { EquivalenceCandidatesDto, LinkEquivalenceDto } from './product-write.dto';
 
@@ -67,9 +72,9 @@ const leanSelect = { id: true, productA: leanSide, productB: leanSide } as const
 type LeanSide = Prisma.ProductGetPayload<typeof leanSide>;
 
 /**
- * Read side of the equivalences (HU-INV-04). Links are direct pairs stored once; whether a link is exact or has
- * differences is computed here from the products, never stored. Creating links is HU-INV-13.
- * Never exposes `cost`. Read-only: no audit and no outbox.
+ * Equivalences (HU-INV-04, 11, 12, 13). Links are direct pairs stored once; whether a link is exact or has
+ * differences is computed here from the products, never stored. Linking, approving and unlinking are audited; none
+ * has side effects on other modules, so there is no outbox. Never exposes `cost`.
  */
 @Injectable()
 export class EquivalencesService {
@@ -77,6 +82,7 @@ export class EquivalencesService {
     private readonly prisma: PrismaService,
     private readonly cls: ClsService<AppClsStore>,
     private readonly audit: AuditService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -139,35 +145,149 @@ export class EquivalencesService {
   }
 
   /**
+   * Checks a pair before linking (IN-15c/d/e): the verdict of the domain rule plus the link that already exists, if any.
+   * A self-link is reported, not refused, so the screen can explain it. Reads only.
+   */
+  async validate(dto: LinkEquivalenceDto): Promise<EquivalenceValidationResponse> {
+    const { a, b, labels } = await this.loadPair(dto.productAId, dto.productBId);
+    const [productAId, productBId] = normalizePair(dto.productAId, dto.productBId);
+    const existing = a.id === b.id ? null : await this.prisma.tenant.equivalence.findFirst({ where: { productAId, productBId }, select: { id: true } });
+    const validation = validateEquivalenceLink(a, b, { exists: !!existing }, labels);
+    return { ...validation, equivalenceId: existing?.id ?? null };
+  }
+
+  /**
    * Links two products as equivalents (HU-INV-06 and HU-INV-13). The pair is stored in canonical order, so a link made
-   * in either direction is the same row.
+   * in either direction is the same row. An incompatible pair (type or d×D×B differ) is always refused; the unique
+   * index stays the last guard against two simultaneous links.
    */
   async link(dto: LinkEquivalenceDto): Promise<EquivalenceLinkResponse> {
-    if (dto.productAId === dto.productBId) {
-      throw new UnprocessableEntityException({ code: 'SELF_LINK', message: 'A product cannot be linked to itself' });
-    }
+    await this.assertLinkable(dto);
     const [productAId, productBId] = normalizePair(dto.productAId, dto.productBId);
-    const found = await this.prisma.tenant.product.count({ where: { id: { in: [productAId, productBId] } } });
-    if (found !== 2) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
-
+    const userId = this.cls.get('userId') ?? null;
+    const notes = dto.notes?.trim() || null;
     try {
       return await this.prisma.tenant.$transaction(async (tx) => {
+        const requireApproval = await this.settings.get('inventory.equivalences.requireApproval', tx);
         const row = await tx.equivalence.create({
-          data: { companyId: this.companyId(), productAId, productBId, createdById: this.cls.get('userId') ?? null },
+          data: {
+            companyId: this.companyId(),
+            productAId,
+            productBId,
+            createdById: userId,
+            substitute: dto.substitute ?? false,
+            notes,
+            // without required approval the link is saved approved by whoever linked it (decision #34)
+            ...(requireApproval ? {} : { approvedById: userId, approvedAt: new Date() }),
+          },
           select: { id: true, productAId: true, productBId: true },
         });
         await this.audit.log(
-          { action: 'inventory.equivalence.link', entity: 'Equivalence', entityId: row.id, after: { productAId, productBId } },
+          {
+            action: 'inventory.equivalence.link',
+            entity: 'Equivalence',
+            entityId: row.id,
+            after: { productAId, productBId, substitute: dto.substitute ?? false, notes, approved: !requireApproval },
+          },
           tx as unknown as Prisma.TransactionClient,
         );
         return row;
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new ConflictException({ code: 'EQUIVALENCE_EXISTS', message: 'The products are already linked' });
+        // lost the race: report the link that won, as the pre-check does
+        const winner = await this.prisma.tenant.equivalence.findFirst({ where: { productAId, productBId }, select: { id: true } });
+        throw equivalenceExists(winner?.id ?? null);
       }
       throw err;
     }
+  }
+
+  /** Refuses a pair that cannot be linked: itself, already linked, or another type or other measures (Figma IN-15e). */
+  private async assertLinkable(dto: LinkEquivalenceDto): Promise<void> {
+    if (dto.productAId === dto.productBId) {
+      throw new UnprocessableEntityException({ code: 'SELF_LINK', message: 'A product cannot be linked to itself' });
+    }
+    const checked = await this.validate(dto);
+    if (checked.exists) throw equivalenceExists(checked.equivalenceId);
+    if (checked.typeDiffers) {
+      throw new UnprocessableEntityException({
+        code: 'EQUIVALENCE_INCOMPATIBLE',
+        message: 'The type or the measurements (d × D × B) differ',
+        details: { typeDiffers: checked.typeDiffers, measureDifferences: checked.measureDifferences },
+      });
+    }
+  }
+
+  /** Approves a pending link (decision #34). Approving twice is refused, also when two approvals race. */
+  async approve(id: string): Promise<void> {
+    const row = await this.prisma.tenant.equivalence.findFirst({ where: { id }, select: { productAId: true, productBId: true, approvedAt: true } });
+    if (!row) throw new NotFoundException({ code: 'EQUIVALENCE_NOT_FOUND', message: 'Equivalence not found' });
+    const alreadyApproved = () => new ConflictException({ code: 'EQUIVALENCE_ALREADY_APPROVED', message: 'The equivalence is already approved' });
+    if (row.approvedAt) throw alreadyApproved();
+
+    const userId = this.cls.get('userId') ?? null;
+    await this.prisma.tenant.$transaction(async (tx) => {
+      const approvedAt = new Date();
+      const { count } = await tx.equivalence.updateMany({ where: { id, approvedAt: null }, data: { approvedAt, approvedById: userId } });
+      if (count === 0) throw alreadyApproved();
+      await this.audit.log(
+        {
+          action: 'inventory.equivalence.approve',
+          entity: 'Equivalence',
+          entityId: id,
+          before: { productAId: row.productAId, productBId: row.productBId, approvedAt: null },
+          after: { productAId: row.productAId, productBId: row.productBId, approvedAt: approvedAt.toISOString(), approvedById: userId },
+        },
+        tx as unknown as Prisma.TransactionClient,
+      );
+    });
+  }
+
+  /** Removes a link. The products are untouched; the audit keeps the pair that was linked. */
+  async unlink(id: string): Promise<void> {
+    const notFound = () => new NotFoundException({ code: 'EQUIVALENCE_NOT_FOUND', message: 'Equivalence not found' });
+    const row = await this.prisma.tenant.equivalence.findFirst({
+      where: { id },
+      select: { productAId: true, productBId: true, substitute: true, notes: true, approvedAt: true },
+    });
+    if (!row) throw notFound();
+    await this.prisma.tenant.$transaction(async (tx) => {
+      const { count } = await tx.equivalence.deleteMany({ where: { id } });
+      if (count === 0) throw notFound();
+      await this.audit.log(
+        {
+          action: 'inventory.equivalence.unlink',
+          entity: 'Equivalence',
+          entityId: id,
+          before: {
+            productAId: row.productAId,
+            productBId: row.productBId,
+            substitute: row.substitute,
+            notes: row.notes,
+            approvedAt: row.approvedAt?.toISOString() ?? null,
+          },
+        },
+        tx as unknown as Prisma.TransactionClient,
+      );
+    });
+  }
+
+  /** Both products of a pair as the link validation reads them (404 when one is missing), with the labels of their fields. */
+  private async loadPair(idA: string, idB: string) {
+    const ids = [...new Set([idA, idB])];
+    const found = await this.prisma.tenant.product.findMany({
+      where: { id: { in: ids } },
+      include: { dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true } }, category: { select: { id: true, name: true, parentId: true } } },
+    });
+    if (found.length !== ids.length) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+    const byId = new Map(found.map((p) => [p.id, p]));
+    const toLink = (id: string): EquivalenceLinkProduct => {
+      const p = byId.get(id) as (typeof found)[number];
+      return { id, ...toComparable(p), tapered: isTaperedCategory(p.category.name) };
+    };
+    const first = byId.get(idA) as (typeof found)[number];
+    return { a: toLink(idA), b: toLink(idB), labels: await this.labelsOf(first.category.id, first.category.parentId) };
   }
 
   /**
@@ -227,6 +347,7 @@ export class EquivalencesService {
       : [];
     const stockOf = new Map(stock.map((s) => [s.productId, s._sum.quantity ?? 0]));
 
+    const requireApproval = await this.settings.get('inventory.equivalences.requireApproval');
     const items = rows.map(
       ({ row, kind, differences }): EquivalenceListItem => ({
         id: row.id,
@@ -236,6 +357,9 @@ export class EquivalencesService {
         differences,
         createdBy: row.createdBy,
         createdAt: row.createdAt.toISOString(),
+        approvalState: equivalenceApprovalState(row.approvedAt, requireApproval),
+        substitute: row.substitute,
+        notes: row.notes,
       }),
     );
     // told apart from "no result for these filters": the screen shows another empty state
@@ -327,9 +451,11 @@ export class EquivalencesService {
 
     const links = await this.prisma.tenant.equivalence.findMany({
       where: { OR: [{ productAId: id }, { productBId: id }] },
-      select: { productAId: true, productBId: true },
+      select: { id: true, productAId: true, productBId: true, approvedAt: true, substitute: true, notes: true },
     });
     const otherIds = links.map((l) => (l.productAId === id ? l.productBId : l.productAId));
+    const linkOf = new Map(links.map((l) => [l.productAId === id ? l.productBId : l.productAId, l]));
+    const requireApproval = await this.settings.get('inventory.equivalences.requireApproval');
 
     const [others, labels, stock] = await Promise.all([
       this.prisma.tenant.product.findMany({ where: { id: { in: otherIds } }, include: productInclude }),
@@ -344,17 +470,25 @@ export class EquivalencesService {
 
     const sourceComparable = toComparable(source);
     // an equivalent shares the original's type only when its leaf category matches, which `compareEquivalents` checks
-    const toItem = (p: (typeof others)[number], kind: EquivalenceKind, differences: ProductEquivalentItem['differences']): ProductEquivalentItem => ({
-      productId: p.id,
-      manufacturerCode: p.manufacturerCode,
-      brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl },
-      country: p.country ?? p.brand.country,
-      totalStock: stockOf.get(p.id) ?? 0,
-      salePrice: p.salePrice.toFixed(2),
-      status: p.status,
-      kind,
-      differences,
-    });
+    const toItem = (p: (typeof others)[number], kind: EquivalenceKind, differences: ProductEquivalentItem['differences']): ProductEquivalentItem => {
+      const link = linkOf.get(p.id);
+      return {
+        productId: p.id,
+        manufacturerCode: p.manufacturerCode,
+        brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl },
+        country: p.country ?? p.brand.country,
+        totalStock: stockOf.get(p.id) ?? 0,
+        salePrice: p.salePrice.toFixed(2),
+        status: p.status,
+        kind,
+        differences,
+        // the original has no link of its own
+        equivalenceId: link?.id ?? null,
+        approvalState: link ? equivalenceApprovalState(link.approvedAt, requireApproval) : 'APPROVED',
+        substitute: link?.substitute ?? false,
+        notes: link?.notes ?? null,
+      };
+    };
 
     const all = others
       .map((p) => {
@@ -401,6 +535,11 @@ export class EquivalencesService {
     }
     return Object.fromEntries(defs.map((d) => [d.key, d.label]));
   }
+}
+
+/** 409: the pair is already linked; `equivalenceId` lets the screen point at the link that exists. */
+function equivalenceExists(equivalenceId: string | null): ConflictException {
+  return new ConflictException({ code: 'EQUIVALENCE_EXISTS', message: 'The products are already linked', details: { equivalenceId } });
 }
 
 type ListRow = Prisma.EquivalenceGetPayload<{ include: typeof listInclude }>;
