@@ -6,7 +6,7 @@ import { catchError, debounceTime, filter, merge, of, switchMap } from 'rxjs';
 import { ContextStore } from '../../core/context.store';
 import { TransfersApi } from './transfers/transfers-api.service';
 
-/** Inventory section: sub-navigation (Figma SubNav) + the active tab. Tabs of later stories stay disabled. */
+/** Inventory section: sub-navigation (Figma SubNav) + the active tab. The Kardex tab is only for those who may consult it. */
 @Component({
   selector: 'rs-inventory-layout-page',
   imports: [RouterOutlet, SubNavComponent],
@@ -34,7 +34,7 @@ export class InventoryLayoutPage {
     { key: 'warehouses', label: 'Almacenes', route: '/inventory/warehouses' },
     { key: 'transfers', label: 'Transferencias', route: '/inventory/transfers', badge: this.openTransfers() || undefined },
     { key: 'adjustments', label: 'Ajustes', route: '/inventory/adjustments' },
-    { key: 'kardex', label: 'Kardex', disabled: true },
+    ...(this.ctx.can('inventory.kardex.view') ? [{ key: 'kardex', label: 'Kardex', route: '/inventory/kardex' }] : []),
   ]);
 
   constructor() {

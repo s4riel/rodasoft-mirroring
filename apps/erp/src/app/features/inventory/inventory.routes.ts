@@ -122,6 +122,12 @@ export const INVENTORY_ROUTES: Route[] = [
         title: 'Ajuste · ERP',
         loadComponent: () => import('./adjustments/adjustment-detail.page').then((m) => m.AdjustmentDetailPage),
       },
+      {
+        // the page shows its own no-permission state, as the adjustment list does
+        path: 'kardex',
+        title: 'Kardex · ERP',
+        loadComponent: () => import('./kardex/kardex.page').then((m) => m.KardexPage),
+      },
       PRODUCT_SHEET_ROUTE,
     ],
   },

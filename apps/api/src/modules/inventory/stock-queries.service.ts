@@ -17,7 +17,7 @@ import type { ListMovementsQueryDto } from './dto';
 
 /**
  * Read side of stock (HU-INV-05): the movements tab and the stock per warehouse of the product sheet.
- * The kardex (HU-INV-24) will live here too. It never writes: stock changes only through the movements service.
+ * The kardex (HU-INV-24) is its own service, `KardexService`. This one never writes: stock changes only through the movements service.
  */
 @Injectable()
 export class StockQueriesService {

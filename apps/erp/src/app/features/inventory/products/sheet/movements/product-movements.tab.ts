@@ -1,9 +1,10 @@
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { ProductMovementsResponse } from '@rodasoft/domain';
 import {
   ButtonComponent,
+  CanDirective,
   DocTableColumn,
   DocTableComponent,
   DocTableRow,
@@ -37,10 +38,12 @@ const COLUMNS: DocTableColumn[] = [
   selector: 'rs-product-movements-tab',
   imports: [
     ButtonComponent,
+    CanDirective,
     DocTableComponent,
     EmptyStateIllustratedComponent,
     KpiCardComponent,
     PaginationComponent,
+    RouterLink,
     SkeletonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -61,6 +64,7 @@ export class ProductMovementsTab {
   private readonly id = toSignal((this.route.parent ?? this.route).paramMap.pipe(map((p) => p.get('id') ?? '')), {
     requireSync: true,
   });
+  protected readonly productId = this.id;
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   private readonly reload = signal(0);
 

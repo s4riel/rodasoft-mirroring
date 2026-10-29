@@ -14,3 +14,4 @@ export * from './lib/uploads';
 export * from './lib/product-import';
 export * from './lib/warehouse';
 export * from './lib/transfer';
+export * from './lib/kardex';

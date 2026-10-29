@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { AdjustmentDocumentsService } from './adjustment-documents.service';
 import { EquivalencesController } from './equivalences.controller';
 import { EquivalencesService } from './equivalences.service';
+import { KardexController } from './kardex.controller';
+import { KardexLedgerService } from './kardex-ledger.service';
+import { KardexService } from './kardex.service';
 import { ProductCommandsService } from './product-commands.service';
 import { ProductImportController } from './product-import.controller';
 import { ProductImportService } from './product-import.service';
@@ -22,13 +25,15 @@ import { WarehousesController } from './warehouses.controller';
 import { WarehousesService } from './warehouses.service';
 
 @Module({
-  controllers: [ProductsController, ProductImportController, EquivalencesController, StockAdjustmentController, StockAdjustmentsController, WarehousesController, TransfersController, UploadsController],
+  controllers: [KardexController, ProductsController, ProductImportController, EquivalencesController, StockAdjustmentController, StockAdjustmentsController, WarehousesController, TransfersController, UploadsController],
   providers: [
     ProductsService,
     ProductCommandsService,
     ProductImportService,
     EquivalencesService,
     StockQueriesService,
+    KardexService,
+    KardexLedgerService,
     StockMovementService,
     StockAdjustmentService,
     StockAdjustmentsService,
