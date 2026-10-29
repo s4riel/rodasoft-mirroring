@@ -16,11 +16,12 @@ class HostComponent {
 }
 
 describe('FlagComponent', () => {
-  it('dibuja las 14 banderas con su SVG', async () => {
+  it('draws every listed flag with its SVG, including Austria', async () => {
+    expect(FLAG_COUNTRIES).toContain('AT');
     const fixture = TestBed.createComponent(HostComponent);
     await fixture.whenStable();
     const flags: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('rs-flag'));
-    expect(flags.length).toBe(15);
+    expect(flags.length).toBe(FLAG_COUNTRIES.length + 1);
     for (const f of flags) {
       expect(f.querySelector('svg')?.innerHTML.length).toBeGreaterThan(20);
     }
