@@ -78,6 +78,19 @@ describe('InventoryLayoutPage', () => {
     expect(tabsText(h)).toContain('Transferencias');
   });
 
+  it('shows the Kardex tab, linked to the kardex, only with inventory.kardex.view', async () => {
+    const h = await open(['inventory.kardex.view']);
+    h.detectChanges();
+    expect(tabsText(h)).toContain('Kardex');
+    expect((h.routeNativeElement as HTMLElement).querySelector('rs-sub-nav a[href="/inventory/kardex"]')).not.toBeNull();
+  });
+
+  it('hides the Kardex tab without inventory.kardex.view', async () => {
+    const h = await open(['inventory.products.view']);
+    h.detectChanges();
+    expect(tabsText(h)).not.toContain('Kardex');
+  });
+
   it('keeps the tab and drops the badge when the count cannot be read', async () => {
     const h = await open(['inventory.transfers.create']);
     http.expectOne(COUNT_URL).flush({ code: 'ERROR', message: 'x' }, { status: 500, statusText: 'Server Error' });

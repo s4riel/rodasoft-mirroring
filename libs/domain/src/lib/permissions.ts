@@ -30,6 +30,7 @@ export const PERMISSIONS = {
   'inventory.equivalences.link': 'Vincular equivalencias',
   'inventory.equivalences.approve': 'Aprobar equivalencias',
   'inventory.warehouses.manage': 'Gestionar almacenes',
+  'inventory.kardex.view': 'Consultar kardex',
 
   // Sales and POS
   'sales.pos.use': 'Vender en el punto de venta',
@@ -125,6 +126,7 @@ export const DEFAULT_ROLES: Record<string, { name: string; permissions: Permissi
       'sales.cash-register.review',
       'inventory.products.view',
       'inventory.costs.view',
+      'inventory.kardex.view',
       'reports.view',
     ],
   },

@@ -1,0 +1,280 @@
+<rs-page-header
+  title="Kardex"
+  [description]="isLedger() ? 'Entradas, salidas y saldo de todos los movimientos de inventario.' : 'Entradas, salidas y saldo del producto, por almacén y fechas.'"
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button
+      *rsCan="'inventory.kardex.view'"
+      rsButton
+      variant="secondary"
+      type="button"
+      [disabled]="state() !== 'ready' || exporting()"
+      (click)="export()"
+    >
+      <rs-icon name="export" [size]="16" /> Exportar
+    </button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver el kardex"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <section class="filters" aria-label="Filtros del kardex">
+    <div class="filter filter--product">
+      @if (!isLedger()) {
+        @if (product(); as chosen) {
+          <div class="chosen">
+            <rs-icon name="bearing" [size]="16" />
+            <span class="chosen-text"><span class="mono">{{ chosen.manufacturerCode }}</span> · {{ chosen.brand }} · {{ chosen.name }}</span>
+            <button rsButton variant="ghost" size="sm" type="button" aria-label="Cambiar producto" (click)="changeProduct()">Cambiar</button>
+          </div>
+        } @else if (state() === 'error') {
+          <div class="chosen">
+            <span class="chosen-text">No pudimos cargar el producto</span>
+            <button rsButton variant="ghost" size="sm" type="button" aria-label="Cambiar producto" (click)="changeProduct()">Cambiar</button>
+          </div>
+        } @else {
+          <div role="status" aria-busy="true" aria-label="Cargando el producto">
+            <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+          </div>
+        }
+      } @else {
+        <rs-input-group [invalid]="false">
+          <rs-icon rsInputLeading name="bearing" [size]="16" />
+          <input
+            rsInput
+            type="search"
+            autocomplete="off"
+            placeholder="Producto: código, medida o marca"
+            aria-label="Buscar producto"
+            [value]="query()"
+            (input)="setQuery($any($event.target).value)"
+          />
+        </rs-input-group>
+        @if (searching()) {
+          <div role="status" aria-busy="true" aria-label="Buscando productos">
+            <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+          </div>
+        } @else if (results(); as found) {
+          @if (found.length) {
+            <ul class="results" aria-label="Resultados de la búsqueda">
+              @for (item of found; track item.id) {
+                <li>
+                  <button type="button" class="result" (click)="pick(item)">
+                    <rs-product-thumb [src]="item.photoUrl" [icon]="thumbIcon(item)" />
+                    <span class="product-text">
+                      <span class="code">{{ item.manufacturerCode }}</span>
+                      <span class="brand">
+                        @if (flag(item); as code) {
+                          <rs-flag [country]="code" />
+                        }
+                        {{ item.brand.name }} · {{ measures(item) }}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty" role="status">{{ searchFailed() ? 'No pudimos buscar productos. Intenta de nuevo.' : 'No encontramos productos con esa búsqueda.' }}</p>
+          }
+        }
+      }
+    </div>
+
+    @if (isLedger()) {
+      <div class="filter">
+        <rs-input-group [invalid]="false">
+          <rs-icon rsInputLeading name="search" [size]="16" />
+          <input
+            rsInput
+            type="search"
+            autocomplete="off"
+            placeholder="Buscar movimiento o documento"
+            aria-label="Buscar movimiento o documento"
+            [value]="searchText()"
+            (input)="onSearch($any($event.target).value)"
+          />
+        </rs-input-group>
+      </div>
+      <div class="filter">
+        <rs-select
+          leadingIcon="branch"
+          placeholder="Sucursal"
+          ariaLabel="Sucursal"
+          [options]="branchOptions()"
+          [value]="filters().branchId"
+          (valueChange)="setBranch($event)"
+        />
+      </div>
+      <div class="filter">
+        <rs-select
+          leadingIcon="tag"
+          placeholder="Tipo"
+          ariaLabel="Tipo de movimiento"
+          [options]="typeChoices()"
+          [value]="filters().type"
+          (valueChange)="setType($event)"
+        />
+      </div>
+    } @else {
+      <div class="filter">
+        <rs-select
+          leadingIcon="warehouse"
+          placeholder="Todos los almacenes"
+          ariaLabel="Almacén"
+          [options]="warehouseOptions()"
+          [value]="filters().warehouseId"
+          (valueChange)="setWarehouse($event)"
+        />
+      </div>
+    }
+
+    <div class="filter">
+      <rs-date-range-picker placeholder="Fecha" ariaLabel="Rango de fechas" [value]="dateRange()" (valueChange)="onDateRange($event)" />
+    </div>
+
+    @if (isLedger()) {
+      <div class="filter filter--clear">
+        <button rsButton variant="ghost" type="button" [disabled]="!hasFilters()" (click)="clearAll()">Limpiar</button>
+      </div>
+    }
+  </section>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el kardex">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="18%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="14%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="20%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="8%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el kardex" [description]="errorMessage()">
+          @if (errorCode() === 'PRODUCT_NOT_FOUND') {
+            <button rsButton variant="secondary" type="button" (click)="changeProduct()">Ver todos los movimientos</button>
+          } @else {
+            <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+          }
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (isLedger()) {
+        @if (isEmptyRange()) {
+          <section class="state">
+            <rs-empty-state-illustrated
+              [illustration]="hasFilters() ? 'no-results' : 'no-movements'"
+              [heading]="hasFilters() ? 'No encontramos movimientos' : 'Sin movimientos en el período'"
+              [description]="hasFilters() ? 'Prueba con otros filtros o con otro número de documento.' : 'Cambia las fechas para ver otro período.'"
+              [showAction]="hasFilters()"
+            >
+              <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+            </rs-empty-state-illustrated>
+          </section>
+        } @else {
+          <rs-doc-table size="lg" tableLabel="Movimientos de inventario" [columns]="ledgerColumns()" [rows]="ledgerRows()" [totals]="ledgerTotals()">
+            <ng-template rsDocCell="product" let-row>
+              @if (ledgerItemOf(row.id); as item) {
+                <span class="product-cell">
+                  <span class="code">{{ item.product.manufacturerCode }}</span>
+                  <span class="sub">{{ item.product.brand }} · {{ item.product.name }}</span>
+                </span>
+              }
+            </ng-template>
+            <ng-template rsDocCell="detail" let-row>
+              @if (ledgerItemOf(row.id); as item) {
+                <span class="product-cell">
+                  <span>{{ item.branch.name }} · {{ item.warehouse.name }}</span>
+                  @if (counterpart(item); as other) {
+                    <span class="sub">{{ other }}</span>
+                  }
+                </span>
+              }
+            </ng-template>
+            <ng-template rsDocCell="pill" let-row>
+              @if (ledgerItemOf(row.id); as item) {
+                <rs-status-pill [status]="pills[item.pill].status" [icon]="pills[item.pill].icon ?? null">{{ pills[item.pill].label }}</rs-status-pill>
+              }
+            </ng-template>
+            <ng-template rsDocCell="actions" let-row>
+              @if (ledgerItemOf(row.id); as item) {
+                <rs-row-action [label]="'Acciones de ' + row.label" [items]="menuOf(item)" (selected)="onRowMenu(item, $event)" />
+              }
+            </ng-template>
+            <div slot="footer" class="footer">
+              <span class="range">{{ range() }}</span>
+              <rs-pagination
+                label="Paginación"
+                previousLabel="Anterior"
+                nextLabel="Siguiente"
+                [showLabels]="true"
+                [page]="filters().page"
+                [pageCount]="pageCount()"
+                (pageChange)="goToPage($event)"
+              />
+            </div>
+          </rs-doc-table>
+        }
+      } @else {
+        @if (product(); as p) {
+          <section class="product-card" aria-label="Producto">
+            <div class="product-main">
+              <span class="code">{{ p.manufacturerCode }}</span>
+              <span class="product-name">{{ p.name }}</span>
+              <span class="brand">{{ p.brand }}</span>
+            </div>
+            <div class="product-stock">
+              <span class="label">Stock actual</span>
+              <span class="value">{{ p.currentStock }}</span>
+            </div>
+          </section>
+        }
+
+        @if (isEmptyRange()) {
+          <section class="state state--compact" role="status">
+            <rs-empty-state-illustrated
+              illustration="no-movements"
+              heading="Sin movimientos en el período"
+              description="El saldo inicial es el stock con el que empieza el período."
+              [showAction]="false"
+            />
+          </section>
+        }
+        <rs-doc-table size="md" tableLabel="Kardex del producto" [columns]="columns()" [rows]="rows()" [totals]="totals()">
+          <div slot="footer" class="footer">
+            <span class="range">{{ range() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import type { ProductMovementsResponse } from '@rodasoft/domain';
+import { RS_PERMISSIONS } from '@rodasoft/ui';
 import { of } from 'rxjs';
 import { ProductSheetStore } from '../product-sheet.store';
 import { ProductMovementsTab } from './product-movements.tab';
@@ -32,13 +33,16 @@ const RESPONSE: ProductMovementsResponse = {
 describe('ProductMovementsTab', () => {
   let fixture: ComponentFixture<ProductMovementsTab>;
   let http: HttpTestingController;
+  const granted = signal<ReadonlySet<string>>(new Set(['inventory.kardex.view']));
 
   beforeEach(() => {
+    granted.set(new Set(['inventory.kardex.view']));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
+        { provide: RS_PERMISSIONS, useValue: granted },
         { provide: ProductSheetStore, useValue: { product: signal(null) } },
         {
           provide: ActivatedRoute,
@@ -69,6 +73,21 @@ describe('ProductMovementsTab', () => {
     expect(text()).toContain('Venta V-00231');
     expect(text()).toContain('−4');
     expect(text()).toContain('Sucursal Centro');
+  });
+
+  it('links to the kardex of the product for those who may consult it', () => {
+    http.expectOne((r) => r.urlWithParams === URL).flush(RESPONSE);
+    fixture.detectChanges();
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a[href^="/inventory/kardex"]');
+    expect(link?.textContent).toContain('Ver kardex');
+    expect(link?.getAttribute('href')).toBe('/inventory/kardex?productId=p1');
+  });
+
+  it('hides the kardex link without inventory.kardex.view', () => {
+    granted.set(new Set());
+    http.expectOne((r) => r.urlWithParams === URL).flush(RESPONSE);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('a[href^="/inventory/kardex"]')).toBeNull();
   });
 
   it('shows the empty state when there are no movements', () => {

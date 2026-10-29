@@ -71,6 +71,9 @@
           </div>
         </rs-doc-table>
         <p class="note">Historial completo en Kardex, con filtros por sucursal, tipo y fechas.</p>
+        <div *rsCan="'inventory.kardex.view'" class="kardex-link">
+          <a rsButton variant="secondary" routerLink="/inventory/kardex" [queryParams]="{ productId: productId() }">Ver kardex</a>
+        </div>
       }
     }
   }
