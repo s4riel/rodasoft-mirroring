@@ -71,6 +71,11 @@ Written without a compiler and partly without Figma access (the Figma MCP quota 
 Known gaps: dark values of `action/primary-hover|pressed` are assumed (`TODO(figma)` in `_tokens.scss`); illustrations and
 flags are redrawn (the Figma asset host is not reachable from the build sandbox) and should be replaced by the exported SVGs.
 
+## Row actions and the inline filter bar (HU-INV-18)
+
+- `rs-row-action` — Figma RowAction (`39:4451`) with its RowMenu: the round ⋯ button at the end of a table row. It takes `items` (`RowMenuItem[]`) and an accessible `label`, opens the menu, and emits the chosen item's key with `(selected)`. Escape and a click outside close it. `rs-doc-table` has no built-in row menu; the screen puts this in an `actions` custom cell.
+- `rs-filter-bar-products [inline]` — the Figma FilterBar of the list screens: search, the projected filters and "clear" in one row. Without `inline` the filters stay on a second row, as the product list draws them.
+
 ## File upload (ERP components)
 
 - `rs-file-dropzone` — dashed drop area (icon tile, title, formats, limit, button). Reports the picked or dropped files with `(filesSelected)`; it does not upload. Icon projected, texts as inputs.

@@ -111,6 +111,11 @@ export class ProductStockTab {
     return this.itemById().get(id)?.quantity ?? 0;
   }
 
+  /** Pieces on their way to this warehouse (HU-INV-18): sent by a transfer and not received yet. */
+  protected inTransitOf(id: string): number {
+    return this.itemById().get(id)?.inTransit ?? 0;
+  }
+
   protected totalLabel(total: number): string {
     return `Total ${formatQuantity(total, this.sheet.product()?.unit)} · el stock se mueve entre sucursales solo con transferencias.`;
   }

@@ -48,6 +48,9 @@
                 <rs-stock-flag [level]="flag.level" [label]="flag.label" />
               }
               {{ quantityOf(row.id) }}
+              @if (inTransitOf(row.id); as inTransit) {
+                <span class="in-transit">En tránsito: {{ inTransit }}</span>
+              }
             </span>
           </ng-template>
           <div slot="footer" class="footer">

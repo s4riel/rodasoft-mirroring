@@ -47,7 +47,7 @@ describe('SettingsService (integration, real Postgres)', () => {
     current = a;
     expect(await settings.get('inventory.skuPrefix')).toBe('RL-');
     expect(await settings.get('inventory.allowNegativeStock')).toBe(false);
-    expect(await settings.get('transfers.approvalThresholdValue')).toBeNull();
+    expect(await settings.get('adjustments.approvalThresholdValue')).toBeNull();
   });
 
   it('reads the company value and never another company’s', async () => {

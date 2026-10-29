@@ -1,0 +1,89 @@
+<rs-page-header
+  [title]="detail()?.number ?? 'Transferencia'"
+  type="detail"
+  [breadcrumbs]="breadcrumbs()"
+  breadcrumbLabel="Ruta de navegación"
+>
+  @if (pill(); as p) {
+    <rs-status-pill rsStatus [status]="p.status">{{ p.label }}</rs-status-pill>
+  }
+  <div rsActions class="header-actions">
+    <button rsButton variant="secondary" type="button" (click)="back()">Volver al listado</button>
+  </div>
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la transferencia">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver esta transferencia"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la transferencia" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      <section class="card" aria-label="Datos de la transferencia">
+        <dl class="facts">
+          <div class="fact">
+            <dt>Origen</dt>
+            <dd>{{ d.origin.branch.name }} · {{ d.origin.name }}</dd>
+          </div>
+          <div class="fact">
+            <dt>Destino</dt>
+            <dd>{{ d.destination.branch.name }} · {{ d.destination.name }}</dd>
+          </div>
+          <div class="fact">
+            <dt>Enviada</dt>
+            <dd>{{ sentOn() }}</dd>
+          </div>
+          @if (d.note) {
+            <div class="fact">
+              <dt>Nota</dt>
+              <dd>{{ d.note }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <rs-doc-table size="md" tableLabel="Productos de la transferencia" [columns]="columns" [rows]="rows()" />
+
+      <section class="card" aria-label="Resumen de la transferencia">
+        <dl class="totals">
+          <div class="fact">
+            <dt>Productos</dt>
+            <dd>{{ d.summary.products }}</dd>
+          </div>
+          <div class="fact">
+            <dt>Piezas</dt>
+            <dd>{{ d.summary.pieces }}</dd>
+          </div>
+          @if (d.summary.value !== null) {
+            <div class="fact">
+              <dt>Valor</dt>
+              <dd>{{ value() }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -17,6 +17,23 @@
   flex: 1 1 0;
   min-width: 0;
 }
+
+/* inline: one row in the order search, filters, clear; the two wrappers vanish so their children share the row */
+:host([data-inline]) {
+  flex-direction: row;
+  align-items: center;
+  .controls,
+  .filters {
+    display: contents;
+  }
+  /* the projected filters keep the default order 0, between the search (before) and the clear action (after) */
+  .search {
+    order: -1;
+  }
+  .clear {
+    order: 1;
+  }
+}
 .clear {
   padding: var(--space-3) var(--space-5);
   font-family: var(--font-family-ui);

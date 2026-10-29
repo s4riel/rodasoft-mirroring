@@ -1,0 +1,6 @@
+<button type="button" class="button" aria-haspopup="menu" [attr.aria-expanded]="open()" [attr.aria-label]="label()" (click)="toggle($event)">
+  <rs-icon name="dots" [size]="20" />
+</button>
+@if (open()) {
+  <rs-row-menu class="menu" [items]="items()" (selected)="choose($event)" />
+}

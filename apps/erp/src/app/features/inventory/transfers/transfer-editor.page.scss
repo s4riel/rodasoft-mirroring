@@ -1,0 +1,206 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.card,
+.lines,
+.summary {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-4) var(--space-6); /* Figma "Lista vacía": 16 above and below the illustrated state */
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+.add-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+.search {
+  position: relative;
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.search input {
+  width: 100%;
+}
+.card-title {
+  margin: 0;
+  font-size: var(--body-md-strong-size);
+  font-weight: var(--body-md-strong-weight);
+  line-height: var(--body-md-strong-line-height);
+  color: var(--text-primary);
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--mono-md-size);
+}
+.hint {
+  margin: 0;
+  font-size: var(--body-sm-size);
+  color: var(--text-muted);
+}
+.results {
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  z-index: 10;
+  margin: var(--space-1) 0 0;
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+.results-head,
+.results-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+.results-head {
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+.results-foot {
+  justify-content: flex-end;
+  border-top: var(--stroke-default) solid var(--border-default);
+}
+.results-count {
+  font-size: var(--body-sm-size);
+  color: var(--text-muted);
+}
+.results-list {
+  max-height: 20rem; /* about eight rows, then it scrolls */
+  margin: 0;
+  padding: var(--space-1) 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.result {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  &:hover {
+    background: var(--action-primary-soft);
+  }
+}
+.result-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  color: var(--text-primary);
+}
+.result-code {
+  font-family: var(--font-mono);
+}
+.result-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-stock {
+  color: var(--text-muted);
+}
+.lines-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end; /* the chips sit level with the search box, not with its label */
+  gap: var(--space-4);
+}
+.lines-search {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-block: var(--space-1);
+}
+/* the cell is as wide as its column, so the box lines up with the right-aligned "Cantidad" header */
+.quantity-cell {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+}
+.quantity {
+  width: 6rem;
+  text-align: end;
+}
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.footer {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.range {
+  font-size: var(--body-md-size);
+  color: var(--text-muted);
+}
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin: 0;
+}
+.total {
+  display: grid;
+  gap: var(--space-1);
+  dt {
+    font-size: var(--body-md-size);
+    color: var(--text-muted);
+  }
+  dd {
+    margin: 0;
+    font-size: var(--display-h3-size);
+    font-weight: var(--display-h3-weight);
+    color: var(--text-primary);
+  }
+}
+.has-errors dd {
+  color: var(--status-danger);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.spacer {
+  flex: 1 1 auto;
+}
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

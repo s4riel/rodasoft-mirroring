@@ -1,0 +1,138 @@
+<rs-page-header
+  title="Transferencias"
+  description="Mueve mercadería entre sucursales: envía, recibe y concilia."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="exporting() || state() !== 'ready' || total() === 0" [loading]="exporting()" (click)="exportCsv()">
+      <rs-icon name="export" [size]="16" /> Exportar
+    </button>
+    <button *rsCan="'inventory.transfers.create'" rsButton variant="brand" type="button" (click)="openNew()">
+      <rs-icon name="plus" [size]="16" /> Nueva transferencia
+    </button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver transferencias"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <rs-filter-bar-products
+    inline
+    searchPlaceholder="Buscar por N.º o sucursal"
+    searchLabel="Buscar transferencias"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select
+        placeholder="Origen"
+        ariaLabel="Almacén de origen"
+        [options]="warehouseOptions()"
+        [value]="filters().originWarehouseId"
+        (valueChange)="setFilter('originWarehouseId', $event)"
+      />
+      <rs-select
+        placeholder="Destino"
+        ariaLabel="Almacén de destino"
+        [options]="warehouseOptions()"
+        [value]="filters().destinationWarehouseId"
+        (valueChange)="setFilter('destinationWarehouseId', $event)"
+      />
+      <rs-select
+        placeholder="Estado"
+        ariaLabel="Estado"
+        [options]="statusOptions"
+        [value]="filters().status"
+        (valueChange)="setFilter('status', $event)"
+      />
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando transferencias">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="26%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las transferencias" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="empty-transfer"
+            heading="Aún no hay transferencias"
+            description="Crea la primera para mover mercadería de un almacén a otro."
+            [showAction]="canCreate()"
+          >
+            <button *rsCan="'inventory.transfers.create'" rsButton variant="brand" type="button" (click)="openNew()">
+              <rs-icon name="plus" [size]="16" /> Nueva transferencia
+            </button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No encontramos transferencias"
+            description="Prueba con otros filtros o con otro número."
+          >
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Transferencias entre almacenes" [columns]="columns" [rows]="rows()" [totals]="totals()">
+          <ng-template rsDocCell="number" let-row>
+            @if (itemOf(row.id); as item) {
+              <a class="number" [routerLink]="linkOf(item)">{{ item.number }}</a>
+            }
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <rs-row-action [label]="'Acciones de ' + item.number" [items]="menuOf(item)" (selected)="openRow(item)" />
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ range() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

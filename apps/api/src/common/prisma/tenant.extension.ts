@@ -23,6 +23,8 @@ export const TENANT_MODELS = new Set<Prisma.ModelName>([
   'StockThreshold',
   'StockMovement',
   'Equivalence',
+  'Transfer',
+  'TransferItem',
   'CompanySetting',
 ]);
 

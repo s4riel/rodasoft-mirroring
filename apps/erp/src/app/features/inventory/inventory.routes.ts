@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { requiresPermission } from '../../core/auth/permission.guard';
 import { PRODUCT_SHEET_ROUTE } from './products/sheet/product-sheet.routes';
+import { unsavedTransferGuard } from './transfers/unsaved-transfer.guard';
 
 export const INVENTORY_ROUTES: Route[] = [
   {
@@ -73,6 +74,29 @@ export const INVENTORY_ROUTES: Route[] = [
         path: 'warehouses/:id/edit',
         title: 'Editar almacén · ERP',
         loadComponent: () => import('./warehouses/warehouse-form.page').then((m) => m.WarehouseFormPage),
+      },
+      {
+        // the pages show their own no-permission state, as the warehouse list does
+        path: 'transfers',
+        title: 'Transferencias · ERP',
+        loadComponent: () => import('./transfers/transfers.page').then((m) => m.TransfersPage),
+      },
+      {
+        path: 'transfers/new',
+        title: 'Nueva transferencia · ERP',
+        canDeactivate: [unsavedTransferGuard],
+        loadComponent: () => import('./transfers/transfer-editor.page').then((m) => m.TransferEditorPage),
+      },
+      {
+        path: 'transfers/:id/edit',
+        title: 'Editar transferencia · ERP',
+        canDeactivate: [unsavedTransferGuard],
+        loadComponent: () => import('./transfers/transfer-editor.page').then((m) => m.TransferEditorPage),
+      },
+      {
+        path: 'transfers/:id',
+        title: 'Transferencia · ERP',
+        loadComponent: () => import('./transfers/transfer-detail.page').then((m) => m.TransferDetailPage),
       },
       PRODUCT_SHEET_ROUTE,
     ],
