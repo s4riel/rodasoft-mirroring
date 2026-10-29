@@ -1,0 +1,103 @@
+<rs-page-header
+  title="Por recibir"
+  description="Transferencias en camino a tus sucursales. Ábrelas para recibirlas producto por producto."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para recibir transferencias"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <rs-filter-bar-products
+    inline
+    searchPlaceholder="Buscar por N.º o sucursal"
+    searchLabel="Buscar transferencias por recibir"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select placeholder="Estado" ariaLabel="Estado" [options]="statusOptions" [value]="filters().status" (valueChange)="setStatus($event)" />
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando transferencias por recibir">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="30%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las transferencias" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="empty-transfer"
+            heading="No hay transferencias por recibir"
+            description="Cuando otra sucursal te envíe mercadería, aparecerá aquí."
+            [showAction]="false"
+          />
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No encontramos transferencias"
+            description="Prueba con otros filtros o con otro número."
+          >
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Transferencias por recibir" [columns]="columns" [rows]="rows()">
+          <ng-template rsDocCell="number" let-row>
+            @if (itemOf(row.id); as item) {
+              <a class="number" [routerLink]="['/inventory/transfers', item.id]">{{ item.number }}</a>
+            }
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <button rsButton variant="secondary" type="button" [attr.aria-label]="'Recibir ' + item.number" (click)="receive(item)">Recibir</button>
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ range() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

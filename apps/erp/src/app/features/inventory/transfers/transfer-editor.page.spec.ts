@@ -45,6 +45,8 @@ const lineDetail = (over: Partial<TransferLineDetail> = {}): TransferLineDetail 
   brand: 'SKF',
   quantity: 2,
   receivedQuantity: 0,
+  surplusQuantity: 0,
+  pendingQuantity: 0,
   available: 10,
   unitCost: '5.0000',
   status: 'OK',
@@ -63,6 +65,11 @@ const detail = (over: Partial<TransferDetail> = {}): TransferDetail => ({
   createdAt: '2026-10-28T15:00:00.000Z',
   updatedAt: '2026-10-28T15:00:00.000Z',
   sentAt: null,
+  sentBy: null,
+  receivedAt: null,
+  receivedBy: null,
+  receipts: [],
+  adjustment: null,
   ...over,
 });
 

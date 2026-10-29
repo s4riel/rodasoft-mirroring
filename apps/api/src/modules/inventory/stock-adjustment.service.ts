@@ -5,9 +5,7 @@ import {
   type AdjustmentKind,
   ADJUSTMENT_REF_TYPE,
   buildAdjustmentMovement,
-  formatAdjustmentNumber,
   needsApproval,
-  parseAdjustmentNumber,
   type MovementDirection,
   type QuickAdjustmentResponse,
   resolveAdjustment,
@@ -18,12 +16,13 @@ import type { AppClsStore } from '../../common/cls';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { PrismaService, type TenantTransaction } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../../common/settings/settings.service';
+import { nextAdjustmentNumber } from './adjustment-number';
 import type { QuickAdjustmentDto } from './stock-adjustment.dto';
 import { StockMovementService } from './stock-movement.service';
 
 /**
  * Quick stock adjustment from the product sheet (HU-INV-16): one movement, no document. Stock is written only through
- * `StockMovementService`; this service decides the movement, numbers it (`AJ-000123`, the series HU-INV-22 will share),
+ * `StockMovementService`; this service decides the movement, numbers it (`AJ-000123`, the series HU-INV-22 and the adjustment documents share, see `nextAdjustmentNumber`),
  * checks the approval limit (decision #37) and records the audit entry and the outbox event in the same transaction.
  */
 @Injectable()
@@ -57,7 +56,7 @@ export class StockAdjustmentService {
       await this.assertWarehouseOperable(tx, dto.warehouseId);
 
       // numbering lock first, then the product and level locks (the order apply() uses), so concurrent adjustments cannot deadlock
-      const refNumber = await this.nextNumber(tx, companyId);
+      const refNumber = await nextAdjustmentNumber(tx, companyId);
       const { quantity: balanceBefore } = await this.stock.lockedQuantity(tx, productId, dto.warehouseId);
       if (dto.expectedBalance !== undefined && dto.expectedBalance !== balanceBefore) {
         throw new ConflictException({
@@ -158,18 +157,5 @@ export class StockAdjustmentService {
     if (allowed && !allowed.includes(warehouse.branchId)) {
       throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'Warehouse not found' });
     }
-  }
-
-  /**
-   * Next `AJ-` number of the company. The advisory lock serializes numbering per company until the transaction ends,
-   * so two adjustments never take the same number and a rolled-back one leaves no gap.
-   */
-  private async nextNumber(tx: TenantTransaction, companyId: string): Promise<string> {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}::text || ':adjustment'))`;
-    const last = await tx.$queryRaw<{ ref_number: string }[]>`
-      SELECT ref_number FROM stock_movements
-      WHERE company_id = ${companyId}::uuid AND ref_type = ${ADJUSTMENT_REF_TYPE} AND ref_number ~ '^AJ-[0-9]{1,15}$'
-      ORDER BY substring(ref_number from 4)::bigint DESC LIMIT 1`;
-    return formatAdjustmentNumber((last[0] ? (parseAdjustmentNumber(last[0].ref_number) ?? 0) : 0) + 1);
   }
 }

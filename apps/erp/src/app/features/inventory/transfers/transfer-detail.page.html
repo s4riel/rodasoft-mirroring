@@ -1,16 +1,9 @@
 <rs-page-header
-  [title]="detail()?.number ?? 'Transferencia'"
+  [title]="'Transferencia ' + (detail()?.number ?? '')"
   type="detail"
   [breadcrumbs]="breadcrumbs()"
   breadcrumbLabel="Ruta de navegación"
->
-  @if (pill(); as p) {
-    <rs-status-pill rsStatus [status]="p.status">{{ p.label }}</rs-status-pill>
-  }
-  <div rsActions class="header-actions">
-    <button rsButton variant="secondary" type="button" (click)="back()">Volver al listado</button>
-  </div>
-</rs-page-header>
+/>
 
 @switch (state()) {
   @case ('loading') {
@@ -39,49 +32,201 @@
   }
   @default {
     @if (detail(); as d) {
-      <section class="card" aria-label="Datos de la transferencia">
-        <dl class="facts">
-          <div class="fact">
-            <dt>Origen</dt>
-            <dd>{{ d.origin.branch.name }} · {{ d.origin.name }}</dd>
-          </div>
-          <div class="fact">
-            <dt>Destino</dt>
-            <dd>{{ d.destination.branch.name }} · {{ d.destination.name }}</dd>
-          </div>
-          <div class="fact">
-            <dt>Enviada</dt>
-            <dd>{{ sentOn() }}</dd>
-          </div>
-          @if (d.note) {
-            <div class="fact">
-              <dt>Nota</dt>
-              <dd>{{ d.note }}</dd>
-            </div>
+      <div class="meta">
+        @if (pill(); as p) {
+          <rs-status-pill [status]="p.status" [icon]="p.icon ?? null">{{ p.label }}</rs-status-pill>
+        }
+        <span class="meta-item"><rs-icon name="branch" [size]="16" /> {{ d.origin.branch.name }} → {{ d.destination.branch.name }}</span>
+        <span class="meta-item"><rs-icon name="calendar" [size]="16" /> Enviada el {{ sentOn() }}</span>
+        @if (d.sentBy) {
+          <span class="meta-item"><rs-icon name="user" [size]="16" /> Por {{ d.sentBy }}</span>
+        }
+      </div>
+
+      @if (d.adjustment; as adjustment) {
+        <rs-note type="warning" [title]="'Ajuste pendiente ' + adjustment.number">
+          La recepción tuvo diferencias. Un responsable debe aprobar el ajuste; mientras tanto no cambia el stock.
+        </rs-note>
+      }
+
+      @if (tracker().length) {
+        <ol class="tracker" aria-label="Estado de la transferencia">
+          @for (step of tracker(); track step.key) {
+            <li class="step" [class.done]="step.state === 'done'" [class.current]="step.state === 'current'" [attr.aria-current]="step.state === 'current' ? 'step' : null">
+              <span class="marker" aria-hidden="true">
+                <rs-icon [name]="step.state === 'done' ? 'check' : step.key === 'transit' ? 'truck' : 'package'" [size]="16" />
+              </span>
+              <span class="step-text">
+                <span class="step-label">{{ step.label }}</span>
+                <span class="step-detail">{{ step.detail }}</span>
+              </span>
+            </li>
           }
-        </dl>
+        </ol>
+      }
+
+      <section class="stats" aria-label="Resumen de la transferencia">
+        <rs-kpi-card label="Origen" [value]="d.origin.branch.name" note="Sucursal de origen" />
+        <rs-kpi-card label="Destino" [value]="d.destination.branch.name" note="Sucursal de destino" />
+        <rs-kpi-card label="Piezas" [value]="'' + d.summary.pieces" [note]="productCount() + (productCount() === 1 ? ' producto distinto' : ' productos distintos')" />
+        @if (d.summary.value !== null) {
+          <rs-kpi-card label="Valor" [value]="value()" note="A costo · solo Gerencia y Contabilidad" />
+        }
       </section>
 
-      <rs-doc-table size="md" tableLabel="Productos de la transferencia" [columns]="columns" [rows]="rows()" />
+      <section class="lines" aria-label="Productos enviados">
+        <div class="lines-title">
+          <h2 class="card-title">Productos enviados</h2>
+          <rs-status-pill status="idle">{{ productCount() }} {{ productCount() === 1 ? 'producto' : 'productos' }}</rs-status-pill>
+        </div>
+        <rs-field label="Buscar en la lista" forId="transfer-detail-search">
+          <rs-input-group>
+            <rs-icon rsInputLeading name="search" [size]="16" />
+            <input rsInput id="transfer-detail-search" class="mono" type="search" autocomplete="off" [value]="search()" (input)="onSearch($event)" />
+          </rs-input-group>
+        </rs-field>
 
-      <section class="card" aria-label="Resumen de la transferencia">
-        <dl class="totals">
-          <div class="fact">
-            <dt>Productos</dt>
-            <dd>{{ d.summary.products }}</dd>
+        @if (noMatches()) {
+          <div class="state">
+            <rs-empty-state-illustrated illustration="no-results" heading="Ningún producto coincide" description="Prueba con otro código o nombre." [showAction]="false" />
           </div>
-          <div class="fact">
-            <dt>Piezas</dt>
-            <dd>{{ d.summary.pieces }}</dd>
-          </div>
-          @if (d.summary.value !== null) {
-            <div class="fact">
-              <dt>Valor</dt>
-              <dd>{{ value() }}</dd>
+        } @else {
+          <rs-doc-table size="lg" tableLabel="Productos de la transferencia" [columns]="columns()" [rows]="rows()">
+            <!-- while receiving, "Recibido" is where the pieces that arrived are counted -->
+            <ng-template rsDocCell="received" let-row>
+              <span class="count-cell">
+                <span class="already">{{ receivedOf(row.id) }}</span>
+                <input
+                  rsInput
+                  rsNumeric="integer"
+                  class="quantity"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="0"
+                  [attr.aria-label]="'Piezas recibidas de ' + row.label"
+                  [attr.aria-invalid]="errorOf(row.id) ? true : null"
+                  [value]="countOf(row.id)"
+                  [disabled]="busy() !== null || !canReceiveLine(row.id)"
+                  (input)="onCount(row.id, $event)"
+                />
+                <button
+                  rsButton
+                  variant="ghost"
+                  type="button"
+                  [attr.aria-label]="'Recibir todo lo pendiente de ' + row.label"
+                  [disabled]="busy() !== null || !canReceiveLine(row.id)"
+                  (click)="receiveLine(row.id)"
+                >
+                  Todo
+                </button>
+                @if (errorOf(row.id); as message) {
+                  <span class="line-error" role="alert">{{ message }}</span>
+                }
+              </span>
+            </ng-template>
+            <div slot="footer" class="footer">
+              <span class="range">{{ range() }}</span>
+              <rs-pagination
+                label="Paginación"
+                previousLabel="Anterior"
+                nextLabel="Siguiente"
+                [showLabels]="true"
+                [page]="page()"
+                [pageCount]="pageCount()"
+                (pageChange)="goToPage($event)"
+              />
             </div>
-          }
-        </dl>
+          </rs-doc-table>
+        }
       </section>
+
+      @if (receiving()) {
+        <section class="summary" aria-label="Resumen de la recepción">
+          <dl class="totals">
+            <div class="total">
+              <dt>Piezas recibidas ahora</dt>
+              <dd>{{ summary().receivingNow }}</dd>
+            </div>
+            <div class="total">
+              <dt>Piezas pendientes</dt>
+              <dd>{{ summary().stillPending }}</dd>
+            </div>
+            <div class="total" [class.has-errors]="summary().errors > 0">
+              <dt>Errores</dt>
+              <dd>{{ summary().errors }}</dd>
+            </div>
+          </dl>
+        </section>
+        @if (summary().errors > 0) {
+          <rs-note type="warning">Corrige las cantidades con error para poder registrar la recepción.</rs-note>
+        }
+        @if (submitError(); as message) {
+          @if (!differencesOpen()) {
+            <rs-note type="danger">{{ message }}</rs-note>
+          }
+        }
+      } @else if (onTheWay()) {
+        <rs-note type="info" [title]="'Esperando recepción en ' + d.destination.branch.name">
+          El stock está en tránsito: no cuenta en origen ni en destino hasta que {{ d.destination.branch.name }} confirme.
+        </rs-note>
+      }
+
+      @if (d.receipts.length) {
+        <section class="card" aria-label="Recepciones registradas">
+          <h2 class="card-title">Recepciones registradas</h2>
+          <ul class="receipts">
+            @for (receipt of d.receipts; track receipt.id) {
+              <li>
+                {{ receipt.pieces }} {{ receipt.pieces === 1 ? 'pieza' : 'piezas' }}{{ receipt.receivedBy ? ' · ' + receipt.receivedBy : '' }}
+                · {{ formatReceiptDay(receipt.createdAt) }}{{ receipt.note ? ' · ' + receipt.note : '' }}
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <div class="actions">
+        @if (receiving()) {
+          <button rsButton variant="ghost" type="button" [disabled]="busy() !== null" (click)="stopReceiving()">Cancelar</button>
+          <button rsButton variant="secondary" type="button" [disabled]="busy() !== null || nothingPending()" (click)="receiveAll()">
+            <rs-icon name="check" [size]="16" /> Recibir todo
+          </button>
+          <button rsButton variant="secondary" type="button" [disabled]="!canRegister()" [loading]="busy() === 'session'" (click)="register()">
+            Registrar recepción
+          </button>
+          <button rsButton variant="brand" type="button" [disabled]="!canFinish()" (click)="finish()">Finalizar recepción</button>
+        } @else {
+          <button rsButton variant="ghost" type="button" (click)="back()">Volver al listado</button>
+          @if (canCancel()) {
+            <button *rsCan="'inventory.transfers.create'" rsButton variant="secondary" type="button" (click)="askCancel()">Cancelar transferencia</button>
+          }
+          @if (onTheWay()) {
+            <button *rsCan="'inventory.transfers.receive'" rsButton variant="brand" type="button" (click)="startReceiving()">Recibir Productos</button>
+          }
+        }
+      </div>
+
+      <rs-modal variant="confirmation" heading="¿Cancelar la transferencia?" closeLabel="Cerrar" [(open)]="cancelOpen">
+        <p>
+          Nada llegó todavía a {{ d.destination.branch.name }}: las {{ d.summary.pieces }} piezas volverán a {{ d.origin.branch.name }} y la transferencia
+          quedará cancelada. Esta acción no se puede deshacer.
+        </p>
+        @if (submitError(); as message) {
+          <rs-note type="danger">{{ message }}</rs-note>
+        }
+        <div slot="footer" class="dialog-actions">
+          <button rsButton variant="secondary" type="button" [disabled]="busy() === 'cancel'" (click)="cancelOpen.set(false)">Volver</button>
+          <button rsButton variant="brand" type="button" [loading]="busy() === 'cancel'" (click)="confirmCancel()">Cancelar transferencia</button>
+        </div>
+      </rs-modal>
+
+      <rs-transfer-differences-dialog
+        [(open)]="differencesOpen"
+        [lines]="lines()"
+        [busy]="busy() === 'close'"
+        [error]="submitError()"
+        (confirmed)="confirmClose($event)"
+      />
     }
   }
 }

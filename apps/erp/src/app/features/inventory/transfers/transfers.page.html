@@ -9,6 +9,9 @@
     <button rsButton variant="secondary" type="button" [disabled]="exporting() || state() !== 'ready' || total() === 0" [loading]="exporting()" (click)="exportCsv()">
       <rs-icon name="export" [size]="16" /> Exportar
     </button>
+    <button *rsCan="'inventory.transfers.receive'" rsButton variant="secondary" type="button" (click)="openIncoming()">
+      <rs-icon name="transfer" [size]="16" /> Por recibir
+    </button>
     <button *rsCan="'inventory.transfers.create'" rsButton variant="brand" type="button" (click)="openNew()">
       <rs-icon name="plus" [size]="16" /> Nueva transferencia
     </button>
@@ -110,6 +113,18 @@
           <ng-template rsDocCell="number" let-row>
             @if (itemOf(row.id); as item) {
               <a class="number" [routerLink]="linkOf(item)">{{ item.number }}</a>
+            }
+          </ng-template>
+          <ng-template rsDocCell="status" let-row>
+            @if (itemOf(row.id); as item) {
+              <span class="status-cell">
+                <rs-status-pill [status]="pillOf(item).status" [icon]="pillOf(item).icon ?? null">{{ pillOf(item).label }}</rs-status-pill>
+                @if (item.pendingAdjustment; as adjustment) {
+                  <span class="review" role="img" tabindex="0" [attr.aria-label]="reviewTooltip(adjustment.number)" [rsTooltip]="reviewTooltip(adjustment.number)">
+                    <rs-icon name="alert" [size]="16" />
+                  </span>
+                }
+              </span>
             }
           </ng-template>
           <ng-template rsDocCell="actions" let-row>

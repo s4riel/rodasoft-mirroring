@@ -83,6 +83,10 @@ model Company {
   equivalences         Equivalence[]
   transfers            Transfer[]
   transferItems        TransferItem[]
+  transferReceipts     TransferReceipt[]
+  transferReceiptItems TransferReceiptItem[]
+  stockAdjustments     StockAdjustment[]
+  stockAdjustmentItems StockAdjustmentItem[]
   companySettings      CompanySetting[]
 
   @@map("companies")
@@ -102,10 +106,10 @@ model Branch {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company         Company            @relation(fields: [companyId], references: [id])
-  warehouses      Warehouse[]
-  pointsOfSale    SiatPointOfSale[]
-  memberships     MembershipBranch[]
+  company      Company            @relation(fields: [companyId], references: [id])
+  warehouses   Warehouse[]
+  pointsOfSale SiatPointOfSale[]
+  memberships  MembershipBranch[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -128,13 +132,14 @@ model Warehouse {
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company     Company      @relation(fields: [companyId], references: [id])
-  branch      Branch       @relation(fields: [branchId], references: [id])
-  stockLevels     StockLevel[]
-  stockThresholds StockThreshold[]
-  stockMovements  StockMovement[]
-  transfersOut    Transfer[]       @relation("TransferOrigin")
-  transfersIn     Transfer[]       @relation("TransferDestination")
+  company          Company           @relation(fields: [companyId], references: [id])
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  stockLevels      StockLevel[]
+  stockThresholds  StockThreshold[]
+  stockMovements   StockMovement[]
+  transfersOut     Transfer[]        @relation("TransferOrigin")
+  transfersIn      Transfer[]        @relation("TransferDestination")
+  stockAdjustments StockAdjustment[]
 
   @@unique([companyId, code])
   @@index([companyId, branchId])
@@ -156,19 +161,23 @@ model User {
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships          Membership[]
-  createdProducts      Product[]       @relation("ProductCreatedBy")
-  createdEquivalences  Equivalence[]   @relation("EquivalenceCreatedBy")
-  approvedEquivalences Equivalence[]   @relation("EquivalenceApprovedBy")
-  updatedProducts      Product[]       @relation("ProductUpdatedBy")
-  deactivatedProducts  Product[]       @relation("ProductDeactivatedBy")
-  refreshTokens        RefreshToken[]
-  passwordResets       PasswordReset[]
-  stockMovements       StockMovement[]
-  createdTransfers     Transfer[]      @relation("TransferCreatedBy")
-  sentTransfers        Transfer[]      @relation("TransferSentBy")
-  approvedTransfers    Transfer[]      @relation("TransferApprovedBy")
-  companySettingsUpdated CompanySetting[]
+  memberships              Membership[]
+  createdProducts          Product[]         @relation("ProductCreatedBy")
+  createdEquivalences      Equivalence[]     @relation("EquivalenceCreatedBy")
+  approvedEquivalences     Equivalence[]     @relation("EquivalenceApprovedBy")
+  updatedProducts          Product[]         @relation("ProductUpdatedBy")
+  deactivatedProducts      Product[]         @relation("ProductDeactivatedBy")
+  refreshTokens            RefreshToken[]
+  passwordResets           PasswordReset[]
+  stockMovements           StockMovement[]
+  createdTransfers         Transfer[]        @relation("TransferCreatedBy")
+  sentTransfers            Transfer[]        @relation("TransferSentBy")
+  approvedTransfers        Transfer[]        @relation("TransferApprovedBy")
+  receivedTransfers        Transfer[]        @relation("TransferReceivedBy")
+  transferReceipts         TransferReceipt[]
+  createdStockAdjustments  StockAdjustment[] @relation("StockAdjustmentCreatedBy")
+  approvedStockAdjustments StockAdjustment[] @relation("StockAdjustmentApprovedBy")
+  companySettingsUpdated   CompanySetting[]
 
   @@map("users")
 }
@@ -423,15 +432,15 @@ model AttributeDefinition {
 }
 
 model Product {
-  id               String       @id @default(uuid(7)) @db.Uuid
-  companyId        String       @map("company_id") @db.Uuid
+  id               String        @id @default(uuid(7)) @db.Uuid
+  companyId        String        @map("company_id") @db.Uuid
   sku              String // sequential internal SKU per company (RL-000001), decision #32
-  manufacturerCode String       @map("manufacturer_code")
-  brandId          String       @map("brand_id") @db.Uuid
+  manufacturerCode String        @map("manufacturer_code")
+  brandId          String        @map("brand_id") @db.Uuid
   /// leaf category (a subcategory when the product has one)
-  categoryId       String       @map("category_id") @db.Uuid
+  categoryId       String        @map("category_id") @db.Uuid
   /// industry (country of origin) of the product; falls back to the brand's country when null
-  countryId        String?      @map("country_id") @db.Uuid
+  countryId        String?       @map("country_id") @db.Uuid
   name             String
   salePrice        Decimal       @map("sale_price") @db.Decimal(14, 2)
   /// only visible with inventory.costs.view
@@ -446,28 +455,29 @@ model Product {
   attributes       Json          @default("{}")
   photos           Json          @default("[]")
   datasheetUrl     String?       @map("datasheet_url")
-  createdById      String?      @map("created_by_id") @db.Uuid
-  updatedById      String?      @map("updated_by_id") @db.Uuid
+  createdById      String?       @map("created_by_id") @db.Uuid
+  updatedById      String?       @map("updated_by_id") @db.Uuid
   /// set while the product is INACTIVE (HU-INV-09); cleared on reactivation
-  deactivatedAt    DateTime?    @map("deactivated_at") @db.Timestamptz(3)
-  deactivatedById  String?      @map("deactivated_by_id") @db.Uuid
-  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deactivatedAt    DateTime?     @map("deactivated_at") @db.Timestamptz(3)
+  deactivatedById  String?       @map("deactivated_by_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company         Company           @relation(fields: [companyId], references: [id])
-  brand           Brand             @relation(fields: [brandId], references: [id])
-  category        Category          @relation(fields: [categoryId], references: [id])
-  country         Country?          @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  dimensions      ProductDimension?
-  stockLevels     StockLevel[]
-  stockThresholds StockThreshold[]
-  stockMovements  StockMovement[]
-  equivalencesAsA Equivalence[]     @relation("EquivalenceProductA")
-  equivalencesAsB Equivalence[]     @relation("EquivalenceProductB")
-  transferItems   TransferItem[]
-  createdBy       User?             @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy       User?             @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  deactivatedBy   User?             @relation("ProductDeactivatedBy", fields: [deactivatedById], references: [id], onDelete: Restrict)
+  company              Company               @relation(fields: [companyId], references: [id])
+  brand                Brand                 @relation(fields: [brandId], references: [id])
+  category             Category              @relation(fields: [categoryId], references: [id])
+  country              Country?              @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  dimensions           ProductDimension?
+  stockLevels          StockLevel[]
+  stockThresholds      StockThreshold[]
+  stockMovements       StockMovement[]
+  equivalencesAsA      Equivalence[]         @relation("EquivalenceProductA")
+  equivalencesAsB      Equivalence[]         @relation("EquivalenceProductB")
+  transferItems        TransferItem[]
+  stockAdjustmentItems StockAdjustmentItem[]
+  createdBy            User?                 @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy            User?                 @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  deactivatedBy        User?                 @relation("ProductDeactivatedBy", fields: [deactivatedById], references: [id], onDelete: Restrict)
 
   @@unique([companyId, sku])
   @@unique([companyId, brandId, manufacturerCode])
@@ -551,23 +561,23 @@ enum StockMovementType {
 /// Immutable history of stock changes (design-notes rule 3): a database trigger rejects UPDATE and DELETE, so a
 /// correction is a new movement. Only the movements service writes it (HU-INV-16); HU-INV-05 only reads it.
 model StockMovement {
-  id          String            @id @default(uuid(7)) @db.Uuid
-  companyId   String            @map("company_id") @db.Uuid
-  productId   String            @map("product_id") @db.Uuid
-  warehouseId String            @map("warehouse_id") @db.Uuid
-  type        StockMovementType
+  id           String            @id @default(uuid(7)) @db.Uuid
+  companyId    String            @map("company_id") @db.Uuid
+  productId    String            @map("product_id") @db.Uuid
+  warehouseId  String            @map("warehouse_id") @db.Uuid
+  type         StockMovementType
   /// signed: positive adds stock, negative removes it
-  quantity    Int
+  quantity     Int
   /// warehouse balance after this movement, so the kardex never needs a re-sum
-  balanceAfter Int             @map("balance_after")
-  unitCost    Decimal?         @map("unit_cost") @db.Decimal(14, 4)
-  reason      String?
+  balanceAfter Int               @map("balance_after")
+  unitCost     Decimal?          @map("unit_cost") @db.Decimal(14, 4)
+  reason       String?
   /// source document (refType "SALE", "TRANSFER", "ADJUSTMENT", "PURCHASE") and its number for display ("V-00231")
-  refType     String?          @map("ref_type")
-  refId       String?          @map("ref_id") @db.Uuid
-  refNumber   String?          @map("ref_number")
-  userId      String?          @map("user_id") @db.Uuid
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  refType      String?           @map("ref_type")
+  refId        String?           @map("ref_id") @db.Uuid
+  refNumber    String?           @map("ref_number")
+  userId       String?           @map("user_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company   Company   @relation(fields: [companyId], references: [id])
   product   Product   @relation(fields: [productId], references: [id])
@@ -592,9 +602,9 @@ model Equivalence {
   approvedById String?   @map("approved_by_id") @db.Uuid
   approvedAt   DateTime? @map("approved_at") @db.Timestamptz(3)
   /// true when the user classified the link as a substitute: it replaces the product but is not a technical equivalent (IN-15c)
-  substitute Boolean @default(false)
+  substitute   Boolean   @default(false)
   /// observed differences, free text shown to the seller before offering the equivalent (IN-15c)
-  notes String? @db.VarChar(500)
+  notes        String?   @db.VarChar(500)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company    Company @relation(fields: [companyId], references: [id])
@@ -640,16 +650,22 @@ model Transfer {
   sentAt                 DateTime?      @map("sent_at") @db.Timestamptz(3)
   approvedById           String?        @map("approved_by_id") @db.Uuid
   approvedAt             DateTime?      @map("approved_at") @db.Timestamptz(3)
+  /// who closed the receipt and when (HU-INV-21)
+  receivedById           String?        @map("received_by_id") @db.Uuid
+  receivedAt             DateTime?      @map("received_at") @db.Timestamptz(3)
   createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company              Company        @relation(fields: [companyId], references: [id])
-  originWarehouse      Warehouse      @relation("TransferOrigin", fields: [originWarehouseId], references: [id])
-  destinationWarehouse Warehouse      @relation("TransferDestination", fields: [destinationWarehouseId], references: [id])
-  createdBy            User?          @relation("TransferCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  sentBy               User?          @relation("TransferSentBy", fields: [sentById], references: [id], onDelete: SetNull)
-  approvedBy           User?          @relation("TransferApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  company              Company           @relation(fields: [companyId], references: [id])
+  originWarehouse      Warehouse         @relation("TransferOrigin", fields: [originWarehouseId], references: [id])
+  destinationWarehouse Warehouse         @relation("TransferDestination", fields: [destinationWarehouseId], references: [id])
+  createdBy            User?             @relation("TransferCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  sentBy               User?             @relation("TransferSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  approvedBy           User?             @relation("TransferApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  receivedBy           User?             @relation("TransferReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
   items                TransferItem[]
+  receipts             TransferReceipt[]
+  adjustment           StockAdjustment?
 
   @@unique([companyId, number])
   @@index([companyId, status, createdAt])
@@ -664,18 +680,125 @@ model TransferItem {
   transferId       String   @map("transfer_id") @db.Uuid
   productId        String   @map("product_id") @db.Uuid
   quantity         Int
-  /// filled by the receipt (HU-INV-21)
+  /// filled by the receipt sessions (HU-INV-21); never above `quantity`
   receivedQuantity Int      @default(0) @map("received_quantity")
+  /// pieces that arrived beyond `quantity`, entered when the receipt is closed; not in stock until the adjustment is approved
+  surplusQuantity  Int      @default(0) @map("surplus_quantity")
   /// average cost of the product, frozen on send
   unitCost         Decimal? @map("unit_cost") @db.Decimal(14, 4)
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  transfer Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  product  Product  @relation(fields: [productId], references: [id])
+  company      Company               @relation(fields: [companyId], references: [id])
+  transfer     Transfer              @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product      Product               @relation(fields: [productId], references: [id])
+  receiptItems TransferReceiptItem[]
 
   @@unique([transferId, productId])
   @@index([companyId, productId])
   @@map("transfer_items")
+}
+
+/// One receiving session of a transfer (HU-INV-21): the pieces counted at the destination at that moment. Kept as its own
+/// document so the history survives and the `TRANSFER_IN` movements can point at it (`ref_type TRANSFER_RECEIPT`).
+model TransferReceipt {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  transferId   String   @map("transfer_id") @db.Uuid
+  receivedById String?  @map("received_by_id") @db.Uuid
+  note         String?  @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company               @relation(fields: [companyId], references: [id])
+  transfer   Transfer              @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  receivedBy User?                 @relation(fields: [receivedById], references: [id], onDelete: SetNull)
+  items      TransferReceiptItem[]
+
+  @@index([companyId, transferId])
+  @@map("transfer_receipts")
+}
+
+model TransferReceiptItem {
+  id             String @id @default(uuid(7)) @db.Uuid
+  companyId      String @map("company_id") @db.Uuid
+  receiptId      String @map("receipt_id") @db.Uuid
+  transferItemId String @map("transfer_item_id") @db.Uuid
+  quantity       Int
+
+  company      Company         @relation(fields: [companyId], references: [id])
+  receipt      TransferReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  transferItem TransferItem    @relation(fields: [transferItemId], references: [id], onDelete: Cascade)
+
+  @@unique([receiptId, transferItemId])
+  @@map("transfer_receipt_items")
+}
+
+enum StockAdjustmentStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum StockAdjustmentSource {
+  MANUAL
+  TRANSFER
+}
+
+enum StockAdjustmentItemKind {
+  SHORTAGE
+  SURPLUS
+  MANUAL
+}
+
+/// Stock adjustment document (minimal, created by HU-INV-21 for the differences of a transfer receipt; HU-INV-22/23
+/// extend it). Creating one writes no stock: approving a SURPLUS line puts the pieces in, approving a SHORTAGE line only
+/// writes the loss off, because those pieces never entered any warehouse. `number` shares the `AJ-` series with the quick
+/// adjustments of HU-INV-16 (see `nextAdjustmentNumber`).
+model StockAdjustment {
+  id           String                @id @default(uuid(7)) @db.Uuid
+  companyId    String                @map("company_id") @db.Uuid
+  /// `AJ-000123`
+  number       String
+  status       StockAdjustmentStatus @default(PENDING_APPROVAL)
+  source       StockAdjustmentSource
+  transferId   String?               @unique @map("transfer_id") @db.Uuid
+  warehouseId  String                @map("warehouse_id") @db.Uuid
+  reason       String
+  /// sum of the absolute values of the lines
+  totalValue   Decimal               @default(0) @map("total_value") @db.Decimal(14, 2)
+  createdById  String?               @map("created_by_id") @db.Uuid
+  approvedById String?               @map("approved_by_id") @db.Uuid
+  approvedAt   DateTime?             @map("approved_at") @db.Timestamptz(3)
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company               @relation(fields: [companyId], references: [id])
+  transfer   Transfer?             @relation(fields: [transferId], references: [id], onDelete: SetNull)
+  warehouse  Warehouse             @relation(fields: [warehouseId], references: [id])
+  createdBy  User?                 @relation("StockAdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy User?                 @relation("StockAdjustmentApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  items      StockAdjustmentItem[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt])
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentItem {
+  id           String                  @id @default(uuid(7)) @db.Uuid
+  companyId    String                  @map("company_id") @db.Uuid
+  adjustmentId String                  @map("adjustment_id") @db.Uuid
+  productId    String                  @map("product_id") @db.Uuid
+  kind         StockAdjustmentItemKind
+  /// signed: negative for a shortage, positive for a surplus
+  quantity     Int
+  unitCost     Decimal?                @map("unit_cost") @db.Decimal(14, 4)
+
+  company    Company         @relation(fields: [companyId], references: [id])
+  adjustment StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  product    Product         @relation(fields: [productId], references: [id])
+
+  @@unique([adjustmentId, productId])
+  @@index([companyId, productId])
+  @@map("stock_adjustment_items")
 }
 
 /// Per-company configuration (HU-INV-06). `key` is typed in `libs/domain` (COMPANY_SETTING_DEFAULTS), so code always

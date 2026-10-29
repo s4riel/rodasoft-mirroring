@@ -1,0 +1,19 @@
+.step {
+  display: grid;
+  gap: var(--space-4);
+}
+.surplus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10rem;
+  align-items: start;
+  gap: var(--space-4);
+}
+.quantity {
+  text-align: end;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

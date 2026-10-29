@@ -82,6 +82,12 @@ export const INVENTORY_ROUTES: Route[] = [
         loadComponent: () => import('./transfers/transfers.page').then((m) => m.TransfersPage),
       },
       {
+        // before `transfers/:id`, which would otherwise take "incoming" for an id
+        path: 'transfers/incoming',
+        title: 'Por recibir · ERP',
+        loadComponent: () => import('./transfers/transfers-incoming.page').then((m) => m.TransfersIncomingPage),
+      },
+      {
         path: 'transfers/new',
         title: 'Nueva transferencia · ERP',
         canDeactivate: [unsavedTransferGuard],

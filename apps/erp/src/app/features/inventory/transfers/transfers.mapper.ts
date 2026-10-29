@@ -1,5 +1,6 @@
 import type { TransferListItem, TransferStatus } from '@rodasoft/domain';
 import type { DocTableCell, DocTableRow, DocTableStatus, RowMenuItem, SelectOption } from '@rodasoft/ui';
+import { RECEIPT_ERROR_MESSAGES } from './transfer-receipt';
 import type { TransferListQuery } from './transfers-api.service';
 
 /** Rows per page of the list (Figma DocTable with a 10-row pagination). */
@@ -19,6 +20,11 @@ export const TRANSFER_STATUS_PILLS: Record<TransferStatus, DocTableStatus> = {
   REJECTED: { label: 'Rechazada', status: 'danger', icon: 'alert' },
   CANCELLED: { label: 'Cancelada', status: 'idle' },
 };
+
+/** The tooltip of the warning next to the status of a transfer whose receipt left an adjustment waiting for approval. */
+export function pendingAdjustmentTooltip(number: string): string {
+  return `Tiene el ajuste ${number} pendiente de aprobación: la recepción tuvo diferencias (faltantes o sobrantes) que deben revisarse.`;
+}
 
 /** The statuses a transfer can reach. There is no approval step, so the filter does not offer the approval statuses. */
 const FILTERABLE_STATUSES: readonly TransferStatus[] = ['DRAFT', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'];
@@ -54,6 +60,12 @@ const dateFormat = new Intl.DateTimeFormat('es-BO', { day: '2-digit', month: 'sh
 /** "28 oct 2026" in the business timezone, or a dash when there is no date. */
 export function formatDay(iso: string | null): string {
   return iso ? dateFormat.format(new Date(iso)) : '–';
+}
+
+const timeFormat = new Intl.DateTimeFormat('es-BO', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/La_Paz' });
+/** "14 oct 2026 · 09:30" in the business timezone, or a dash when there is no date. */
+export function formatDayTime(iso: string | null): string {
+  return iso ? `${formatDay(iso)} · ${timeFormat.format(new Date(iso))}` : '–';
 }
 
 const numericDayFormat = new Intl.DateTimeFormat('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/La_Paz' });
@@ -184,6 +196,7 @@ export const TRANSFER_ERROR_MESSAGES: Record<string, string> = {
   FILE_INVALID: 'No pudimos leer el archivo. Usa un .xlsx o .csv con código y cantidad.',
   FILE_TOO_LARGE: 'El archivo supera el límite de 1 MB.',
   PRODUCT_NOT_FOUND: 'Algún producto de la lista ya no existe.',
+  ...RECEIPT_ERROR_MESSAGES,
 };
 
 /** The Spanish message of an API problem: the transfer-specific one when the code has it, else the server's own. */

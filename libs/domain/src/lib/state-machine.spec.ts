@@ -1,4 +1,4 @@
-import { InvalidTransitionError, invoiceMachine, productStatusMachine, transferMachine } from './state-machine';
+import { InvalidTransitionError, invoiceMachine, productStatusMachine, stockAdjustmentMachine, transferMachine } from './state-machine';
 
 describe('state machines', () => {
   it('a product goes back and forth between active and inactive', () => {
@@ -26,8 +26,24 @@ describe('state machines', () => {
     expect(transferMachine.next(s, 'receiveAll')).toBe('RECEIVED');
   });
 
-  it('an in-transit transfer cannot be cancelled', () => {
-    expect(() => transferMachine.next('IN_TRANSIT', 'cancel')).toThrow(InvalidTransitionError);
+  it('a partially received transfer closes with its differences, and nothing else leaves RECEIVED', () => {
+    expect(transferMachine.next('PARTIALLY_RECEIVED', 'close')).toBe('RECEIVED');
+    expect(transferMachine.next('IN_TRANSIT', 'close')).toBe('RECEIVED');
+    expect(() => transferMachine.next('RECEIVED', 'close')).toThrow(InvalidTransitionError);
+    expect(() => transferMachine.next('DRAFT', 'close')).toThrow(InvalidTransitionError);
+  });
+
+  it('an adjustment waits for approval and is final once decided', () => {
+    expect(stockAdjustmentMachine.next('PENDING_APPROVAL', 'approve')).toBe('APPROVED');
+    expect(stockAdjustmentMachine.next('PENDING_APPROVAL', 'reject')).toBe('REJECTED');
+    expect(stockAdjustmentMachine.events('APPROVED')).toEqual([]);
+  });
+
+  it('a transfer can be cancelled while nothing has arrived, and not once it was received in part', () => {
+    expect(transferMachine.next('DRAFT', 'cancel')).toBe('CANCELLED');
+    expect(transferMachine.next('IN_TRANSIT', 'cancel')).toBe('CANCELLED');
+    expect(() => transferMachine.next('PARTIALLY_RECEIVED', 'cancel')).toThrow(InvalidTransitionError);
+    expect(() => transferMachine.next('RECEIVED', 'cancel')).toThrow(InvalidTransitionError);
   });
 
   it('an invoice stays valid until management approves the cancellation', () => {

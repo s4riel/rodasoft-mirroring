@@ -25,6 +25,10 @@ export const TENANT_MODELS = new Set<Prisma.ModelName>([
   'Equivalence',
   'Transfer',
   'TransferItem',
+  'TransferReceipt',
+  'TransferReceiptItem',
+  'StockAdjustment',
+  'StockAdjustmentItem',
   'CompanySetting',
 ]);
 

@@ -25,6 +25,7 @@ const item = (over: Partial<TransferListItem> = {}): TransferListItem => ({
   sentBy: 'Alberto Andia',
   createdAt: '2026-10-28T15:00:00.000Z',
   sentAt: '2026-10-28T16:00:00.000Z',
+  pendingAdjustment: null,
   ...over,
 });
 
@@ -99,6 +100,24 @@ describe('TransfersPage', () => {
     expect(text(h)).toContain('Borrador');
     expect(text(h)).toContain('Borrador de Ana');
     expect(text(h)).toContain('1–2 de 2 transferencias');
+  });
+
+  it('shows a warning with its explanation next to the status of a transfer whose adjustment is pending', async () => {
+    const h = await open();
+    flushList(
+      response([
+        item({ id: 't1', status: 'RECEIVED', pendingAdjustment: { number: 'AJ-000007' } }),
+        item({ id: 't2', number: 'TR-000124', status: 'RECEIVED', pendingAdjustment: null }),
+      ]),
+    );
+    await settle(h);
+
+    const warnings = Array.from(root(h).querySelectorAll('.review'));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].getAttribute('aria-label')).toContain('AJ-000007');
+    expect(warnings[0].getAttribute('aria-label')).toContain('pendiente de aprobación');
+    expect(warnings[0].closest('tr')?.textContent).toContain('TR-000123');
+    expect(warnings[0].closest('tr')?.textContent).toContain('Recibida');
   });
 
   it('links a draft to the editor and every other transfer to its detail', async () => {

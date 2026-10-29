@@ -4,6 +4,8 @@ import type { TransferStatus } from './state-machine';
 /** `refType` of the movements written by a transfer, and the prefix of its document number. */
 export const TRANSFER_REF_TYPE = 'TRANSFER';
 export const TRANSFER_NUMBER_PREFIX = 'TR-';
+/** `refType` of the `TRANSFER_IN` movements written by a receiving session; the `refId` is the receipt. */
+export const TRANSFER_RECEIPT_REF_TYPE = 'TRANSFER_RECEIPT';
 
 /** Default of the setting `transfers.maxLines`: how many distinct products a transfer may carry. */
 export const TRANSFER_DEFAULT_MAX_LINES = 500;
@@ -27,7 +29,14 @@ export function parseTransferNumber(number: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-export type TransferErrorCode = 'SAME_WAREHOUSE' | 'WAREHOUSE_INACTIVE' | 'TOO_MANY_LINES';
+export type TransferErrorCode =
+  | 'SAME_WAREHOUSE'
+  | 'WAREHOUSE_INACTIVE'
+  | 'TOO_MANY_LINES'
+  | 'RECEIPT_EMPTY'
+  | 'RECEIPT_LINE_INVALID'
+  | 'RECEIPT_EXCEEDS_SENT'
+  | 'SURPLUS_NOT_ALLOWED';
 
 export class TransferError extends Error {
   constructor(
@@ -140,6 +149,113 @@ export interface TransferOpenCountResponse {
 /** A draft is the only status whose lines may still change. */
 export function isTransferEditable(status: TransferStatus): boolean {
   return status === 'DRAFT';
+}
+
+// ── Receipt (HU-INV-21) ──
+
+/** A line of the transfer as the receipt sees it. `unitCost` is the cost frozen when the transfer was sent. */
+export interface ReceiptLine {
+  productId: string;
+  sent: number;
+  /** Pieces already received in earlier sessions. */
+  received: number;
+  unitCost: string | null;
+}
+
+/** What was counted for one product: in a session, the pieces received now; at close, the surplus. */
+export interface ReceiptCount {
+  productId: string;
+  quantity: number;
+}
+
+export interface ReceiptSessionLine {
+  productId: string;
+  /** Pieces received in this session (always at least 1). */
+  quantity: number;
+  /** Cumulative pieces received after the session. */
+  received: number;
+}
+
+const isWholeCount = (quantity: number) => Number.isInteger(quantity) && quantity >= 0 && quantity <= TRANSFER_LINE_QUANTITY_MAX;
+
+function indexCounts(lines: readonly ReceiptLine[], counts: readonly ReceiptCount[]): Map<string, ReceiptLine & { count: number }> {
+  const byProduct = new Map(lines.map((l) => [l.productId, l]));
+  const indexed = new Map<string, ReceiptLine & { count: number }>();
+  for (const count of counts) {
+    const line = byProduct.get(count.productId);
+    if (!line) throw new TransferError('RECEIPT_LINE_INVALID', 'The product is not on the transfer');
+    if (!isWholeCount(count.quantity)) throw new TransferError('RECEIPT_LINE_INVALID', 'A received quantity is a whole number of 0 or more');
+    if (indexed.has(count.productId)) throw new TransferError('RECEIPT_LINE_INVALID', 'A product appears twice in the receipt');
+    indexed.set(count.productId, { ...line, count: count.quantity });
+  }
+  return indexed;
+}
+
+/**
+ * Applies one receiving session: the pieces counted now are added to what each line already received, and no line may
+ * go above what was sent (extra pieces are a surplus, entered when the receipt is closed). Lines counted as 0 are left
+ * out of the result. A session with no piece at all is refused.
+ */
+export function applyReceiptSession(lines: readonly ReceiptLine[], counts: readonly ReceiptCount[]): ReceiptSessionLine[] {
+  const result: ReceiptSessionLine[] = [];
+  for (const line of indexCounts(lines, counts).values()) {
+    const received = line.received + line.count;
+    if (received > line.sent) throw new TransferError('RECEIPT_EXCEEDS_SENT', 'A line cannot receive more than what was sent');
+    if (line.count > 0) result.push({ productId: line.productId, quantity: line.count, received });
+  }
+  if (!result.length) throw new TransferError('RECEIPT_EMPTY', 'The receipt has no pieces');
+  return result;
+}
+
+/** The event a session causes: everything received completes the transfer, anything pending leaves it partially received. */
+export function nextReceiptEvent(lines: readonly Pick<ReceiptLine, 'sent' | 'received'>[]): 'receivePartial' | 'receiveAll' {
+  return lines.every((l) => l.received >= l.sent) ? 'receiveAll' : 'receivePartial';
+}
+
+/**
+ * The surplus entered at close, by product. Pieces beyond what was sent only make sense on a line that was received in
+ * full; a line still short cannot also have a surplus. Zero entries are dropped.
+ */
+export function validateSurplus(lines: readonly ReceiptLine[], surplus: readonly ReceiptCount[]): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const line of indexCounts(lines, surplus).values()) {
+    if (line.count > 0 && line.received < line.sent) {
+      throw new TransferError('SURPLUS_NOT_ALLOWED', 'A surplus can only be entered on a line received in full');
+    }
+    if (line.count > 0) result.set(line.productId, line.count);
+  }
+  return result;
+}
+
+export type TransferDifferenceKind = 'SHORTAGE' | 'SURPLUS';
+
+export interface TransferDifference {
+  productId: string;
+  kind: TransferDifferenceKind;
+  /** Negative for a shortage, positive for a surplus. */
+  quantity: number;
+  /** Frozen unit cost; `null` when the product had none. */
+  unitCost: string | null;
+  /** Absolute value of the difference, decimal string, scale 2 (0 without cost). */
+  value: string;
+}
+
+/** What did not match when the receipt closes: `sent − received` short, or the surplus entered. A line that matched has none. */
+export function computeTransferDifferences(lines: readonly (ReceiptLine & { surplus: number })[]): TransferDifference[] {
+  const differences: TransferDifference[] = [];
+  for (const line of lines) {
+    const shortage = line.sent - line.received;
+    const quantity = shortage > 0 ? -shortage : line.surplus;
+    if (quantity === 0) continue;
+    const value = line.unitCost === null ? Decimal.zero(MONEY_SCALE) : Decimal.of(line.unitCost, COST_SCALE).mul(Math.abs(quantity), MONEY_SCALE);
+    differences.push({ productId: line.productId, kind: quantity < 0 ? 'SHORTAGE' : 'SURPLUS', quantity, unitCost: line.unitCost, value: value.toString() });
+  }
+  return differences;
+}
+
+/** Sum of the values of the differences, the `total_value` of the adjustment; decimal string, scale 2. */
+export function totalDifferenceValue(differences: readonly TransferDifference[]): string {
+  return differences.reduce((sum, d) => sum.add(Decimal.of(d.value, MONEY_SCALE)), Decimal.zero(MONEY_SCALE)).toString();
 }
 
 // ── Paste parsing ──
@@ -293,6 +409,8 @@ export interface TransferListItem {
   sentBy: string | null;
   createdAt: string;
   sentAt: string | null;
+  /** The adjustment its receipt differences left, while it waits for approval; `null` when there is none or it was decided. */
+  pendingAdjustment: { number: string } | null;
 }
 
 export interface TransferListResponse {
@@ -310,11 +428,33 @@ export interface TransferLineDetail {
   brand: string;
   quantity: number;
   receivedQuantity: number;
+  /** Pieces that arrived beyond `quantity`; entered when the receipt was closed. */
+  surplusQuantity: number;
+  /** Pieces still on the way: `quantity − receivedQuantity` while the transfer is open, 0 otherwise. */
+  pendingQuantity: number;
   /** Stock at the origin now (in a draft) so the editor can flag the line. */
   available: number;
   /** Average cost; `null` without `inventory.costs.view` or when the product has none. */
   unitCost: string | null;
   status: TransferLineStatus;
+}
+
+/** One receiving session, as the detail lists it. */
+export interface TransferReceiptSummary {
+  id: string;
+  receivedBy: string | null;
+  note: string | null;
+  pieces: number;
+  createdAt: string;
+}
+
+/** The adjustment a closed receipt left pending (differences only). */
+export interface TransferAdjustmentSummary {
+  id: string;
+  number: string;
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  /** `null` without `inventory.costs.view`. */
+  totalValue: string | null;
 }
 
 export interface TransferDetail {
@@ -330,6 +470,26 @@ export interface TransferDetail {
   createdAt: string;
   updatedAt: string;
   sentAt: string | null;
+  sentBy: string | null;
+  receivedAt: string | null;
+  receivedBy: string | null;
+  receipts: TransferReceiptSummary[];
+  adjustment: TransferAdjustmentSummary | null;
+}
+
+export interface TransferReceiptInput {
+  lines: { productId: string; quantity: number }[];
+  note?: string | null;
+  expectedUpdatedAt: string;
+}
+
+export interface TransferCloseInput {
+  /** Last count, applied as one more session before closing; optional. */
+  lines?: { productId: string; quantity: number }[];
+  /** Pieces beyond what was sent, by product. */
+  surplus: { productId: string; quantity: number }[];
+  note?: string | null;
+  expectedUpdatedAt: string;
 }
 
 export interface TransferSaveInput {

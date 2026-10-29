@@ -2,16 +2,16 @@
   display: grid;
   gap: var(--space-6);
 }
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
 .card {
   padding: var(--space-5);
   background: var(--bg-surface);
   border: var(--stroke-default) solid var(--border-default);
   border-radius: var(--radius-md);
+}
+.card-title {
+  margin: 0;
+  font-size: var(--body-lg-size);
+  color: var(--text-primary);
 }
 .state {
   display: grid;
@@ -25,14 +25,162 @@
   display: grid;
   gap: var(--space-3);
 }
-.facts,
+
+/* the status, the route, the day it was sent and who sent it (Figma PageHeader/Meta) */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--body-md-size);
+  color: var(--text-primary);
+}
+
+/* Enviada → En tránsito → Recibida (Figma Estados): a marker, the label and a line, joined by connectors */
+.tracker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-5);
+  list-style: none;
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-muted);
+  &:not(:last-child)::after {
+    content: '';
+    flex: 1 1 var(--space-12);
+    min-width: var(--space-8);
+    height: var(--stroke-default);
+    margin-inline-start: var(--space-3);
+    background: var(--border-default);
+  }
+  &.done:not(:last-child)::after {
+    background: var(--text-primary);
+  }
+}
+.step:not(:last-child) {
+  flex: 1 1 auto;
+}
+.marker {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: var(--space-8);
+  height: var(--space-8);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+.done .marker {
+  border-color: var(--text-primary);
+  background: var(--text-primary);
+  color: var(--bg-surface);
+}
+.current .marker {
+  border-color: var(--status-warning);
+  color: var(--status-warning);
+}
+.step-text {
+  display: grid;
+}
+.step-label {
+  font-size: var(--body-md-strong-size);
+  font-weight: var(--body-md-strong-weight);
+  color: var(--text-primary);
+}
+.step-detail {
+  font-size: var(--body-sm-size);
+  color: var(--text-muted);
+}
+
+/* Origen, Destino, Piezas and Valor (Figma Resumen) */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-4);
+}
+.lines {
+  display: grid;
+  gap: var(--space-4);
+}
+.lines-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.footer {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.range {
+  font-size: var(--body-md-size);
+  color: var(--text-muted);
+}
+.receipts {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--body-md-size);
+  color: var(--text-muted);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* the "Recibido" cell while receiving: what was already received, the input and "Todo" */
+.count-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.already {
+  min-width: var(--space-8);
+  text-align: end;
+  color: var(--text-muted);
+}
+.quantity {
+  width: 6rem;
+  text-align: end;
+}
+.line-error {
+  font-size: var(--body-sm-size);
+  color: var(--status-danger);
+}
+.summary {
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
 .totals {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
   margin: 0;
 }
-.fact {
+.total {
   display: grid;
   gap: var(--space-1);
   dt {
@@ -41,6 +189,17 @@
   }
   dd {
     margin: 0;
+    font-size: var(--display-h3-size);
     color: var(--text-primary);
   }
+  &.has-errors dd {
+    color: var(--status-danger);
+  }
+}
+
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }

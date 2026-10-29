@@ -27,6 +27,7 @@ const item = (over: Partial<TransferListItem> = {}): TransferListItem => ({
   sentBy: 'Alberto Andia',
   createdAt: '2026-10-13T15:00:00.000Z',
   sentAt: '2026-10-14T16:00:00.000Z',
+  pendingAdjustment: null,
   ...over,
 });
 

@@ -46,7 +46,7 @@ import { PrismaService, type TenantTransaction } from '../../common/prisma/prism
 import { SettingsService } from '../../common/settings/settings.service';
 import { MembershipService } from '../access/membership.service';
 import { StockMovementService } from './stock-movement.service';
-import type { ListTransfersQueryDto, ProductSearchQueryDto, ResolveLinesDto, SaveTransferDto, SendTransferDto } from './transfers.dto';
+import type { CancelTransferDto, ListTransfersQueryDto, ProductSearchQueryDto, ResolveLinesDto, SaveTransferDto, SendTransferDto } from './transfers.dto';
 
 export interface TransferUploadFile {
   buffer: Buffer;
@@ -106,10 +106,32 @@ export class TransfersService {
   async list(query: ListTransfersQueryDto): Promise<TransferListResponse> {
     const granted = await this.assertCanRead();
     const allowed = await this.operableBranches();
+    return this.page(query, [visibleTo(allowed)], granted);
+  }
+
+  /**
+   * The transfers on their way to a branch the member operates (IN-24a): sent and not yet fully received. The status filter
+   * can only narrow that set.
+   */
+  async incoming(query: ListTransfersQueryDto): Promise<TransferListResponse> {
+    const granted = await this.granted();
+    if (!granted.has('inventory.transfers.receive')) {
+      throw new ForbiddenException({ code: 'NO_PERMISSION', message: 'You do not have permission for this action', details: { missing: ['inventory.transfers.receive'] } });
+    }
+    if (query.status && !TRANSFER_OPEN_STATUSES.includes(query.status)) {
+      throw new BadRequestException({ code: 'INVALID_FILTER', message: 'Only transfers in transit can be received' });
+    }
+    const allowed = await this.operableBranches();
+    const destination: Prisma.TransferWhereInput = allowed ? { destinationWarehouse: { branchId: { in: allowed } } } : {};
+    return this.page(query, [destination, { status: { in: [...TRANSFER_OPEN_STATUSES] } }], granted);
+  }
+
+  /** One page of transfers: the `scope` says which the member may see, the query narrows them. */
+  private async page(query: ListTransfersQueryDto, scope: Prisma.TransferWhereInput[], granted: ReadonlySet<string>): Promise<TransferListResponse> {
     const page = clampPage(query.page);
     const pageSize = Math.min(query.pageSize ?? TRANSFER_PAGE_SIZE_DEFAULT, TRANSFER_PAGE_SIZE_MAX);
 
-    const and: Prisma.TransferWhereInput[] = [visibleTo(allowed)];
+    const and: Prisma.TransferWhereInput[] = [...scope];
     if (query.status) and.push({ status: query.status });
     if (query.originWarehouseId) and.push({ originWarehouseId: query.originWarehouseId });
     if (query.destinationWarehouseId) and.push({ destinationWarehouseId: query.destinationWarehouseId });
@@ -152,6 +174,7 @@ export class TransfersService {
           destinationWarehouse: { select: WAREHOUSE_SELECT },
           createdBy: { select: { name: true } },
           sentBy: { select: { name: true } },
+          adjustment: { select: { number: true, status: true } },
         },
       }),
     ]);
@@ -171,6 +194,7 @@ export class TransfersService {
         sentBy: r.sentBy?.name ?? null,
         createdAt: r.createdAt.toISOString(),
         sentAt: r.sentAt?.toISOString() ?? null,
+        pendingAdjustment: r.adjustment?.status === 'PENDING_APPROVAL' ? { number: r.adjustment.number } : null,
       })),
       total,
       page,
@@ -484,7 +508,12 @@ export class TransfersService {
     });
   }
 
-  async cancel(id: string): Promise<TransferDetail> {
+  /**
+   * Cancels a transfer. A draft only changes status. A sent one that nothing has reached yet (IN_TRANSIT) gives its pieces
+   * back to the origin as `TRANSFER_IN` movements in the same transaction, at the cost they left with; once part of it was
+   * received the machine refuses, and the receipt is closed instead.
+   */
+  async cancel(id: string, dto: CancelTransferDto = {}): Promise<TransferDetail> {
     const granted = await this.assertCanWrite();
     const companyId = this.companyId();
     const allowed = await this.operableBranches();
@@ -493,16 +522,25 @@ export class TransfersService {
       const current = await this.findVisible(tx, id, allowed);
       this.assertOperable(allowed, current.originWarehouse.branchId);
       const locked = await this.lock(tx, id, companyId);
+      if (dto.expectedUpdatedAt) this.assertFresh(locked.updatedAt, dto.expectedUpdatedAt);
       if (!transferMachine.can(locked.status, 'cancel')) throw invalidTransition(locked.status, 'cancel');
       const to = transferMachine.next(locked.status, 'cancel');
+      const returned = locked.status === 'IN_TRANSIT' ? await this.returnStockToOrigin(tx, id) : null;
       await tx.transfer.update({ where: { id }, data: { status: to } });
       await this.recordAudit(tx, {
         action: 'inventory.transfer.cancel',
         entity: 'Transfer',
         entityId: id,
         before: { status: locked.status },
-        after: { status: to },
+        after: { status: to, ...(returned ? { returnedPieces: returned.pieces } : {}), ...(dto.reason ? { reason: dto.reason } : {}) },
       });
+      if (returned) {
+        await this.outbox.publish(
+          'inventory.transfer.cancelled',
+          { transferId: id, number: returned.number, originWarehouseId: returned.originWarehouseId, pieces: returned.pieces, userId: this.cls.get('userId') ?? null },
+          { tx, companyId, idempotencyKey: `inventory.transfer.cancelled:${id}` },
+        );
+      }
       return this.detail(tx, id, granted);
     });
   }
@@ -547,6 +585,32 @@ export class TransfersService {
       ),
     );
     return transfer;
+  }
+
+  /** The pieces of a cancelled transfer go back to the origin, one `TRANSFER_IN` per line, products in id order (the locking order). */
+  private async returnStockToOrigin(tx: TenantTransaction, id: string): Promise<{ number: string; originWarehouseId: string; pieces: number }> {
+    const transfer = await tx.transfer.findFirstOrThrow({
+      where: { id },
+      select: {
+        number: true,
+        originWarehouseId: true,
+        items: { select: { productId: true, quantity: true, unitCost: true }, orderBy: { productId: 'asc' } },
+      },
+    });
+    for (const item of transfer.items) {
+      await this.stock.apply(tx, {
+        productId: item.productId,
+        warehouseId: transfer.originWarehouseId,
+        type: 'TRANSFER_IN',
+        quantity: item.quantity,
+        reason: `Cancelación ${transfer.number}`,
+        refType: TRANSFER_REF_TYPE,
+        refId: id,
+        refNumber: transfer.number,
+        unitCost: item.unitCost ? item.unitCost.toFixed(4) : null,
+      });
+    }
+    return { number: transfer.number, originWarehouseId: transfer.originWarehouseId, pieces: transfer.items.reduce((sum, i) => sum + i.quantity, 0) };
   }
 
   /** Every line leaves the origin as a `TRANSFER_OUT` movement. */
@@ -730,15 +794,27 @@ export class TransfersService {
         createdAt: true,
         updatedAt: true,
         sentAt: true,
+        receivedAt: true,
         originWarehouseId: true,
         originWarehouse: { select: WAREHOUSE_SELECT },
         destinationWarehouse: { select: WAREHOUSE_SELECT },
-        items: { select: { productId: true, quantity: true, receivedQuantity: true }, orderBy: [{ product: { manufacturerCode: 'asc' } }, { id: 'asc' }] },
+        sentBy: { select: { name: true } },
+        receivedBy: { select: { name: true } },
+        items: {
+          select: { productId: true, quantity: true, receivedQuantity: true, surplusQuantity: true },
+          orderBy: [{ product: { manufacturerCode: 'asc' } }, { id: 'asc' }],
+        },
+        receipts: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, note: true, createdAt: true, receivedBy: { select: { name: true } }, items: { select: { quantity: true } } },
+        },
+        adjustment: { select: { id: true, number: true, status: true, totalValue: true } },
       },
     });
     const { validation, products } = await this.validate(tx, t.originWarehouseId, t.items);
     const isDraft = t.status === 'DRAFT';
     const canViewCosts = granted.has('inventory.costs.view');
+    const onTheWay = TRANSFER_OPEN_STATUSES.includes(t.status);
 
     // a sent transfer shows the totals frozen when it left, not today's costs
     const summary = isDraft
@@ -763,6 +839,8 @@ export class TransfersService {
           brand: info?.brand ?? '',
           quantity: item.quantity,
           receivedQuantity: item.receivedQuantity,
+          surplusQuantity: item.surplusQuantity,
+          pendingQuantity: onTheWay ? Math.max(item.quantity - item.receivedQuantity, 0) : 0,
           available: checked.available,
           unitCost: canViewCosts ? (info?.cost ?? null) : null,
           status: isDraft ? checked.status : 'OK',
@@ -772,6 +850,19 @@ export class TransfersService {
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
       sentAt: t.sentAt?.toISOString() ?? null,
+      sentBy: t.sentBy?.name ?? null,
+      receivedAt: t.receivedAt?.toISOString() ?? null,
+      receivedBy: t.receivedBy?.name ?? null,
+      receipts: t.receipts.map((r) => ({
+        id: r.id,
+        receivedBy: r.receivedBy?.name ?? null,
+        note: r.note,
+        pieces: r.items.reduce((sum, i) => sum + i.quantity, 0),
+        createdAt: r.createdAt.toISOString(),
+      })),
+      adjustment: t.adjustment
+        ? { id: t.adjustment.id, number: t.adjustment.number, status: t.adjustment.status, totalValue: canViewCosts ? t.adjustment.totalValue.toFixed(2) : null }
+        : null,
     };
   }
 

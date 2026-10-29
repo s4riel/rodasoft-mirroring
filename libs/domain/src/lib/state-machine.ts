@@ -63,17 +63,30 @@ export type TransferEvent =
   | 'dispatch'
   | 'receivePartial'
   | 'receiveAll'
+  | 'close'
   | 'cancel';
 
 export const transferMachine = createMachine<TransferStatus, TransferEvent>({
   DRAFT: { send: 'IN_TRANSIT', requestApproval: 'PENDING_APPROVAL', cancel: 'CANCELLED' },
   PENDING_APPROVAL: { approve: 'APPROVED', reject: 'REJECTED' },
   APPROVED: { dispatch: 'IN_TRANSIT', cancel: 'CANCELLED' },
-  IN_TRANSIT: { receivePartial: 'PARTIALLY_RECEIVED', receiveAll: 'RECEIVED' },
-  PARTIALLY_RECEIVED: { receivePartial: 'PARTIALLY_RECEIVED', receiveAll: 'RECEIVED' },
+  // cancelling a sent transfer gives the pieces back to the origin; once some arrived (PARTIALLY_RECEIVED) it is closed instead
+  IN_TRANSIT: { receivePartial: 'PARTIALLY_RECEIVED', receiveAll: 'RECEIVED', close: 'RECEIVED', cancel: 'CANCELLED' },
+  PARTIALLY_RECEIVED: { receivePartial: 'PARTIALLY_RECEIVED', receiveAll: 'RECEIVED', close: 'RECEIVED' },
   RECEIVED: {},
   REJECTED: {},
   CANCELLED: {},
+});
+
+// ── Stock adjustment document (HU-INV-21 creates it; HU-INV-23 approves it) ──
+export type StockAdjustmentStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+export type StockAdjustmentEvent = 'approve' | 'reject';
+
+/** Only used to create documents for now: HU-INV-23 drives the transitions. */
+export const stockAdjustmentMachine = createMachine<StockAdjustmentStatus, StockAdjustmentEvent>({
+  PENDING_APPROVAL: { approve: 'APPROVED', reject: 'REJECTED' },
+  APPROVED: {},
+  REJECTED: {},
 });
 
 // ── SIAT invoice (invoicing close plan) ──

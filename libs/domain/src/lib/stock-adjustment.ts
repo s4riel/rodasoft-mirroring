@@ -17,6 +17,9 @@ export const ADJUSTMENT_REASON_LABELS: Record<AdjustmentReason, string> = {
 export const ADJUSTMENT_REF_TYPE = 'ADJUSTMENT';
 export const ADJUSTMENT_NUMBER_PREFIX = 'AJ-';
 
+/** Reason of the adjustment that a transfer receipt with differences creates (HU-INV-21). */
+export const TRANSFER_DIFFERENCE_REASON = 'Diferencia en transferencia';
+
 /** Longest note the movement reason can carry next to the reason label. */
 export const ADJUSTMENT_NOTE_MAX = 200;
 
