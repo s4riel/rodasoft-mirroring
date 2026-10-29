@@ -15,11 +15,13 @@ const OPTIONS: SelectOption<string>[] = [
     <rs-select id="a" inputId="branch" placeholder="Selecciona" [options]="options" [formControl]="control" />
     <rs-select id="b" [options]="options" [open]="true" [invalid]="true" [value]="'sur'" />
     <rs-select id="c" [options]="options" disabled />
+    <rs-select id="d" floating [options]="options" [formControl]="floatingControl" />
   `,
 })
 class HostComponent {
   readonly options = OPTIONS;
   readonly control = new FormControl<string | null>(null);
+  readonly floatingControl = new FormControl<string | null>(null);
 }
 
 describe('SelectComponent', () => {
@@ -42,6 +44,22 @@ describe('SelectComponent', () => {
     expect(button.getAttribute('id')).toBe('branch');
     expect(button.getAttribute('aria-expanded')).toBe('false');
     expect(button.textContent).toContain('Selecciona');
+  });
+
+  it('floating: dibuja la lista fija al viewport bajo el campo y se cierra al hacer scroll', async () => {
+    const { el, trigger, fixture } = await setup();
+    trigger('d').click();
+    await fixture.whenStable();
+    const menu = el.querySelector('#d ul[role="listbox"]') as HTMLElement;
+    expect(menu.classList.contains('floating')).toBe(true);
+    expect(menu.style.top).toMatch(/px$/);
+    expect(menu.style.width).toMatch(/px$/);
+    // a scroll of the menu itself does not close it, the page's scroll does
+    menu.dispatchEvent(new Event('scroll'));
+    expect(el.querySelector('#d ul[role="listbox"]')).not.toBeNull();
+    document.dispatchEvent(new Event('scroll'));
+    await fixture.whenStable();
+    expect(el.querySelector('#d ul[role="listbox"]')).toBeNull();
   });
 
   it('abre con clic, marca la seleccionada y lista las opciones', async () => {

@@ -33,7 +33,7 @@ export class InventoryLayoutPage {
     { key: 'equivalences', label: 'Equivalencias', route: '/inventory/equivalences' },
     { key: 'warehouses', label: 'Almacenes', route: '/inventory/warehouses' },
     { key: 'transfers', label: 'Transferencias', route: '/inventory/transfers', badge: this.openTransfers() || undefined },
-    { key: 'adjustments', label: 'Ajustes', disabled: true },
+    { key: 'adjustments', label: 'Ajustes', route: '/inventory/adjustments' },
     { key: 'kardex', label: 'Kardex', disabled: true },
   ]);
 

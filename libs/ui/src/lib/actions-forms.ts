@@ -5,6 +5,8 @@ export * from './input/input.component';
 export * from './input/numeric-input.directive';
 export * from './textarea/textarea.component';
 export * from './select/select.component';
+export * from './date-range-picker/date-range';
+export * from './date-range-picker/date-range-picker.component';
 export * from './field/field.component';
 export * from './checkbox/checkbox.component';
 export * from './radio/radio.component';

@@ -31,6 +31,13 @@ export interface SelectOption<T = unknown> {
 
 let nextSelectId = 0;
 
+/** Sizes of the list, mirrored from the scss, to know whether it fits below the trigger. */
+const MENU_MAX_HEIGHT = 288;
+const OPTION_HEIGHT = 33;
+const MENU_PADDING = 24;
+const MENU_GAP = 4;
+const FLOATING_MARGIN = 8;
+
 /**
  * Figma: Select (State = Default | Hover | Pressed | Focus | Error | Disabled, Open = Closed | Open).
  * Custom listbox (WAI-ARIA combobox + listbox) with keyboard support and ControlValueAccessor.
@@ -67,6 +74,8 @@ export class SelectComponent implements ControlValueAccessor {
   readonly disabled = input(false, { transform: booleanAttribute });
   /** Figma ShowLeadingIcon: glyph name rendered at 16 px before the value. */
   readonly leadingIcon = input<IconName | null>(null);
+  /** Draws the list fixed to the viewport so it is not clipped inside a table or any scroll container. */
+  readonly floating = input(false, { transform: booleanAttribute });
   /** id of the trigger button; must match `rs-field`'s `forId`. */
   readonly inputId = input<string>(`rs-select-${nextSelectId++}`);
   /** Accessible name when there is no associated label. */
@@ -74,6 +83,8 @@ export class SelectComponent implements ControlValueAccessor {
 
   protected readonly listId = `rs-select-list-${nextSelectId++}`;
   protected readonly activeIndex = signal(-1);
+  /** Position of a floating list, in viewport pixels. */
+  protected readonly menuStyle = signal<Record<string, string>>({});
   private readonly cvaDisabled = signal(false);
   protected readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
 
@@ -118,14 +129,50 @@ export class SelectComponent implements ControlValueAccessor {
     if (this.isDisabled() || this.open()) return;
     const selected = this.selectedIndex();
     this.activeIndex.set(selected >= 0 && !this.options()[selected]?.disabled ? selected : this.step(-1, 1));
+    if (this.floating()) this.placeMenu();
     this.open.set(true);
   }
 
   private close(): void {
     if (!this.open()) return;
     this.open.set(false);
+    this.stopFollowing();
     this.onTouched();
   }
+
+  /**
+   * Floating menu: fixed to the viewport under the trigger (or over it when there is no room below), so a scroll container
+   * or an `overflow: hidden` ancestor, such as a table, cannot clip it. It closes when the page scrolls or resizes.
+   */
+  private placeMenu(): void {
+    const rect = this.host.nativeElement.getBoundingClientRect();
+    const view = this.host.nativeElement.ownerDocument.defaultView;
+    const height = view?.innerHeight ?? 0;
+    const below = height - rect.bottom - FLOATING_MARGIN;
+    const above = rect.top - FLOATING_MARGIN;
+    const wanted = Math.min(MENU_MAX_HEIGHT, this.options().length * OPTION_HEIGHT + MENU_PADDING);
+    const openUp = below < wanted && above > below;
+    this.menuStyle.set({
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      maxHeight: `${Math.min(MENU_MAX_HEIGHT, openUp ? above : below)}px`,
+      ...(openUp ? { bottom: `${height - rect.top + MENU_GAP}px` } : { top: `${rect.bottom + MENU_GAP}px` }),
+    });
+    const onMove = (event: Event) => {
+      // the menu's own scroll is not the page moving
+      if (event.target instanceof Node && this.host.nativeElement.contains(event.target)) return;
+      this.close();
+    };
+    view?.addEventListener('scroll', onMove, true);
+    view?.addEventListener('resize', onMove);
+    this.stopFollowing = () => {
+      view?.removeEventListener('scroll', onMove, true);
+      view?.removeEventListener('resize', onMove);
+      this.stopFollowing = () => undefined;
+    };
+  }
+
+  private stopFollowing: () => void = () => undefined;
 
   protected onBlur(): void {
     // Touched only when the list is not open (clicking an option keeps focus on the trigger).

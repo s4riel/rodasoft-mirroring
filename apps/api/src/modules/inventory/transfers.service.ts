@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  PayloadTooLargeException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -17,7 +16,6 @@ import {
   parseMeasurement,
   parseTransferNumber,
   parseTransferPaste,
-  TRANSFER_FILE_MAX_BYTES,
   TRANSFER_LINE_QUANTITY_MAX,
   TRANSFER_OPEN_STATUSES,
   TRANSFER_PAGE_SIZE_DEFAULT,
@@ -37,7 +35,6 @@ import {
   transferMachine,
   validateTransferLines,
 } from '@rodasoft/domain';
-import ExcelJS from 'exceljs';
 import { ClsService } from 'nestjs-cls';
 import { type AuditEntry, AuditService } from '../../common/audit/audit.service';
 import type { AppClsStore } from '../../common/cls';
@@ -45,14 +42,12 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { PrismaService, type TenantTransaction } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../../common/settings/settings.service';
 import { MembershipService } from '../access/membership.service';
+import { dayStart, nextDayStart } from './business-days';
+import { type ListUploadFile, readListFile } from './list-file';
 import { StockMovementService } from './stock-movement.service';
 import type { CancelTransferDto, ListTransfersQueryDto, ProductSearchQueryDto, ResolveLinesDto, SaveTransferDto, SendTransferDto } from './transfers.dto';
 
-export interface TransferUploadFile {
-  buffer: Buffer;
-  size: number;
-  originalname: string;
-}
+export type TransferUploadFile = ListUploadFile;
 
 interface ProductInfo {
   id: string;
@@ -77,9 +72,6 @@ interface TransferTotals {
   value: string;
 }
 
-const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
-/** A sheet with more rows than this is not a product list; it also keeps a far-away cell from making the reader walk empty rows. */
-const SHEET_ROW_CEILING = 20_000;
 const PRODUCT_SEARCH_LIMIT = 10;
 const WAREHOUSE_SELECT = { id: true, name: true, branch: { select: { id: true, name: true } } } as const;
 
@@ -310,7 +302,7 @@ export class TransfersService {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field: 'text', code: 'TEXT_OR_FILE_REQUIRED' }] });
     }
 
-    const text = file ? await readListFile(file) : (dto.text ?? '');
+    const text = file ? await readListFile(file, 2) : (dto.text ?? '');
     const { rows, errors } = parseTransferPaste(text);
     const maxLines = await this.settings.get('transfers.maxLines');
     if (rows.length > maxLines) {
@@ -950,18 +942,6 @@ function visibleTo(allowed: string[] | null): Prisma.TransferWhereInput {
   return allowed ? { OR: [{ originWarehouse: { branchId: { in: allowed } } }, { destinationWarehouse: { branchId: { in: allowed } } }] } : {};
 }
 
-/** Business days are La Paz days (UTC-4, no daylight saving), not the server's. */
-const LA_PAZ_OFFSET = '-04:00';
-
-function dayStart(value: string): Date {
-  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00${LA_PAZ_OFFSET}` : value);
-}
-
-function nextDayStart(value: string): Date {
-  const start = dayStart(value);
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(start.getTime() + 24 * 60 * 60 * 1000) : start;
-}
-
 /** Runs a domain rule and turns the `TransferError` it throws into a 422 with the same code. */
 function asHttpRule(rule: () => void): void {
   try {
@@ -979,52 +959,4 @@ function invalidTransition(from: TransferStatus, event: string): UnprocessableEn
 function codeOf(err: UnprocessableEntityException): string | undefined {
   const body = err.getResponse();
   return typeof body === 'object' && body !== null && 'code' in body ? String((body as { code: unknown }).code) : undefined;
-}
-
-/**
- * The text of an uploaded list: an .xlsx gives its first sheet's first two columns, one `code<TAB>quantity` line per row;
- * anything else is read as CSV text, which `parseTransferPaste` splits the same way as a paste.
- */
-async function readListFile(file: TransferUploadFile): Promise<string> {
-  if (file.size > TRANSFER_FILE_MAX_BYTES || file.buffer.length > TRANSFER_FILE_MAX_BYTES) {
-    throw new PayloadTooLargeException({ code: 'FILE_TOO_LARGE', message: 'The file is larger than the limit' });
-  }
-  if (file.buffer.length >= ZIP_MAGIC.length && file.buffer.subarray(0, ZIP_MAGIC.length).equals(ZIP_MAGIC)) {
-    const workbook = new ExcelJS.Workbook();
-    try {
-      await workbook.xlsx.load(file.buffer as unknown as ArrayBuffer);
-    } catch {
-      throw new BadRequestException({ code: 'FILE_INVALID', message: 'The file cannot be read as an Excel workbook' });
-    }
-    const sheet = workbook.worksheets[0];
-    if (!sheet || sheet.rowCount > SHEET_ROW_CEILING) {
-      throw new BadRequestException({ code: 'FILE_INVALID', message: 'The sheet is empty or too long' });
-    }
-    const lines: string[] = [];
-    for (let n = 1; n <= sheet.rowCount; n++) {
-      const row = sheet.getRow(n);
-      const [code, quantity] = [cellText(row.getCell(1).value), cellText(row.getCell(2).value)];
-      if (code || quantity) lines.push(`${code}\t${quantity}`);
-    }
-    return lines.join('\n');
-  }
-  if (file.buffer.includes(0)) {
-    throw new BadRequestException({ code: 'FILE_INVALID', message: 'Only .xlsx and .csv files are accepted' });
-  }
-  const text = file.buffer.toString('utf8');
-  // a BOM is how Excel marks a UTF-8 CSV; it is not part of the first code
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
-
-/** A cell as the text the user sees: numbers lose Excel's float noise, formulas give their result, rich text is joined. */
-function cellText(value: ExcelJS.CellValue | undefined): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value.trim();
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  if ('richText' in value) return value.richText.map((part) => part.text).join('').trim();
-  if ('result' in value) return cellText(value.result as ExcelJS.CellValue);
-  if ('text' in value) return String(value.text).trim();
-  return '';
 }
