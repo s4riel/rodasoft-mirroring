@@ -2,7 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 export type FlagCountry =
-  'DE' | 'CN' | 'JP' | 'SE' | 'US' | 'ES' | 'IT' | 'FR' | 'BR' | 'BO' | 'AR' | 'IN' | 'KR' | 'TW';
+  | 'DE' | 'CN' | 'JP' | 'SE' | 'US' | 'ES' | 'IT' | 'FR' | 'BR' | 'BO' | 'AR' | 'IN' | 'KR' | 'TW'
+  // not in the Figma set: origins of the catalog's brands and suppliers
+  | 'AT' | 'CH' | 'GB' | 'PL' | 'RO' | 'CZ' | 'NL' | 'PT' | 'MX' | 'CL' | 'PE' | 'CO' | 'PY' | 'TR' | 'RU';
 
 export const FLAG_COUNTRIES: readonly FlagCountry[] = [
   'DE',
@@ -19,6 +21,21 @@ export const FLAG_COUNTRIES: readonly FlagCountry[] = [
   'IN',
   'KR',
   'TW',
+  'AT',
+  'CH',
+  'GB',
+  'PL',
+  'RO',
+  'CZ',
+  'NL',
+  'PT',
+  'MX',
+  'CL',
+  'PE',
+  'CO',
+  'PY',
+  'TR',
+  'RU',
 ];
 
 /** Regular star polygon points (5 points) centred on (cx, cy). */
@@ -67,10 +84,26 @@ const FLAG_ART: Record<FlagCountry, string> = {
   IN: '<rect width="20" height="4.67" fill="#FF9933"/><rect y="4.67" width="20" height="4.67" fill="#FFFFFF"/><rect y="9.33" width="20" height="4.67" fill="#138808"/><circle cx="10" cy="7" r="1.6" fill="none" stroke="#000080" stroke-width="0.4"/><circle cx="10" cy="7" r="0.3" fill="#000080"/>',
   KR: '<rect width="20" height="14" fill="#FFFFFF"/><path d="M6.6 7a3.4 3.4 0 0 1 6.8 0Z" fill="#CD2E3A"/><path d="M13.4 7a3.4 3.4 0 0 1-6.8 0Z" fill="#0047A0"/><g stroke="#000000" stroke-width="0.7"><path d="M2.4 2.2l2 -1.4M3 3.2l2 -1.4"/><path d="M15.6 11.8l2 -1.4M15 10.8l2 -1.4"/><path d="M15.6 2.2l2 1.4M15 1.8l2 1.4"/><path d="M2.4 11.8l2 1.4M3 10.8l2 1.4"/></g>',
   TW: '<rect width="20" height="14" fill="#FE0000"/><rect width="10" height="7" fill="#000095"/><circle cx="5" cy="3.5" r="1.6" fill="#FFFFFF"/><circle cx="5" cy="3.5" r="1.1" fill="#000095"/><circle cx="5" cy="3.5" r="0.75" fill="#FFFFFF"/>',
+  AT: '<rect width="20" height="14" fill="#ED2939"/><rect y="4.67" width="20" height="4.67" fill="#FFFFFF"/>',
+  CH: '<rect width="20" height="14" fill="#DA291C"/><rect x="5.5" y="5.6" width="9" height="2.8" fill="#FFFFFF"/><rect x="8.6" y="2.5" width="2.8" height="9" fill="#FFFFFF"/>',
+  GB: '<rect width="20" height="14" fill="#012169"/><path d="M0 0L20 14M20 0L0 14" stroke="#FFFFFF" stroke-width="2.8"/><path d="M0 0L20 14M20 0L0 14" stroke="#C8102E" stroke-width="0.9"/><path d="M10 0V14M0 7H20" stroke="#FFFFFF" stroke-width="4.6"/><path d="M10 0V14M0 7H20" stroke="#C8102E" stroke-width="2.8"/>',
+  PL: '<rect width="20" height="14" fill="#FFFFFF"/><rect y="7" width="20" height="7" fill="#DC143C"/>',
+  RO: '<rect width="6.67" height="14" fill="#002B7F"/><rect x="6.67" width="6.67" height="14" fill="#FCD116"/><rect x="13.33" width="6.67" height="14" fill="#CE1126"/>',
+  CZ: '<rect width="20" height="14" fill="#FFFFFF"/><rect y="7" width="20" height="7" fill="#D7141A"/><polygon points="0,0 10,7 0,14" fill="#11457E"/>',
+  NL: '<rect width="20" height="4.67" fill="#AE1C28"/><rect y="4.67" width="20" height="4.67" fill="#FFFFFF"/><rect y="9.33" width="20" height="4.67" fill="#21468B"/>',
+  PT: '<rect width="20" height="14" fill="#FF0000"/><rect width="8" height="14" fill="#006600"/><circle cx="8" cy="7" r="2.2" fill="#FFE900"/><circle cx="8" cy="7" r="1.3" fill="#FF0000"/>',
+  MX: '<rect width="6.67" height="14" fill="#006847"/><rect x="6.67" width="6.67" height="14" fill="#FFFFFF"/><rect x="13.33" width="6.67" height="14" fill="#CE1126"/><circle cx="10" cy="7" r="1.5" fill="#8C6B3A"/>',
+  CL: `<rect width="20" height="14" fill="#FFFFFF"/><rect y="7" width="20" height="7" fill="#D52B1E"/><rect width="7" height="7" fill="#0039A6"/><polygon points="${star(3.5, 3.6, 1.9)}" fill="#FFFFFF"/>`,
+  PE: '<rect width="20" height="14" fill="#FFFFFF"/><rect width="6.67" height="14" fill="#D91023"/><rect x="13.33" width="6.67" height="14" fill="#D91023"/>',
+  CO: '<rect width="20" height="14" fill="#FCD116"/><rect y="7" width="20" height="3.5" fill="#003893"/><rect y="10.5" width="20" height="3.5" fill="#CE1126"/>',
+  PY: '<rect width="20" height="4.67" fill="#D52B1E"/><rect y="4.67" width="20" height="4.67" fill="#FFFFFF"/><rect y="9.33" width="20" height="4.67" fill="#0038A8"/>',
+  TR: `<rect width="20" height="14" fill="#E30A17"/><circle cx="7.4" cy="7" r="3.6" fill="#FFFFFF"/><circle cx="8.3" cy="7" r="2.9" fill="#E30A17"/><polygon points="${star(11.6, 7, 1.5, -90)}" fill="#FFFFFF"/>`,
+  RU: '<rect width="20" height="4.67" fill="#FFFFFF"/><rect y="4.67" width="20" height="4.67" fill="#0039A6"/><rect y="9.33" width="20" height="4.67" fill="#D52B1E"/>',
 };
 
 /**
- * Country flag (Figma: Flag Country=DE|CN|JP|SE|US|ES|IT|FR|BR|BO|AR|IN|KR|TW). 20x14, radius 2, 1px border.
+ * Country flag (Figma: Flag Country=DE|CN|JP|SE|US|ES|IT|FR|BR|BO|AR|IN|KR|TW; the rest are catalog additions
+ * drawn in the same style). 20x14, radius 2, 1px border. A country without artwork is not drawn: the screen shows its code.
  * Scale it with `--rs-flag-border` + width/height on the host (ChipMedia and FieldMedia do).
  */
 @Component({

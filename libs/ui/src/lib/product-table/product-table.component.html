@@ -29,9 +29,10 @@
           <span class="brand-name">{{ row.brandName }}</span>
           @if (row.country) {
             <rs-flag [country]="row.country" />
-            @if (row.countryName) {
-              <span class="country-name" [rsTooltip]="row.countryName">{{ row.countryName }}</span>
-            }
+          }
+          <!-- a country without flag artwork still shows its name -->
+          @if (row.countryName) {
+            <span class="country-name" [rsTooltip]="row.countryName">{{ row.countryName }}</span>
           }
         </span>
       </div>

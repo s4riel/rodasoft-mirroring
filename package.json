@@ -22,8 +22,16 @@
     "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema apps/api/prisma/schema.prisma",
     "db:deploy": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
-    "db:seed": "tsx --tsconfig tsconfig.base.json --env-file=.env apps/api/prisma/seed.ts",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio --schema apps/api/prisma/schema.prisma",
+    "staging:db:deploy": "node tools/staging/with-env.mjs prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "staging:db:seed": "node tools/staging/with-env.mjs prisma db seed",
+    "staging:reset": "node tools/staging/with-env.mjs prisma migrate reset --force --skip-generate --schema apps/api/prisma/schema.prisma",
+    "staging:db:studio": "node tools/staging/with-env.mjs prisma studio --port 5556 --schema apps/api/prisma/schema.prisma",
+    "staging:api": "nx serve api -c staging",
+    "staging:worker": "nx serve worker -c staging",
+    "staging:erp": "nx serve erp -c staging",
+    "staging": "nx run-many -t serve -p api worker erp -c staging --parallel=3",
     "api:client": "nx run api-client:generate",
     "siat:spike": "tsx --tsconfig tsconfig.base.json --env-file=.env tools/siat-spike/spike.ts",
     "format": "prettier --write .",
@@ -137,5 +145,9 @@
       "msgpackr-extract",
       "nx"
     ]
+  },
+  "prisma": {
+    "schema": "apps/api/prisma/schema.prisma",
+    "seed": "tsx --tsconfig tsconfig.base.json apps/api/prisma/seed.ts"
   }
 }

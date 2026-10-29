@@ -18,6 +18,7 @@
       "options": { "buildTarget": "api:build", "runBuildTargetDependencies": false, "inspect": false },
       "configurations": {
         "development": { "buildTarget": "api:build:development" },
+        "staging": { "buildTarget": "api:build:development" },
         "production": { "buildTarget": "api:build:production" }
       }
     },

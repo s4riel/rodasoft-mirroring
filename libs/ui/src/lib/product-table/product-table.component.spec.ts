@@ -72,6 +72,12 @@ describe('ProductTableComponent', () => {
     expect(el.querySelectorAll('rs-product-thumb')[1].querySelector('rs-icon')).not.toBeNull();
   });
 
+  it('shows the country name even when the country has no flag', () => {
+    const el: HTMLElement = setup([row({ country: null, countryName: 'Austria' })]).nativeElement;
+    expect(el.querySelector('.brand rs-flag')).toBeNull();
+    expect(el.querySelector('.brand .country-name')?.textContent).toContain('Austria');
+  });
+
   it('shows the brand logo instead of the initials when there is one', () => {
     const el: HTMLElement = setup([row({ brandLogoUrl: 'https://img.test/skf.svg' })]).nativeElement;
     expect(el.querySelector('img.logo')).not.toBeNull();
