@@ -307,7 +307,8 @@ describe('TransfersService (integration, real Postgres)', () => {
       expect((await service.list({ q: 'Norte', pageSize: 100 })).items.map((i) => i.id)).toEqual(expect.arrayContaining([draft.id, other.id]));
       expect((await service.list({ q: 'no-such-branch' })).total).toBe(0);
 
-      const today = new Date().toISOString().slice(0, 10);
+      // the list filters by business day (America/La_Paz, UTC-4), which is not the UTC date in the evening
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz' }).format(new Date());
       expect((await service.list({ from: today, to: today, pageSize: 100 })).total).toBeGreaterThanOrEqual(2);
       expect(await codeOf(service.list({ from: '2026-02-02', to: '2026-01-01' }))).toBe('INVALID_FILTER');
 
