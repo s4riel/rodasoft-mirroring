@@ -1,0 +1,28 @@
+{
+  "_comment": "Ordered rules: the first one whose `match` (case-insensitive regex on the accent-free product type of the inventory file) fits wins. `category` is a root category, `subcategory` a child of it (null = the product sits in the root). Review this table before running prepare-reference-data.",
+  "rules": [
+    { "match": "CRUCETA|TRICETA", "category": "Crucetas y tricetas", "subcategory": null, "icon": "wrench" },
+    { "match": "CHUMACERA|SOPORTES? DE PIE|ANILLOS? DE FIJACION|SEGUROS? DE RODAMIENTOS DE PALIER|^RETEN DE CHUMACERA", "category": "Chumaceras y soportes", "subcategory": null, "icon": "warehouse" },
+    { "match": "MANGUITO", "category": "Manguitos", "subcategory": null, "icon": "package" },
+    { "match": "^RETEN", "category": "Retenes y sellos", "subcategory": null, "icon": "seal" },
+    { "match": "^HERRAMIENTAS", "category": "Herramientas", "subcategory": null, "icon": "wrench" },
+    { "match": "^BOLAS EN", "category": "Accesorios", "subcategory": null, "icon": "package" },
+    { "match": "^JUEGO ROD|^ROD\\. ESFERICO RETEN", "category": "Rodamientos", "subcategory": "Kits y juegos", "icon": "bearing" },
+    { "match": "HUB|MACEROS", "category": "Rodamientos", "subcategory": "Ruedas y cubos", "icon": "bearing" },
+    { "match": "DE RUEDAS|RUEDAS", "category": "Rodamientos", "subcategory": "Ruedas y cubos", "icon": "bearing" },
+    { "match": "EMBRAGUE|DESPLASADOR", "category": "Rodamientos", "subcategory": "Embrague", "icon": "bearing" },
+    { "match": "POLEA|TENSOR", "category": "Rodamientos", "subcategory": "Poleas y tensores", "icon": "bearing" },
+    { "match": "(^|[^A-Z])DIRECCION([^A-Z]|$)", "category": "Rodamientos", "subcategory": "Dirección", "icon": "bearing" },
+    { "match": "BOMBA DE AGUA|CARDAN|RASTRA|LINEALES", "category": "Rodamientos", "subcategory": "Aplicaciones especiales", "icon": "bearing" },
+    { "match": "AGUJA|CANASTILLO", "category": "Rodamientos", "subcategory": "Agujas", "icon": "bearing" },
+    { "match": "ROD(ILLO)?\\.? CONICO", "category": "Rodamientos", "subcategory": "Rodillos cónicos", "icon": "bearing" },
+    { "match": "CILINDRICO", "category": "Rodamientos", "subcategory": "Rodillos cilíndricos", "icon": "bearing" },
+    { "match": "ESFERICO", "category": "Rodamientos", "subcategory": "Esféricos de rodillos", "icon": "bearing" },
+    { "match": "ROTULA", "category": "Rodamientos", "subcategory": "Rótulas", "icon": "bearing" },
+    { "match": "OSCILANTES", "category": "Rodamientos", "subcategory": "Oscilantes de bolas", "icon": "bearing" },
+    { "match": "CONT\\. ?ANG", "category": "Rodamientos", "subcategory": "Contacto angular", "icon": "bearing" },
+    { "match": "APOYO", "category": "Rodamientos", "subcategory": "Axiales de bolas", "icon": "bearing" },
+    { "match": "RIGIDOS", "category": "Rodamientos", "subcategory": "Rígidos de bolas", "icon": "bearing" },
+    { "match": ".*", "category": "Rodamientos", "subcategory": "Especiales", "icon": "bearing" }
+  ]
+}
