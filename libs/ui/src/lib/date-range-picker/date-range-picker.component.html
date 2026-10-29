@@ -14,7 +14,7 @@
   <rs-icon class="chevron" name="chevron-down" [size]="16" />
 </button>
 @if (open()) {
-  <div class="panel" role="dialog" [id]="panelId" [attr.aria-label]="ariaLabel() || null">
+  <div class="panel" role="dialog" [style]="panelStyle()" [id]="panelId" [attr.aria-label]="ariaLabel() || null">
     <div class="side">
       <ul class="presets">
         @for (preset of presets; track preset) {

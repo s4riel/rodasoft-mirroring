@@ -3,11 +3,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  afterNextRender,
+  effect,
   ElementRef,
   inject,
+  Injector,
   input,
   model,
   signal,
+  untracked,
 } from '@angular/core';
 import { IconComponent } from '../icon/icon.component';
 import { IconName } from '../icon/icons';
@@ -27,6 +31,12 @@ import {
 } from './date-range';
 
 let nextPickerId = 0;
+
+/** Size of the panel before it is measured, and its distance to the viewport edge and to the field. */
+const ESTIMATED_WIDTH = 480;
+const ESTIMATED_HEIGHT = 340;
+const VIEWPORT_MARGIN = 8;
+const PANEL_GAP = 4;
 
 /**
  * Figma: DateRangePicker (Open = Closed | Open).
@@ -51,6 +61,7 @@ let nextPickerId = 0;
 })
 export class DateRangePickerComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   /** Applied range (two-way). */
   readonly value = model<DateRangeValue>(EMPTY_DATE_RANGE);
@@ -88,6 +99,57 @@ export class DateRangePickerComponent {
   protected readonly monthTitle = computed(() => `${MONTH_NAMES[this.view().month]} ${this.view().year}`);
   protected readonly weeks = computed<CalendarDay[][]>(() => monthGrid(this.view().year, this.view().month));
   protected readonly canApply = computed(() => !!this.draft().from);
+
+  /** Position of the panel in viewport pixels: under the field when it fits, over it when not, and never off the screen. */
+  protected readonly panelStyle = signal<Record<string, string>>({});
+  private stopFollowing: () => void = () => undefined;
+
+  constructor() {
+    effect(() => {
+      if (!this.open()) {
+        this.stopFollowing();
+        return;
+      }
+      untracked(() => {
+        this.placePanel();
+        // measured once it is drawn, so a panel narrower or wider than the estimate still ends inside the screen
+        afterNextRender(() => this.placePanel(), { injector: this.injector });
+        this.followPage();
+      });
+    });
+  }
+
+  private placePanel(): void {
+    const el = this.host.nativeElement;
+    const view = el.ownerDocument.defaultView;
+    if (!view) return;
+    const field = el.getBoundingClientRect();
+    const panel = el.querySelector<HTMLElement>('.panel');
+    const width = panel?.offsetWidth || ESTIMATED_WIDTH;
+    const height = panel?.offsetHeight || ESTIMATED_HEIGHT;
+    const left = Math.max(VIEWPORT_MARGIN, Math.min(field.left, view.innerWidth - width - VIEWPORT_MARGIN));
+    const below = view.innerHeight - field.bottom - VIEWPORT_MARGIN;
+    const above = field.top - VIEWPORT_MARGIN;
+    const top = height > below && above > below ? Math.max(VIEWPORT_MARGIN, field.top - height - PANEL_GAP) : field.bottom + PANEL_GAP;
+    this.panelStyle.set({ left: `${left}px`, top: `${top}px` });
+  }
+
+  /** The panel is fixed to the viewport, so it closes when the page scrolls or resizes instead of floating away from its field. */
+  private followPage(): void {
+    this.stopFollowing();
+    const view = this.host.nativeElement.ownerDocument.defaultView;
+    const onMove = (event: Event) => {
+      if (event.target instanceof Node && this.host.nativeElement.contains(event.target)) return;
+      this.open.set(false);
+    };
+    view?.addEventListener('scroll', onMove, true);
+    view?.addEventListener('resize', onMove);
+    this.stopFollowing = () => {
+      view?.removeEventListener('scroll', onMove, true);
+      view?.removeEventListener('resize', onMove);
+      this.stopFollowing = () => undefined;
+    };
+  }
 
   protected toggle(): void {
     if (this.disabled()) return;

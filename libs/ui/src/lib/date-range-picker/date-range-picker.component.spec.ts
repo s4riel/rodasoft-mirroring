@@ -75,4 +75,16 @@ describe('DateRangePickerComponent', () => {
     expect(el.querySelector('.panel')).toBeNull();
     expect(fixture.componentInstance.range()).toEqual({ from: null, to: null });
   });
+
+  it('keeps the panel inside the screen when the field is near the right edge, and closes it on page scroll', async () => {
+    const { fixture, el, click } = await setup();
+    const host = el.querySelector('rs-date-range-picker') as HTMLElement;
+    host.getBoundingClientRect = () => ({ left: window.innerWidth - 100, right: window.innerWidth, top: 100, bottom: 144, width: 100, height: 44, x: 0, y: 0, toJSON: () => ({}) });
+    await click(el.querySelector('.control'));
+    const panel = el.querySelector('.panel') as HTMLElement;
+    expect(panel.style.left).toBe(`${window.innerWidth - 480 - 8}px`);
+    document.dispatchEvent(new Event('scroll'));
+    await fixture.whenStable();
+    expect(el.querySelector('.panel')).toBeNull();
+  });
 });
