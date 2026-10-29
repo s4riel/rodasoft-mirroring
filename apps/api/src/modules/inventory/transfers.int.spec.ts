@@ -560,15 +560,11 @@ describe('TransfersService (integration, real Postgres)', () => {
       expect(await base.stockMovement.count({ where: { refId: draft.id } })).toBe(0);
     });
 
-    it('cancels a draft, and refuses to cancel one that is already in transit', async () => {
+    it('cancels a draft without touching stock', async () => {
       const p = await productWithStock(5);
       const draft = await save([{ productId: p.id, quantity: 1 }]);
       expect((await service.cancel(draft.id)).status).toBe('CANCELLED');
       expect(await base.auditLog.count({ where: { companyId, action: 'inventory.transfer.cancel', entityId: draft.id } })).toBe(1);
-
-      const sent = await save([{ productId: p.id, quantity: 1 }]);
-      await service.send(sent.id, {});
-      expect(await codeOf(service.cancel(sent.id))).toBe('INVALID_TRANSITION');
     });
   });
 

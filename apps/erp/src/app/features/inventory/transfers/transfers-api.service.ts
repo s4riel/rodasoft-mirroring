@@ -1,10 +1,12 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
+  TransferCloseInput,
   TransferDetail,
   TransferListResponse,
   TransferOpenCountResponse,
   TransferProductSearchResponse,
+  TransferReceiptInput,
   TransferResolveResponse,
   TransferSaveInput,
   TransferStatus,
@@ -37,6 +39,15 @@ export class TransfersApi {
       if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
     }
     return this.http.get<TransferListResponse>(BASE, { params });
+  }
+
+  /** IN-24a · Transfers on their way to a branch the user operates (in transit or partially received). */
+  incoming(query: TransferListQuery): Observable<TransferListResponse> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
+    }
+    return this.http.get<TransferListResponse>(`${BASE}/incoming`, { params });
   }
 
   /** The count on the Transferencias tab: transfers still open that the user can see. */
@@ -83,7 +94,18 @@ export class TransfersApi {
     return this.http.post<TransferDetail>(`${BASE}/${id}/send`, { expectedUpdatedAt });
   }
 
-  cancel(id: string): Observable<TransferDetail> {
-    return this.http.post<TransferDetail>(`${BASE}/${id}/cancel`, {});
+  /** Cancels a draft, or a sent transfer nothing has reached yet (its pieces go back to the origin). */
+  cancel(id: string, body: { expectedUpdatedAt?: string; reason?: string } = {}): Observable<TransferDetail> {
+    return this.http.post<TransferDetail>(`${BASE}/${id}/cancel`, body);
+  }
+
+  /** IN-24b · One receiving session: the pieces counted now, per product. */
+  receive(id: string, body: TransferReceiptInput): Observable<TransferDetail> {
+    return this.http.post<TransferDetail>(`${BASE}/${id}/receipts`, body);
+  }
+
+  /** IN-07 · Finishes the receipt, with the surplus; the differences become a pending adjustment. */
+  close(id: string, body: TransferCloseInput): Observable<TransferDetail> {
+    return this.http.post<TransferDetail>(`${BASE}/${id}/close`, body);
   }
 }

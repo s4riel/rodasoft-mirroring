@@ -17,14 +17,16 @@ import {
   SelectComponent,
   SelectOption,
   SkeletonComponent,
+  StatusPillComponent,
   ToastOutletComponent,
   ToastService,
+  TooltipDirective,
 } from '@rodasoft/ui';
 import { catchError, firstValueFrom, map, of, switchMap, tap } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
 import { ContextStore } from '../../../core/context.store';
 import { TransfersApi } from './transfers-api.service';
-import { parseStatus, rangeLabel, rowMenuOf, STATUS_OPTIONS, toCsv, toQuery, toRow, toTotals, TRANSFERS_PAGE_SIZE, TransferUrlFilters } from './transfers.mapper';
+import { parseStatus, pendingAdjustmentTooltip, rangeLabel, rowMenuOf, STATUS_OPTIONS, toCsv, toQuery, toRow, toTotals, TRANSFERS_PAGE_SIZE, TransferUrlFilters, TRANSFER_STATUS_PILLS } from './transfers.mapper';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
 type FilterKey = 'status' | 'originWarehouseId' | 'destinationWarehouseId';
@@ -40,7 +42,8 @@ const COLUMNS: DocTableColumn[] = [
   { key: 'detail', label: 'Detalle', type: 'text' },
   { key: 'products', label: 'Ítems', type: 'number', width: '6.25rem' },
   { key: 'date', label: 'Fecha', type: 'number', width: '8.125rem' },
-  { key: 'status', label: 'Estado', type: 'status', width: '10rem' },
+  // a custom cell: the pill, and a warning next to it when the receipt left an adjustment to review
+  { key: 'status', label: 'Estado', type: 'custom', width: '13rem' },
   { key: 'actions', label: '', type: 'custom', align: 'end', width: '3.5rem' },
 ];
 
@@ -61,7 +64,9 @@ const COLUMNS: DocTableColumn[] = [
     RouterLink,
     SelectComponent,
     SkeletonComponent,
+    StatusPillComponent,
     ToastOutletComponent,
+    TooltipDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './transfers.page.html',
@@ -197,6 +202,14 @@ export class TransfersPage {
       .subscribe((result) => this.show(result));
   }
 
+  protected pillOf(item: TransferListItem) {
+    return TRANSFER_STATUS_PILLS[item.status];
+  }
+
+  protected reviewTooltip(number: string): string {
+    return pendingAdjustmentTooltip(number);
+  }
+
   protected itemOf(rowId: string): TransferListItem | null {
     return this.items().find((i) => i.id === rowId) ?? null;
   }
@@ -204,6 +217,10 @@ export class TransfersPage {
   /** A draft opens in the editor; every other status opens the read-only detail. */
   protected linkOf(item: TransferListItem): string[] {
     return ['/inventory/transfers', item.id, ...(item.status === 'DRAFT' ? ['edit'] : [])];
+  }
+
+  protected openIncoming() {
+    void this.router.navigate(['/inventory/transfers/incoming']);
   }
 
   protected openNew() {

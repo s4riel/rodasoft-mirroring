@@ -17,7 +17,11 @@ export type OutboxType =
   | 'inventory.product-status-changed'
   | 'inventory.stock.changed'
   | 'inventory.warehouse.changed'
-  | 'inventory.transfer.sent';
+  | 'inventory.transfer.sent'
+  | 'inventory.transfer.cancelled'
+  | 'inventory.transfer.received_partial'
+  | 'inventory.transfer.received'
+  | 'inventory.adjustment.pending';
 
 type Tx = Prisma.TransactionClient | PrismaService | TenantTransaction;
 
@@ -37,7 +41,9 @@ export class OutboxService {
     payload: Record<string, unknown>,
     opts: { tx?: Tx; idempotencyKey?: string; companyId?: string | null; availableAt?: Date } = {},
   ) {
-    const tx = opts.tx ?? this.prisma;
+    // `outbox_events` is not a tenant model, so every client variant exposes the same delegate; the cast keeps the compiler
+    // from comparing the tenant-extended types, which grow with every tenant model
+    const tx = (opts.tx ?? this.prisma) as Prisma.TransactionClient;
     return tx.outboxEvent.create({
       data: {
         type,

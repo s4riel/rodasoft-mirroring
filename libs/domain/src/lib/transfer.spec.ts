@@ -1,11 +1,16 @@
 import {
+  applyReceiptSession,
   assertTransferLineCount,
   assertTransferWarehouses,
+  computeTransferDifferences,
   formatTransferNumber,
   isTransferEditable,
+  nextReceiptEvent,
   parseTransferNumber,
   parseTransferPaste,
+  totalDifferenceValue,
   TransferError,
+  validateSurplus,
   validateTransferLines,
 } from './transfer';
 
@@ -139,5 +144,77 @@ describe('parseTransferPaste', () => {
       { line: 2, code: '6205', quantity: 1 },
       { line: 3, code: '6204-x', quantity: 1 },
     ]);
+  });
+});
+
+describe('receipt sessions (HU-INV-21)', () => {
+  const lines = [
+    { productId: 'a', sent: 10, received: 0, unitCost: '5.0000' },
+    { productId: 'b', sent: 4, received: 1, unitCost: null },
+  ];
+  const codeOf = (fn: () => unknown) => {
+    try {
+      fn();
+      return null;
+    } catch (err) {
+      return err instanceof TransferError ? err.code : 'OTHER';
+    }
+  };
+
+  it('adds what was counted now to what each line already received', () => {
+    expect(applyReceiptSession(lines, [{ productId: 'a', quantity: 6 }, { productId: 'b', quantity: 0 }])).toEqual([
+      { productId: 'a', quantity: 6, received: 6 },
+    ]);
+  });
+
+  it('refuses a line above what was sent, counting earlier sessions', () => {
+    expect(codeOf(() => applyReceiptSession(lines, [{ productId: 'a', quantity: 11 }]))).toBe('RECEIPT_EXCEEDS_SENT');
+    expect(codeOf(() => applyReceiptSession(lines, [{ productId: 'b', quantity: 4 }]))).toBe('RECEIPT_EXCEEDS_SENT');
+    expect(applyReceiptSession(lines, [{ productId: 'b', quantity: 3 }])).toEqual([{ productId: 'b', quantity: 3, received: 4 }]);
+  });
+
+  it('refuses an empty session, unknown products, negative or repeated counts', () => {
+    expect(codeOf(() => applyReceiptSession(lines, []))).toBe('RECEIPT_EMPTY');
+    expect(codeOf(() => applyReceiptSession(lines, [{ productId: 'a', quantity: 0 }]))).toBe('RECEIPT_EMPTY');
+    expect(codeOf(() => applyReceiptSession(lines, [{ productId: 'zzz', quantity: 1 }]))).toBe('RECEIPT_LINE_INVALID');
+    expect(codeOf(() => applyReceiptSession(lines, [{ productId: 'a', quantity: -1 }]))).toBe('RECEIPT_LINE_INVALID');
+    expect(codeOf(() => applyReceiptSession(lines, [{ productId: 'a', quantity: 1.5 }]))).toBe('RECEIPT_LINE_INVALID');
+    expect(codeOf(() => applyReceiptSession(lines, [{ productId: 'a', quantity: 1 }, { productId: 'a', quantity: 1 }]))).toBe('RECEIPT_LINE_INVALID');
+  });
+
+  it('completes the transfer only when every line is received in full', () => {
+    expect(nextReceiptEvent([{ sent: 10, received: 6 }, { sent: 4, received: 4 }])).toBe('receivePartial');
+    expect(nextReceiptEvent([{ sent: 10, received: 10 }, { sent: 4, received: 4 }])).toBe('receiveAll');
+  });
+
+  it('accepts a surplus only on a line received in full', () => {
+    const closing = [
+      { productId: 'a', sent: 10, received: 8, unitCost: '5.0000' },
+      { productId: 'b', sent: 10, received: 10, unitCost: '2.5000' },
+    ];
+    expect(validateSurplus(closing, [{ productId: 'b', quantity: 2 }, { productId: 'a', quantity: 0 }])).toEqual(new Map([['b', 2]]));
+    expect(codeOf(() => validateSurplus(closing, [{ productId: 'a', quantity: 1 }]))).toBe('SURPLUS_NOT_ALLOWED');
+    expect(codeOf(() => validateSurplus(closing, [{ productId: 'zzz', quantity: 1 }]))).toBe('RECEIPT_LINE_INVALID');
+  });
+});
+
+describe('computeTransferDifferences', () => {
+  it('values shortages and surplus with Decimal and skips the lines that matched', () => {
+    const differences = computeTransferDifferences([
+      { productId: 'a', sent: 10, received: 8, surplus: 0, unitCost: '5.0000' },
+      { productId: 'b', sent: 10, received: 10, surplus: 2, unitCost: '1.2345' },
+      { productId: 'c', sent: 3, received: 3, surplus: 0, unitCost: '9.0000' },
+      { productId: 'd', sent: 5, received: 0, surplus: 0, unitCost: null },
+    ]);
+    expect(differences).toEqual([
+      { productId: 'a', kind: 'SHORTAGE', quantity: -2, unitCost: '5.0000', value: '10.00' },
+      { productId: 'b', kind: 'SURPLUS', quantity: 2, unitCost: '1.2345', value: '2.47' },
+      { productId: 'd', kind: 'SHORTAGE', quantity: -5, unitCost: null, value: '0.00' },
+    ]);
+    expect(totalDifferenceValue(differences)).toBe('12.47');
+  });
+
+  it('has no differences when everything matched', () => {
+    expect(computeTransferDifferences([{ productId: 'a', sent: 1, received: 1, surplus: 0, unitCost: '1.0000' }])).toEqual([]);
   });
 });

@@ -1,0 +1,49 @@
+<rs-modal variant="form" size="wide" closeLabel="Cerrar" heading="Diferencias de la recepción" [(open)]="open">
+  <div class="step">
+    @if (rows().length) {
+      <rs-doc-table size="md" tableLabel="Diferencias de la recepción" [columns]="columns()" [rows]="rows()" />
+    } @else {
+      <rs-note type="success" title="Sin diferencias">Todo lo enviado llegó completo. No se genera ningún ajuste.</rs-note>
+    }
+
+    @if (candidates().length) {
+      <div class="surplus">
+        <rs-field label="Producto con sobrante" forId="surplus-product" hint="Solo los productos recibidos completos pueden tener sobrante.">
+          <rs-select
+            inputId="surplus-product"
+            placeholder="Elige un producto"
+            ariaLabel="Producto con sobrante"
+            [options]="candidateOptions()"
+            [value]="surplusProductId()"
+            (valueChange)="selectProduct($event)"
+          />
+        </rs-field>
+        <rs-field label="Piezas de sobrante" forId="surplus-quantity">
+          <input
+            rsInput
+            rsNumeric="integer"
+            id="surplus-quantity"
+            class="quantity"
+            inputmode="numeric"
+            autocomplete="off"
+            [disabled]="!surplusProductId()"
+            [value]="surplusOfSelected() || ''"
+            (input)="onSurplus($event)"
+          />
+        </rs-field>
+      </div>
+    }
+
+    @if (rows().length) {
+      <rs-note type="info">Se generará un ajuste pendiente de aprobación. Mientras tanto no cambia el stock.</rs-note>
+    }
+    @if (error(); as message) {
+      <rs-note type="danger">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="actions">
+    <button rsButton variant="secondary" type="button" [disabled]="busy()" (click)="open.set(false)">Volver</button>
+    <button rsButton variant="brand" type="button" [loading]="busy()" (click)="confirm()">Confirmar</button>
+  </div>
+</rs-modal>

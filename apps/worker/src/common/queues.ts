@@ -22,6 +22,10 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'inventory.stock.changed': QUEUE.inventory,
   'inventory.warehouse.changed': QUEUE.inventory,
   'inventory.transfer.sent': QUEUE.inventory,
+  'inventory.transfer.cancelled': QUEUE.inventory,
+  'inventory.transfer.received_partial': QUEUE.inventory,
+  'inventory.transfer.received': QUEUE.inventory,
+  'inventory.adjustment.pending': QUEUE.inventory,
 };
 
 export const DEFAULT_JOB_OPTS = {

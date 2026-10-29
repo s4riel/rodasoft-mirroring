@@ -3,6 +3,8 @@ import {
   TRANSFER_LINE_QUANTITY_MAX,
   TRANSFER_NOTE_MAX,
   TRANSFER_PAGE_SIZE_MAX,
+  type TransferCloseInput,
+  type TransferReceiptInput,
   type TransferSaveInput,
   type TransferStatus,
 } from '@rodasoft/domain';
@@ -147,4 +149,79 @@ export class ResolveLinesDto {
   @IsString()
   @MaxLength(200_000)
   text?: string;
+}
+
+/** The pieces counted for one product: in a receiving session, the pieces that arrived now; at close, the surplus. */
+export class ReceiptLineDto {
+  @ApiProperty()
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ minimum: 0, maximum: TRANSFER_LINE_QUANTITY_MAX })
+  @IsInt()
+  @Min(0)
+  @Max(TRANSFER_LINE_QUANTITY_MAX)
+  quantity!: number;
+}
+
+export class ReceiveTransferDto implements TransferReceiptInput {
+  @ApiProperty({ type: [ReceiptLineDto], description: 'Pieces received now, per product; a session without pieces is refused' })
+  @IsArray()
+  @ArrayMaxSize(LINES_CEILING)
+  @ValidateNested({ each: true })
+  @Type(() => ReceiptLineDto)
+  lines!: ReceiptLineDto[];
+
+  @ApiPropertyOptional({ nullable: true, maxLength: TRANSFER_NOTE_MAX })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(TRANSFER_NOTE_MAX)
+  note?: string | null;
+
+  @ApiProperty({ description: 'The `updatedAt` the client read; the session is refused if the transfer changed since' })
+  @IsISO8601({ strict: true })
+  expectedUpdatedAt!: string;
+}
+
+export class CloseTransferDto implements TransferCloseInput {
+  @ApiPropertyOptional({ type: [ReceiptLineDto], description: 'Last count, applied as one more session before closing' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(LINES_CEILING)
+  @ValidateNested({ each: true })
+  @Type(() => ReceiptLineDto)
+  lines?: ReceiptLineDto[];
+
+  @ApiProperty({ type: [ReceiptLineDto], description: 'Pieces beyond what was sent, per product; only on lines received in full' })
+  @IsArray()
+  @ArrayMaxSize(LINES_CEILING)
+  @ValidateNested({ each: true })
+  @Type(() => ReceiptLineDto)
+  surplus!: ReceiptLineDto[];
+
+  @ApiPropertyOptional({ nullable: true, maxLength: TRANSFER_NOTE_MAX })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(TRANSFER_NOTE_MAX)
+  note?: string | null;
+
+  @ApiProperty({ description: 'The `updatedAt` the client read; the close is refused if the transfer changed since' })
+  @IsISO8601({ strict: true })
+  expectedUpdatedAt!: string;
+}
+
+export class CancelTransferDto {
+  @ApiPropertyOptional({ description: 'The `updatedAt` the client read; the cancellation is refused if the transfer changed since' })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  expectedUpdatedAt?: string;
+
+  @ApiPropertyOptional({ nullable: true, maxLength: 200, description: 'Why it is cancelled; kept in the audit log' })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(200)
+  reason?: string | null;
 }

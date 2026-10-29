@@ -26,7 +26,17 @@ import {
   type TransferWarehousesResponse,
 } from '@rodasoft/domain';
 import { RequirePermissions } from '../access/require-permissions.decorator';
-import { ListTransfersQueryDto, ProductSearchQueryDto, ResolveLinesDto, SaveTransferDto, SendTransferDto } from './transfers.dto';
+import { TransferReceiptsService } from './transfer-receipts.service';
+import {
+  CancelTransferDto,
+  CloseTransferDto,
+  ListTransfersQueryDto,
+  ProductSearchQueryDto,
+  ReceiveTransferDto,
+  ResolveLinesDto,
+  SaveTransferDto,
+  SendTransferDto,
+} from './transfers.dto';
 import { type TransferUploadFile, TransfersService } from './transfers.service';
 import { UploadLimitInterceptor } from './uploads.controller';
 
@@ -59,7 +69,10 @@ const idPipe = new ParseUUIDPipe({
 @ApiBearerAuth()
 @Controller('inventory/transfers')
 export class TransfersController {
-  constructor(private readonly transfers: TransfersService) {}
+  constructor(
+    private readonly transfers: TransfersService,
+    private readonly receipts: TransferReceiptsService,
+  ) {}
 
   @Get()
   list(@Query(filterPipe) query: ListTransfersQueryDto): Promise<TransferListResponse> {
@@ -67,6 +80,13 @@ export class TransfersController {
   }
 
   // the fixed paths come before `:id`, which would otherwise swallow them
+
+  /** IN-24a · Transfers on their way to a branch the member operates (in transit or partially received). */
+  @Get('incoming')
+  @RequirePermissions('inventory.transfers.receive')
+  incoming(@Query(filterPipe) query: ListTransfersQueryDto): Promise<TransferListResponse> {
+    return this.transfers.incoming(query);
+  }
 
   @Get('open-count')
   openCount(): Promise<TransferOpenCountResponse> {
@@ -122,7 +142,23 @@ export class TransfersController {
   @Post(':id/cancel')
   @HttpCode(200)
   @RequirePermissions('inventory.transfers.create')
-  cancel(@Param('id', idPipe) id: string): Promise<TransferDetail> {
-    return this.transfers.cancel(id);
+  cancel(@Param('id', idPipe) id: string, @Body(bodyPipe) body: CancelTransferDto): Promise<TransferDetail> {
+    return this.transfers.cancel(id, body);
+  }
+
+  /** IN-24b · One receiving session: the pieces counted now, per product. */
+  @Post(':id/receipts')
+  @HttpCode(200)
+  @RequirePermissions('inventory.transfers.receive')
+  receive(@Param('id', idPipe) id: string, @Body(bodyPipe) body: ReceiveTransferDto): Promise<TransferDetail> {
+    return this.receipts.receive(id, body);
+  }
+
+  /** IN-07 · Finishes the receipt: records the surplus and turns the differences into a pending adjustment. */
+  @Post(':id/close')
+  @HttpCode(200)
+  @RequirePermissions('inventory.transfers.receive')
+  close(@Param('id', idPipe) id: string, @Body(bodyPipe) body: CloseTransferDto): Promise<TransferDetail> {
+    return this.receipts.close(id, body);
   }
 }
