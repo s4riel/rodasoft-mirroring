@@ -1,0 +1,11 @@
+{
+  "_comment": "File brand (as written in the `marca` column, upper case) -> brand name the ERP uses. Anything not listed keeps its own name. Review the doubtful ones listed in revision-marcas.csv.",
+  "aliases": {
+    "TIMK": "TIMKEN",
+    "BCA1": "BCA",
+    "C.V. JOINT": "C.V.JOINT",
+    "ZSG ERROR": "ZSG"
+  },
+  "_countries": "Brand -> country used when the file does not agree with itself (the dominant non-NN country wins otherwise).",
+  "countries": {}
+}
