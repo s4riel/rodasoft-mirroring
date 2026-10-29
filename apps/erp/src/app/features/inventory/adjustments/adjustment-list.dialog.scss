@@ -1,0 +1,33 @@
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.label {
+  font-size: var(--label-md-size);
+  font-weight: var(--label-md-weight);
+  color: var(--text-primary);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-3);
+}
+
+.issues {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

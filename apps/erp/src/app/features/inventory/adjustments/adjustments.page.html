@@ -1,0 +1,150 @@
+<rs-page-header
+  title="Ajustes"
+  description="Corrige el stock con un motivo: mermas, errores de conteo y daños."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button *rsCan="'inventory.adjustments.create'" rsButton variant="brand" type="button" (click)="openNew()">
+      <rs-icon name="plus" [size]="16" /> Nuevo ajuste
+    </button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver ajustes"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <rs-filter-bar-products
+    inline
+    searchPlaceholder="Buscar por N.º o código de producto"
+    searchLabel="Buscar ajustes"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select
+        leadingIcon="warehouse"
+        placeholder="Almacén"
+        ariaLabel="Almacén"
+        [options]="warehouseOptions()"
+        [value]="filters().warehouseId"
+        (valueChange)="setFilter('warehouseId', $event)"
+      />
+      <rs-select
+        leadingIcon="tag"
+        placeholder="Motivo"
+        ariaLabel="Motivo"
+        [options]="reasonOptions"
+        [value]="filters().reason"
+        (valueChange)="setFilter('reason', $event)"
+      />
+      <rs-select
+        leadingIcon="seal"
+        placeholder="Estado"
+        ariaLabel="Estado"
+        [options]="statusOptions"
+        [value]="filters().status"
+        (valueChange)="setFilter('status', $event)"
+      />
+      <rs-date-range-picker
+        class="date-filter"
+        placeholder="Fecha"
+        ariaLabel="Rango de fechas"
+        [value]="dateRange()"
+        (valueChange)="onDateRange($event)"
+      />
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando ajustes">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="26%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los ajustes" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-movements"
+            heading="No hay ajustes registrados"
+            description="Registra el primero para corregir el stock con un motivo."
+            [showAction]="canCreate()"
+          >
+            <button *rsCan="'inventory.adjustments.create'" rsButton variant="brand" type="button" (click)="openNew()">
+              <rs-icon name="plus" [size]="16" /> Nuevo ajuste
+            </button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No encontramos ajustes"
+            description="Prueba con otros filtros o con otro número."
+          >
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Ajustes de stock" [columns]="columns" [rows]="rows()" [totals]="totals()">
+          <ng-template rsDocCell="number" let-row>
+            @if (itemOf(row.id); as item) {
+              <a class="number" [routerLink]="['/inventory/adjustments', item.id]">{{ item.number }}</a>
+            }
+          </ng-template>
+          <ng-template rsDocCell="status" let-row>
+            @if (itemOf(row.id); as item) {
+              <rs-status-pill [status]="pillOf(item).status" [icon]="pillOf(item).icon ?? null">{{ pillOf(item).label }}</rs-status-pill>
+            }
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <rs-row-action [label]="'Acciones de ' + item.number" [items]="rowMenu" (selected)="openRow(item)" />
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ range() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

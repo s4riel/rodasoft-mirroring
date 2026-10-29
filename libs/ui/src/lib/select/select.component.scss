@@ -93,6 +93,10 @@ rs-field-media {
   font-size: var(--body-md-size);
   line-height: var(--body-md-line-height);
 }
+.menu.floating {
+  position: fixed;
+  right: auto;
+}
 .option {
   display: flex;
   align-items: center;

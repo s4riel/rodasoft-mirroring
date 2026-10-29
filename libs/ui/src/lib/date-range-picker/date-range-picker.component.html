@@ -1,0 +1,74 @@
+<button
+  type="button"
+  class="control"
+  aria-haspopup="dialog"
+  [attr.id]="inputId()"
+  [attr.aria-expanded]="open()"
+  [attr.aria-controls]="panelId"
+  [attr.aria-label]="ariaLabel() || null"
+  [disabled]="disabled()"
+  (click)="toggle()"
+>
+  <rs-icon [name]="leadingIcon()" [size]="16" />
+  <span class="value" [class.placeholder]="!summary()">{{ summary() || placeholder() }}</span>
+  <rs-icon class="chevron" name="chevron-down" [size]="16" />
+</button>
+@if (open()) {
+  <div class="panel" role="dialog" [style]="panelStyle()" [id]="panelId" [attr.aria-label]="ariaLabel() || null">
+    <div class="side">
+      <ul class="presets">
+        @for (preset of presets; track preset) {
+          <li>
+            <button
+              type="button"
+              class="preset"
+              [class.active]="activePreset() === preset"
+              [attr.aria-pressed]="activePreset() === preset"
+              (click)="choosePreset(preset)"
+            >
+              {{ presetLabels()[preset] }}
+            </button>
+          </li>
+        }
+      </ul>
+      <button type="button" class="apply" [disabled]="!canApply()" (click)="apply()">{{ applyLabel() }}</button>
+    </div>
+    <div class="calendar">
+      <div class="month-bar">
+        <button type="button" class="nav" [attr.aria-label]="previousMonthLabel()" (click)="moveMonth(-1)">
+          <rs-icon name="chevron-left" [size]="16" />
+        </button>
+        <span class="month-title" aria-live="polite">{{ monthTitle() }}</span>
+        <button type="button" class="nav" [attr.aria-label]="nextMonthLabel()" (click)="moveMonth(1)">
+          <rs-icon name="chevron-right" [size]="16" />
+        </button>
+      </div>
+      <div class="weekdays" aria-hidden="true">
+        @for (name of weekdays; track name) {
+          <span>{{ name }}</span>
+        }
+      </div>
+      @for (week of weeks(); track week[0].iso) {
+        <div class="week">
+          @for (day of week; track day.iso) {
+            @let state = dayState(day);
+            <button
+              type="button"
+              class="day"
+              [class.outside]="!day.inMonth"
+              [class.in-range]="state.inRange"
+              [class.edge]="state.edge"
+              [class.today]="day.iso === todayIso()"
+              [attr.aria-pressed]="state.inRange"
+              [attr.aria-current]="day.iso === todayIso() ? 'date' : null"
+              [attr.aria-label]="dayLabel(day)"
+              (click)="chooseDay(day.iso)"
+            >
+              {{ day.day }}
+            </button>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

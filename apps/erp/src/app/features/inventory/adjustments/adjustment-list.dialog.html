@@ -1,0 +1,93 @@
+<rs-modal variant="form" closeLabel="Cerrar" [heading]="heading()" [size]="step() === 'preview' ? 'wide' : 'default'" [(open)]="open">
+  @if (step() === 'input') {
+    <div class="step">
+      @if (mode() === 'paste') {
+        <p class="subtitle">
+          Una línea por producto: código y cantidad, y si quieres el tipo (Entrada, Salida o Conteo; sin tipo es Salida), separados por coma,
+          tabulación o punto y coma. Antes de agregar nada revisarás la lista.
+        </p>
+        <label class="label" for="adjustment-paste">Lista de productos</label>
+        <textarea
+          rsTextarea
+          id="adjustment-paste"
+          rows="8"
+          spellcheck="false"
+          placeholder="6204-2RS, 3&#10;6205-ZZ, 10, Entrada&#10;6206-2Z, 25, Conteo"
+          [value]="text()"
+          (input)="onText($event)"
+        ></textarea>
+      } @else {
+        <p class="subtitle">
+          Sube un Excel o CSV con código y cantidad, y si quieres una tercera columna con el tipo (Entrada, Salida o Conteo). Antes de agregar nada
+          revisarás la lista.
+        </p>
+        <rs-file-dropzone
+          title="Arrastra tu archivo aquí"
+          formatsLabel="Formatos admitidos:"
+          formats="XLSX, CSV"
+          limit="Máx. 1 MB"
+          buttonLabel="Seleccionar archivo"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          [invalid]="!!fileError()"
+          [disabled]="loading()"
+          (filesSelected)="onFiles($event)"
+        >
+          <rs-icon name="document" [size]="24" />
+        </rs-file-dropzone>
+        @if (fileError(); as message) {
+          <rs-note type="danger">{{ message }}</rs-note>
+        }
+        @if (file(); as selected) {
+          <rs-file-item [name]="selected.name" [detail]="fileDetail(selected)" status="done" removeLabel="Quitar archivo" (removed)="removeFile()">
+            <rs-icon name="document" [size]="20" />
+          </rs-file-item>
+        }
+      }
+
+      @if (submitError(); as message) {
+        <rs-note type="danger">{{ message }}</rs-note>
+      }
+    </div>
+  } @else {
+    @if (result(); as r) {
+      <div class="step">
+        <div class="kpis">
+          <rs-kpi-card label="Reconocidos" [value]="'' + r.counts.RECOGNIZED" />
+          <rs-kpi-card label="Sin stock suficiente" [value]="'' + r.counts.INSUFFICIENT_STOCK" />
+          <rs-kpi-card label="No encontrados" [value]="'' + r.counts.NOT_FOUND" />
+          <rs-kpi-card label="Inactivos" [value]="'' + r.counts.INACTIVE" />
+        </div>
+
+        @if (rows().length) {
+          <rs-doc-table size="md" tableLabel="Líneas leídas de la lista" [columns]="columns" [rows]="rows()" />
+        }
+
+        @if (pasteErrors().length) {
+          <rs-note type="warning" title="Líneas que no pudimos leer">
+            <ul class="issues">
+              @for (message of pasteErrors(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          </rs-note>
+        }
+
+        @if (additions().length === 0) {
+          <rs-note type="danger" title="No hay productos para agregar">Corrige la lista y vuelve a intentar.</rs-note>
+        } @else if (additions().length < r.lines.length) {
+          <rs-note type="info">Solo se agregarán los reconocidos; el resto queda fuera del ajuste.</rs-note>
+        }
+      </div>
+    }
+  }
+
+  <div slot="footer" class="actions">
+    @if (step() === 'input') {
+      <button rsButton variant="secondary" type="button" [disabled]="loading()" (click)="cancel()">Cancelar</button>
+      <button rsButton variant="brand" type="button" [disabled]="!canReview()" [loading]="loading()" (click)="review()">Revisar</button>
+    } @else {
+      <button rsButton variant="secondary" type="button" (click)="back()">Volver</button>
+      <button rsButton variant="brand" type="button" [disabled]="!additions().length" (click)="add()">{{ addLabel() }}</button>
+    }
+  </div>
+</rs-modal>

@@ -294,7 +294,7 @@ export function isTransferHeaderRow(cells: readonly string[]): boolean {
 }
 
 /** Splits a pasted line on tab, semicolon or comma, in that order of preference: the first one present is the separator. */
-function splitPasteLine(text: string): string[] {
+export function splitPasteLine(text: string): string[] {
   const separator = text.includes('\t') ? '\t' : text.includes(';') ? ';' : ',';
   return text.split(separator).map((cell) => unquote(cell.trim()));
 }

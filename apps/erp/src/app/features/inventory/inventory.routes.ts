@@ -104,6 +104,24 @@ export const INVENTORY_ROUTES: Route[] = [
         title: 'Transferencia · ERP',
         loadComponent: () => import('./transfers/transfer-detail.page').then((m) => m.TransferDetailPage),
       },
+      {
+        // the pages show their own no-permission state, as the transfer list does
+        path: 'adjustments',
+        title: 'Ajustes · ERP',
+        loadComponent: () => import('./adjustments/adjustments.page').then((m) => m.AdjustmentsPage),
+      },
+      {
+        // before `adjustments/:id`, which would otherwise take "new" for an id
+        path: 'adjustments/new',
+        title: 'Nuevo ajuste · ERP',
+        canDeactivate: [unsavedTransferGuard],
+        loadComponent: () => import('./adjustments/adjustment-editor.page').then((m) => m.AdjustmentEditorPage),
+      },
+      {
+        path: 'adjustments/:id',
+        title: 'Ajuste · ERP',
+        loadComponent: () => import('./adjustments/adjustment-detail.page').then((m) => m.AdjustmentDetailPage),
+      },
       PRODUCT_SHEET_ROUTE,
     ],
   },

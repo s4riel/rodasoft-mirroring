@@ -1,0 +1,94 @@
+<rs-page-header [title]="title()" description="Detalle del ajuste de stock." type="form" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación" />
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el ajuste">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver ajustes"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('missing') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="no-results" heading="No encontramos el ajuste" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver a ajustes</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el ajuste" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      <section class="card" aria-label="Datos del ajuste">
+        <dl class="facts">
+          <div class="fact">
+            <dt>Estado</dt>
+            <dd>
+              @if (pill(); as p) {
+                <rs-status-pill [status]="p.status" [icon]="p.icon ?? null">{{ p.label }}</rs-status-pill>
+              }
+            </dd>
+          </div>
+          <div class="fact">
+            <dt>Almacén</dt>
+            <dd>{{ d.warehouse.branch.name }} · {{ d.warehouse.name }}</dd>
+          </div>
+          <div class="fact">
+            <dt>Motivo</dt>
+            <dd>{{ d.reason }}</dd>
+          </div>
+          <div class="fact">
+            <dt>Registrado</dt>
+            <dd>{{ createdAtLabel() }}{{ d.createdBy ? ' · ' + d.createdBy : '' }}</dd>
+          </div>
+          @if (approvedLabel(); as approved) {
+            <div class="fact">
+              <dt>Aplicado</dt>
+              <dd>{{ approved }}</dd>
+            </div>
+          }
+          @if (showValue()) {
+            <div class="fact">
+              <dt>Valor</dt>
+              <dd>{{ valueLabel() }}</dd>
+            </div>
+          }
+        </dl>
+        @if (d.note) {
+          <p class="note"><strong>Nota:</strong> {{ d.note }}</p>
+        }
+      </section>
+
+      <section class="lines" aria-label="Productos del ajuste">
+        <h2 class="card-title">Productos del ajuste</h2>
+        <rs-doc-table size="md" tableLabel="Productos del ajuste" [columns]="columns()" [rows]="rows()">
+          <ng-template rsDocCell="product" let-row>
+            <span class="product">
+              <span class="mono">{{ row.label }}</span>
+              <span class="product-name">{{ nameOf(row.id) }}</span>
+            </span>
+          </ng-template>
+        </rs-doc-table>
+      </section>
+
+      <div class="actions">
+        <button rsButton variant="secondary" type="button" (click)="back()"><rs-icon name="chevron-left" [size]="16" /> Volver a ajustes</button>
+      </div>
+    }
+  }
+}

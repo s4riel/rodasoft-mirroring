@@ -30,7 +30,14 @@
   <rs-icon class="chevron" name="chevron-down" [size]="16" />
 </button>
 @if (open()) {
-  <ul class="menu" role="listbox" [id]="listId" [attr.aria-label]="ariaLabel() || null">
+  <ul
+    class="menu"
+    role="listbox"
+    [class.floating]="floating()"
+    [style]="floating() ? menuStyle() : null"
+    [id]="listId"
+    [attr.aria-label]="ariaLabel() || null"
+  >
     @for (opt of options(); track $index; let i = $index) {
       <!-- options are driven from the combobox button via aria-activedescendant, so they are not focusable -->
       <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->

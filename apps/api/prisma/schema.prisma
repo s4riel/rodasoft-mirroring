@@ -742,10 +742,15 @@ enum StockAdjustmentSource {
   TRANSFER
 }
 
+/// SHORTAGE and SURPLUS come from a transfer receipt; IN, OUT and COUNT are the lines of a manual adjustment (HU-INV-22).
+/// MANUAL is not used.
 enum StockAdjustmentItemKind {
   SHORTAGE
   SURPLUS
   MANUAL
+  IN
+  OUT
+  COUNT
 }
 
 /// Stock adjustment document (minimal, created by HU-INV-21 for the differences of a transfer receipt; HU-INV-22/23
@@ -761,7 +766,10 @@ model StockAdjustment {
   source       StockAdjustmentSource
   transferId   String?               @unique @map("transfer_id") @db.Uuid
   warehouseId  String                @map("warehouse_id") @db.Uuid
+  /// a manual adjustment stores the reason code (`SHRINKAGE`); a transfer difference stores its own text
   reason       String
+  /// free text of a manual adjustment; required when the reason is `OTHER`
+  note         String?
   /// sum of the absolute values of the lines
   totalValue   Decimal               @default(0) @map("total_value") @db.Decimal(14, 2)
   createdById  String?               @map("created_by_id") @db.Uuid
@@ -783,14 +791,16 @@ model StockAdjustment {
 }
 
 model StockAdjustmentItem {
-  id           String                  @id @default(uuid(7)) @db.Uuid
-  companyId    String                  @map("company_id") @db.Uuid
-  adjustmentId String                  @map("adjustment_id") @db.Uuid
-  productId    String                  @map("product_id") @db.Uuid
-  kind         StockAdjustmentItemKind
-  /// signed: negative for a shortage, positive for a surplus
-  quantity     Int
-  unitCost     Decimal?                @map("unit_cost") @db.Decimal(14, 4)
+  id              String                  @id @default(uuid(7)) @db.Uuid
+  companyId       String                  @map("company_id") @db.Uuid
+  adjustmentId    String                  @map("adjustment_id") @db.Uuid
+  productId       String                  @map("product_id") @db.Uuid
+  kind            StockAdjustmentItemKind
+  /// signed: negative for a shortage, positive for a surplus; for a manual line, the delta applied to the stock
+  quantity        Int
+  /// what the user typed on a manual line (for COUNT, the counted stock); null on a transfer difference
+  enteredQuantity Int?                    @map("entered_quantity")
+  unitCost        Decimal?                @map("unit_cost") @db.Decimal(14, 4)
 
   company    Company         @relation(fields: [companyId], references: [id])
   adjustment StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)

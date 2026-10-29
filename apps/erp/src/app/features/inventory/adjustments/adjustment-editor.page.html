@@ -1,0 +1,256 @@
+<rs-page-header
+  title="Nuevo ajuste"
+  description="Elige el motivo y los productos. Al confirmar, el stock cambia de inmediato."
+  type="form"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el formulario">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para registrar ajustes"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el formulario" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    <section class="card" aria-label="Datos del ajuste">
+      <div class="row">
+        <rs-field label="Almacén" forId="adjustment-warehouse" required [hint]="warehouseLocked() ? 'Quita los productos para cambiar el almacén.' : ''">
+          <rs-select
+            inputId="adjustment-warehouse"
+            leadingIcon="branch"
+            placeholder="Elige el almacén"
+            ariaLabel="Almacén"
+            [options]="warehouseOptions()"
+            [value]="warehouseId()"
+            [disabled]="warehouseLocked() || busy()"
+            (valueChange)="setWarehouse($event)"
+          />
+        </rs-field>
+        <rs-field label="Motivo" forId="adjustment-reason" required [error]="reasonError()">
+          <rs-select
+            inputId="adjustment-reason"
+            placeholder="Elige el motivo"
+            ariaLabel="Motivo"
+            [options]="reasonOptions"
+            [value]="reason()"
+            [invalid]="reasonError() !== null"
+            [disabled]="busy()"
+            (valueChange)="setReason($event)"
+          />
+        </rs-field>
+      </div>
+      <rs-field
+        label="Nota"
+        forId="adjustment-note"
+        [required]="reason() === 'OTHER'"
+        [error]="noteError()"
+        [hint]="reason() === 'OTHER' ? 'Obligatoria con el motivo «Otro».' : 'Opcional. Se guarda con el ajuste y se ve en el kardex.'"
+      >
+        <textarea
+          rsTextarea
+          id="adjustment-note"
+          rows="2"
+          maxlength="200"
+          [invalid]="noteError() !== null"
+          [value]="note()"
+          [disabled]="busy()"
+          (input)="onNote($event)"
+        ></textarea>
+      </rs-field>
+    </section>
+
+    <section class="card" aria-label="Agregar productos">
+      <h2 class="card-title">Agregar productos</h2>
+      <div class="add-bar">
+      <div class="search">
+        <rs-field label="Buscar por código, nombre o marca" forId="adjustment-search">
+          <rs-input-group>
+            <rs-icon rsInputLeading name="barcode" [size]="16" />
+            <input
+              rsInput
+              id="adjustment-search"
+              class="mono"
+              type="search"
+              autocomplete="off"
+              [disabled]="!canAdd()"
+              [value]="searchText()"
+              (input)="onSearchInput($event)"
+              (keydown.enter)="onSearchEnter($event)"
+              (keydown.escape)="closeResults()"
+            />
+          </rs-input-group>
+        </rs-field>
+        @if (results().length) {
+          <!-- a checklist: tick several products, then add them all with the button. Each row is a native checkbox, so Tab and Space work. -->
+          <div class="results" role="group" aria-label="Resultados de la búsqueda">
+            <div class="results-head">
+              <rs-checkbox [checked]="allPicked()" (checkedChange)="togglePickedAll()">Seleccionar todos</rs-checkbox>
+              <span class="results-count">{{ pickedCount() }} {{ pickedCount() === 1 ? 'seleccionado' : 'seleccionados' }}</span>
+            </div>
+            <ul class="results-list">
+              @for (item of results(); track item.id) {
+                <li>
+                  <rs-checkbox class="result" [checked]="isPicked(item.id)" (checkedChange)="togglePicked(item)">
+                    <span class="result-row">
+                      <span class="result-code">{{ item.manufacturerCode }}</span>
+                      <span class="result-name">{{ item.name }} · {{ item.brand }}</span>
+                      <span class="result-stock">Stock: {{ item.available }}</span>
+                    </span>
+                  </rs-checkbox>
+                </li>
+              }
+            </ul>
+            <div class="results-foot">
+              <button rsButton variant="ghost" type="button" (click)="closeResults()">Cerrar</button>
+              <button rsButton variant="brand" type="button" [disabled]="pickedCount() === 0" (click)="addPicked()">
+                <rs-icon name="plus" [size]="16" /> Agregar seleccionados{{ pickedCount() ? ' (' + pickedCount() + ')' : '' }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+        <button rsButton variant="secondary" type="button" [disabled]="!canAdd()" (click)="openList('paste')">
+          <rs-icon name="copy" [size]="16" /> Pegar lista de códigos
+        </button>
+        <button rsButton variant="secondary" type="button" [disabled]="!canAdd()" (click)="openList('file')">
+          <rs-icon name="import" [size]="16" /> Importar Excel
+        </button>
+      </div>
+      <p class="hint">
+        @if (warehouseId()) {
+          Enter agrega el primer resultado · Esc cierra la lista · La lista pegada o el Excel admiten un tipo opcional (Entrada, Salida, Conteo).
+        } @else {
+          Elige el almacén para agregar productos.
+        }
+      </p>
+    </section>
+
+    @if (lines().length === 0) {
+      <section class="state">
+        <rs-empty-state-illustrated
+          size="inline"
+          illustration="no-movements"
+          heading="Aún no hay productos en este ajuste"
+          description="Busca un producto por su código para agregarlo."
+          [showAction]="false"
+        />
+      </section>
+    } @else {
+      <section class="lines" aria-label="Productos del ajuste">
+        <h2 class="card-title">Productos del ajuste</h2>
+        <rs-doc-table size="md" tableLabel="Productos del ajuste" [columns]="columns()" [rows]="rows()">
+          <ng-template rsDocCell="product" let-row>
+            <span class="product">
+              <span class="mono">{{ row.label }}</span>
+              <span class="product-name">{{ nameOf(row.id) }}</span>
+            </span>
+          </ng-template>
+          <ng-template rsDocCell="kind" let-row>
+            <rs-select
+              floating
+              [ariaLabel]="'Tipo de ajuste de ' + row.label"
+              [options]="kindOptions"
+              [value]="kindOf(row.id)"
+              [disabled]="busy()"
+              (valueChange)="setKind(row.id, $event)"
+            />
+          </ng-template>
+          <ng-template rsDocCell="quantity" let-row>
+            <span class="quantity-cell">
+              <input
+                rsInput
+                rsNumeric="integer"
+                class="quantity"
+                inputmode="numeric"
+                autocomplete="off"
+                [attr.aria-label]="(kindOf(row.id) === 'COUNT' ? 'Stock contado de ' : 'Cantidad de ') + row.label"
+                [attr.aria-invalid]="errorOf(row.id) ? 'true' : null"
+                [value]="quantityOf(row.id)"
+                [disabled]="busy()"
+                (input)="onQuantity(row.id, $event)"
+              />
+              @if (errorOf(row.id); as message) {
+                <span class="line-error" role="alert">{{ message }}</span>
+              }
+            </span>
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            <span class="row-actions">
+              <button
+                rsIconButton
+                size="sm"
+                type="button"
+                [label]="'Quitar ' + row.label"
+                rsTooltip="Quitar producto"
+                [disabled]="busy()"
+                (click)="remove(row.id)"
+              >
+                <rs-icon name="trash" [size]="16" />
+              </button>
+            </span>
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ lines().length }} {{ lines().length === 1 ? 'producto' : 'productos' }} en el ajuste</span>
+          </div>
+        </rs-doc-table>
+      </section>
+    }
+
+    @if (submitError(); as message) {
+      <rs-note type="danger">{{ message }}</rs-note>
+    }
+    @if (linesProblem(); as message) {
+      <rs-note type="warning">{{ message }}</rs-note>
+    }
+
+    <div class="actions">
+      <span class="spacer"></span>
+      <button rsButton variant="ghost" type="button" [disabled]="busy()" (click)="leave()">Cancelar</button>
+      <button *rsCan="'inventory.adjustments.create'" rsButton variant="brand" type="button" [disabled]="busy()" (click)="confirm()">
+        <rs-icon name="check" [size]="16" /> Confirmar ajuste
+      </button>
+    </div>
+  }
+}
+
+@if (warehouseId(); as warehouse) {
+  <rs-adjustment-list-dialog [(open)]="listOpen" [mode]="listMode()" [warehouseId]="warehouse" (added)="addFromList($event)" />
+}
+
+<rs-modal variant="confirmation" heading="¿Aplicar el ajuste?" closeLabel="Cerrar" [(open)]="confirmOpen">
+  <p>El stock cambia de inmediato y queda registrado en el kardex. No se puede deshacer.</p>
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="busy()" (click)="confirmOpen.set(false)">Volver</button>
+    <button rsButton variant="brand" type="button" [loading]="busy()" (click)="apply()">Aplicar ajuste</button>
+  </div>
+</rs-modal>
+
+<rs-modal variant="confirmation" heading="Tienes cambios sin guardar" closeLabel="Cerrar" [open]="leaveOpen()" (closed)="decideLeave(false)">
+  <p>Si sales ahora, se pierde el ajuste que estás armando. No se cambia ningún stock.</p>
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" (click)="decideLeave(false)">Seguir editando</button>
+    <button rsButton variant="brand" type="button" (click)="decideLeave(true)">Salir sin guardar</button>
+  </div>
+</rs-modal>
+
+<rs-toast-outlet closeLabel="Cerrar" />
