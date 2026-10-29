@@ -38,11 +38,12 @@
       "options": {
         "port": 4200,
         "proxyConfig": "apps/erp/proxy.conf.json",
-        "allowedHosts": ["rodalaser.localhost", "company2.localhost", "localhost"]
+        "allowedHosts": ["rodalaser.localhost", "company2.localhost", "rodamentin.localhost", "localhost"]
       },
       "configurations": {
         "production": { "buildTarget": "erp:build:production" },
-        "development": { "buildTarget": "erp:build:development" }
+        "development": { "buildTarget": "erp:build:development" },
+        "staging": { "buildTarget": "erp:build:development", "port": 4201, "proxyConfig": "apps/erp/proxy.staging.conf.json" }
       },
       "defaultConfiguration": "development"
     },

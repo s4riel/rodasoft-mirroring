@@ -106,6 +106,21 @@ with its variants and states, with a Light/Dark mode and Company 1/Company 2 swi
 | `pnpm nx graph` | Monorepo dependency graph |
 | `pnpm nx migrate latest` | Update Nx/Angular/Nest to the latest compatible version |
 
+### Local staging
+
+An empty environment next to dev: database `rodasoft_staging` in the same Postgres, Redis DB 1, API on `:3001`, ERP on `:4201`. Two companies, each with its own administrator and no business data (no catalog, stock or documents).
+
+1. Create `.env.staging` (not committed) from the "Local staging" block at the end of `.env.example`: uncomment the lines and set your own `JWT_ACCESS_SECRET` and admin passwords. It only holds the overrides on top of `.env`.
+2. `pnpm staging:reset`: drops and recreates the database, applies the migrations and seeds it (`pnpm staging:db:seed` alone is idempotent).
+3. `pnpm staging`: API, worker and ERP with `-c staging`. Nx loads `.env.staging` on top of `.env` for that configuration; the Prisma scripts go through `tools/staging/with-env.mjs` because the Prisma CLI only reads `.env`.
+
+| Company | URL | Administrator |
+|---|---|---|
+| Rodalaser | http://rodalaser.localhost:4201 | `admin@rodalaser.local` |
+| Rodamentin | http://rodamentin.localhost:4201 | `admin@rodamentin.local` |
+
+Passwords are the ones in `.env.staging`. Each administrator only has access to its own company. Don't run `pnpm dev` and `pnpm staging` at the same time: both serve from the same `dist/` build.
+
 ## 6. Production
 
 ```bash

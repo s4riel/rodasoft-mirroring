@@ -18,6 +18,7 @@
       "options": { "buildTarget": "worker:build", "runBuildTargetDependencies": false, "inspect": false },
       "configurations": {
         "development": { "buildTarget": "worker:build:development" },
+        "staging": { "buildTarget": "worker:build:development" },
         "production": { "buildTarget": "worker:build:production" }
       }
     },
