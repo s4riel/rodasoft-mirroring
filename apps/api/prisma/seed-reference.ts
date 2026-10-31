@@ -5,6 +5,7 @@
  * Used by `seed-staging.ts` (every staging company) and `seed-catalog.ts` (dev demo catalog). Display names are Spanish.
  */
 import type { PrismaClient } from '@prisma/client';
+import { brandLogoUrl } from '@rodasoft/domain';
 
 /** ISO 3166-1 alpha-2 code and the name the ERP shows. */
 export const REFERENCE_COUNTRIES: { code: string; name: string }[] = [
@@ -242,10 +243,17 @@ export async function seedReferenceData(prisma: PrismaClient, companyId: string)
       where: { companyId_name: { companyId, name: b.name } },
     });
     const country = b.country ? countryId.get(b.country) : undefined;
+    const logoUrl = brandLogoUrl(b.name);
     if (!existing)
-      await prisma.brand.create({ data: { companyId, name: b.name, countryId: country ?? null } });
-    else if (!existing.countryId && country)
-      await prisma.brand.update({ where: { id: existing.id }, data: { countryId: country } });
+      await prisma.brand.create({ data: { companyId, name: b.name, countryId: country ?? null, logoUrl } });
+    else {
+      // an existing brand keeps its country and logo; the seed only fills them when empty
+      const fill = {
+        ...(!existing.countryId && country ? { countryId: country } : {}),
+        ...(!existing.logoUrl && logoUrl ? { logoUrl } : {}),
+      };
+      if (Object.keys(fill).length) await prisma.brand.update({ where: { id: existing.id }, data: fill });
+    }
   }
 
   // The (companyId, parentId, name) unique key has a nullable part, so roots use find-or-create.
