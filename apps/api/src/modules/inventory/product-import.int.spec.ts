@@ -63,6 +63,12 @@ async function createCompany(tag: string): Promise<Fixture> {
   await base.attributeDefinition.create({
     data: { companyId, categoryId: category.id, key: 'seal', label: 'Sello', type: 'ENUM', options: ['Abierto', '2RS'], step: 3 },
   });
+  const tools = await base.category.create({ data: { companyId, name: 'Herramientas' } });
+  for (const [i, key] of ['material', 'mainMeasure'].entries()) {
+    await base.attributeDefinition.create({
+      data: { companyId, categoryId: tools.id, key, label: key, type: 'TEXT', step: 3, sortOrder: i, required: true },
+    });
+  }
   const role = await base.role.create({ data: { companyId, key: 'it', name: 'it' } });
   const user = await base.user.create({ data: { email: `imp-${tag}-${run}@test.local`, name: 'it' } });
   const member = await base.membership.create({ data: { companyId, userId: user.id, roleId: role.id, allBranches: true } });
@@ -264,6 +270,14 @@ describe('ProductImportService (integration, real Postgres)', () => {
 
       expect(again).toEqual({ created: 0, updated: 0, skipped: 2, stockMovements: 0 });
       expect(await productCount('ID-')).toBe(2);
+    });
+
+    it('creates a product of a category with required generic fields, with "Pieza" as main measure and no material', async () => {
+      const result = await importer.commit(await sheet([['TL-1', 'SKF', 'Herramientas', 12.5, null]]), 'create_only');
+
+      expect(result).toMatchObject({ created: 1, skipped: 0 });
+      const product = await base.product.findFirstOrThrow({ where: { companyId: a.companyId, manufacturerCode: 'TL-1' } });
+      expect(product.attributes).toEqual({ mainMeasure: 'Pieza' });
     });
 
     it('updates by brand and code in create-or-update mode and leaves blank cells alone', async () => {
