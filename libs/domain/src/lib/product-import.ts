@@ -16,6 +16,12 @@ export const IMPORT_MODES: readonly ImportMode[] = ['create_only', 'create_or_up
 /** Upload limits: the file size and the default number of rows (setting `inventory.import.maxRows`). */
 export const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 export const IMPORT_DEFAULT_MAX_ROWS = 2000;
+/**
+ * Generic technical fields the import never asks for: the template has no column for them and an inventory item is
+ * sold by the piece. A new product gets the default value instead (`mainMeasure` = "Pieza"); an update keeps what is stored.
+ */
+export const IMPORT_OPTIONAL_ATTRIBUTES: readonly string[] = ['material', 'mainMeasure'];
+export const IMPORT_ATTRIBUTE_DEFAULTS: Readonly<Record<string, string>> = { mainMeasure: 'Pieza' };
 
 export type ImportFixedField =
   | 'code'
@@ -330,7 +336,8 @@ export function validateImportRow(row: ImportRow, lookups: ImportLookups, mode: 
     cost: result.unitCost,
   };
   // without a resolved category the technical fields cannot be checked: only the rest of the row is
-  const productErrors = validateProductDraft(input, category?.rules ?? [], { draft: false }).filter(
+  const rules = (category?.rules ?? []).map((r) => (IMPORT_OPTIONAL_ATTRIBUTES.includes(r.key) ? { ...r, required: false } : r));
+  const productErrors = validateProductDraft(input, rules, { draft: false }).filter(
     (e) => category || !(e.code === 'ATTRIBUTE_UNKNOWN' || e.code === 'DIMENSIONS_REQUIRED'),
   );
   const fieldOf = (e: ProductFieldError): string => (e.field === 'dimensions' ? 'd' : e.field);
@@ -362,6 +369,13 @@ export function validateImportRow(row: ImportRow, lookups: ImportLookups, mode: 
       if (category && category.id !== existing.categoryId && existing.hasMovements) {
         errors.push({ field: 'category', code: 'CATEGORY_LOCKED' });
       }
+    }
+  }
+
+  // a new product gets the default of the fields the file does not give; the cell of an existing one is never replaced
+  if (category && result.action === 'create') {
+    for (const [key, value] of Object.entries(IMPORT_ATTRIBUTE_DEFAULTS)) {
+      if (rules.some((r) => r.key === key) && attributes[key] === undefined) attributes[key] = value;
     }
   }
 
