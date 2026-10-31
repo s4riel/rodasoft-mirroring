@@ -78,10 +78,11 @@ export class ProductCommandsService {
 
   /**
    * Creates a product from the wizard: ACTIVE when `status` is ACTIVE (the default), a draft otherwise. The importer
-   * (HU-INV-10) passes its own `tx` so every row and its stock commit together.
+   * (HU-INV-10) passes its own `tx` so every row and its stock commit together, and the keys of the technical fields it
+   * does not require (`optionalAttributes`).
    */
-  async create(dto: ProductWriteDto, tx?: TenantTransaction): Promise<ProductWriteResponse> {
-    return this.write(null, dto, tx);
+  async create(dto: ProductWriteDto, tx?: TenantTransaction, optionalAttributes: readonly string[] = []): Promise<ProductWriteResponse> {
+    return this.write(null, dto, tx, optionalAttributes);
   }
 
   /** Saves the wizard state of a draft. A PATCH sends the whole form, so missing fields are cleared. */
@@ -319,7 +320,7 @@ export class ProductCommandsService {
    * Creates or saves a product from the wizard (HU-INV-06). One transaction: validation, references, the product,
    * its dimensions, and on activation the initial stock and thresholds, the audit entry and the outbox event.
    */
-  private async write(id: string | null, request: ProductWriteDto, outer?: TenantTransaction): Promise<ProductWriteResponse> {
+  private async write(id: string | null, request: ProductWriteDto, outer?: TenantTransaction, optionalAttributes: readonly string[] = []): Promise<ProductWriteResponse> {
     const companyId = this.companyId();
     assertWizardShape(request);
     assertUploadKeys(companyId, request);
@@ -346,7 +347,7 @@ export class ProductCommandsService {
         const code = dto.manufacturerCode?.trim() ?? '';
         const brandId = dto.brandId ?? '';
         const categoryId = dto.categoryId ?? '';
-        const rules = categoryId ? await this.attributeRules(tx, categoryId) : [];
+        const rules = categoryId ? await this.attributeRules(tx, categoryId, optionalAttributes) : [];
         const isBearing = rules.some((r) => r.step === SPEC_STEP_DIMENSIONS);
 
         const input: ProductDraftInput = {
@@ -491,7 +492,7 @@ export class ProductCommandsService {
    * validation as creation, the update, the audit entry (only what changed) and the outbox event. Stock is never written
    * here (design-notes rule 1): only the thresholds of one warehouse.
    */
-  async update(id: string, request: ProductUpdateDto, outer?: TenantTransaction): Promise<ProductUpdateResponse> {
+  async update(id: string, request: ProductUpdateDto, outer?: TenantTransaction, optionalAttributes: readonly string[] = []): Promise<ProductUpdateResponse> {
     const companyId = this.companyId();
     assertEditableShape(request);
     assertWizardShape(request);
@@ -546,7 +547,7 @@ export class ProductCommandsService {
         const code = dto.manufacturerCode?.trim() ?? '';
         const brandId = dto.brandId ?? '';
         const categoryId = dto.categoryId ?? '';
-        const rules = categoryId ? await this.attributeRules(tx, categoryId) : [];
+        const rules = categoryId ? await this.attributeRules(tx, categoryId, optionalAttributes) : [];
         const isBearing = rules.some((r) => r.step === SPEC_STEP_DIMENSIONS);
         const input: ProductDraftInput = {
           manufacturerCode: code || null,
@@ -696,7 +697,7 @@ export class ProductCommandsService {
   }
 
   /** Attribute definitions of a category, falling back to its parent's when it has none (as the wizard shows them). */
-  private async attributeRules(tx: TenantTransaction, categoryId: string): Promise<(AttributeRule & { step: number })[]> {
+  private async attributeRules(tx: TenantTransaction, categoryId: string, optional: readonly string[] = []): Promise<(AttributeRule & { step: number })[]> {
     const order = [{ step: 'asc' as const }, { sortOrder: 'asc' as const }];
     let defs = await tx.attributeDefinition.findMany({ where: { categoryId }, orderBy: order });
     if (!defs.length) {
@@ -706,7 +707,7 @@ export class ProductCommandsService {
     return defs.map((d) => ({
       key: d.key,
       type: d.type,
-      required: d.required,
+      required: d.required && !optional.includes(d.key),
       options: Array.isArray(d.options) ? (d.options as string[]) : null,
       step: d.step,
     }));

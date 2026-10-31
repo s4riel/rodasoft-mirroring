@@ -19,6 +19,7 @@ import {
   type ImportCommitResponse,
   type ImportExistingProduct,
   type ImportHeaderMap,
+  IMPORT_OPTIONAL_ATTRIBUTES,
   type ImportLookups,
   type ImportMode,
   type ImportPreviewResponse,
@@ -219,7 +220,7 @@ export class ProductImportService {
       attributes: data.attributes,
     };
     if (result.action === 'create') {
-      const created = await this.commands.create(fields as ProductWriteDto, tx);
+      const created = await this.commands.create(fields as ProductWriteDto, tx, IMPORT_OPTIONAL_ATTRIBUTES);
       return created.id;
     }
     const productId = result.productId;
@@ -231,7 +232,7 @@ export class ProductImportService {
     // deleted between the validation and the write: a clean error instead of a 500 (the whole import rolls back)
     if (!stored) throw new ConflictException({ code: 'PRODUCT_NOT_FOUND', message: 'A product of the file was deleted during the import' });
     // the code is how the row found the product (in any case): the stored spelling stays
-    await this.commands.update(productId, { ...fields, manufacturerCode: undefined, expectedUpdatedAt: stored.updatedAt.toISOString() } as ProductUpdateDto, tx);
+    await this.commands.update(productId, { ...fields, manufacturerCode: undefined, expectedUpdatedAt: stored.updatedAt.toISOString() } as ProductUpdateDto, tx, IMPORT_OPTIONAL_ATTRIBUTES);
     return productId;
   }
 
