@@ -208,6 +208,25 @@ describe('ProductSheetPage', () => {
     expect(el(h).querySelector('.record')?.textContent).toContain('Ana Rojas');
   });
 
+  it('opens the photo gallery viewer from the main photo and from a thumbnail', async () => {
+    const h = await open();
+    respond(detail({ photos: ['https://img.test/a.png', 'https://img.test/b.png'] }));
+    await settle(h);
+    expect(el(h).querySelector('[role="dialog"]')).toBeNull();
+
+    (el(h).querySelector('.photo-button') as HTMLElement).click();
+    await settle(h);
+    expect(el(h).querySelector('[role="dialog"] .image')?.getAttribute('src')).toBe('https://img.test/a.png');
+
+    (el(h).querySelector('[aria-label="Cerrar"]') as HTMLElement).click();
+    await settle(h);
+    expect(el(h).querySelector('[role="dialog"]')).toBeNull();
+
+    (el(h).querySelectorAll('.photos .photo-button')[1] as HTMLElement).click();
+    await settle(h);
+    expect(el(h).querySelector('[role="dialog"] .image')?.getAttribute('src')).toBe('https://img.test/b.png');
+  });
+
   it('keeps the Dimensiones and Especificaciones cards with an explanation when the product has no data', async () => {
     const h = await open();
     respond(detail({ dimensions: null, specs: [] }));

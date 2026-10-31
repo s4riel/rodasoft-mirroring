@@ -1,0 +1,45 @@
+@if (open()) {
+  <div class="backdrop" (mousedown)="onBackdrop($event)">
+    <div #panel class="panel" role="dialog" aria-modal="true" tabindex="-1" [attr.aria-label]="label()" (keydown)="onKeydown($event)">
+      <button type="button" class="close" [attr.aria-label]="closeLabel()" (click)="close()">
+        <rs-icon name="close" [size]="24" />
+      </button>
+
+      <div class="stage" (mousedown)="onBackdrop($event)">
+        @if (hasMany()) {
+          <button type="button" class="nav prev" [attr.aria-label]="previousLabel()" (click)="previous()">
+            <rs-icon name="chevron-left" [size]="24" />
+          </button>
+        }
+        @if (current(); as src) {
+          <img class="image" [src]="src" [alt]="label() + ' ' + counter()" />
+        }
+        @if (hasMany()) {
+          <button type="button" class="nav next" [attr.aria-label]="nextLabel()" (click)="next()">
+            <rs-icon name="chevron-right" [size]="24" />
+          </button>
+        }
+      </div>
+
+      @if (hasMany()) {
+        <p class="counter" aria-live="polite">{{ counter() }}</p>
+        <ul class="thumbs">
+          @for (src of images(); track $index) {
+            <li>
+              <button
+                type="button"
+                class="thumb"
+                [class.active]="$index === index()"
+                [attr.aria-current]="$index === index() ? 'true' : null"
+                [attr.aria-label]="label() + ' ' + ($index + 1)"
+                (click)="select($index)"
+              >
+                <img [src]="src" alt="" />
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+}

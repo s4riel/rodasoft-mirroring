@@ -57,6 +57,22 @@
     object-fit: cover;
   }
 }
+/* clickable photo: opens the gallery viewer */
+.photo-button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  cursor: zoom-in;
+
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: var(--focus-offset);
+  }
+}
 .identity-body {
   display: grid;
   gap: var(--space-3);
@@ -280,9 +296,13 @@
   padding: 0;
   list-style: none;
 
+  .photo-button {
+    width: 6rem; /* Figma: 96 px tiles, no token */
+    height: 6rem;
+  }
   img {
     display: block;
-    width: 6rem; /* Figma: 96 px tiles, no token */
+    width: 6rem;
     height: 6rem;
     object-fit: cover;
     background: var(--bg-surface-2);
