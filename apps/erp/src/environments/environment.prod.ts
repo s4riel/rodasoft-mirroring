@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  apiPublicUrl: 'https://api.rodalaser.com.bo', // TODO: final domain
+  apiPublicUrl: 'https://rodasoft-api-staging.up.railway.app', // TODO: final domain
   defaultCompany: 'rodalaser',
 };

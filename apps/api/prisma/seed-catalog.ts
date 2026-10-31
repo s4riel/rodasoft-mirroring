@@ -5,13 +5,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { normalizePair } from '@rodasoft/domain';
 
-const COUNTRIES = [
-  { code: 'SE', name: 'Suecia' },
-  { code: 'JP', name: 'Japón' },
-  { code: 'DE', name: 'Alemania' },
-  { code: 'ES', name: 'España' },
-  { code: 'US', name: 'Estados Unidos' },
-];
+import { seedReferenceData } from './seed-reference';
 
 // Flags per brand (DEMO), see docs/backlog/decisions.md
 const BRANDS = [
@@ -22,18 +16,6 @@ const BRANDS = [
   { name: 'NTN', country: 'JP' },
   { name: 'Fersa', country: 'ES' },
   { name: 'Gates', country: 'US' },
-];
-
-const CATEGORIES: { name: string; icon: string; children: string[] }[] = [
-  // `icon` is a name from the ERP icon set (libs/ui icons.ts)
-  { name: 'Rodamientos', icon: 'bearing', children: ['Rígidos de bolas', 'Rodillos cilíndricos', 'Rodillos cónicos', 'Esféricos de rodillos'] },
-  { name: 'Retenes y sellos', icon: 'seal', children: [] },
-  { name: 'Correas y poleas', icon: 'pulley', children: ['Correas en V', 'Correas dentadas'] },
-  { name: 'Cadenas y piñones', icon: 'link', children: [] },
-  { name: 'Lubricantes y grasas', icon: 'droplet', children: [] },
-  { name: 'Herramientas', icon: 'wrench', children: [] },
-  { name: 'Accesorios', icon: 'package', children: [] },
-  { name: 'Acoples', icon: 'transfer', children: [] },
 ];
 
 /** Bearings: code, subcategory, d, D, B (mm) */
@@ -163,62 +145,6 @@ const OTHERS: [string, string, string][] = [
   ['Acoples', 'ACO-L095', 'Acople elástico L095'],
 ];
 
-type AttributeSeed = {
-  key: string;
-  label: string;
-  type: 'TEXT' | 'NUMBER' | 'ENUM' | 'BOOLEAN';
-  /** 2 = Dimensions, 3 = Technical specifications (design-notes, product creation steps). */
-  step: 2 | 3;
-  unit?: string;
-  options?: string[];
-  required?: boolean;
-};
-
-/**
- * Seal fields (IN-03d, "Especificaciones"). All are step 3: the domain treats any step-2 definition as a bearing.
- * IN-03d shows material and lip type as text fields and only the spring as a list; the lists are samples until the client
- * confirms them (decision #52).
- */
-const SEAL_ATTRIBUTES: AttributeSeed[] = [
-  { key: 'innerDiameter', label: 'Ø Interior d', type: 'NUMBER', step: 3, unit: 'mm', required: true },
-  { key: 'outerDiameter', label: 'Ø Exterior D', type: 'NUMBER', step: 3, unit: 'mm', required: true },
-  { key: 'width', label: 'Ancho B', type: 'NUMBER', step: 3, unit: 'mm', required: true },
-  { key: 'material', label: 'Material', type: 'TEXT', step: 3, required: true },
-  { key: 'lipType', label: 'Tipo de labio', type: 'TEXT', step: 3 },
-  { key: 'maxTemperature', label: 'Temperatura máxima', type: 'NUMBER', step: 3, unit: '°C' },
-  { key: 'spring', label: 'Con resorte', type: 'ENUM', step: 3, options: ['Sí', 'No'] },
-];
-
-/**
- * Generic technical fields for every category that has none of its own (belts, chains, lubricants, tools, accessories and
- * couplings): the step looks the same everywhere and the real list per category comes with decision #52.
- */
-const GENERIC_ATTRIBUTES: AttributeSeed[] = [
-  { key: 'material', label: 'Material', type: 'TEXT', step: 3, required: true },
-  { key: 'mainMeasure', label: 'Medida principal', type: 'TEXT', step: 3, required: true },
-  { key: 'model', label: 'Tipo o modelo', type: 'TEXT', step: 3 },
-  { key: 'capacity', label: 'Capacidad o presentación', type: 'TEXT', step: 3 },
-  { key: 'technicalNotes', label: 'Observaciones técnicas', type: 'TEXT', step: 3 },
-];
-
-/** Bearing fields (design-notes §Product creation), in sheet order: step 2 feeds "Dimensiones", step 3 "Especificaciones técnicas". */
-const BEARING_ATTRIBUTES: AttributeSeed[] = [
-  { key: 'series', label: 'Serie de dimensiones', type: 'TEXT', step: 2 },
-  { key: 'minRadius', label: 'Radio mínimo r', type: 'NUMBER', step: 2, unit: 'mm' },
-  { key: 'boreType', label: 'Tipo de agujero', type: 'ENUM', step: 2, options: ['Cilíndrico', 'Cónico'] },
-  { key: 'seal', label: 'Protección / sello', type: 'ENUM', step: 3, options: ['Abierto', '2RS (goma, contacto)', '2Z (metálico)'] },
-  { key: 'internalClearance', label: 'Juego radial interno', type: 'ENUM', step: 3, options: ['C2', 'CN (normal)', 'C3', 'C4'] },
-  { key: 'rows', label: 'Número de hileras', type: 'NUMBER', step: 3 },
-  { key: 'material', label: 'Material de anillos y bolas', type: 'TEXT', step: 3 },
-  { key: 'cage', label: 'Material de la jaula', type: 'ENUM', step: 3, options: ['Acero estampado', 'Poliamida', 'Latón'] },
-  { key: 'toleranceClass', label: 'Clase de tolerancia', type: 'ENUM', step: 3, options: ['P0 · ABEC 1', 'P6 · ABEC 3', 'P5 · ABEC 5'] },
-  { key: 'dynamicLoad', label: 'Carga dinámica C', type: 'NUMBER', step: 3, unit: 'kN' },
-  { key: 'staticLoad', label: 'Carga estática C₀', type: 'NUMBER', step: 3, unit: 'kN' },
-  { key: 'limitingSpeed', label: 'Velocidad límite', type: 'NUMBER', step: 3, unit: 'rpm' },
-  { key: 'temperature', label: 'Temperatura de trabajo', type: 'TEXT', step: 3, unit: '°C' },
-  { key: 'lubricant', label: 'Lubricante', type: 'TEXT', step: 3 },
-];
-
 const pad = (n: number) => `RL-${String(n).padStart(6, '0')}`;
 
 /**
@@ -227,15 +153,7 @@ const pad = (n: number) => `RL-${String(n).padStart(6, '0')}`;
  * data into a development database; application code must never write stock this way.
  */
 export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk = 0) {
-  const countryId = new Map<string, string>();
-  for (const c of COUNTRIES) {
-    const row = await prisma.country.upsert({
-      where: { companyId_code: { companyId, code: c.code } },
-      update: { name: c.name },
-      create: { companyId, ...c },
-    });
-    countryId.set(c.code, row.id);
-  }
+  const { countryId, categoryId } = await seedReferenceData(prisma, companyId);
 
   const brandId = new Map<string, string>();
   for (const b of BRANDS) {
@@ -245,56 +163,6 @@ export async function seedCatalog(prisma: PrismaClient, companyId: string, bulk 
       create: { companyId, name: b.name, countryId: countryId.get(b.country) },
     });
     brandId.set(b.name, row.id);
-  }
-
-  // The (companyId, parentId, name) unique key has a nullable part, so roots use find-or-create.
-  const categoryId = new Map<string, string>();
-  const ensureCategory = async (name: string, parentId: string | null, sortOrder: number, icon = 'package') => {
-    const existing = await prisma.category.findFirst({ where: { companyId, parentId, name } });
-    const row = existing
-      ? existing.icon === icon || parentId
-        ? existing
-        : await prisma.category.update({ where: { id: existing.id }, data: { icon } })
-      : await prisma.category.create({ data: { companyId, parentId, name, icon, sortOrder } });
-    categoryId.set(name, row.id);
-    return row.id;
-  };
-  for (const [i, c] of CATEGORIES.entries()) {
-    const rootId = await ensureCategory(c.name, null, i, c.icon);
-    for (const [j, child] of c.children.entries()) await ensureCategory(child, rootId, j);
-  }
-
-  const bearingsRootId = categoryId.get('Rodamientos')!;
-  for (const [sortOrder, a] of BEARING_ATTRIBUTES.entries()) {
-    const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder, required: a.required ?? false };
-    await prisma.attributeDefinition.upsert({
-      where: { categoryId_key: { categoryId: bearingsRootId, key: a.key } },
-      update: data,
-      create: { companyId, categoryId: bearingsRootId, key: a.key, ...data },
-    });
-  }
-
-  const specific = new Set(['Rodamientos', 'Retenes y sellos']);
-  for (const category of CATEGORIES.filter((c) => !specific.has(c.name))) {
-    const rootId = categoryId.get(category.name)!;
-    for (const [sortOrder, a] of GENERIC_ATTRIBUTES.entries()) {
-      const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder, required: a.required ?? false };
-      await prisma.attributeDefinition.upsert({
-        where: { categoryId_key: { categoryId: rootId, key: a.key } },
-        update: data,
-        create: { companyId, categoryId: rootId, key: a.key, ...data },
-      });
-    }
-  }
-
-  const sealsRootId = categoryId.get('Retenes y sellos')!;
-  for (const [sortOrder, a] of SEAL_ATTRIBUTES.entries()) {
-    const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder, required: a.required ?? false };
-    await prisma.attributeDefinition.upsert({
-      where: { categoryId_key: { categoryId: sealsRootId, key: a.key } },
-      update: data,
-      create: { companyId, categoryId: sealsRootId, key: a.key, ...data },
-    });
   }
 
   const warehouses = await prisma.warehouse.findMany({

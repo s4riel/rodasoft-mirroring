@@ -71,7 +71,7 @@ Railway tiene 4 regiones: **US West (California), US East (Virginia), EU West (�
 
 1. Crear cuenta en Railway, plan **Pro**. Crear un proyecto con dos entornos: `staging` y `production`.
 2. Añadir **PostgreSQL** (plantilla de Railway) y **Redis**. Dejar sin acceso público.
-3. Añadir el servicio **api**: desde el repositorio de GitHub.
+3. Añadir el servicio **api**: desde el repositorio **espejo de GitHub** (§6.1), rama `main`.
    - Variable `RAILWAY_DOCKERFILE_PATH=infra/docker/api.Dockerfile`.
    - Health check: `/api/v1/health/live`.
    - Pre-deploy command: migraciones de Prisma (§2.3).
@@ -256,7 +256,10 @@ Puedes desplegar hoy con las URL gratuitas:
 - [ ] Railway: Postgres, Redis, API y worker en `staging` funcionando
 - [ ] Vercel: ERP desplegado, login y `/api` funcionando (cookie incluida)
 - [ ] Vercel o Railway: sitio web SSR funcionando con la marca correcta
-- [ ] GitLab: `main` protegida, pipeline verde obligatorio, `.gitlab-ci.yml` funcionando\n- [ ] Espejo GitLab → GitHub activo y Railway conectado al espejo\n- [ ] Borrados `.github/workflows/ci.yml` y `deploy.yml`\n- [ ] Dominio, DNS y TLS
+- [ ] GitLab: `main` protegida, pipeline verde obligatorio, `.gitlab-ci.yml` funcionando
+- [ ] Espejo GitLab → GitHub activo y Railway conectado al espejo
+- [ ] Borrados `.github/workflows/ci.yml` y `deploy.yml`
+- [ ] Dominio, DNS y TLS
 - [ ] Correo real, Google OAuth, `COOKIE_SECURE=true`
 - [ ] Seed de producción sin datos de ejemplo
 - [ ] Respaldo externo diario y restauración probada

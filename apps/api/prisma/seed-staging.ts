@@ -1,6 +1,7 @@
 /**
  * Local staging seed: Rodalaser (main) and Rodamentin, each with its own administrator, and no business data
- * (no catalog, stock or documents). Idempotent (upsert).
+ * (no products, stock or documents) but with the base reference data of `seed-reference.ts`: countries, categories,
+ * subcategories and their technical fields. Idempotent (upsert).
  *
  *   pnpm staging:db:seed   (prisma db seed with SEED_PROFILE=staging, dispatched by seed.ts)
  *
@@ -13,6 +14,7 @@ import { BrandMode, type PrismaClient } from '@prisma/client';
 import { hash } from 'argon2';
 
 import { seedAdminMembership, seedCompany, seedPermissions, type SeedCompany } from './seed-base';
+import { seedReferenceData } from './seed-reference';
 
 const COMPANIES: (SeedCompany & { admin: { email: string; name: string; passwordVar: string } })[] = [
   {
@@ -47,6 +49,7 @@ export async function seedStaging(prisma: PrismaClient): Promise<void> {
 
   for (const c of COMPANIES) {
     const company = await seedCompany(prisma, c);
+    await seedReferenceData(prisma, company.id);
 
     const existing = await prisma.user.findUnique({ where: { email: c.admin.email } });
     let password = process.env[c.admin.passwordVar];
