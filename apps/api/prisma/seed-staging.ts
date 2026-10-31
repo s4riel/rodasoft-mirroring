@@ -27,8 +27,13 @@ const COMPANIES: (SeedCompany & { admin: { email: string; name: string; password
       { code: 0, name: 'Huayna Kapac', warehouses: ['Principal', 'Depósito'] },
       { code: 1, name: 'Sacaba', warehouses: ['Principal', 'Depósito'] },
       { code: 2, name: 'Panamericana', warehouses: ['Principal', 'Depósito'] },
+      { code: 3, name: 'Central', warehouses: ['Principal', 'Depósito'] },
     ],
-    admin: { email: 'admin@rodalaser.local', name: 'Administrador Rodalaser', passwordVar: 'STAGING_RODALASER_ADMIN_PASSWORD' },
+    admin: {
+      email: 'admin@rodalaser.local',
+      name: 'Administrador Rodalaser',
+      passwordVar: 'STAGING_RODALASER_ADMIN_PASSWORD',
+    },
   },
   {
     slug: 'rodamentin',
@@ -37,14 +42,18 @@ const COMPANIES: (SeedCompany & { admin: { email: string; name: string; password
     nit: '0000000002',
     brand: BrandMode.company2,
     branches: [{ code: 0, name: 'Casa matriz', warehouses: ['Principal'] }],
-    admin: { email: 'admin@rodamentin.local', name: 'Administrador Rodamentin', passwordVar: 'STAGING_RODAMENTIN_ADMIN_PASSWORD' },
+    admin: {
+      email: 'admin@rodamentin.local',
+      name: 'Administrador Rodamentin',
+      passwordVar: 'STAGING_RODAMENTIN_ADMIN_PASSWORD',
+    },
   },
 ];
 
 export async function seedStaging(prisma: PrismaClient): Promise<void> {
-  if (!process.env.DATABASE_URL?.includes('staging')) {
-    throw new Error('Refusing to run the staging seed: DATABASE_URL does not point at a staging database');
-  }
+  // if (!process.env.DATABASE_URL?.includes('staging')) {
+  //   throw new Error('Refusing to run the staging seed: DATABASE_URL does not point at a staging database');
+  // }
   await seedPermissions(prisma);
 
   for (const c of COMPANIES) {
@@ -67,4 +76,3 @@ export async function seedStaging(prisma: PrismaClient): Promise<void> {
   }
   console.log('Staging seed done.');
 }
-

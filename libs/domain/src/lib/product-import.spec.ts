@@ -110,6 +110,34 @@ describe('validateImportRow', () => {
     expect(codes(result.errors)).toEqual(expect.arrayContaining(['DIMENSIONS_REQUIRED', 'ATTRIBUTE_REQUIRED']));
   });
 
+  describe('generic technical fields (material, main measure)', () => {
+    const generic: AttributeRule[] = [
+      { key: 'material', type: 'TEXT', required: true, options: null },
+      { key: 'mainMeasure', type: 'TEXT', required: true, options: null },
+      { key: 'model', type: 'TEXT', required: true, options: null },
+    ];
+    const tools = () => lookups({ category: () => ({ id: 'cat-tools', rules: generic, isBearing: false }) });
+
+    it('does not ask for them and gives a new product "Pieza" as main measure', () => {
+      const result = validateImportRow(row({ category: 'Herramientas', attributes: { model: 'Llave' } }), tools(), 'create_only');
+      expect(result.status).toBe('valid');
+      expect(result.data.attributes).toEqual({ model: 'Llave', mainMeasure: 'Pieza' });
+    });
+
+    it('keeps the main measure the file gives and still asks for the other required fields', () => {
+      const given = validateImportRow(row({ category: 'Herramientas', attributes: { model: 'Llave', mainMeasure: '10 mm' } }), tools(), 'create_only');
+      expect(given.data.attributes).toEqual({ model: 'Llave', mainMeasure: '10 mm' });
+      expect(codes(validateImportRow(row({ category: 'Herramientas', attributes: {} }), tools(), 'create_only').errors)).toEqual(['ATTRIBUTE_REQUIRED']);
+    });
+
+    it('does not put the default on an existing product, so its stored value is kept', () => {
+      const existing: ImportExistingProduct = { id: 'p1', status: 'ACTIVE', categoryId: 'cat-tools', hasMovements: false, stock: new Map() };
+      const result = validateImportRow(row({ category: 'Herramientas', attributes: { model: 'Llave' } }), lookups({ category: tools().category }, existing), 'create_or_update');
+      expect(result.action).toBe('update');
+      expect(result.data.attributes).toEqual({ model: 'Llave' });
+    });
+  });
+
   it('refuses an invalid price and a technical field the category does not have', () => {
     const result = validateImportRow(row({ price: '4x', attributes: { seal: '2RS', color: 'rojo' } }), lookups(), 'create_only');
     expect(codes(result.errors)).toEqual(expect.arrayContaining(['PRICE_FORMAT', 'ATTRIBUTE_UNKNOWN']));

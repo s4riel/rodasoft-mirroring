@@ -30,18 +30,66 @@ export const REFERENCE_COUNTRIES: { code: string; name: string }[] = [
  * A brand without country is created with none; it can be set later in the ERP.
  */
 export const REFERENCE_BRANDS: { name: string; country?: string }[] = [
-  { name: 'A&S' }, { name: 'ASAHI' }, { name: 'AYS', country: 'ES' }, { name: 'BCA' }, { name: 'C.V.JOINT' }, { name: 'C/S' },
-  { name: 'CMB' }, { name: 'EBI' }, { name: 'FAG', country: 'DE' }, { name: 'FKC' }, { name: 'FMOGUL' }, { name: 'FYH' },
-  { name: 'Fersa', country: 'ES' }, { name: 'GBM' }, { name: 'GMB', country: 'JP' }, { name: 'GMG' }, { name: 'Gates', country: 'US' },
-  { name: 'IBK' }, { name: 'ICH' }, { name: 'IJK' }, { name: 'IKO', country: 'JP' }, { name: 'ILJIN', country: 'KR' },
-  { name: 'INA', country: 'DE' }, { name: 'IRB' }, { name: 'ISB', country: 'IT' }, { name: 'JBS' }, { name: 'JIB' },
-  { name: 'KBC', country: 'KR' }, { name: 'KML' }, { name: 'KOYO', country: 'JP' }, { name: 'LBLT' }, { name: 'LK' }, { name: 'LYZ' },
-  { name: 'MBA' }, { name: 'MBS', country: 'KR' }, { name: 'NACHI', country: 'JP' }, { name: 'NIS' }, { name: 'NKE', country: 'AT' },
-  { name: 'NSK', country: 'JP' }, { name: 'NTN', country: 'JP' }, { name: 'NWO' }, { name: 'PEER', country: 'US' }, { name: 'PFI' },
-  { name: 'PREC' }, { name: 'ROLL', country: 'US' }, { name: 'SACHS', country: 'DE' }, { name: 'SJB' }, { name: 'SKF', country: 'SE' },
-  { name: 'SNR', country: 'FR' }, { name: 'T2' }, { name: 'TAM' }, { name: 'THOMP' }, { name: 'TIMKEN', country: 'US' },
-  { name: 'TL', country: 'ES' }, { name: 'TORR' }, { name: 'TOYO' }, { name: 'VALEO', country: 'KR' }, { name: 'ZKL' },
-  { name: 'ZSG', country: 'CN' }, { name: 'ZVL-LSA' },
+  { name: 'A&S' },
+  { name: 'ASAHI' },
+  { name: 'AYS', country: 'ES' },
+  { name: 'BCA' },
+  { name: 'C.V.JOINT' },
+  { name: 'C/S' },
+  { name: 'CMB' },
+  { name: 'EBI' },
+  { name: 'FAG', country: 'DE' },
+  { name: 'FKC' },
+  { name: 'FMOGUL' },
+  { name: 'FYH' },
+  { name: 'Fersa', country: 'ES' },
+  { name: 'GBM' },
+  { name: 'GMB', country: 'JP' },
+  { name: 'GMG' },
+  { name: 'Gates', country: 'US' },
+  { name: 'IBK' },
+  { name: 'ICH' },
+  { name: 'IJK' },
+  { name: 'IKO', country: 'JP' },
+  { name: 'ILJIN', country: 'KR' },
+  { name: 'INA', country: 'DE' },
+  { name: 'IRB' },
+  { name: 'ISB', country: 'IT' },
+  { name: 'JBS' },
+  { name: 'JIB' },
+  { name: 'KBC', country: 'KR' },
+  { name: 'KML' },
+  { name: 'KOYO', country: 'JP' },
+  { name: 'LBLT' },
+  { name: 'LK' },
+  { name: 'LYZ' },
+  { name: 'MBA' },
+  { name: 'MBS', country: 'KR' },
+  { name: 'NACHI', country: 'JP' },
+  { name: 'NIS' },
+  { name: 'NKE', country: 'AT' },
+  { name: 'NSK', country: 'JP' },
+  { name: 'NTN', country: 'JP' },
+  { name: 'NWO' },
+  { name: 'PEER', country: 'US' },
+  { name: 'PFI' },
+  { name: 'PREC' },
+  { name: 'ROLL', country: 'US' },
+  { name: 'SACHS', country: 'DE' },
+  { name: 'SJB' },
+  { name: 'SKF', country: 'SE' },
+  { name: 'SNR', country: 'FR' },
+  { name: 'T2' },
+  { name: 'TAM' },
+  { name: 'THOMP' },
+  { name: 'TIMKEN', country: 'US' },
+  { name: 'TL', country: 'ES' },
+  { name: 'TORR' },
+  { name: 'TOYO' },
+  { name: 'VALEO', country: 'KR' },
+  { name: 'ZKL' },
+  { name: 'ZSG', country: 'CN' },
+  { name: 'ZVL-LSA' },
 ];
 
 /** `icon` is a name from the ERP icon set (libs/ui icons.ts). Roots are shown in this order. */
@@ -124,12 +172,36 @@ export const BEARING_ATTRIBUTES: AttributeSeed[] = [
   { key: 'series', label: 'Serie de dimensiones', type: 'TEXT', step: 2 },
   { key: 'minRadius', label: 'Radio mínimo r', type: 'NUMBER', step: 2, unit: 'mm' },
   { key: 'boreType', label: 'Tipo de agujero', type: 'ENUM', step: 2, options: ['Cilíndrico', 'Cónico'] },
-  { key: 'seal', label: 'Protección / sello', type: 'ENUM', step: 3, options: ['Abierto', '2RS (goma, contacto)', '2Z (metálico)'] },
-  { key: 'internalClearance', label: 'Juego radial interno', type: 'ENUM', step: 3, options: ['C2', 'CN (normal)', 'C3', 'C4'] },
+  {
+    key: 'seal',
+    label: 'Protección / sello',
+    type: 'ENUM',
+    step: 3,
+    options: ['Abierto', '2RS (goma, contacto)', '2Z (metálico)'],
+  },
+  {
+    key: 'internalClearance',
+    label: 'Juego radial interno',
+    type: 'ENUM',
+    step: 3,
+    options: ['C2', 'CN (normal)', 'C3', 'C4'],
+  },
   { key: 'rows', label: 'Número de hileras', type: 'NUMBER', step: 3 },
   { key: 'material', label: 'Material de anillos y bolas', type: 'TEXT', step: 3 },
-  { key: 'cage', label: 'Material de la jaula', type: 'ENUM', step: 3, options: ['Acero estampado', 'Poliamida', 'Latón'] },
-  { key: 'toleranceClass', label: 'Clase de tolerancia', type: 'ENUM', step: 3, options: ['P0 · ABEC 1', 'P6 · ABEC 3', 'P5 · ABEC 5'] },
+  {
+    key: 'cage',
+    label: 'Material de la jaula',
+    type: 'ENUM',
+    step: 3,
+    options: ['Acero estampado', 'Poliamida', 'Latón'],
+  },
+  {
+    key: 'toleranceClass',
+    label: 'Clase de tolerancia',
+    type: 'ENUM',
+    step: 3,
+    options: ['P0 · ABEC 1', 'P6 · ABEC 3', 'P5 · ABEC 5'],
+  },
   { key: 'dynamicLoad', label: 'Carga dinámica C', type: 'NUMBER', step: 3, unit: 'kN' },
   { key: 'staticLoad', label: 'Carga estática C₀', type: 'NUMBER', step: 3, unit: 'kN' },
   { key: 'limitingSpeed', label: 'Velocidad límite', type: 'NUMBER', step: 3, unit: 'rpm' },
@@ -139,6 +211,12 @@ export const BEARING_ATTRIBUTES: AttributeSeed[] = [
 
 /** Roots with their own field list; every other root with fields gets the generic one. */
 const ROOTS_WITHOUT_FIELDS = new Set(['Chumaceras y soportes', 'Manguitos', 'Crucetas y tricetas']);
+
+/**
+ * Roots whose generic fields are all optional: their inventory items are sold by the piece (main measure "Pieza") and
+ * have no material to record, so the import and the wizard must not ask for them.
+ */
+const ROOTS_WITH_OPTIONAL_FIELDS = new Set(['Herramientas', 'Accesorios']);
 
 export interface ReferenceData {
   /** Country id by ISO code. */
@@ -160,15 +238,24 @@ export async function seedReferenceData(prisma: PrismaClient, companyId: string)
 
   // an existing brand keeps the country it has; the seed only fills it when empty
   for (const b of REFERENCE_BRANDS) {
-    const existing = await prisma.brand.findUnique({ where: { companyId_name: { companyId, name: b.name } } });
+    const existing = await prisma.brand.findUnique({
+      where: { companyId_name: { companyId, name: b.name } },
+    });
     const country = b.country ? countryId.get(b.country) : undefined;
-    if (!existing) await prisma.brand.create({ data: { companyId, name: b.name, countryId: country ?? null } });
-    else if (!existing.countryId && country) await prisma.brand.update({ where: { id: existing.id }, data: { countryId: country } });
+    if (!existing)
+      await prisma.brand.create({ data: { companyId, name: b.name, countryId: country ?? null } });
+    else if (!existing.countryId && country)
+      await prisma.brand.update({ where: { id: existing.id }, data: { countryId: country } });
   }
 
   // The (companyId, parentId, name) unique key has a nullable part, so roots use find-or-create.
   const categoryId = new Map<string, string>();
-  const ensureCategory = async (name: string, parentId: string | null, sortOrder: number, icon = 'package') => {
+  const ensureCategory = async (
+    name: string,
+    parentId: string | null,
+    sortOrder: number,
+    icon = 'package',
+  ) => {
     const existing = await prisma.category.findFirst({ where: { companyId, parentId, name } });
     const row = existing
       ? existing.icon === icon || parentId
@@ -185,8 +272,17 @@ export async function seedReferenceData(prisma: PrismaClient, companyId: string)
 
   const upsertFields = async (rootName: string, fields: AttributeSeed[]) => {
     const rootId = categoryId.get(rootName) as string;
+    const optional = ROOTS_WITH_OPTIONAL_FIELDS.has(rootName);
     for (const [sortOrder, a] of fields.entries()) {
-      const data = { label: a.label, type: a.type, unit: a.unit ?? null, options: a.options ?? undefined, step: a.step, sortOrder, required: a.required ?? false };
+      const data = {
+        label: a.label,
+        type: a.type,
+        unit: a.unit ?? null,
+        options: a.options ?? undefined,
+        step: a.step,
+        sortOrder,
+        required: optional ? false : (a.required ?? false),
+      };
       await prisma.attributeDefinition.upsert({
         where: { categoryId_key: { categoryId: rootId, key: a.key } },
         update: data,
@@ -198,7 +294,8 @@ export async function seedReferenceData(prisma: PrismaClient, companyId: string)
   await upsertFields('Retenes y sellos', SEAL_ATTRIBUTES);
   const specific = new Set(['Rodamientos', 'Retenes y sellos']);
   for (const c of REFERENCE_CATEGORIES) {
-    if (!specific.has(c.name) && !ROOTS_WITHOUT_FIELDS.has(c.name)) await upsertFields(c.name, GENERIC_ATTRIBUTES);
+    if (!specific.has(c.name) && !ROOTS_WITHOUT_FIELDS.has(c.name))
+      await upsertFields(c.name, GENERIC_ATTRIBUTES);
   }
 
   return { countryId, categoryId };
