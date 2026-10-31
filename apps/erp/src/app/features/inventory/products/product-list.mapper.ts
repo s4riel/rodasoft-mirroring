@@ -112,6 +112,7 @@ export function toTableRow(item: ProductListItem): ProductTableRow {
   return {
     id: item.id,
     photoUrl: item.photoUrl,
+    photos: item.photos,
     thumbIcon: thumbIconOf(item.category.icon),
     code: item.manufacturerCode,
     // the "Producto" column shows the type of product: the subcategory, or the category when there is none

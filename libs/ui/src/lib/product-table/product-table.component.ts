@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, input, output, signal } from '@angular/core';
 import { FlagComponent, FlagCountry } from '../flag/flag.component';
 import { IconComponent } from '../icon/icon.component';
+import { ImageViewerComponent } from '../image-viewer/image-viewer.component';
 import { StockFlagComponent } from '../stock-flag/stock-flag.component';
 import { ProductThumbComponent } from '../product-thumb/product-thumb.component';
 import { RowMenuComponent, RowMenuItem } from '../row-menu/row-menu.component';
@@ -12,6 +13,8 @@ export type ProductAvailability = 'available' | 'low' | 'out' | 'inactive';
 export interface ProductTableRow {
   id: string;
   photoUrl: string | null;
+  /** Every photo of the product; the thumbnail opens them in the gallery viewer. Defaults to `photoUrl`. */
+  photos?: readonly string[];
   /** Glyph of the photo placeholder (category icon); defaults to the bearing. */
   thumbIcon?: IconName;
   code: string;
@@ -44,6 +47,10 @@ export interface ProductTableLabels {
   status: string;
   /** Prefix of the row action button name, e.g. "Acciones de". */
   rowActions: string;
+  /** Prefix of the photo button name, e.g. "Ver fotos de". Without it the thumbnail is not clickable. */
+  viewPhotos?: string;
+  /** Gallery viewer button names. */
+  viewer?: { close: string; previous: string; next: string };
   availability: Record<ProductAvailability, string>;
 }
 
@@ -69,7 +76,7 @@ export function formatBoliviano(amount: string): string {
  */
 @Component({
   selector: 'rs-product-table',
-  imports: [FlagComponent, IconComponent, ProductThumbComponent, RowMenuComponent, StockFlagComponent, TooltipDirective],
+  imports: [FlagComponent, IconComponent, ImageViewerComponent, ProductThumbComponent, RowMenuComponent, StockFlagComponent, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './product-table.component.html',
   styleUrl: './product-table.component.scss',
@@ -89,6 +96,19 @@ export class ProductTableComponent {
   readonly rowAction = output<{ id: string; key: string }>();
 
   protected readonly openRowId = signal<string | null>(null);
+  protected readonly viewerOpen = signal(false);
+  protected readonly viewerIndex = signal(0);
+  protected readonly viewerRow = signal<ProductTableRow | null>(null);
+
+  protected photosOf(row: ProductTableRow): readonly string[] {
+    return row.photos?.length ? row.photos : row.photoUrl ? [row.photoUrl] : [];
+  }
+
+  protected openViewer(row: ProductTableRow) {
+    this.viewerRow.set(row);
+    this.viewerIndex.set(0);
+    this.viewerOpen.set(true);
+  }
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected statusIcon(a: ProductAvailability): IconName | null {

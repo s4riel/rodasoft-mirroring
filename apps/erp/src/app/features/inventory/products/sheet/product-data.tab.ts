@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { fieldIconOf, SPEC_STEP_DIMENSIONS } from '@rodasoft/domain';
 import {
@@ -7,6 +7,7 @@ import {
   FlagComponent,
   IconComponent,
   IconName,
+  ImageViewerComponent,
   StatusPillComponent,
   StockFlagComponent,
 } from '@rodasoft/ui';
@@ -37,6 +38,7 @@ import { ProductSheetStore } from './product-sheet.store';
     DataFieldComponent,
     FlagComponent,
     IconComponent,
+    ImageViewerComponent,
     ProductKpisComponent,
     RouterLink,
     StatusPillComponent,
@@ -56,6 +58,14 @@ export class ProductDataTab {
   protected readonly equivalentItems = computed(() =>
     (this.equivalents()?.items ?? []).map((item) => ({ item, pill: equivalencePill(item, 'short') })),
   );
+
+  protected readonly galleryOpen = signal(false);
+  protected readonly galleryIndex = signal(0);
+
+  protected openGallery(index: number): void {
+    this.galleryIndex.set(index);
+    this.galleryOpen.set(true);
+  }
 
   protected readonly flag = computed(() => flagOf(this.product()?.country?.code));
   protected readonly thumbIcon = computed<IconName>(() => thumbIconOf(this.product()?.category.icon ?? ''));

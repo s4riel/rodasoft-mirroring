@@ -3,7 +3,9 @@
     <section class="card identity" aria-label="Identificación">
       <div class="photo">
         @if (p.photos.length) {
-          <img [src]="p.photos[0]" [alt]="p.name" />
+          <button type="button" class="photo-button" [attr.aria-label]="'Ver fotos de ' + p.name" (click)="openGallery(0)">
+            <img [src]="p.photos[0]" [alt]="p.name" />
+          </button>
         } @else {
           <rs-icon [name]="thumbIcon()" [size]="24" aria-hidden="true" />
         }
@@ -191,8 +193,12 @@
           </header>
           @if (p.photos.length) {
             <ul class="photos">
-              @for (photo of p.photos; track photo) {
-                <li><img [src]="photo" [alt]="'Foto de ' + p.name" loading="lazy" /></li>
+              @for (photo of p.photos; track photo; let i = $index) {
+                <li>
+                  <button type="button" class="photo-button" [attr.aria-label]="'Ampliar foto ' + (i + 1) + ' de ' + p.name" (click)="openGallery(i)">
+                    <img [src]="photo" alt="" loading="lazy" />
+                  </button>
+                </li>
               }
             </ul>
           } @else {
@@ -226,5 +232,15 @@
         </section>
       </aside>
     </div>
+
+    <rs-image-viewer
+      [(open)]="galleryOpen"
+      [(index)]="galleryIndex"
+      [images]="p.photos"
+      [label]="'Fotos de ' + p.name"
+      closeLabel="Cerrar"
+      previousLabel="Foto anterior"
+      nextLabel="Foto siguiente"
+    />
   </div>
 }

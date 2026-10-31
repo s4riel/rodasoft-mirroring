@@ -17,6 +17,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   manufacturerCode: '6205-2RS',
   name: 'Rodamiento rígido',
   photoUrl: null,
+  photos: [],
   brand: { id: 'b1', name: 'SKF', logoUrl: null },
   country: { id: 'c1', code: 'SE', name: 'Suecia' },
   category: { id: 'k1', name: 'Rodamientos', icon: 'bearing' },
@@ -42,6 +43,10 @@ describe('product list mapper', () => {
     expect(describeProduct(item())).toBe('Medidas: 25×52×15 mm');
     expect(describeProduct(item({ dimensions: null }))).toBe('');
     expect(toTableRow(item({ dimensions: null })).description).toBe('–');
+  });
+
+  it('passes every photo of the product to the table row for the gallery viewer', () => {
+    expect(toTableRow(item({ photos: ['a.jpg', 'b.jpg'] })).photos).toEqual(['a.jpg', 'b.jpg']);
   });
 
   it('derives availability: inactive, out and available', () => {

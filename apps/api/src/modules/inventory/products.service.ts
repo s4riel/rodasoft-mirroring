@@ -107,6 +107,7 @@ export class ProductsService {
         manufacturerCode: r.manufacturerCode,
         name: r.name,
         photoUrl: photos[0] ?? null,
+        photos,
         brand: { id: r.brand.id, name: r.brand.name, logoUrl: r.brand.logoUrl },
         country: r.country ?? r.brand.country,
         category: parent

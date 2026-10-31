@@ -29,6 +29,20 @@
   color: var(--text-primary);
   min-width: 0;
 }
+/* thumbnail that opens the gallery viewer */
+.photo-button {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  cursor: zoom-in;
+
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: var(--focus-offset);
+  }
+}
 .header {
   min-height: 52px; /* Figma Table/Header: 52 */
   background: var(--bg-surface-2);

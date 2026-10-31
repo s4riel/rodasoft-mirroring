@@ -24,6 +24,7 @@ const PRODUCT: ProductListItem = {
   manufacturerCode: '6205-2RS',
   name: 'Rodamiento rígido',
   photoUrl: null,
+  photos: [],
   brand: { id: 'b-skf', name: 'SKF', logoUrl: null },
   country: { id: 'c-se', code: 'SE', name: 'Suecia' },
   category: { id: 'k-1', name: 'Rodamientos', icon: 'bearing' },

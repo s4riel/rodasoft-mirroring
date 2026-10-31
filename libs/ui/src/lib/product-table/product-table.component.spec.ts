@@ -84,6 +84,30 @@ describe('ProductTableComponent', () => {
     expect(el.querySelector('.initials')).toBeNull();
   });
 
+  it('opens the gallery viewer from the photo thumbnail, starting on the first photo', async () => {
+    const fixture = setup([row({ photoUrl: 'a.jpg', photos: ['a.jpg', 'b.jpg'] }), row({ id: 'p2' })], {
+      labels: { ...labels, viewPhotos: 'Ver fotos de', viewer: { close: 'Cerrar', previous: 'Anterior', next: 'Siguiente' } },
+    });
+    const el: HTMLElement = fixture.nativeElement;
+    // only the row with a photo is clickable
+    expect(el.querySelectorAll('.photo-button')).toHaveLength(1);
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+
+    (el.querySelector('.photo-button') as HTMLElement).click();
+    await fixture.whenStable();
+    expect(el.querySelector('[role="dialog"] .image')?.getAttribute('src')).toBe('a.jpg');
+    expect(el.querySelectorAll('.thumbs .thumb')).toHaveLength(2);
+
+    (el.querySelector('[aria-label="Cerrar"]') as HTMLElement).click();
+    await fixture.whenStable();
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('keeps the thumbnail static when the labels have no viewPhotos', () => {
+    const el: HTMLElement = setup([row({ photoUrl: 'a.jpg' })]).nativeElement;
+    expect(el.querySelector('.photo-button')).toBeNull();
+  });
+
   it('has no row menu button without menu items', () => {
     const el: HTMLElement = setup([row({})]).nativeElement;
     expect(el.querySelector('.kebab')).toBeNull();

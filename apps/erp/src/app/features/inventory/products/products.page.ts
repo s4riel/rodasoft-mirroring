@@ -116,6 +116,8 @@ export class ProductsPage {
     price: 'Precio (Bs)',
     status: 'Estado',
     rowActions: 'Acciones de',
+    viewPhotos: 'Ver fotos de',
+    viewer: { close: 'Cerrar', previous: 'Foto anterior', next: 'Foto siguiente' },
     availability: { available: 'Disponible', low: 'Stock bajo', out: 'Agotado', inactive: 'Inactivo' },
   };
 
