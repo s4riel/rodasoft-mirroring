@@ -32,6 +32,7 @@ const listItem = (id: string, code: string, brand = 'NSK', dims = { innerDiamete
     manufacturerCode: code,
     name: `Rodamiento ${code}`,
     photoUrl: null,
+    photos: [],
     brand: { id: `b-${brand.toLowerCase()}`, name: brand, logoUrl: null },
     country: { id: 'c-jp', code: 'JP', name: 'Japón' },
     category: { id: 'k1', name: 'Rodamientos', icon: 'bearing' },

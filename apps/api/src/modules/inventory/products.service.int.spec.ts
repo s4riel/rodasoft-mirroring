@@ -176,6 +176,7 @@ describe('ProductsService (integration, real Postgres)', () => {
       sku: 'RL-6205',
       manufacturerCode: '6205',
       photoUrl: 'https://img.test/p.png',
+      photos: ['https://img.test/p.png'],
       brand: { name: 'SKF', logoUrl: null },
       country: { code: 'SE' },
       category: { name: 'Rodamientos' },

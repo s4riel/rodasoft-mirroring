@@ -221,6 +221,8 @@ export interface ProductListItem {
   manufacturerCode: string;
   name: string;
   photoUrl: string | null;
+  /** Every photo, in order: the list thumbnail opens them in the gallery viewer. `photoUrl` is the first. */
+  photos: string[];
   brand: ProductBrandSummary;
   country: ProductCountrySummary | null;
   /** Root category; `icon` is the glyph name the ERP draws when the product has no photo. */
