@@ -15,3 +15,4 @@ export * from './lib/product-import';
 export * from './lib/warehouse';
 export * from './lib/transfer';
 export * from './lib/kardex';
+export * from './lib/brand-logos';
