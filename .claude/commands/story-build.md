@@ -10,7 +10,7 @@ You are going to IMPLEMENT story **$ARGUMENTS** from the Rodasoft backlog, follo
 1. `$ARGUMENTS` is not empty and the story exists in `docs/backlog/`.
 2. The approved plan exists at `docs/plans/$ARGUMENTS.md`. If it does not, tell me to run `/story-plan $ARGUMENTS` first.
 3. The story is not marked RETIRED.
-4. Run `git branch --show-current`. If the branch is `main`, stop and ask me to create a branch (suggested name: `feat/<hu-id-in-lowercase>`).
+4. Run `git branch --show-current`. If the branch is `main` or `develop`, stop and ask me to create a branch (suggested name: `feat/<hu-id-in-lowercase>`).
 5. Read `CLAUDE.md`, `docs/naming-conventions.md`, `docs/ui-library.md`, the story, the plan, the epic's design notes (`docs/inventory/design-notes.md` for HU-INV, `docs/sales/design-notes.md` for HU-VEN) and `docs/backlog/decisions.md`.
 
 If the code contradicts the plan (for example a model changed since), stop and tell me instead of improvising.
