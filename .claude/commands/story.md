@@ -9,7 +9,7 @@ You are going to implement story **$ARGUMENTS** from the Rodasoft backlog.
 
 0. If `$ARGUMENTS` is empty or the ID does not exist in `docs/backlog/`, stop and ask me which story to implement.
 1. `CLAUDE.md`, `docs/naming-conventions.md`, `docs/ui-library.md`.
-2. The story in `docs/backlog/` (grep for the ID). If it is an Inventory story, also `docs/inventory/design-notes.md` and `docs/backlog/decisions.md`.
+2. The story in `docs/backlog/` (grep for the ID). Also the epic's design notes (`docs/inventory/design-notes.md` for HU-INV, `docs/sales/design-notes.md` for HU-VEN) and `docs/backlog/decisions.md`.
 3. If the story is marked RETIRED, stop and tell me.
 4. If it depends on an open decision, use the default value from `decisions.md` and make it **configurable** (per-company setting), never hardcoded.
 5. Check what already exists in the repo (Prisma models, modules, `libs/ui` components) and reuse it.

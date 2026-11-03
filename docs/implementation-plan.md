@@ -135,7 +135,7 @@ infra/          docker-compose, Caddy, backup scripts
 
 Rule: each module is closed with its backlog stories (HU-xxx) marked and its main E2E passing.
 
-**Status at 3 Nov 2026:** S0 (monorepo, auth, tenancy, shell) and the Inventory part of S1 are done: 19 of the 20 active Inventory stories (HU-INV-27 is not designed). S2 starts with Sales and POS following the build order in [`backlog/sales.md`](backlog/sales.md) (design notes: [`sales/design-notes.md`](sales/design-notes.md)). Until the SIAT epic is built, a completed sale stores an invoice record as `PENDING_SIAT` through the outbox. The SIAT spike and `libs/siat` stay on the critical path and must be scheduled before S3.
+**Status at 3 Nov 2026:** S0 (monorepo, auth, tenancy, shell) and the Inventory part of S1 are done: 19 of the 20 active Inventory stories (HU-INV-27 is not designed). S2 starts with Sales and POS following the build order in [`backlog/sales.md`](backlog/sales.md) (design notes: [`sales/design-notes.md`](sales/design-notes.md)). Until the SIAT epic is built, a completed sale stores an invoice record as `PENDING` through the outbox. The first Sales goal is a walking skeleton (open register → cash sale → ticket → close register) for the Wave 1 review on 9–13 Nov. The SIAT spike and `libs/siat` stay on the critical path and must be scheduled before S3.
 
 ## 9. Risks and mitigation
 

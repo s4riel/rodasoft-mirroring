@@ -9,34 +9,60 @@ Story text is translated to English; UI strings quoted in "…" stay in Spanish.
 - Design context, data model and rules: `docs/sales/design-notes.md`.
 - Open client decisions (#3–20, #53, #54): `docs/backlog/decisions.md`. If a story depends on an open decision, **parameterize it in Settings, do not hardcode it**.
 - `VP-xx` screens are the Figma frames (ERP file `JYULL6jvXiwNP8UVvEF7tl`, page 09 Prototype · Sales). UI texts come from there, in Spanish.
-- Invoicing is **not** part of this epic. A completed sale creates an `Invoice` record in status `PENDING_SIAT` through the outbox; the SIAT epic (HU-FAC) issues it for real later.
+- Invoicing is **not** part of this epic. A completed sale creates an `Invoice` record in status `PENDING` (the first state of `invoiceMachine`, "not yet sent to SIAT") through the outbox; the SIAT epic (HU-FAC) issues it for real later.
+- **Discounts are per customer** (decided 3 Nov 2026): the customer record holds a discount as a percent or a fixed Bs amount per sale, and the POS, quotes and orders apply it automatically. There are no manual discounts at the POS and no discount approvals, so HU-VEN-06, 28 and 31 are retired and HU-VEN-35 keeps only rounding.
 - Every story below is **Pending** (nothing built yet).
 
 ## Status summary (3 Nov 2026)
 
 | Status | Stories |
 | ------ | ------- |
-| Designed, ready to plan (33) | 01–29, 33, 34, 35, 36 |
-| Waiting for design (3) | 30, 31, 32 |
+| Designed, ready to plan (31) | 00, 01–05, 07–27, 29, 33, 34, 35, 36 |
+| Needs a frame or a form from existing parts (1) | 37 |
+| Waiting for design (2) | 30, 32 |
+| Retired (3) | 06, 28, 31 |
 | Developed (0) | — |
 
 ## Build order
 
+The first goal is a **walking skeleton** for the Wave 1 review (9–13 Nov): open the register, search, cash sale, ticket, close the register, working end to end. The other blocks widen it afterwards.
+
 | Block | Stories | Why this order |
 | ----- | ------- | -------------- |
-| 0 · Foundations (no story) | Prisma models + migrations, state machines, generic `ApprovalRequest`, minimal `Customer`, sales settings seed, `PaymentProvider` interface with a manual/mock adapter | Everything else depends on them |
-| A · Cash register | 01, 22, 23, 24, 25 | The POS cannot sell without an open shift (VEN-01 criterion) |
-| B · POS core | 02, 03, 04, 05, 07, 11, 33 | Search with equivalents (reuses inventory search and equivalences), customer + NIT, cash payment, completing the sale (stock out + cash + invoice record + ticket) |
+| 0 · Foundations | 00 | Prisma models + migrations, state machines, `PosCheckout`, generic `ApprovalRequest`, minimal `Customer`, sales settings seed, `PaymentProvider` with a mock adapter. Everything else depends on them. The missing `libs/ui` components (Numpad, Ticket, PosResultRow, PosCartLine, PosCustomer) can be built in parallel |
+| Skeleton | 01 → 02 → 07 → 11 → 23 (minimal) | Smallest flow that sells: open shift, search, cash payment, completing the sale (stock out + cash + invoice record + ticket), close shift. E2E covers it |
+| A · Cash register | 22 + 23 (full), 24, 25 | Completes the cash cycle started by the skeleton |
+| B · POS core | 05 + 37, 03, 04, 33 | Customer + NIT with the customer discount applied automatically; equivalents and technical sheet reuse the inventory search and equivalences |
 | C · Other payments | 09, 34, 08, 10 | Mixed and credit need no outside provider; QR and card use the mock adapter until decisions #6 and #8 |
-| D · Sales history | 12, 13 | Needs completed sales |
-| E · Prices, discounts, approvals | 26, 27, 28, 06, 35, 29 | Rules and limits before the approvals inbox; rounding (35) is shared by the POS and the bulk price update (27) |
-| F · Cancellations and returns | 14, 15, 21 | Use the approvals inbox (29); the credit note stays a `PENDING_SIAT` record |
-| G · Quotes and orders | 16, 17, 18, 36, 19, 20 | Reservation reuses the stock layer; 36 adds measurements and "Sin existencia" to quote/order/sale lines |
-| H · Waiting for design | 30, 31, 32 | Need Figma frames first; 32 reuses Transfers (HU-INV-18) |
+| D · Sales history | 12 + 13 | Needs completed sales |
+| E · Prices and approvals | 35, 26 + 27, 29 | Rounding (35) is shared by the POS and the bulk price update (27); the approvals inbox handles cancellations, cash differences and returns |
+| F · Cancellations and returns | 14 + 15, 21 | Use the approvals inbox (29); the credit note stays a `PENDING` record |
+| G · Quotes and orders | 16 + 17 + 18, 36, 19, 20 | Reservation reuses the stock layer; 36 adds measurements and "Sin existencia" to quote/order/sale lines |
+| H · Waiting for design | 30, 32 | Need Figma frames first; 30 reuses `PosCheckout`, 32 reuses Transfers (HU-INV-18) |
 
-Related stories in other epics: HU-REP-07 (sales reports, designed) after block D. HU-CRM-05 is replaced for now by the credit flag on `Customer` (decision #53).
+`a + b` means the stories are planned and built together on one branch (`/story-plan HU-VEN-22 HU-VEN-23`). Stock-heavy stories (11, 19, 20, 21) stay alone. After the skeleton, blocks E and G touch mostly separate files and can run in parallel; A, B, C and F all touch the checkout and sale services and stay sequential.
+
+Related stories in other epics: HU-REP-07 (sales reports, designed) after block D. HU-CRM-05 is replaced for now by the credit flag on `Customer` (decision #53); the CRM epic extends the customer discount of HU-VEN-37 rather than redoing it.
 
 ## Stories
+
+### HU-VEN-00 · Sales foundations
+
+- **Status:** Pending
+- **Block:** 0 · Foundations
+- **Role:** — (technical) · **Priority:** Must · **Delivery:** Wave 1
+- **Screens:** — (ERP `sales` layout and routes only)
+
+**Story:** As the team, we want the sales data model, state machines, settings and payment abstraction in place, so that every HU-VEN story builds on the same base.
+
+**Acceptance criteria:**
+
+• Prisma models and migrations from `docs/sales/design-notes.md`, all with `company_id` and registered in `TENANT_MODELS`
+• State machines for cash shift, checkout, sale, approval request, quote and order in `libs/domain`, with unit tests
+• Typed `sales.*` settings with the defaults from `docs/backlog/decisions.md`, seeded per company
+• `PaymentProvider` interface with a mock adapter (charge, confirm, cancel; idempotent)
+• Pure domain functions for the customer discount and rounding, with unit tests
+• Empty `sales` API module and ERP `sales` layout with routes, behind permissions
 
 ### HU-VEN-01 · Cash register
 
@@ -115,8 +141,8 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 
 ### HU-VEN-06 · Point of sale
 
-- **Status:** Pending
-- **Block:** E · Prices, discounts, approvals
+- **Status:** RETIRED (3 Nov 2026) — discounts come from the customer record (HU-VEN-37); there are no manual discounts or discount approvals at the POS
+- **Block:** —
 - **Role:** Cashier · **Priority:** Must · **Delivery:** Wave 1
 - **Screens:** VP-13
 - **Open client decisions:** #5
@@ -206,7 +232,7 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 • Offline it is issued in contingency and regularized later
 • I can print or send the receipt
 
-> Scope note: until the SIAT epic exists, the sale creates the invoice record as `PENDING_SIAT` and the receipt prints without the SIAT QR.
+> Scope note: until the SIAT epic exists, the sale creates the invoice record as `PENDING` and the receipt prints without the SIAT QR.
 
 ### HU-VEN-12 · Sales made
 
@@ -421,7 +447,7 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 ### HU-VEN-26 · Prices and discounts
 
 - **Status:** Pending
-- **Block:** E · Prices, discounts, approvals
+- **Block:** E · Prices and approvals
 - **Role:** Management · **Priority:** Must · **Delivery:** Wave 1
 - **Screens:** VP-11, VP-11b
 - **Open client decisions:** #18
@@ -436,7 +462,7 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 ### HU-VEN-27 · Prices and discounts
 
 - **Status:** Pending
-- **Block:** E · Prices, discounts, approvals
+- **Block:** E · Prices and approvals
 - **Role:** Management · **Priority:** Should · **Delivery:** Wave 1
 - **Screens:** VP-11c
 - **Open client decisions:** #19
@@ -450,8 +476,8 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 
 ### HU-VEN-28 · Prices and discounts
 
-- **Status:** Pending
-- **Block:** E · Prices, discounts, approvals
+- **Status:** RETIRED (3 Nov 2026) — replaced by the per-customer discount (HU-VEN-37); decision #20 no longer applies
+- **Block:** —
 - **Role:** Management · **Priority:** Must · **Delivery:** Wave 1
 - **Screens:** VP-24, VP-24b
 - **Open client decisions:** #20
@@ -466,11 +492,13 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 ### HU-VEN-29 · Prices and discounts
 
 - **Status:** Pending
-- **Block:** E · Prices, discounts, approvals
+- **Block:** E · Prices and approvals
 - **Role:** Management · **Priority:** Must · **Delivery:** Wave 1
 - **Screens:** VP-25
 
-**Story:** As Management, I want an inbox with everything awaiting my approval, so that I resolve discounts, cancellations, differences and returns in one place.
+**Story:** As Management, I want an inbox with everything awaiting my approval, so that I resolve cancellations, cash differences and returns in one place.
+
+> Scope note (3 Nov 2026): discounts no longer need approval (HU-VEN-37), so the inbox has no discount group.
 
 **Acceptance criteria:**
 
@@ -493,8 +521,8 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 
 ### HU-VEN-31 · Point of sale
 
-- **Status:** Waiting for design
-- **Block:** H · Waiting for design
+- **Status:** RETIRED (3 Nov 2026) — no manual discounts at the POS; the customer discount applies to the whole sale (HU-VEN-37)
+- **Block:** —
 - **Role:** Cashier · **Priority:** Could · **Delivery:** Wave 1
 - **Screens:** — (to be designed)
 
@@ -552,18 +580,19 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 ### HU-VEN-35 · Point of sale
 
 - **Status:** Pending
-- **Block:** E · Prices, discounts, approvals
+- **Block:** E · Prices and approvals
 - **Role:** Cashier · **Priority:** Must · **Delivery:** Wave 2
-- **Screens:** VP-03, VP-13, VP-11c
+- **Screens:** VP-03, VP-11c
 - **Open client decisions:** #54
 
-**Story:** As a cashier, I want discounts and totals rounded to an integer or to Bs 0.50 and special discounts to ask for authorization, so that I avoid cents and protect the margin.
+**Story:** As a cashier, I want totals after the customer discount rounded to an integer or to Bs 0.50, so that I avoid cents.
 
 **Acceptance criteria:**
 
-• The discount is shown "redondeado" in the totals
-• A discount over my limit asks Management for authorization with a reason
+• The rounding is shown "redondeado" in the totals
 • The bulk price update uses the same rounding rule
+
+> Scope note (3 Nov 2026): the authorization criterion was dropped together with manual discounts (HU-VEN-37).
 
 ### HU-VEN-36 · Quotes and orders
 
@@ -579,3 +608,21 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 • Each line shows measurements (inner Ø · outer Ø · width) and type
 • A line without stock shows "Sin existencia"
 • The customer preview includes the measurements
+
+### HU-VEN-37 · Customers
+
+- **Status:** Pending
+- **Block:** B · POS core (built with HU-VEN-05)
+- **Role:** Management · **Priority:** Must · **Delivery:** Wave 1
+- **Screens:** — (Figma frame to be added; until then a form built from existing `libs/ui` parts)
+- **Decisions #5 and #20 answered (3 Nov)**
+
+**Story:** As Management, I want to set a discount on each customer when I register them, so that every sale to that customer gets it without the cashier deciding.
+
+**Acceptance criteria:**
+
+• The customer form has the data, NIT, the credit flag and the discount
+• The discount is a percent or a fixed amount in Bs per sale, or none
+• The POS, quotes and orders apply it automatically when the customer is chosen, and the total never goes below 0
+• Changes to the discount are recorded with user and date
+• Requires the permission `sales.customers.manage`
