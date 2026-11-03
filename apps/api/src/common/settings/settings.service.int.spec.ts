@@ -50,6 +50,25 @@ describe('SettingsService (integration, real Postgres)', () => {
     expect(await settings.get('adjustments.approvalThresholdValue')).toBeNull();
   });
 
+  it('falls back to the decision defaults of the sales settings', async () => {
+    current = a;
+    expect(await settings.get('sales.roundingMode')).toBe('NONE');
+    expect(await settings.get('sales.allowMixedPayment')).toBe(true);
+    expect(await settings.get('sales.quoteValidityDays')).toBe(7);
+    expect(await settings.get('sales.allowPartialDispatch')).toBe(true);
+    expect(await settings.get('sales.cancellationWindowDays')).toBeNull();
+    expect(await settings.get('sales.cashExpenseApprovalLimit')).toBeNull();
+  });
+
+  it('reads a stored sales setting and ignores an unknown rounding mode', async () => {
+    await base.companySetting.create({ data: { companyId: b, key: 'sales.roundingMode', value: 'HALF_BOLIVIANO' } });
+    current = b;
+    expect(await settings.get('sales.roundingMode')).toBe('HALF_BOLIVIANO');
+    await base.companySetting.update({ where: { companyId_key: { companyId: b, key: 'sales.roundingMode' } }, data: { value: 'UP' } });
+    expect(await settings.get('sales.roundingMode')).toBe('NONE');
+    await base.companySetting.delete({ where: { companyId_key: { companyId: b, key: 'sales.roundingMode' } } });
+  });
+
   it('reads the company value and never another company’s', async () => {
     await base.companySetting.create({ data: { companyId: a, key: 'inventory.skuPrefix', value: 'AB-' } });
 

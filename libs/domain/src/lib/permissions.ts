@@ -103,7 +103,6 @@ export const DEFAULT_ROLES: Record<string, { name: string; permissions: Permissi
       'sales.cash-register.open',
       'sales.quotes.manage',
       'sales.orders.manage',
-      'sales.discounts.apply',
       'sales.cancellations.request',
       'sales.returns.manage',
       'invoicing.invoices.view',

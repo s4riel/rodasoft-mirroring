@@ -1,3 +1,4 @@
+import type { Route } from '@angular/router';
 import { routes } from './app.routes';
 
 describe('ERP routes', () => {
@@ -7,6 +8,16 @@ describe('ERP routes', () => {
     expect(routes.map((r) => r.path)).toEqual(
       expect.arrayContaining(['login', 'forgot-password', 'reset-password', 'auth/callback']),
     );
+  });
+
+  it('loads the sales section lazily, with its tabs behind permissions', async () => {
+    const sales = routes.find((r) => r.path === '' && r.children)?.children?.find((c) => c.path === 'sales');
+    expect(sales?.loadChildren).toBeDefined();
+    const children = (await (sales?.loadChildren as () => Promise<Route[]>)()) as Route[];
+    const tabs = children[0].children ?? [];
+    const guarded = tabs.filter((t) => t.path);
+    expect(guarded.map((t) => t.path)).toEqual(['pos', 'cash-register', 'history', 'quotes', 'orders', 'prices', 'approvals']);
+    expect(guarded.every((t) => t.canActivate?.length === 1)).toBe(true);
   });
 
   it('has one route per menu item', () => {

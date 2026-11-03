@@ -14,7 +14,7 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'auth.invitation': QUEUE.mail,
   'invoice.issue': QUEUE.siat,
   'invoice.cancel': QUEUE.siat,
-  'sale.confirmed': QUEUE.accounting,
+  'sale.completed': QUEUE.accounting,
   'entry.generate': QUEUE.accounting,
   'inventory.product-created': QUEUE.inventory,
   'inventory.product-updated': QUEUE.inventory,

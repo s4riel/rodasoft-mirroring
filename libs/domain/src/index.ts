@@ -16,3 +16,5 @@ export * from './lib/warehouse';
 export * from './lib/transfer';
 export * from './lib/kardex';
 export * from './lib/brand-logos';
+export * from './lib/sales-pricing';
+export * from './lib/sales-numbering';

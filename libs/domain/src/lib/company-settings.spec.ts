@@ -18,6 +18,35 @@ describe('settingOrDefault', () => {
     expect(settingOrDefault('adjustments.approvalThresholdValue', 10000)).toBeNull();
   });
 
+  it('has the decision defaults for the sales settings', () => {
+    expect(settingOrDefault('sales.roundingMode', undefined)).toBe('NONE');
+    expect(settingOrDefault('sales.allowMixedPayment', undefined)).toBe(true);
+    expect(settingOrDefault('sales.quoteValidityDays', undefined)).toBe(7);
+    expect(settingOrDefault('sales.allowPartialDispatch', undefined)).toBe(true);
+    expect(settingOrDefault('sales.cancellationWindowDays', undefined)).toBeNull();
+    expect(settingOrDefault('sales.cashExpenseApprovalLimit', undefined)).toBeNull();
+  });
+
+  it('accepts only the known rounding modes', () => {
+    expect(settingOrDefault('sales.roundingMode', 'HALF_BOLIVIANO')).toBe('HALF_BOLIVIANO');
+    expect(settingOrDefault('sales.roundingMode', 'INTEGER')).toBe('INTEGER');
+    expect(settingOrDefault('sales.roundingMode', 'UP')).toBe('NONE');
+    expect(settingOrDefault('sales.roundingMode', 1)).toBe('NONE');
+  });
+
+  it('reads the cancellation window as a positive whole number, or null for no limit', () => {
+    expect(settingOrDefault('sales.cancellationWindowDays', 30)).toBe(30);
+    expect(settingOrDefault('sales.cancellationWindowDays', null)).toBeNull();
+    expect(settingOrDefault('sales.cancellationWindowDays', 0)).toBeNull();
+    expect(settingOrDefault('sales.cancellationWindowDays', 2.5)).toBeNull();
+    expect(settingOrDefault('sales.cancellationWindowDays', '30')).toBeNull();
+  });
+
+  it('keeps the cash expense limit as a money string', () => {
+    expect(settingOrDefault('sales.cashExpenseApprovalLimit', '500.00')).toBe('500.00');
+    expect(settingOrDefault('sales.cashExpenseApprovalLimit', 500)).toBeNull();
+  });
+
   it('ignores a stored value of the wrong type', () => {
     expect(settingOrDefault('inventory.allowNegativeStock', 'yes')).toBe(COMPANY_SETTING_DEFAULTS['inventory.allowNegativeStock']);
     expect(settingOrDefault('inventory.skuPrefix', 7)).toBe('RL-');

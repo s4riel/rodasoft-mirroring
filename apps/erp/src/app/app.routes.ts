@@ -40,7 +40,10 @@ export const routes: Route[] = [
     canActivate: [authGuard],
     children: [
       { path: '', title: t('Inicio'), loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage) },
-      modulePlaceholder('sales', 'Ventas y POS', 'S2 (16–29 nov)'),
+      {
+        path: 'sales',
+        loadChildren: () => import('./features/sales/sales.routes').then((m) => m.SALES_ROUTES),
+      },
       modulePlaceholder('invoicing', 'Facturación SIAT', 'S2–S3 (16 nov–13 dic)'),
       {
         path: 'inventory',

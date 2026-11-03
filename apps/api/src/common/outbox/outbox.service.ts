@@ -8,7 +8,7 @@ import { PrismaService, type TenantTransaction } from '../prisma/prisma.service'
 export type OutboxType =
   | 'auth.password-reset'
   | 'auth.invitation'
-  | 'sale.confirmed'
+  | 'sale.completed'
   | 'invoice.issue'
   | 'invoice.cancel'
   | 'entry.generate'

@@ -58,19 +58,35 @@ export async function seedCompany(prisma: PrismaClient, c: SeedCompany): Promise
       update: { name: b.name },
       create: { companyId: company.id, code: b.code, name: b.name },
     });
+    let mainWarehouseId: string | null = null;
     for (const [i, name] of b.warehouses.entries()) {
       const code = `${prefix(b.name)}-${String(i + 1).padStart(2, '0')}`;
-      await prisma.warehouse.upsert({
+      const warehouse = await prisma.warehouse.upsert({
         where: { companyId_code: { companyId: company.id, code } },
         update: { name },
         create: { companyId: company.id, branchId: branch.id, code, name, isMain: i === 0 },
       });
+      if (i === 0) mainWarehouseId = warehouse.id;
     }
-    await prisma.siatPointOfSale.upsert({
+    const pointOfSale = await prisma.siatPointOfSale.upsert({
       where: { companyId_branchId_code: { companyId: company.id, branchId: branch.id, code: 0 } },
       update: {},
       create: { companyId: company.id, branchId: branch.id, code: 0, name: `Caja 1 · ${b.name}` },
     });
+    // one cash register per SIAT point of sale (decision #3); its sales leave stock from the branch's main warehouse
+    if (mainWarehouseId) {
+      await prisma.cashRegister.upsert({
+        where: { pointOfSaleId: pointOfSale.id },
+        update: {},
+        create: {
+          companyId: company.id,
+          branchId: branch.id,
+          pointOfSaleId: pointOfSale.id,
+          warehouseId: mainWarehouseId,
+          name: pointOfSale.name,
+        },
+      });
+    }
   }
 
   // Roles per company with their permissions
@@ -88,7 +104,18 @@ export async function seedCompany(prisma: PrismaClient, c: SeedCompany): Promise
   }
 
   // Company settings with their defaults (HU-INV-06). Thresholds without a value are not stored: the code reads the default.
-  for (const key of ['inventory.skuPrefix', 'inventory.allowNegativeStock', 'inventory.import.maxRows', 'inventory.import.createMissingBrands'] as const) {
+  // The sales settings with a value are seeded too (HU-VEN-00); `sales.cancellationWindowDays` and
+  // `sales.cashExpenseApprovalLimit` default to null (no limit), so they have no row either.
+  for (const key of [
+    'inventory.skuPrefix',
+    'inventory.allowNegativeStock',
+    'inventory.import.maxRows',
+    'inventory.import.createMissingBrands',
+    'sales.roundingMode',
+    'sales.allowMixedPayment',
+    'sales.quoteValidityDays',
+    'sales.allowPartialDispatch',
+  ] as const) {
     await prisma.companySetting.upsert({
       where: { companyId_key: { companyId: company.id, key } },
       update: {},
