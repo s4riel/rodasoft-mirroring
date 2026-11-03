@@ -1,6 +1,6 @@
 # Backlog · Inventory (HU-INV)
 
-Source: Google Sheets "Rodalaser Product Backlog v2" (Backlog sheet), exported on 22 Oct 2026.
+Source: Google Sheets "Rodalaser Product Backlog v2" (Backlog sheet), exported on 22 Oct 2026; status and retirements re-checked against the Sheet on 3 Nov 2026.
 If the Sheet changes, re-export this section; the Sheet is authoritative.
 
 ## How to use it
@@ -10,9 +10,19 @@ If the Sheet changes, re-export this section; the Sheet is authoritative.
 - Open client decisions: `docs/backlog/decisions.md`. If a story depends on an open decision, **parameterize it in Settings, do not hardcode it**.
 - `IN-xx` screens are the Figma frames (ERP file `JYULL6jvXiwNP8UVvEF7tl`, page 08 Prototype · Inventory). UI texts come from there, in Spanish.
 
+## Status summary (3 Nov 2026)
+
+| Status | Stories |
+| ------ | ------- |
+| Developed (19) | 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 16, 17, 18, 21, 22, 24 |
+| Pending (1) | 27 (no screen designed yet) |
+| Retired (7) | 14, 15, 19, 20, 23, 25, 26 |
+
+HU-INV-03 (photo gallery viewer) lives on branch `feat/product-gallery-viewer` and is not merged into `main` yet. The Sheet column «Estado de desarrollo» mirrors this table.
+
 ## Retired (do NOT implement)
 
-v2 retired the Stock, Counts and Catalog tabs: **HU-INV-14, HU-INV-15, HU-INV-25, HU-INV-26**.
+v2 retired the Stock, Counts and Catalog tabs: **HU-INV-14, HU-INV-15, HU-INV-25, HU-INV-26**. On 3 Nov 2026 the Sheet also retired **HU-INV-19, HU-INV-20, HU-INV-23** (transfer stock check, transfer approval, adjustment approval).
 Even though there is no minimum/maximum screen, the data model does store `min_stock` and `max_stock` per product and branch, because HU-INV-27 and the alerts use them.
 
 ## Build order
@@ -21,15 +31,16 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 | ------------------------------------------------- | ------------------------------------------------ |
 | A · Foundations (data model, no story of its own) | see `docs/inventory/design-notes.md` §Data model |
 | B · Products                                      | 01, 02, 03, 05, 06, 07, 08, 09                   |
-| C · Stock and kardex                              | 16, 24, 22, 23                                   |
+| C · Stock and kardex                              | 16, 24, 22                                       |
 | D · Equivalences                                  | 04, 11, 12, 13                                   |
-| E · Warehouses and transfers                      | 17, 18, 19, 20, 21, 27                           |
+| E · Warehouses and transfers                      | 17, 18, 21, 27                                   |
 | F · Excel importer                                | 10                                               |
 
 ## Stories
 
 ### HU-INV-01 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse / Sales · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-01a, IN-01b, IN-01c (actions menu), IN-01d, IN-01e (applied filters)
@@ -49,6 +60,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-02 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-01c, IN-19
@@ -62,6 +74,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-03 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse / Sales · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-02a
@@ -76,6 +89,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-04 · Products
 
+- **Status:** **Developed**
 - **Block:** D · Equivalences
 - **Role:** Warehouse / Sales · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-02b
@@ -89,6 +103,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-05 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-22, IN-23
@@ -102,6 +117,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-06 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-03a (categories), IN-03 P1, IN-03 P2, IN-03 P3, IN-03 P4, IN-03 P5, IN-03 P6, IN-03 Code error, IN-03 Price error, IN-03 Created, IN-03c and IN-03d (Seals and gaskets), IN-03e to IN-03j (step 1) and IN-03e2 to IN-03j2 (step 2) of the other categories
@@ -120,6 +136,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-07 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-20a, IN-20b
@@ -132,6 +149,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-08 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse · **Priority:** Should · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-19
@@ -145,6 +163,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-09 · Products
 
+- **Status:** **Developed**
 - **Block:** B · Products
 - **Role:** Warehouse / Management · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-18a, IN-18b
@@ -158,6 +177,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-10 · Products
 
+- **Status:** **Developed**
 - **Block:** F · Excel importer
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-21a, IN-21b
@@ -173,6 +193,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-11 · Equivalences
 
+- **Status:** **Developed**
 - **Block:** D · Equivalences
 - **Role:** Warehouse / Sales · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-15a, IN-15b, IN-15f
@@ -187,6 +208,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-12 · Equivalences
 
+- **Status:** **Developed**
 - **Block:** D · Equivalences
 - **Role:** Sales / Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-13
@@ -200,6 +222,7 @@ Even though there is no minimum/maximum screen, the data model does store `min_s
 
 ### HU-INV-13 · Equivalences
 
+- **Status:** **Developed**
 - **Block:** D · Equivalences
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-15c, IN-15d, IN-15e
@@ -226,6 +249,7 @@ Do not implement. Retired screens: IN-04c.
 
 ### HU-INV-16 · Stock
 
+- **Status:** **Developed**
 - **Block:** C · Stock and kardex
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-17
@@ -239,6 +263,7 @@ Do not implement. Retired screens: IN-04c.
 
 ### HU-INV-17 · Warehouses
 
+- **Status:** **Developed**
 - **Block:** E · Warehouses and transfers
 - **Role:** Warehouse / Management · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-14, IN-30a, IN-30b
@@ -252,6 +277,7 @@ Do not implement. Retired screens: IN-04c.
 
 ### HU-INV-18 · Transfers
 
+- **Status:** **Developed**
 - **Block:** E · Warehouses and transfers
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-05, IN-06a, IN-06b, IN-06c, IN-06d
@@ -267,8 +293,21 @@ Do not implement. Retired screens: IN-04c.
 • Stock becomes "en tránsito"
 • With no products added: empty state with illustration
 
+### HU-INV-19 · Transfers · RETIRED
+
+~~As Warehouse, I want to know which products lack enough stock when transferring, so that I fix them before sending.~~
+
+Do not implement. Retired in the Sheet on 3 Nov 2026 (decision #35 is obsolete). Sending stays blocked while a line exceeds the available stock.
+
+### HU-INV-20 · Transfers · RETIRED
+
+~~As Management / Warehouse, I want to approve transfers that exceed the limit, so that I control large movements.~~
+
+Do not implement. Retired in the Sheet on 3 Nov 2026 (decision #36 is obsolete). The `PENDING_APPROVAL` transfer state stays dormant; no transfer threshold setting exists in code.
+
 ### HU-INV-21 · Transfers
 
+- **Status:** **Developed**
 - **Block:** E · Warehouses and transfers
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-24a, IN-24b, IN-07
@@ -283,6 +322,7 @@ Do not implement. Retired screens: IN-04c.
 
 ### HU-INV-22 · Adjustments
 
+- **Status:** **Developed**
 - **Block:** C · Stock and kardex
 - **Role:** Warehouse · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-27, IN-08
@@ -294,21 +334,15 @@ Do not implement. Retired screens: IN-04c.
 • List of adjustments
 • New adjustment with reason
 
-### HU-INV-23 · Adjustments
+### HU-INV-23 · Adjustments · RETIRED
 
-- **Block:** C · Stock and kardex
-- **Role:** Management · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
-- **Screens:** IN-28
-- **Open client decisions:** #37
+~~As Management, I want to approve adjustments with an audit record, so that I control stock changes.~~
 
-**Story:** As Management, I want to approve adjustments with an audit record, so that I control stock changes.
-
-**Acceptance criteria:**
-
-• Approval with user, date and reason
+Do not implement. Retired in the Sheet on 3 Nov 2026 (decision #37 is obsolete). Adjustments are applied directly by HU-INV-22 with an audit record; the `PENDING_APPROVAL` state in `libs/domain/src/lib/state-machine.ts` stays dormant. Retired screens: IN-28.
 
 ### HU-INV-24 · Kardex
 
+- **Status:** **Developed**
 - **Block:** C · Stock and kardex
 - **Role:** Warehouse / Accounting · **Priority:** Must · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** IN-09
@@ -333,6 +367,7 @@ Do not implement. Retired screens: IN-11, IN-31a, IN-31b, IN-31c.
 
 ### HU-INV-27 · Stock
 
+- **Status:** **Pending** (not designed yet)
 - **Block:** E · Warehouses and transfers
 - **Role:** Warehouse · **Priority:** Should · **Delivery:** Wave 1 (review 9–13 Nov)
 - **Screens:** — (no screen of its own)
