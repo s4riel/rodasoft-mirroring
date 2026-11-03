@@ -88,6 +88,29 @@ model Company {
   stockAdjustments     StockAdjustment[]
   stockAdjustmentItems StockAdjustmentItem[]
   companySettings      CompanySetting[]
+  customers            Customer[]
+  cashRegisters        CashRegister[]
+  cashShifts           CashShift[]
+  cashMovements        CashMovement[]
+  cashCounts           CashCount[]
+  posCheckouts         PosCheckout[]
+  posCheckoutItems     PosCheckoutItem[]
+  posCheckoutPayments  PosCheckoutPayment[]
+  sales                Sale[]
+  saleItems            SaleItem[]
+  salePayments         SalePayment[]
+  invoices             Invoice[]
+  quotes               Quote[]
+  quoteItems           QuoteItem[]
+  salesOrders          SalesOrder[]
+  salesOrderItems      SalesOrderItem[]
+  dispatches           Dispatch[]
+  dispatchItems        DispatchItem[]
+  saleReturns          SaleReturn[]
+  saleReturnItems      SaleReturnItem[]
+  priceChanges         PriceChange[]
+  approvalRequests     ApprovalRequest[]
+  documentSequences    DocumentSequence[]
 
   @@map("companies")
 }
@@ -106,10 +129,13 @@ model Branch {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company      Company            @relation(fields: [companyId], references: [id])
-  warehouses   Warehouse[]
-  pointsOfSale SiatPointOfSale[]
-  memberships  MembershipBranch[]
+  company       Company            @relation(fields: [companyId], references: [id])
+  warehouses    Warehouse[]
+  pointsOfSale  SiatPointOfSale[]
+  memberships   MembershipBranch[]
+  cashRegisters CashRegister[]
+  sales         Sale[]
+  salesOrders   SalesOrder[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -140,6 +166,9 @@ model Warehouse {
   transfersOut     Transfer[]        @relation("TransferOrigin")
   transfersIn      Transfer[]        @relation("TransferDestination")
   stockAdjustments StockAdjustment[]
+  cashRegisters    CashRegister[]
+  sales            Sale[]
+  salesOrders      SalesOrder[]
 
   @@unique([companyId, code])
   @@index([companyId, branchId])
@@ -223,8 +252,6 @@ model Role {
   name        String // Spanish display name
   description String?
   isSystem    Boolean  @default(false) @map("is_system") // system roles cannot be deleted
-  /// discount limit without approval (%), used by the VP-13 rule
-  maxDiscount Decimal  @default(0) @map("max_discount") @db.Decimal(5, 2)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -331,8 +358,9 @@ model SiatPointOfSale {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company Company @relation(fields: [companyId], references: [id])
-  branch  Branch  @relation(fields: [branchId], references: [id])
+  company      Company       @relation(fields: [companyId], references: [id])
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  cashRegister CashRegister?
 
   @@unique([companyId, branchId, code])
   @@map("siat_points_of_sale")
@@ -475,6 +503,11 @@ model Product {
   equivalencesAsB      Equivalence[]         @relation("EquivalenceProductB")
   transferItems        TransferItem[]
   stockAdjustmentItems StockAdjustmentItem[]
+  posCheckoutItems     PosCheckoutItem[]
+  saleItems            SaleItem[]
+  quoteItems           QuoteItem[]
+  salesOrderItems      SalesOrderItem[]
+  priceChanges         PriceChange[]
   createdBy            User?                 @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy            User?                 @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   deactivatedBy        User?                 @relation("ProductDeactivatedBy", fields: [deactivatedById], references: [id], onDelete: Restrict)
@@ -828,6 +861,621 @@ model CompanySetting {
   @@map("company_settings")
 }
 
+// ── Sales and POS (HU-VEN-00, docs/sales/design-notes.md) ───────────────────
+// Business queries go through `prisma.tenant`. Document states mirror the `libs/domain` unions and change only through
+// their machines in state-machine.ts. User references (`*_by_id`, `cashier_id`, `user_id`) are plain uuid columns: the
+// audit log records who did what, and users are never deleted.
+
+/// Discount held by the customer record (decision #5): a percent of the sale or a fixed Bs amount per sale.
+enum CustomerDiscountType {
+  NONE
+  PERCENT
+  AMOUNT
+}
+
+enum CashShiftStatus {
+  OPEN
+  CLOSED
+  APPROVED
+  OBSERVED
+}
+
+enum CashMovementType {
+  INCOME
+  EXPENSE
+  SALE_PAYMENT
+  REFUND
+}
+
+enum PosCheckoutStatus {
+  OPEN
+  PAYING
+  COMPLETED
+  ON_HOLD
+  ABANDONED
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELLATION_PENDING
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  QR
+  CARD
+  TRANSFER
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  CANCELLED
+}
+
+/// Same values as `InvoiceStatus` in libs/domain (`invoiceMachine`); a sale writes it as PENDING.
+enum InvoiceStatus {
+  PENDING
+  SENDING
+  VALID
+  REJECTED
+  CONTINGENCY
+  OBSERVED
+  CANCELLATION_PENDING
+  CANCELLED
+}
+
+enum ApprovalType {
+  CANCELLATION
+  CASH_DIFFERENCE
+  RETURN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  EXPIRED
+  REJECTED
+}
+
+enum SalesOrderStatus {
+  OPEN
+  PARTIALLY_DISPATCHED
+  DISPATCHED
+  CANCELLED
+}
+
+enum RefundMethod {
+  CASH
+  CREDIT_NOTE
+}
+
+/// Minimal customer (HU-CRM-01 extends it). `documentType` holds the `IdentityDocumentType` code of nit.ts. The discount
+/// applies automatically to every sale, quote and order of the customer (HU-VEN-37); the migration adds the CHECKs
+/// `discount_value >= 0` and `<= 100` when PERCENT.
+model Customer {
+  id             String               @id @default(uuid(7)) @db.Uuid
+  companyId      String               @map("company_id") @db.Uuid
+  name           String
+  documentType   Int                  @map("document_type")
+  documentNumber String               @map("document_number")
+  complement     String?
+  email          String?
+  phone          String?
+  /// decision #53: credit is a yes/no flag, no amount limit
+  creditEnabled  Boolean              @default(false) @map("credit_enabled")
+  discountType   CustomerDiscountType @default(NONE) @map("discount_type")
+  discountValue  Decimal              @default(0) @map("discount_value") @db.Decimal(14, 2)
+  status         RecordStatus         @default(ACTIVE)
+  createdById    String?              @map("created_by_id") @db.Uuid
+  updatedById    String?              @map("updated_by_id") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company       @relation(fields: [companyId], references: [id])
+  checkouts   PosCheckout[]
+  sales       Sale[]
+  quotes      Quote[]
+  salesOrders SalesOrder[]
+
+  @@unique([companyId, documentType, documentNumber])
+  @@index([companyId, name])
+  @@map("customers")
+}
+
+/// A physical register. One per SIAT point of sale (decision #3); its sales leave stock from `warehouseId`.
+model CashRegister {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  companyId     String       @map("company_id") @db.Uuid
+  branchId      String       @map("branch_id") @db.Uuid
+  pointOfSaleId String       @unique @map("point_of_sale_id") @db.Uuid
+  warehouseId   String       @map("warehouse_id") @db.Uuid
+  name          String
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company         @relation(fields: [companyId], references: [id])
+  branch      Branch          @relation(fields: [branchId], references: [id])
+  pointOfSale SiatPointOfSale @relation(fields: [pointOfSaleId], references: [id])
+  warehouse   Warehouse       @relation(fields: [warehouseId], references: [id])
+  shifts      CashShift[]
+
+  @@index([companyId, branchId])
+  @@map("cash_registers")
+}
+
+/// One open→close period of a register. The migration adds a partial unique index: one OPEN shift per register.
+model CashShift {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  companyId        String          @map("company_id") @db.Uuid
+  registerId       String          @map("register_id") @db.Uuid
+  status           CashShiftStatus @default(OPEN)
+  openingFloat     Decimal         @map("opening_float") @db.Decimal(14, 2)
+  openedById       String          @map("opened_by_id") @db.Uuid
+  openedAt         DateTime        @default(now()) @map("opened_at") @db.Timestamptz(3)
+  closedById       String?         @map("closed_by_id") @db.Uuid
+  closedAt         DateTime?       @map("closed_at") @db.Timestamptz(3)
+  expectedAmount   Decimal?        @map("expected_amount") @db.Decimal(14, 2)
+  countedAmount    Decimal?        @map("counted_amount") @db.Decimal(14, 2)
+  differenceAmount Decimal?        @map("difference_amount") @db.Decimal(14, 2)
+  reviewedById     String?         @map("reviewed_by_id") @db.Uuid
+  reviewedAt       DateTime?       @map("reviewed_at") @db.Timestamptz(3)
+  reviewNote       String?         @map("review_note")
+
+  company   Company        @relation(fields: [companyId], references: [id])
+  register  CashRegister   @relation(fields: [registerId], references: [id])
+  movements CashMovement[]
+  counts    CashCount[]
+  checkouts PosCheckout[]
+  sales     Sale[]
+
+  @@index([companyId, registerId, status])
+  @@index([companyId, openedAt(sort: Desc)])
+  @@map("cash_shifts")
+}
+
+/// Manual income/expense with a reason; sale payments also post here (`refType` "SALE", `refId` the sale).
+model CashMovement {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  companyId String           @map("company_id") @db.Uuid
+  shiftId   String           @map("shift_id") @db.Uuid
+  type      CashMovementType
+  amount    Decimal          @db.Decimal(14, 2)
+  reason    String?
+  refType   String?          @map("ref_type")
+  refId     String?          @map("ref_id") @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company   @relation(fields: [companyId], references: [id])
+  shift   CashShift @relation(fields: [shiftId], references: [id])
+
+  @@index([companyId, shiftId, createdAt])
+  @@map("cash_movements")
+}
+
+/// Closing count of a shift by denomination.
+model CashCount {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  companyId    String  @map("company_id") @db.Uuid
+  shiftId      String  @map("shift_id") @db.Uuid
+  denomination Decimal @db.Decimal(14, 2)
+  quantity     Int
+
+  company Company   @relation(fields: [companyId], references: [id])
+  shift   CashShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, denomination])
+  @@index([companyId])
+  @@map("cash_counts")
+}
+
+/// Server-side cart before the sale exists (backs QR payments awaiting confirmation, cart recovery and held sales).
+/// Completing it creates the `Sale` in the same transaction.
+model PosCheckout {
+  id         String            @id @default(uuid(7)) @db.Uuid
+  companyId  String            @map("company_id") @db.Uuid
+  cashierId  String            @map("cashier_id") @db.Uuid
+  shiftId    String            @map("shift_id") @db.Uuid
+  customerId String?           @map("customer_id") @db.Uuid
+  status     PosCheckoutStatus @default(OPEN)
+  holdLabel  String?           @map("hold_label")
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company  Company              @relation(fields: [companyId], references: [id])
+  shift    CashShift            @relation(fields: [shiftId], references: [id])
+  customer Customer?            @relation(fields: [customerId], references: [id])
+  items    PosCheckoutItem[]
+  payments PosCheckoutPayment[]
+  sale     Sale?
+
+  @@index([companyId, cashierId, status])
+  @@index([companyId, shiftId])
+  @@map("pos_checkouts")
+}
+
+model PosCheckoutItem {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  companyId  String  @map("company_id") @db.Uuid
+  checkoutId String  @map("checkout_id") @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  quantity   Int
+  unitPrice  Decimal @map("unit_price") @db.Decimal(14, 2)
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  company  Company     @relation(fields: [companyId], references: [id])
+  checkout PosCheckout @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+  product  Product     @relation(fields: [productId], references: [id])
+
+  @@index([companyId, checkoutId])
+  @@map("pos_checkout_items")
+}
+
+/// A payment attempt of a checkout. `idempotencyKey` is unique per company, so a repeated charge or webhook finds the
+/// stored row instead of charging twice.
+model PosCheckoutPayment {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  companyId      String        @map("company_id") @db.Uuid
+  checkoutId     String        @map("checkout_id") @db.Uuid
+  method         PaymentMethod
+  amount         Decimal       @db.Decimal(14, 2)
+  idempotencyKey String        @map("idempotency_key")
+  providerRef    String?       @map("provider_ref")
+  status         PaymentStatus @default(PENDING)
+  reference      String?
+  /// credit payments only (HU-VEN-34)
+  dueDate        DateTime?     @map("due_date") @db.Date
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company  Company     @relation(fields: [companyId], references: [id])
+  checkout PosCheckout @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, checkoutId])
+  @@map("pos_checkout_payments")
+}
+
+/// A paid sale. The customer discount is copied here at sale time, so a later change of the customer does not alter it.
+model Sale {
+  id             String               @id @default(uuid(7)) @db.Uuid
+  companyId      String               @map("company_id") @db.Uuid
+  /// `V-000231`, row-locked counter per company (`document_sequences`)
+  number         String
+  checkoutId     String               @unique @map("checkout_id") @db.Uuid
+  customerId     String?              @map("customer_id") @db.Uuid
+  branchId       String               @map("branch_id") @db.Uuid
+  warehouseId    String               @map("warehouse_id") @db.Uuid
+  shiftId        String               @map("shift_id") @db.Uuid
+  status         SaleStatus           @default(COMPLETED)
+  subtotal       Decimal              @db.Decimal(14, 2)
+  discountType   CustomerDiscountType @default(NONE) @map("discount_type")
+  discountValue  Decimal              @default(0) @map("discount_value") @db.Decimal(14, 2)
+  discountAmount Decimal              @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  roundingAmount Decimal              @default(0) @map("rounding_amount") @db.Decimal(14, 2)
+  total          Decimal              @db.Decimal(14, 2)
+  createdById    String               @map("created_by_id") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company       @relation(fields: [companyId], references: [id])
+  checkout   PosCheckout   @relation(fields: [checkoutId], references: [id])
+  customer   Customer?     @relation(fields: [customerId], references: [id])
+  branch     Branch        @relation(fields: [branchId], references: [id])
+  warehouse  Warehouse     @relation(fields: [warehouseId], references: [id])
+  shift      CashShift     @relation(fields: [shiftId], references: [id])
+  items      SaleItem[]
+  payments   SalePayment[]
+  invoice    Invoice?
+  returns    SaleReturn[]
+  dispatches Dispatch[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt(sort: Desc)])
+  @@index([companyId, shiftId])
+  @@index([companyId, customerId])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  saleId    String  @map("sale_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(14, 2)
+  lineTotal Decimal @map("line_total") @db.Decimal(14, 2)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  company     Company          @relation(fields: [companyId], references: [id])
+  sale        Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product          @relation(fields: [productId], references: [id])
+  returnItems SaleReturnItem[]
+
+  @@index([companyId, saleId])
+  @@index([companyId, productId])
+  @@map("sale_items")
+}
+
+model SalePayment {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  companyId      String         @map("company_id") @db.Uuid
+  saleId         String         @map("sale_id") @db.Uuid
+  method         PaymentMethod
+  amount         Decimal        @db.Decimal(14, 2)
+  /// cash given back; only CASH may have it
+  change         Decimal        @default(0) @db.Decimal(14, 2)
+  reference      String?
+  providerStatus PaymentStatus? @map("provider_status")
+  /// credit payments only: the unpaid amount waits for accounts receivable until this date
+  dueDate        DateTime?      @map("due_date") @db.Date
+
+  company Company @relation(fields: [companyId], references: [id])
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, saleId])
+  @@map("sale_payments")
+}
+
+/// Minimal invoice record written by a completed sale in status PENDING; the SIAT epic (HU-FAC) issues it. `number` stays
+/// null until then. The customer tax data is copied at sale time.
+model Invoice {
+  id                     String        @id @default(uuid(7)) @db.Uuid
+  companyId              String        @map("company_id") @db.Uuid
+  saleId                 String        @unique @map("sale_id") @db.Uuid
+  number                 Int?
+  status                 InvoiceStatus @default(PENDING)
+  total                  Decimal       @db.Decimal(14, 2)
+  customerTaxName        String        @map("customer_tax_name")
+  customerDocumentType   Int           @map("customer_document_type")
+  customerDocumentNumber String        @map("customer_document_number")
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  sale    Sale    @relation(fields: [saleId], references: [id])
+
+  @@index([companyId, status])
+  @@map("invoices")
+}
+
+model Quote {
+  id             String               @id @default(uuid(7)) @db.Uuid
+  companyId      String               @map("company_id") @db.Uuid
+  /// `COT-000012`
+  number         String
+  customerId     String               @map("customer_id") @db.Uuid
+  status         QuoteStatus          @default(DRAFT)
+  validUntil     DateTime             @map("valid_until") @db.Date
+  subtotal       Decimal              @db.Decimal(14, 2)
+  discountType   CustomerDiscountType @default(NONE) @map("discount_type")
+  discountValue  Decimal              @default(0) @map("discount_value") @db.Decimal(14, 2)
+  discountAmount Decimal              @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  roundingAmount Decimal              @default(0) @map("rounding_amount") @db.Decimal(14, 2)
+  total          Decimal              @db.Decimal(14, 2)
+  /// one entry per time the quote was sent (channel, date, user)
+  sendLog        Json                 @default("[]") @map("send_log")
+  createdById    String               @map("created_by_id") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company     Company      @relation(fields: [companyId], references: [id])
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  items       QuoteItem[]
+  salesOrders SalesOrder[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt(sort: Desc)])
+  @@index([companyId, customerId])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  quoteId   String  @map("quote_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(14, 2)
+  lineTotal Decimal @map("line_total") @db.Decimal(14, 2)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  company Company @relation(fields: [companyId], references: [id])
+  quote   Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([companyId, quoteId])
+  @@map("quote_items")
+}
+
+/// Reserves stock in `warehouseId` (`StockLevel.reserved`); a dispatch turns the reservation into a movement.
+model SalesOrder {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  companyId   String           @map("company_id") @db.Uuid
+  /// `PED-000012`
+  number      String
+  customerId  String           @map("customer_id") @db.Uuid
+  quoteId     String?          @map("quote_id") @db.Uuid
+  branchId    String           @map("branch_id") @db.Uuid
+  warehouseId String           @map("warehouse_id") @db.Uuid
+  status      SalesOrderStatus @default(OPEN)
+  createdById String           @map("created_by_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company          @relation(fields: [companyId], references: [id])
+  customer   Customer         @relation(fields: [customerId], references: [id])
+  quote      Quote?           @relation(fields: [quoteId], references: [id])
+  branch     Branch           @relation(fields: [branchId], references: [id])
+  warehouse  Warehouse        @relation(fields: [warehouseId], references: [id])
+  items      SalesOrderItem[]
+  dispatches Dispatch[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status, createdAt(sort: Desc)])
+  @@index([companyId, customerId])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id                 String  @id @default(uuid(7)) @db.Uuid
+  companyId          String  @map("company_id") @db.Uuid
+  orderId            String  @map("order_id") @db.Uuid
+  productId          String  @map("product_id") @db.Uuid
+  quantity           Int
+  unitPrice          Decimal @map("unit_price") @db.Decimal(14, 2)
+  reservedQuantity   Int     @default(0) @map("reserved_quantity")
+  dispatchedQuantity Int     @default(0) @map("dispatched_quantity")
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  order         SalesOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id])
+  dispatchItems DispatchItem[]
+
+  @@index([companyId, orderId])
+  @@index([companyId, productId])
+  @@map("sales_order_items")
+}
+
+model Dispatch {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  /// `DSP-000012`
+  number      String
+  /// the sale that invoiced this dispatch, once it is invoiced
+  saleId      String?  @map("sale_id") @db.Uuid
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company        @relation(fields: [companyId], references: [id])
+  order   SalesOrder     @relation(fields: [orderId], references: [id])
+  sale    Sale?          @relation(fields: [saleId], references: [id])
+  items   DispatchItem[]
+
+  @@unique([companyId, number])
+  @@index([companyId, orderId])
+  @@map("dispatches")
+}
+
+model DispatchItem {
+  id          String @id @default(uuid(7)) @db.Uuid
+  companyId   String @map("company_id") @db.Uuid
+  dispatchId  String @map("dispatch_id") @db.Uuid
+  orderItemId String @map("order_item_id") @db.Uuid
+  quantity    Int
+
+  company   Company        @relation(fields: [companyId], references: [id])
+  dispatch  Dispatch       @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  orderItem SalesOrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@index([companyId, dispatchId])
+  @@map("dispatch_items")
+}
+
+model SaleReturn {
+  id                  String       @id @default(uuid(7)) @db.Uuid
+  companyId           String       @map("company_id") @db.Uuid
+  saleId              String       @map("sale_id") @db.Uuid
+  /// `DEV-000012`
+  number              String
+  refundMethod        RefundMethod @map("refund_method")
+  total               Decimal      @db.Decimal(14, 2)
+  /// the credit note record, when the refund is a credit note (HU-FAC issues it)
+  creditNoteInvoiceId String?      @map("credit_note_invoice_id") @db.Uuid
+  createdById         String       @map("created_by_id") @db.Uuid
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company          @relation(fields: [companyId], references: [id])
+  sale    Sale             @relation(fields: [saleId], references: [id])
+  items   SaleReturnItem[]
+
+  @@unique([companyId, number])
+  @@index([companyId, saleId])
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id         String @id @default(uuid(7)) @db.Uuid
+  companyId  String @map("company_id") @db.Uuid
+  returnId   String @map("return_id") @db.Uuid
+  saleItemId String @map("sale_item_id") @db.Uuid
+  quantity   Int
+
+  company  Company    @relation(fields: [companyId], references: [id])
+  return   SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  saleItem SaleItem   @relation(fields: [saleItemId], references: [id])
+
+  @@index([companyId, returnId])
+  @@map("sale_return_items")
+}
+
+/// Append-only audit of single and bulk price edits (`batchId` groups a bulk update).
+model PriceChange {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  oldPrice  Decimal  @map("old_price") @db.Decimal(14, 2)
+  newPrice  Decimal  @map("new_price") @db.Decimal(14, 2)
+  userId    String   @map("user_id") @db.Uuid
+  batchId   String?  @map("batch_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([companyId, productId, createdAt(sort: Desc)])
+  @@index([companyId, batchId])
+  @@map("price_changes")
+}
+
+/// Generic approval inbox entry: the cancellation of a sale, a cash difference or a return. `subjectId` points at the
+/// sale, shift or return, depending on `type`.
+model ApprovalRequest {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  companyId     String         @map("company_id") @db.Uuid
+  type          ApprovalType
+  subjectId     String         @map("subject_id") @db.Uuid
+  status        ApprovalStatus @default(PENDING)
+  requestedById String         @map("requested_by_id") @db.Uuid
+  reason        String?
+  decidedById   String?        @map("decided_by_id") @db.Uuid
+  decidedAt     DateTime?      @map("decided_at") @db.Timestamptz(3)
+  comment       String?
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, status, type])
+  @@index([companyId, type, subjectId])
+  @@map("approval_requests")
+}
+
+/// Row-locked counter behind the document numbers (`V-`, `COT-`, `PED-`, `DSP-`, `DEV-`): see `nextDocumentNumber`.
+model DocumentSequence {
+  id        String @id @default(uuid(7)) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  key       String
+  last      BigInt @default(0)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, key])
+  @@map("document_sequences")
+}
+
 // ── Cross-cutting ───────────────────────────────────────────────────────────
 
 /// Audit log: who did what, on which entity, before and after.
@@ -856,7 +1504,7 @@ model AuditLog {
 model OutboxEvent {
   id             BigInt    @id @default(autoincrement())
   companyId      String?   @map("company_id") @db.Uuid
-  type           String // sale.confirmed, invoice.issue, auth.password-reset…
+  type           String // sale.completed, invoice.issue, auth.password-reset…
   payload        Json
   /// key to deduplicate consumers (e.g. invoice:<id>:issue)
   idempotencyKey String?   @unique @map("idempotency_key")

@@ -121,3 +121,74 @@ export const invoiceMachine = createMachine<InvoiceStatus, InvoiceEvent>({
   CANCELLATION_PENDING: { approveCancellation: 'CANCELLED', rejectCancellation: 'VALID' },
   CANCELLED: {},
 });
+
+// ── Sales and POS (HU-VEN-00, docs/sales/design-notes.md) ──
+
+/** A shift is closed by the cashier and then reviewed: approved, or observed when the count needs a follow-up. */
+export type CashShiftStatus = 'OPEN' | 'CLOSED' | 'APPROVED' | 'OBSERVED';
+export type CashShiftEvent = 'close' | 'approve' | 'observe';
+
+export const cashShiftMachine = createMachine<CashShiftStatus, CashShiftEvent>({
+  OPEN: { close: 'CLOSED' },
+  CLOSED: { approve: 'APPROVED', observe: 'OBSERVED' },
+  APPROVED: {},
+  OBSERVED: {},
+});
+
+/**
+ * The server-side cart. Completing it creates the sale in the same transaction. A checkout can leave PAYING for OPEN
+ * (the cashier goes back to the cart) and can be put on hold or abandoned before it is paid.
+ */
+export type PosCheckoutStatus = 'OPEN' | 'PAYING' | 'COMPLETED' | 'ON_HOLD' | 'ABANDONED';
+export type PosCheckoutEvent = 'pay' | 'complete' | 'back' | 'hold' | 'resume' | 'abandon';
+
+export const posCheckoutMachine = createMachine<PosCheckoutStatus, PosCheckoutEvent>({
+  OPEN: { pay: 'PAYING', hold: 'ON_HOLD', abandon: 'ABANDONED' },
+  PAYING: { complete: 'COMPLETED', back: 'OPEN' },
+  ON_HOLD: { resume: 'OPEN', abandon: 'ABANDONED' },
+  COMPLETED: {},
+  ABANDONED: {},
+});
+
+/** A sale only exists once paid; a rejected cancellation puts it back to COMPLETED. */
+export type SaleStatus = 'COMPLETED' | 'CANCELLATION_PENDING' | 'CANCELLED';
+export type SaleEvent = 'requestCancellation' | 'approveCancellation' | 'rejectCancellation';
+
+export const saleMachine = createMachine<SaleStatus, SaleEvent>({
+  COMPLETED: { requestCancellation: 'CANCELLATION_PENDING' },
+  CANCELLATION_PENDING: { approveCancellation: 'CANCELLED', rejectCancellation: 'COMPLETED' },
+  CANCELLED: {},
+});
+
+/** Generic approval inbox entry (cancellation, cash difference, return). */
+export type ApprovalRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ApprovalRequestEvent = 'approve' | 'reject';
+
+export const approvalRequestMachine = createMachine<ApprovalRequestStatus, ApprovalRequestEvent>({
+  PENDING: { approve: 'APPROVED', reject: 'REJECTED' },
+  APPROVED: {},
+  REJECTED: {},
+});
+
+/** An expired quote can be renewed: it goes back to SENT with a new validity date. */
+export type QuoteStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'EXPIRED' | 'REJECTED';
+export type QuoteEvent = 'send' | 'accept' | 'expire' | 'reject' | 'renew';
+
+export const quoteMachine = createMachine<QuoteStatus, QuoteEvent>({
+  DRAFT: { send: 'SENT' },
+  SENT: { accept: 'ACCEPTED', expire: 'EXPIRED', reject: 'REJECTED' },
+  EXPIRED: { renew: 'SENT' },
+  ACCEPTED: {},
+  REJECTED: {},
+});
+
+/** Cancelling an order that was partially dispatched releases only what is still reserved. */
+export type SalesOrderStatus = 'OPEN' | 'PARTIALLY_DISPATCHED' | 'DISPATCHED' | 'CANCELLED';
+export type SalesOrderEvent = 'dispatchPartial' | 'dispatchAll' | 'cancel';
+
+export const salesOrderMachine = createMachine<SalesOrderStatus, SalesOrderEvent>({
+  OPEN: { dispatchPartial: 'PARTIALLY_DISPATCHED', dispatchAll: 'DISPATCHED', cancel: 'CANCELLED' },
+  PARTIALLY_DISPATCHED: { dispatchPartial: 'PARTIALLY_DISPATCHED', dispatchAll: 'DISPATCHED', cancel: 'CANCELLED' },
+  DISPATCHED: {},
+  CANCELLED: {},
+});

@@ -1,3 +1,5 @@
+import { ROUNDING_MODES, type RoundingMode } from './sales-pricing';
+
 /**
  * Per-company settings (HU-INV-06). Each key is typed here with its default, so code always has a value even when
  * the company has no `company_settings` row. Defaults follow the open client decisions (#32, #37): a missing
@@ -18,6 +20,18 @@ export interface CompanySettings {
   'transfers.maxLines': number;
   /** Adjustments above this value need approval (decision #37). Null = no limit. */
   'adjustments.approvalThresholdValue': string | null;
+  /** Rounding of the sale total (decision #54). */
+  'sales.roundingMode': RoundingMode;
+  /** Whether a sale may be paid with more than one method (decision #7). */
+  'sales.allowMixedPayment': boolean;
+  /** Days a quote stays valid (decision #12). */
+  'sales.quoteValidityDays': number;
+  /** Whether an order may be dispatched and invoiced in parts (decision #14). */
+  'sales.allowPartialDispatch': boolean;
+  /** Days after a sale in which it can still be cancelled (decision #10). Null = no limit. */
+  'sales.cancellationWindowDays': number | null;
+  /** Cash expenses above this value need approval (decision #16). Null = never asks. */
+  'sales.cashExpenseApprovalLimit': string | null;
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -30,18 +44,38 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'inventory.equivalences.requireApproval': false,
   'transfers.maxLines': 500,
   'adjustments.approvalThresholdValue': null,
+  'sales.roundingMode': 'NONE',
+  'sales.allowMixedPayment': true,
+  'sales.quoteValidityDays': 7,
+  'sales.allowPartialDispatch': true,
+  'sales.cancellationWindowDays': null,
+  'sales.cashExpenseApprovalLimit': null,
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */
-const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>(['adjustments.approvalThresholdValue']);
+const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>([
+  'adjustments.approvalThresholdValue',
+  'sales.cashExpenseApprovalLimit',
+]);
+
+/** Settings whose value is one of a closed list. */
+const ENUM_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>> = { 'sales.roundingMode': ROUNDING_MODES };
+
+/** Settings that are a positive whole number or null (null = no limit); their default is null, so the type is not inferable from it. */
+const NULLABLE_INTEGER_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>(['sales.cancellationWindowDays']);
+
+const isPositiveInteger = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0;
 
 /** Settings are read from the database as JSON; a value that does not match its type falls back to the default. */
 export function settingOrDefault<K extends CompanySettingKey>(key: K, stored: unknown): CompanySettings[K] {
   const fallback = COMPANY_SETTING_DEFAULTS[key];
   if (stored === undefined || stored === null) return fallback;
   if (MONEY_SETTING_KEYS.has(key)) return (typeof stored === 'string' ? stored : fallback) as CompanySettings[K];
+  const allowed = ENUM_SETTING_VALUES[key];
+  if (allowed) return (typeof stored === 'string' && allowed.includes(stored) ? stored : fallback) as CompanySettings[K];
+  if (NULLABLE_INTEGER_SETTING_KEYS.has(key)) return (isPositiveInteger(stored) ? stored : fallback) as CompanySettings[K];
   if (typeof fallback === 'boolean') return (typeof stored === 'boolean' ? stored : fallback) as CompanySettings[K];
-  if (typeof fallback === 'number') return (typeof stored === 'number' && Number.isInteger(stored) && stored > 0 ? stored : fallback) as CompanySettings[K];
+  if (typeof fallback === 'number') return (isPositiveInteger(stored) ? stored : fallback) as CompanySettings[K];
   if (typeof fallback === 'string') return (typeof stored === 'string' ? stored : fallback) as CompanySettings[K];
   if (typeof stored === 'number' || typeof stored === 'string') return stored as CompanySettings[K];
   return fallback;

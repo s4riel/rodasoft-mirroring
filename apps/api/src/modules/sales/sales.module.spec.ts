@@ -1,0 +1,13 @@
+import { Test } from '@nestjs/testing';
+import { MockPaymentProvider } from './payments/mock-payment.provider';
+import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/payment-provider';
+import { SalesModule } from './sales.module';
+
+describe('SalesModule', () => {
+  it('compiles and provides the payment providers of QR and card, both on the mock adapter for now', async () => {
+    const module = await Test.createTestingModule({ imports: [SalesModule] }).compile();
+    const registry = module.get<PaymentProviderRegistry>(PAYMENT_PROVIDERS);
+    expect(registry.QR).toBeInstanceOf(MockPaymentProvider);
+    expect(registry.CARD).toBeInstanceOf(MockPaymentProvider);
+  });
+});
