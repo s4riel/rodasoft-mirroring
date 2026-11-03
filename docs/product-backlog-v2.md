@@ -20,9 +20,16 @@
 
 ## Contents (v2)
 
-- 157 stories in 12 epics (152 active + 4 withdrawn from Inventory; 1 extra count row in Summary = Total). 107 designed and 45 to be designed.
+- 154 stories in 12 epics as of 3 Nov 2026 (Summary total), of which 7 are withdrawn (Inventory: HU-INV-14, 15, 19, 20, 23, 25, 26). 109 designed and 45 to be designed.
 - ID prefixes: `HU-BC`, `HU-VEN`, `HU-FAC`, `HU-INV`, `HU-WEB`, `HU-COM`, `HU-CRM`, `HU-CON`, `HU-TIE`, `HU-REP`, `HU-CFG`, `HU-TRV`.
 - 238 rows in the "Screens" sheet (each screen with its story, prototype and design).
+
+## Development status (since 3 Nov 2026)
+
+- Backlog sheet, column Q «Estado de desarrollo» (gray, not for the client): `Pendiente`, `En desarrollo`, `Desarrollado`, `En staging`, `Retirada`. The Summary sheet has a «Desarrolladas» column that counts `Desarrollado` per epic.
+- Rule: mark a story `Desarrollado` when its commit (which names the HU id) lands on `main`; `En staging` once deployed there.
+- Status on 3 Nov: Inventory 19 developed (all active stories but HU-INV-27, which is not designed); Common base 5 (HU-BC-01, 02, 03, 06, 10); everything else pending. Total 24.
+- Per-epic detail lives in `docs/backlog/inventory.md` and `docs/backlog/sales.md`.
 
 ## Links
 
