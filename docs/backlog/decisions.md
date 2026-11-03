@@ -1,6 +1,6 @@
 # Client decisions
 
-Source: "Decisiones" sheet of Product Backlog v2 (re-checked 3 Nov 2026). Only #53 has an answer; the rest are open.
+Source: "Decisiones" sheet of Product Backlog v2 (re-checked 3 Nov 2026). #5, #20 and #53 have answers; the rest are open.
 
 ## Inventory
 
@@ -28,7 +28,7 @@ Same rule: parameterize in the per-company settings table with the default below
 | --- | -------- | ------- | ----------------------- |
 | 3 | Fixed cash float and how many registers per branch | VEN-01 | The float is typed when the shift opens; one register per SIAT point of sale |
 | 4 | How to invoice customers without NIT | VEN-05 | Consumer-final invoice (NIT 0, name "S/N") |
-| 5 | Maximum discount per role and who approves | VEN-06, 35 | `sales.discountLimitPercent` per role; 0 = every discount asks for approval; approver has `sales.discounts.approve` |
+| 5 | Maximum discount per role and who approves | VEN-06, 35, 37 | **Answered 3 Nov:** the discount is set per customer (percent or fixed Bs per sale) when the customer is registered and applies to all their sales; no manual POS discounts, no approvals (HU-VEN-37) |
 | 6 | QR provider | VEN-08 | Mock `PaymentProvider` adapter; manual confirmation by the cashier |
 | 7 | Is mixed payment accepted? | VEN-09 | Yes (setting `sales.allowMixedPayment`) |
 | 8 | Card terminal provider | VEN-10 | Mock adapter; cashier reports approved/declined |
@@ -43,7 +43,7 @@ Same rule: parameterize in the per-company settings table with the default below
 | 17 | Policy for cash differences | VEN-24 | Any difference needs Accounting review (`sales.cash-register.review`) |
 | 18 | Who can change prices | VEN-26 | Permission `sales.prices.edit` (Management) |
 | 19 | Do bulk price changes need approval? | VEN-27 | No; applied with preview and audit |
-| 20 | Do discount rules stack? | VEN-28 | No: the best matching rule applies |
+| 20 | Do discount rules stack? | VEN-28 | **Obsolete (3 Nov):** discount rules were replaced by the per-customer discount (#5) |
 | 53 | Credit sales: to whom, limit, terms | VEN-34, CRM-05 | **Answered 22 Oct:** credit is a yes/no flag on the customer, no amount limit, variable terms (5, 15, 30 days or other) |
 | 54 | Rounding rule (integer or Bs 0.50); who sees costs in exported lists | VEN-35, REP-07 | `sales.roundingMode` = `NONE` until answered; costs only with `inventory.costs.view` |
 

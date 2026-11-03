@@ -9,7 +9,7 @@ You are going to PLAN story **$ARGUMENTS** from the Rodasoft backlog. This comma
 
 1. If `$ARGUMENTS` is empty or the ID does not exist in `docs/backlog/`, stop and ask me which story to plan.
 2. Read `CLAUDE.md`, `docs/naming-conventions.md` and `docs/ui-library.md`.
-3. Read the story in `docs/backlog/` (grep for the ID). If it is an Inventory story, also read `docs/inventory/design-notes.md` and `docs/backlog/decisions.md`.
+3. Read the story in `docs/backlog/` (grep for the ID). Also read the epic's design notes (`docs/inventory/design-notes.md` for HU-INV, `docs/sales/design-notes.md` for HU-VEN) and `docs/backlog/decisions.md`. If several IDs are given, plan them together as one branch.
 4. If the story is marked RETIRED, stop and tell me.
 5. If it depends on an open decision, use the default value from `decisions.md` and make it **configurable** (per-company setting), never hardcoded.
 6. Check what already exists in the repo (Prisma models, modules, `libs/ui` components, permissions, existing tests) and reuse it.
