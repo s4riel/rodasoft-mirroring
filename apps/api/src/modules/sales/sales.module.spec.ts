@@ -5,7 +5,10 @@ import { SalesModule } from './sales.module';
 
 describe('SalesModule', () => {
   it('compiles and provides the payment providers of QR and card, both on the mock adapter for now', async () => {
-    const module = await Test.createTestingModule({ imports: [SalesModule] }).compile();
+    // the cash services need the database, request context and audit/outbox providers of other modules: mocked here
+    const module = await Test.createTestingModule({ imports: [SalesModule] })
+      .useMocker(() => ({}))
+      .compile();
     const registry = module.get<PaymentProviderRegistry>(PAYMENT_PROVIDERS);
     expect(registry.QR).toBeInstanceOf(MockPaymentProvider);
     expect(registry.CARD).toBeInstanceOf(MockPaymentProvider);

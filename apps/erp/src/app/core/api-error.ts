@@ -55,6 +55,13 @@ const MESSAGES: Record<string, string> = {
   REASON_NOTE_REQUIRED: 'Describe el motivo cuando eliges "Otro".',
   NOT_SUPPORTED: 'Esta opción todavía no está disponible.',
   NO_PERMISSION: 'No tienes permiso para esta acción.',
+  CASH_REGISTER_NOT_FOUND: 'La caja ya no existe. Actualiza la lista.',
+  CASH_REGISTER_INACTIVE: 'Esta caja está desactivada y no se puede abrir.',
+  CASH_REGISTER_BRANCH_FORBIDDEN: 'No puedes operar la sucursal de esta caja.',
+  CASH_REGISTER_ALREADY_OPEN: 'Esta caja ya tiene un turno abierto. Elige otra caja.',
+  CASH_SHIFT_ALREADY_OPEN_FOR_USER: 'Ya tienes un turno abierto en otra caja. Ciérralo antes de abrir uno nuevo.',
+  INVALID_OPENING_FLOAT: 'El efectivo inicial no es un monto válido.',
+  CASH_SHIFT_NOT_OPEN: 'No tienes un turno de caja abierto.',
 };
 
 export function problemOf(err: unknown): ApiProblem {

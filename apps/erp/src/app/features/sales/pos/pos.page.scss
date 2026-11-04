@@ -1,0 +1,115 @@
+:host {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Figma "Encabezado POS": title and description on the left, "Salir del POS" on the right */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title-text {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: var(--display-h3-weight);
+}
+
+.title-description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-height: var(--space-16);
+  padding: var(--space-6);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+/* Figma "Fondo": black at 45 % over the whole screen */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--black) 45%, transparent);
+}
+
+/* Figma "Caja cerrada": 480 px wide card, radius/xl, padding 32, modal shadow; no close button */
+.dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-6);
+  box-sizing: border-box;
+  width: 480px;
+  max-width: 100%;
+  padding: var(--space-8);
+  border-radius: var(--radius-xl);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-modal);
+  outline: none;
+}
+
+/* Figma draws the illustration at 180 × 135 (the library default is 240 × 180) */
+.dialog rs-illustration {
+  width: 180px;
+  height: 135px;
+}
+
+.dialog-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.dialog-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: var(--display-h3-weight);
+}
+
+.dialog-description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}

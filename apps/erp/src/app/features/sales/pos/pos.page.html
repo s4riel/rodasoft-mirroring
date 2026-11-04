@@ -1,0 +1,70 @@
+<header class="header">
+  <div class="title">
+    <h1 class="title-text">Punto de venta</h1>
+    <p class="title-description">{{ description() }}</p>
+  </div>
+  <button rsButton variant="secondary" type="button" (click)="leave()">Salir del POS</button>
+</header>
+
+@switch (state()) {
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para usar el punto de venta"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('loading') {
+    <section class="card" role="status" aria-busy="true" aria-label="Cargando el punto de venta">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el punto de venta" description="Revisa tu conexión e inténtalo de nuevo.">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    <section class="card" [attr.inert]="closed() ? '' : null" [attr.aria-hidden]="closed() ? 'true' : null">
+      @if (shift()) {
+        <rs-note type="info" title="Turno abierto">La pantalla de venta llega en la historia HU-VEN-02.</rs-note>
+      }
+    </section>
+
+    @if (closed()) {
+      <div class="backdrop">
+        <div
+          #dialog
+          class="dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pos-closed-title"
+          aria-describedby="pos-closed-text"
+          (keydown)="onKeydown($event)"
+        >
+          <rs-illustration name="cash-closed" />
+          <div class="dialog-text">
+            <h2 id="pos-closed-title" class="dialog-title">Caja cerrada</h2>
+            <p id="pos-closed-text" class="dialog-description">{{ closedText() }}</p>
+          </div>
+          <div class="dialog-actions">
+            <button rsButton variant="secondary" type="button" [attr.data-autofocus]="canOpenRegister() ? null : ''" (click)="leave()">
+              Salir del POS
+            </button>
+            @if (canOpenRegister()) {
+              <button rsButton variant="primary" type="button" data-autofocus (click)="openRegister()">Abrir caja</button>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -16,7 +16,7 @@ describe('ERP routes', () => {
     const children = (await (sales?.loadChildren as () => Promise<Route[]>)()) as Route[];
     const tabs = children[0].children ?? [];
     const guarded = tabs.filter((t) => t.path);
-    expect(guarded.map((t) => t.path)).toEqual(['pos', 'cash-register', 'history', 'quotes', 'orders', 'prices', 'approvals']);
+    expect(guarded.map((t) => t.path)).toEqual(['pos', 'quotes', 'orders', 'history', 'returns', 'cash-register', 'prices', 'approvals']);
     expect(guarded.every((t) => t.canActivate?.length === 1)).toBe(true);
   });
 
