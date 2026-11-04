@@ -15,6 +15,7 @@
         "tsConfig": "apps/erp/tsconfig.app.json",
         "inlineStyleLanguage": "scss",
         "assets": [{ "glob": "**/*", "input": "apps/erp/public" }],
+        "allowedCommonJsDependencies": ["qrcode-generator"],
         "styles": ["apps/erp/src/styles.scss"],
         "stylePreprocessorOptions": { "includePaths": ["libs/ui/src/styles"] }
       },

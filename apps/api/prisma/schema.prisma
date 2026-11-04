@@ -1144,6 +1144,10 @@ model PosCheckoutPayment {
   change         Decimal       @default(0) @db.Decimal(14, 2)
   status         PaymentStatus @default(PENDING)
   reference      String?
+  /// QR payments only (HU-VEN-08): what the QR encodes, kept so a refresh can draw it again
+  qrPayload      String?       @map("qr_payload")
+  /// QR payments only: after this moment a still-pending QR is cancelled by the server (`sales.qrConfirmTimeoutSeconds`)
+  expiresAt      DateTime?     @map("expires_at") @db.Timestamptz(3)
   /// credit payments only (HU-VEN-34)
   dueDate        DateTime?     @map("due_date") @db.Date
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1151,6 +1155,9 @@ model PosCheckoutPayment {
 
   company  Company     @relation(fields: [companyId], references: [id])
   checkout PosCheckout @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+
+  /// partial unique index `pos_checkout_payments_one_pending_qr` on (checkout_id) WHERE method = 'QR' AND status = 'PENDING',
+  /// raw SQL in the migration `pos_qr_payment` (HU-VEN-08): a checkout waits for a single QR at a time
 
   @@unique([companyId, idempotencyKey])
   @@index([companyId, checkoutId])

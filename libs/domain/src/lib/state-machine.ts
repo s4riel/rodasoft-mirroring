@@ -150,6 +150,20 @@ export const posCheckoutMachine = createMachine<PosCheckoutStatus, PosCheckoutEv
   ABANDONED: {},
 });
 
+/**
+ * A payment attempt of a checkout (QR today, card in HU-VEN-10). PENDING waits for the outcome; the other three are final. A
+ * confirmed payment is never cancelled here: giving the money back is a return (HU-VEN-21).
+ */
+export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED';
+export type PaymentEvent = 'confirm' | 'decline' | 'cancel';
+
+export const paymentMachine = createMachine<PaymentStatus, PaymentEvent>({
+  PENDING: { confirm: 'CONFIRMED', decline: 'DECLINED', cancel: 'CANCELLED' },
+  CONFIRMED: {},
+  DECLINED: {},
+  CANCELLED: {},
+});
+
 /** A sale only exists once paid; a rejected cancellation puts it back to COMPLETED. */
 export type SaleStatus = 'COMPLETED' | 'CANCELLATION_PENDING' | 'CANCELLED';
 export type SaleEvent = 'requestCancellation' | 'approveCancellation' | 'rejectCancellation';

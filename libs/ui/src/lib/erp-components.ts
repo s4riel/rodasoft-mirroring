@@ -20,3 +20,4 @@ export * from './pos-cart-line/pos-cart-line.component';
 export * from './pos-customer/pos-customer.component';
 export * from './numpad/numpad.component';
 export * from './receipt/receipt.component';
+export * from './qr-code/qr-code.component';

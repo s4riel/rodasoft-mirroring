@@ -1,0 +1,60 @@
+:host {
+  display: block;
+}
+
+/* Figma VP-04b "QR" block: centred column with gap 12, no box; the note and the actions follow */
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.caption,
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  text-align: center;
+}
+
+.code {
+  box-sizing: border-box;
+  width: 10rem; /* Figma VP-04b QrPlaceholder is 160 × 160 (no token) */
+  max-width: 100%;
+  padding: var(--space-3);
+  border: var(--stroke-default) solid var(--border-default); /* Figma uses border-paper, which is not a token here */
+  background: var(--white); /* the QR sits on white in every theme */
+}
+.code.dim {
+  opacity: 0.4; /* a dead QR is dimmed so nobody scans it; no opacity token */
+}
+.loading {
+  display: flex;
+  justify-content: center;
+}
+
+.amount {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: 600; /* Figma display/h3 weight, no token */
+}
+
+.timer {
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+rs-note {
+  align-self: stretch;
+}

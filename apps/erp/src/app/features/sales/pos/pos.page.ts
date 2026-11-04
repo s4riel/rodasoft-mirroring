@@ -28,6 +28,8 @@ import {
   type PosCheckoutResponse,
   type PosCheckoutView,
   type PosEquivalentItem,
+  type PosPaymentInput,
+  type PosQrPayment,
   type PosProductResult,
 } from '@rodasoft/domain';
 import {
@@ -59,6 +61,7 @@ import { registerPlace } from '../cash/cash-format';
 import { PosApi } from './pos-api.service';
 import { PosCustomerDialog } from './pos-customer.dialog';
 import { PosEquivalentsPanel } from './pos-equivalents-panel';
+import { newIdempotencyKey } from './idempotency-key';
 import { PosPaymentDialog } from './pos-payment.dialog';
 import { PosSaleCompletedDialog } from './pos-sale-completed.dialog';
 import { PosProductSheetDialog, type PosSheetAdd } from './pos-product-sheet.dialog';
@@ -80,14 +83,6 @@ const keyOf = (k: SearchKey) => `${k.categoryId ?? ''}|${k.q}`;
 const isEmptySearch = (k: SearchKey) => !k.q && !k.categoryId;
 
 const money = (value: string) => Decimal.of(value).format();
-
-/** A key for one payment attempt. `randomUUID` only exists in secure contexts, so there is a fallback with enough entropy. */
-function newIdempotencyKey(): string {
-  const c = globalThis.crypto;
-  if (typeof c?.randomUUID === 'function') return c.randomUUID();
-  const bytes = c?.getRandomValues ? c.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-}
 
 /**
  * VP-03 · Point of sale, full screen (HU-VEN-02). Left: search by code, measurement or brand, category chips and results
@@ -195,8 +190,10 @@ export class PosPage implements OnInit {
   protected readonly paying = signal(false);
   /** Sent with `complete`; the same key on a retry returns the sale instead of selling twice. */
   private paymentKey = '';
-  /** The amount of a `complete` that got no answer: the sale may be saved, so cancelling must find out first. */
-  private uncertainReceived: string | null = null;
+  /** What a `complete` that got no answer carried: the sale may be saved, so cancelling must find out first. */
+  private uncertain: { payments: PosPaymentInput[]; key: string } | null = null;
+  /** The QR the server still has for the cart, when the payment screen reopens after a refresh (HU-VEN-08). */
+  protected readonly resumeQr = signal<PosQrPayment | null>(null);
   protected readonly completedOpen = signal(false);
   protected readonly completedSale = signal<CompletedSale | null>(null);
   protected readonly emailSending = signal(false);
@@ -294,8 +291,9 @@ export class PosPage implements OnInit {
         next: ({ checkout }) => {
           this.adopt(checkout);
           this.cartState.set('ready');
-          // the payment screen is gone after a refresh: a cart still waiting for payment goes back to the cart
-          if (checkout?.status === 'PAYING') this.returnToCart();
+          // the payment screen is gone after a refresh: a cart still waiting for payment goes back to the cart, unless a QR is
+          // still waiting for the customer or was already paid, which must not be dropped
+          if (checkout?.status === 'PAYING') this.resumePayment();
         },
         error: (err: unknown) => (this.handleShiftLost(err) ? undefined : this.cartState.set('error')),
       });
@@ -333,19 +331,46 @@ export class PosPage implements OnInit {
     // once the sale is being saved there is nothing to cancel: the answer decides what happens next
     if (this.paying()) return;
     this.paymentOpen.set(false);
-    if (this.uncertainReceived !== null) {
-      this.cancelAfterNoAnswer(this.uncertainReceived);
+    this.resumeQr.set(null);
+    if (this.uncertain) {
+      this.cancelAfterNoAnswer(this.uncertain);
       return;
     }
+    // the server drops a QR that still waits for the customer when the cart goes back
     this.returnToCart();
+  }
+
+  /**
+   * The payment screen is gone after a refresh and the server still has the cart `PAYING`. A QR that waits for the customer or
+   * was already paid brings the screen back on it (the customer's money must not be dropped); otherwise the cart goes back.
+   */
+  private resumePayment() {
+    this.api
+      .activeQr()
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        const payment = res?.payment;
+        if (!payment) {
+          this.returnToCart();
+          return;
+        }
+        this.payTotal.set(payment.amount);
+        this.paySuggested.set([]);
+        this.paymentKey = newIdempotencyKey();
+        this.resumeQr.set(payment);
+        this.paymentOpen.set(true);
+      });
   }
 
   /**
    * A `complete` got no answer and the cashier cancels. If the cart is still waiting for payment the sale was not saved and
    * it goes back to the cart. If it is gone the sale was saved: asking again with the same key returns it.
    */
-  private cancelAfterNoAnswer(received: string) {
-    this.uncertainReceived = null;
+  private cancelAfterNoAnswer(lost: { payments: PosPaymentInput[]; key: string }) {
+    this.uncertain = null;
     this.api
       .back()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -353,7 +378,7 @@ export class PosPage implements OnInit {
         next: (res) => this.adopt(res.checkout),
         error: (err: unknown) => {
           if (problemOf(err).code === 'CHECKOUT_NOT_FOUND') {
-            this.confirmPayment(received);
+            this.submitPayment(lost.payments, lost.key);
             return;
           }
           if (!this.handleShiftLost(err)) this.loadCart();
@@ -379,16 +404,36 @@ export class PosPage implements OnInit {
 
   /** "Confirmar cobro": the server writes the whole sale; the dialog closes only once it is saved. */
   protected confirmPayment(received: string) {
+    this.submitPayment([{ method: 'CASH', received }], this.paymentKey);
+  }
+
+  /** The QR panel got the payment confirmed: the sale is completed with it, under the payment's own key (HU-VEN-08). */
+  protected confirmQrPayment(payment: PosQrPayment) {
+    this.submitPayment([{ method: 'QR', paymentId: payment.paymentId }], payment.idempotencyKey);
+  }
+
+  /** The QR panel met something it cannot fix (the cart changed, the shift closed…): back to the cart, as the server has it. */
+  protected qrProblem(err: unknown) {
+    this.paymentOpen.set(false);
+    this.resumeQr.set(null);
+    if (this.handleShiftLost(err)) return;
+    this.toast.danger(this.errorMessage(err));
+    this.returnToCart();
+  }
+
+  private submitPayment(payments: PosPaymentInput[], key: string) {
     if (this.paying()) return;
     this.paying.set(true);
-    this.uncertainReceived = null;
+    this.uncertain = null;
+    const byQr = payments.some((payment) => payment.method === 'QR');
     this.api
-      .complete({ payments: [{ method: 'CASH', received }], expectedTotal: this.payTotal(), idempotencyKey: this.paymentKey })
+      .complete({ payments, expectedTotal: this.payTotal(), idempotencyKey: key })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ sale }) => {
           this.paying.set(false);
           this.paymentOpen.set(false);
+          this.resumeQr.set(null);
           this.completedSale.set(sale);
           this.completedOpen.set(true);
           // the sale is saved: the cart is empty
@@ -400,8 +445,14 @@ export class PosPage implements OnInit {
           const problem = problemOf(err);
           if (problem.status === 0) {
             // no answer: the sale may or may not be saved. Retrying with the same key never sells twice.
-            this.uncertainReceived = received;
+            this.uncertain = { payments, key };
             this.toast.danger('No pudimos confirmar el cobro. Revisa tu conexión y vuelve a confirmar.');
+            return;
+          }
+          if (byQr && problemOf(err).code !== 'CASH_SHIFT_NOT_OPEN') {
+            // the customer already paid by QR, so the cart cannot go back: the screen stays on the confirmed payment and the
+            // cashier completes the sale again when the cause is gone (a refund is a return, HU-VEN-21)
+            this.toast.danger(this.errorMessage(err));
             return;
           }
           this.paymentOpen.set(false);

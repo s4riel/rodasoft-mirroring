@@ -28,7 +28,19 @@ export const posErrors = {
   invalidAmount: () => new BadRequestException({ code: 'INVALID_AMOUNT', message: 'The amount is not valid (at most 2 decimals)' }),
   amountTooLarge: () => new BadRequestException({ code: 'AMOUNT_TOO_LARGE', message: 'The amount is too large' }),
   paymentMethodNotAvailable: () =>
-    new ConflictException({ code: 'PAYMENT_METHOD_NOT_AVAILABLE', message: 'Only cash payments are available for now' }),
+    new ConflictException({ code: 'PAYMENT_METHOD_NOT_AVAILABLE', message: 'Only cash and QR payments are available for now' }),
+  // --- QR payment (HU-VEN-08) ---
+  invalidPayment: (field: string) =>
+    new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field }] }),
+  paymentNotFound: () => new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: 'Payment not found' }),
+  paymentNotConfirmed: (status: string) =>
+    new ConflictException({ code: 'PAYMENT_NOT_CONFIRMED', message: 'The payment is not confirmed', details: { status } }),
+  paymentInvalidState: (status: string) =>
+    new ConflictException({ code: 'PAYMENT_INVALID_STATE', message: `The payment is already ${status.toLowerCase()}`, details: { status } }),
+  paymentAlreadyConfirmed: () =>
+    new ConflictException({ code: 'PAYMENT_ALREADY_CONFIRMED', message: 'A confirmed payment cannot be dropped: finish the sale' }),
+  qrAlreadyPending: () => new ConflictException({ code: 'QR_ALREADY_PENDING', message: 'This sale already waits for a QR payment' }),
+  qrExpired: () => new ConflictException({ code: 'QR_EXPIRED', message: 'The QR expired and was cancelled' }),
   insufficientStockFor: (productId: string, available: number) =>
     new ConflictException({ code: 'INSUFFICIENT_STOCK', message: 'Not enough stock in the register warehouse', details: { productId, available } }),
   saleNotFound: () => new NotFoundException({ code: 'SALE_NOT_FOUND', message: 'Sale not found' }),

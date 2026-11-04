@@ -283,7 +283,10 @@
   [total]="payTotal()"
   [suggested]="paySuggested()"
   [busy]="paying()"
+  [resumeQr]="resumeQr()"
   (confirm)="confirmPayment($event)"
+  (qrConfirmed)="confirmQrPayment($event)"
+  (qrProblem)="qrProblem($event)"
   (cancelled)="cancelPayment()"
 />
 

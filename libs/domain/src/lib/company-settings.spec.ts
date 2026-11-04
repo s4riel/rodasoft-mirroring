@@ -27,6 +27,7 @@ describe('settingOrDefault', () => {
     expect(settingOrDefault('sales.cashExpenseApprovalLimit', undefined)).toBeNull();
     expect(settingOrDefault('sales.nitVerification', undefined)).toBe('FORMAT');
     expect(settingOrDefault('sales.receiptFormat', undefined)).toBe('TICKET_80MM');
+    expect(settingOrDefault('sales.qrConfirmTimeoutSeconds', undefined)).toBe(300);
   });
 
   it('accepts only the known receipt formats', () => {
