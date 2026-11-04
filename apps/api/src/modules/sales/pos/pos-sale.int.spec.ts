@@ -355,13 +355,13 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
       expect(await codeOf(complete('99999999999999', total))).toBe('AMOUNT_TOO_LARGE');
     });
 
-    it('only cash is available for now', async () => {
+    it('only cash and QR are available for now', async () => {
       const p = await product(10);
       const { total } = await pay([[p.id, 1]]);
       expect(
         await codeOf(
           svc().payment.complete({
-            payments: [{ method: 'QR', received: total }],
+            payments: [{ method: 'CARD', received: total }],
             expectedTotal: total,
             idempotencyKey: key(),
           }),

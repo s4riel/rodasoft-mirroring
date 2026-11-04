@@ -1,0 +1,58 @@
+<div class="panel">
+  @switch (screen()) {
+    @case ('starting') {
+      <div class="loading" role="status" aria-label="Generando el código QR">
+        <rs-skeleton width="10rem" height="10rem" />
+      </div>
+    }
+    @case ('failed') {
+      <rs-note type="danger">No pudimos generar el QR. Revisa tu conexión e inténtalo de nuevo.</rs-note>
+      <div class="actions">
+        <button rsButton variant="primary" type="button" data-testid="qr-retry" data-autofocus (click)="start()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="switchMethod()">Cambiar forma de pago</button>
+      </div>
+    }
+    @default {
+      @if (payment(); as qr) {
+        <p class="caption">Escanea con la app de tu banco</p>
+        <div class="code" [class.dim]="!screenIs('pending')">
+          <rs-qr-code [payload]="qr.qrPayload" label="Código QR de pago" />
+        </div>
+        <p class="amount" data-testid="qr-amount">{{ amountText() }}</p>
+
+        @switch (screen()) {
+          @case ('pending') {
+            <!-- the countdown is outside the live region: it changes every second and must not be announced each time -->
+            <p class="hint"><span role="status" data-testid="qr-waiting">Esperando confirmación del banco</span> · <span class="timer" data-testid="qr-countdown">vence en {{ countdown() }}</span></p>
+            <rs-note type="info" title="Se confirma solo al recibir el pago">Proveedor de QR: PENDIENTE del cliente. El QR mostrado es de ejemplo.</rs-note>
+            <div class="actions">
+              <button rsButton variant="primary" type="button" data-testid="qr-received" data-autofocus [disabled]="disabled()" (click)="report('APPROVED')">Pago recibido</button>
+              <button rsButton variant="secondary" type="button" data-testid="qr-not-received" [disabled]="disabled()" (click)="report('DECLINED')">Pago no recibido</button>
+              <button rsButton variant="secondary" type="button" data-testid="qr-change" [disabled]="disabled()" (click)="switchMethod()">Cambiar forma de pago</button>
+            </div>
+          }
+          @case ('confirmed') {
+            <rs-note type="success">Pago recibido. Completando la venta…</rs-note>
+            <div class="actions">
+              <button rsButton variant="primary" type="button" data-testid="qr-complete" data-autofocus [disabled]="busy()" (click)="retryConfirmed()">Completar venta</button>
+            </div>
+          }
+          @case ('declined') {
+            <rs-note type="danger">El pago no llegó. Genera un nuevo QR o elige otro método.</rs-note>
+            <div class="actions">
+              <button rsButton variant="primary" type="button" data-testid="qr-new" data-autofocus [disabled]="disabled()" (click)="start()">Generar nuevo QR</button>
+              <button rsButton variant="secondary" type="button" data-testid="qr-change" [disabled]="disabled()" (click)="switchMethod()">Cambiar forma de pago</button>
+            </div>
+          }
+          @case ('expired') {
+            <rs-note type="warning">El QR venció y se canceló. Genera uno nuevo o elige otro método.</rs-note>
+            <div class="actions">
+              <button rsButton variant="primary" type="button" data-testid="qr-new" data-autofocus [disabled]="disabled()" (click)="start()">Generar nuevo QR</button>
+              <button rsButton variant="secondary" type="button" data-testid="qr-change" [disabled]="disabled()" (click)="switchMethod()">Cambiar forma de pago</button>
+            </div>
+          }
+        }
+      }
+    }
+  }
+</div>

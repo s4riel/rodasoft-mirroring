@@ -16,11 +16,12 @@ import {
   PosCartLineComponent,
   PosCustomerComponent,
   PosResultRowComponent,
+  QrCodeComponent,
   ReceiptComponent,
   StockFlagComponent,
 } from '@rodasoft/ui';
 
-/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). PosCustomer (HU-VEN-05). Numpad and Receipt (HU-VEN-07, 11). */
+/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). PosCustomer (HU-VEN-05). Numpad and Receipt (HU-VEN-07, 11). QrCode (HU-VEN-08). */
 @Component({
   selector: 'rs-erp-components-section',
   imports: [
@@ -36,6 +37,7 @@ import {
     PosCartLineComponent,
     PosCustomerComponent,
     PosResultRowComponent,
+    QrCodeComponent,
     ReceiptComponent,
     StockFlagComponent,
   ],
@@ -129,6 +131,11 @@ import {
         <rs-numpad type="qty" label="Cantidad" value="12" backspaceLabel="Borrar" decimalLabel="Coma decimal" clearLabel="Borrar todo" />
       </div>
 
+      <h3>QrCode · always black on white (not in Figma: estimated)</h3>
+      <div class="row">
+        <div class="qr-sample"><rs-qr-code payload="RODASOFT-MOCK|demo-ref|490.00" label="Código QR de pago" /></div>
+      </div>
+
       <h3>Receipt · Paper = Ticket 80 mm | Carta (not in Figma: estimated)</h3>
       <div class="row">
         <rs-receipt
@@ -145,6 +152,7 @@ import {
   `,
   styles: `
     .row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
+    .qr-sample { width: 12rem; } /* showcase size of the sample QR, no token */
     .row > rs-kpi-card { width: 400px; }
     .row > rs-data-field { width: 280px; }
     .row > rs-data-field[data-layout="inline"] { width: 440px; }

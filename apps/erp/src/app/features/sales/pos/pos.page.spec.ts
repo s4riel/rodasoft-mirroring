@@ -15,6 +15,7 @@ import type {
   PosEquivalentsResponse,
   PosProductResult,
   PosProductSheet,
+  PosQrPayment,
 } from '@rodasoft/domain';
 import { ContextStore } from '../../../core/context.store';
 import { POS_SEARCH_DEBOUNCE_MS, PosPage } from './pos.page';
@@ -649,6 +650,7 @@ describe('PosPage', () => {
     const PAY = '/api/v1/sales/pos/checkout/pay';
     const BACK = '/api/v1/sales/pos/checkout/back';
     const COMPLETE = '/api/v1/sales/pos/checkout/complete';
+    const QR = '/api/v1/sales/pos/checkout/payments/qr';
     const total = (h: RouterTestingHarness) => root(h).querySelector('[data-testid=pos-total]')!.textContent!.trim();
     const byId = (h: RouterTestingHarness, id: string) => root(h).querySelector<HTMLElement>(`[data-testid=${id}]`);
     const payDialog = (h: RouterTestingHarness) => root(h).querySelector<HTMLElement>('rs-pos-payment-dialog');
@@ -889,10 +891,151 @@ describe('PosPage', () => {
     it('a cart left waiting for payment (a refresh) goes back to OPEN when the page loads', async () => {
       const paying: PosCheckoutView = { ...cart([line()], '490.00'), status: 'PAYING' };
       const h = await open(undefined, shift, undefined, paying);
+      http.expectOne(QR).flush({ payment: null });
       http.expectOne(BACK).flush({ checkout: cart([line()], '490.00') });
       await settle(h);
       expect(total(h)).toBe('Bs 490,00');
       expect(dialog(h)).toBeNull();
+    });
+
+    describe('QR payment (VP-04b, HU-VEN-08)', () => {
+      const qrPayment = (status: PosQrPayment['status'] = 'PENDING'): PosQrPayment => ({
+        paymentId: 'q1',
+        idempotencyKey: 'qr-key-0001',
+        amount: '1111.00',
+        qrPayload: 'RODASOFT-MOCK|ref-1|1111.00',
+        status,
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      });
+      const PAYMENT = '/api/v1/sales/pos/checkout/payments/q1';
+      const chip = (h: RouterTestingHarness, label: string) =>
+        Array.from(root(h).querySelectorAll('.methods rs-filter-chip'))
+          .find((c) => c.textContent?.trim() === label)!
+          .querySelector('button')!;
+
+      /** Payment open, QR chosen and the server's pending QR on screen. */
+      async function withQr(h: RouterTestingHarness) {
+        await startPayment(h);
+        chip(h, 'QR').click();
+        await settle(h);
+        const start = http.expectOne(QR);
+        expect(start.request.method).toBe('POST');
+        expect(start.request.body).toMatchObject({ expectedTotal: '1111.00' });
+        expect(typeof start.request.body.idempotencyKey).toBe('string');
+        start.flush({ payment: qrPayment() });
+        await settle(h);
+      }
+
+      it('chooses QR, shows the code with the amount and waits for the customer', async () => {
+        const h = await withCart();
+        await withQr(h);
+        expect(root(h).querySelector('rs-pos-qr-panel rs-qr-code')).not.toBeNull();
+        expect(byId(h, 'qr-amount')!.textContent).toBe('Bs 1.111,00');
+        expect(byId(h, 'qr-waiting')).not.toBeNull();
+        // the keypad and the cash confirmation are not part of the QR screen
+        expect(byId(h, 'pay-confirm')).toBeNull();
+        expect(root(h).querySelector('rs-numpad')).toBeNull();
+      });
+
+      it('"Pago recibido" confirms the QR, completes the sale with it and shows the completed sale', async () => {
+        const h = await withCart();
+        await withQr(h);
+        (byId(h, 'qr-received') as HTMLButtonElement).click();
+        const confirm = http.expectOne(PAYMENT + '/confirm');
+        expect(confirm.request.body).toEqual({ outcome: 'APPROVED' });
+        confirm.flush({ payment: qrPayment('CONFIRMED') });
+        await settle(h);
+        const complete = http.expectOne(COMPLETE);
+        expect(complete.request.body).toEqual({
+          payments: [{ method: 'QR', paymentId: 'q1' }],
+          expectedTotal: '1111.00',
+          idempotencyKey: 'qr-key-0001',
+        });
+        complete.flush({ sale: { ...sale, received: '1111.00', change: '0.00' } });
+        await settle(h);
+        expect(payDialog(h)?.querySelector('[role=dialog]')).toBeNull();
+        expect(text(h)).toContain('V-000125');
+      });
+
+      it('"Cambiar método" drops the QR and goes back to the cash keypad', async () => {
+        const h = await withCart();
+        await withQr(h);
+        (byId(h, 'qr-change') as HTMLButtonElement).click();
+        http.expectOne(PAYMENT + '/cancel').flush({ payment: qrPayment('CANCELLED') });
+        await settle(h);
+        expect(root(h).querySelector('rs-pos-qr-panel')).toBeNull();
+        expect(root(h).querySelector('rs-numpad')).not.toBeNull();
+        expect(byId(h, 'pay-confirm')).not.toBeNull();
+      });
+
+      it('"Pago no recibido" shows it and offers a new QR', async () => {
+        const h = await withCart();
+        await withQr(h);
+        (byId(h, 'qr-not-received') as HTMLButtonElement).click();
+        const declined = http.expectOne(PAYMENT + '/confirm');
+        expect(declined.request.body).toEqual({ outcome: 'DECLINED' });
+        declined.flush({ payment: qrPayment('DECLINED') });
+        await settle(h);
+        expect(text(h)).toContain('El pago no llegó');
+        (byId(h, 'qr-new') as HTMLButtonElement).click();
+        http.expectOne(QR).flush({ payment: { ...qrPayment(), paymentId: 'q2', idempotencyKey: 'qr-key-0002' } });
+        await settle(h);
+        expect(byId(h, 'qr-waiting')).not.toBeNull();
+      });
+
+      it('cancelling the payment screen goes back to the cart; the server drops the pending QR', async () => {
+        const h = await withCart();
+        await withQr(h);
+        button(h, 'Cancelar', payDialog(h)!)!.click();
+        await settle(h);
+        http.expectOne(BACK).flush({ checkout: cart([line()], '1111.00') });
+        await settle(h);
+        expect(dialog(h)).toBeNull();
+      });
+
+      it('a paid QR that cannot complete keeps the screen open: the customer paid, so there is no way back', async () => {
+        const h = await withCart();
+        await withQr(h);
+        (byId(h, 'qr-received') as HTMLButtonElement).click();
+        http.expectOne(PAYMENT + '/confirm').flush({ payment: qrPayment('CONFIRMED') });
+        await settle(h);
+        http
+          .expectOne(COMPLETE)
+          .flush({ code: 'INSUFFICIENT_STOCK', message: 'no stock', details: { productId: 'p1', available: 1 } }, { status: 409, statusText: 'Conflict' });
+        await settle(h);
+        expect(text(h)).toContain('Solo hay 1 disponibles en Central.');
+        // no BACK request (verified by http.verify) and the dialog is still there, with "Cancelar" off
+        expect(payDialog(h)!.querySelector('[role=dialog]')).not.toBeNull();
+        expect(button(h, 'Cancelar', payDialog(h)!)!.disabled).toBe(true);
+        // completing again with the same key is possible once the cause is gone
+        (byId(h, 'qr-complete') as HTMLButtonElement).click();
+        const retry = http.expectOne(COMPLETE);
+        expect(retry.request.body.idempotencyKey).toBe('qr-key-0001');
+        retry.flush({ sale });
+        await settle(h);
+        expect(text(h)).toContain('V-000125');
+      });
+
+      it('a refresh with a QR still waiting reopens the QR screen instead of dropping it', async () => {
+        const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
+        const h = await open(undefined, shift, undefined, paying);
+        http.expectOne(QR).flush({ payment: qrPayment() });
+        await settle(h);
+        expect(byId(h, 'qr-waiting')).not.toBeNull();
+        expect(byId(h, 'qr-amount')!.textContent).toBe('Bs 1.111,00');
+      });
+
+      it('a refresh with a QR already paid completes the sale with it', async () => {
+        const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
+        const h = await open(undefined, shift, undefined, paying);
+        http.expectOne(QR).flush({ payment: qrPayment('CONFIRMED') });
+        await settle(h);
+        const complete = http.expectOne(COMPLETE);
+        expect(complete.request.body).toMatchObject({ payments: [{ method: 'QR', paymentId: 'q1' }], idempotencyKey: 'qr-key-0001' });
+        complete.flush({ sale });
+        await settle(h);
+        expect(text(h)).toContain('V-000125');
+      });
     });
 
     it('prints the ticket in its own tab', async () => {

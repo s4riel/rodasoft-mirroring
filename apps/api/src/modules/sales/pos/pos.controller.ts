@@ -18,8 +18,10 @@ import type {
   CustomerSearchResponse,
   CompletePosCheckoutResponse,
   CustomerSummary,
+  PosActiveQrResponse,
   PosCategoryListResponse,
   PosCheckoutResponse,
+  PosQrPaymentResponse,
   PosEquivalentsResponse,
   PosPayResponse,
   PosInvoiceDataResponse,
@@ -29,7 +31,8 @@ import type {
 import { RequirePermissions } from '../../access/require-permissions.decorator';
 import { CreatePosCustomerDto, PosCustomerSearchQueryDto, SetPosCustomerDto } from '../customers/customers.dto';
 import { CustomersService } from '../customers/customers.service';
-import { CompletePosCheckoutDto } from './pos-payment.dto';
+import { CompletePosCheckoutDto, ConfirmPosQrDto, StartPosQrDto } from './pos-payment.dto';
+import { PosQrPaymentService } from './pos-qr-payment.service';
 import { AddPosCheckoutItemDto, PosProductSearchQueryDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { posErrors } from './pos.errors';
 import { CashShiftsService } from '../cash/cash-shifts.service';
@@ -55,6 +58,8 @@ const bodyPipe = strictValidationPipe('VALIDATION_FAILED', 'Invalid request');
 const productIdPipe = new ParseUUIDPipe({ exceptionFactory: () => posErrors.productNotFound() });
 /** Another cashier's line, or a malformed id, is simply a line that does not exist. */
 const itemIdPipe = new ParseUUIDPipe({ exceptionFactory: () => posErrors.itemNotFound() });
+/** A malformed payment id is simply a payment that does not exist. */
+const paymentIdPipe = new ParseUUIDPipe({ exceptionFactory: () => posErrors.paymentNotFound() });
 
 /** VP-03 · POS search and cart (HU-VEN-02). Every call needs an open cash shift of the caller (`CASH_SHIFT_NOT_OPEN`). */
 @ApiTags('sales')
@@ -66,6 +71,7 @@ export class PosController {
     private readonly catalog: PosCatalogService,
     private readonly checkout: PosCheckoutService,
     private readonly payment: PosPaymentService,
+    private readonly qr: PosQrPaymentService,
     private readonly equivalents: PosEquivalentsService,
     private readonly sheets: PosProductSheetService,
     private readonly shifts: CashShiftsService,
@@ -136,6 +142,36 @@ export class PosController {
   @Post('checkout/complete')
   complete(@Body(bodyPipe) body: CompletePosCheckoutDto): Promise<CompletePosCheckoutResponse> {
     return this.payment.complete(body);
+  }
+
+  /** VP-04b (HU-VEN-08): the QR my cart waits for or already got confirmed, for the screen to resume after a refresh. */
+  @Get('checkout/payments/qr')
+  activeQr(): Promise<PosActiveQrResponse> {
+    return this.qr.current();
+  }
+
+  /** VP-04b: opens a QR for the whole total (the mock provider; the cashier confirms by hand). */
+  @Post('checkout/payments/qr')
+  startQr(@Body(bodyPipe) body: StartPosQrDto): Promise<PosQrPaymentResponse> {
+    return this.qr.start(body);
+  }
+
+  /** The state of a QR payment; the ERP polls it while the screen waits for the customer. */
+  @Get('checkout/payments/:id')
+  qrPayment(@Param('id', paymentIdPipe) id: string): Promise<PosQrPaymentResponse> {
+    return this.qr.get(id);
+  }
+
+  /** The cashier reports the outcome of the QR payment. */
+  @Post('checkout/payments/:id/confirm')
+  confirmQr(@Param('id', paymentIdPipe) id: string, @Body(bodyPipe) body: ConfirmPosQrDto): Promise<PosQrPaymentResponse> {
+    return this.qr.confirm(id, body);
+  }
+
+  /** "Cambiar método": drops a pending QR payment. */
+  @Post('checkout/payments/:id/cancel')
+  cancelQr(@Param('id', paymentIdPipe) id: string): Promise<PosQrPaymentResponse> {
+    return this.qr.cancel(id);
   }
 
   @Get('checkout')

@@ -44,6 +44,8 @@ export interface CompanySettings {
   'sales.nitVerification': NitVerificationMode;
   /** Paper the sale receipt prints on (decision #9, HU-VEN-11). */
   'sales.receiptFormat': ReceiptFormat;
+  /** Seconds a QR payment waits for the customer before the server cancels it (decision #6, HU-VEN-08). */
+  'sales.qrConfirmTimeoutSeconds': number;
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -64,6 +66,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.cashExpenseApprovalLimit': null,
   'sales.nitVerification': 'FORMAT',
   'sales.receiptFormat': 'TICKET_80MM',
+  'sales.qrConfirmTimeoutSeconds': 300,
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */

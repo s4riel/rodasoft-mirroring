@@ -20,6 +20,9 @@ import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
 import { PosPaymentService } from './pos-payment.service';
+import { PosQrPaymentService } from './pos-qr-payment.service';
+import { MockPaymentProvider } from '../payments/mock-payment.provider';
+import type { PaymentProviderRegistry } from '../payments/payment-provider';
 import { SaleReceiptService } from '../sales/sale-receipt.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
 
@@ -37,6 +40,9 @@ export function createPosFixture(prefix: string) {
   const base = new TestPrisma();
   const prisma = base as unknown as PrismaService;
   const settings = new SettingsService(prisma);
+  /** One mock adapter for the whole run, like the module: its in-memory state outlives a request. */
+  const mock = new MockPaymentProvider();
+  const providers: PaymentProviderRegistry = { QR: mock, CARD: mock };
   /** Every test caller has `sales.pos.use`; the permission guard itself is covered by the access module. */
   const membership = { permissions: async () => new Set(['sales.pos.use']), operableBranchIds: async () => null } as never;
 
@@ -80,11 +86,13 @@ export function createPosFixture(prefix: string) {
     const customers = new CustomersService(prisma, cls, audit);
     const outbox = new OutboxService(prisma, cls);
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
+    const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     return {
       customers,
       catalog: new PosCatalogService(prisma, shifts, settings),
       checkout,
-      payment: new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout),
+      payment,
+      qr: new PosQrPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
       receipts: new SaleReceiptService(prisma, cls, settings, outbox, audit),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
       sheet: new PosProductSheetService(
@@ -284,7 +292,7 @@ export function createPosFixture(prefix: string) {
     await base.$disconnect();
   }
 
-  return { state, as, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, setup, teardown };
+  return { state, as, providers, mock, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, setup, teardown };
 }
 
 /** The error code of a rejected call, or null when it succeeds. */

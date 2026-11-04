@@ -1,0 +1,20 @@
+/* The parent sets the size; the code is square and keeps its proportions. */
+:host {
+  display: block;
+  aspect-ratio: 1;
+  width: 100%;
+}
+
+svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* black on white in every theme: a scanner needs that contrast, so these are the primitives and not the semantic colours */
+.paper {
+  fill: var(--white);
+}
+.modules {
+  fill: var(--black);
+}

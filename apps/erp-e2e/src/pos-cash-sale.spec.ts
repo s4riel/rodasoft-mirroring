@@ -73,10 +73,11 @@ test('the cashier charges in cash, sees the change, completes the sale, prints t
   const search = page.getByRole('searchbox', { name: 'Buscar producto' });
   await search.fill(code);
   await expect(page.locator('rs-pos-result-row').first()).toContainText(code);
-  await search.press('Enter');
+  await Promise.all([page.waitForResponse((r) => r.url().includes('/checkout/items') && r.request().method() === 'POST'), search.press('Enter')]);
   const sale = page.getByRole('complementary', { name: 'Venta actual' });
   await expect(sale.locator('rs-pos-cart-line')).toHaveCount(1);
-  await sale.getByRole('button', { name: 'Sumar uno' }).click();
+  // F9 is ignored while the cart is still being saved, so wait for the server to answer the quantity change
+  await Promise.all([page.waitForResponse((r) => r.url().includes('/checkout/items/') && r.request().method() === 'PATCH'), sale.getByRole('button', { name: 'Sumar uno' }).click()]);
   await expect(sale.locator('rs-pos-cart-line input')).toHaveValue('2');
 
   // F9 opens the payment with the total the cart shows
@@ -116,8 +117,75 @@ test('the cashier charges in cash, sees the change, completes the sale, prints t
   await ticket.close();
 
   // a new sale: the cart is empty and the stock went down by the two units sold
-  await page.keyboard.press('Enter');
+  // the focus went back to "Imprimir ticket" when the ticket tab closed, and Enter on a button presses it: click the button
+  await done.getByTestId('sale-new').click();
   await expect(done).toHaveCount(0);
   await expect(sale.getByText('Agrega productos para empezar la venta')).toBeVisible();
   expect(await stockOf()).toBe(stockBefore - 2);
+});
+
+/**
+ * HU-VEN-08 · the same walking skeleton paid by QR: the QR is drawn with the amount, the screen waits, the cashier reports the
+ * payment and the sale completes without touching the cash register. It opens the register itself when it is closed, so it
+ * does not depend on the cash sale above (Playwright restarts the worker, and `beforeAll` closes the shift, after a failure).
+ */
+test('the cashier charges by QR, sees the code with the amount, confirms the payment and completes the sale', async ({ page }) => {
+  await login(page);
+  await page.goto('/sales/pos');
+  const closed = page.getByRole('dialog', { name: 'Caja cerrada' });
+  await expect(closed.or(page.getByRole('searchbox', { name: 'Buscar producto' }))).toBeVisible();
+  if (await closed.isVisible()) {
+    await page.goto('/sales/cash-register/open');
+    await page.locator('#cash-register').click();
+    await page.locator('li[role="option"]').filter({ hasText: BRANCH }).first().click();
+    await page.locator('#cash-float').fill('500,00');
+    await page.getByRole('button', { name: 'Abrir caja' }).click();
+    await expect(page).toHaveURL(/\/sales\/pos$/);
+  }
+
+  const stockBefore = await stockOf();
+  const user = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL }, select: { id: true } });
+  const cashMovementsBefore = await prisma.cashMovement.count({ where: { userId: user.id } });
+
+  await page.keyboard.press('F2');
+  const search = page.getByRole('searchbox', { name: 'Buscar producto' });
+  await search.fill(code);
+  await expect(page.locator('rs-pos-result-row').first()).toContainText(code);
+  // F9 is ignored while the cart is still being saved, so wait for the server to answer the add
+  await Promise.all([page.waitForResponse((r) => r.url().includes('/checkout/items') && r.request().method() === 'POST'), search.press('Enter')]);
+  const sale = page.getByRole('complementary', { name: 'Venta actual' });
+  await expect(sale.locator('rs-pos-cart-line')).toHaveCount(1);
+
+  const cartTotal = (await page.getByTestId('pos-total').textContent())?.trim();
+  await page.keyboard.press('F9');
+  const payment = page.getByRole('dialog', { name: 'Cobrar venta' });
+  await expect(payment).toBeVisible();
+
+  // QR: the code is drawn with the total and the screen waits for the customer
+  await payment.locator('.methods rs-filter-chip').filter({ hasText: 'QR' }).locator('button').click();
+  await expect(payment.locator('rs-qr-code')).toBeVisible();
+  await expect(payment.getByTestId('qr-amount')).toHaveText(cartTotal ?? '');
+  await expect(payment.getByTestId('qr-waiting')).toBeVisible();
+
+  // changing the method drops the QR and shows the keypad; choosing QR again opens a new one
+  await payment.getByTestId('qr-change').click();
+  await expect(payment.locator('rs-numpad')).toBeVisible();
+  await payment.locator('.methods rs-filter-chip').filter({ hasText: 'QR' }).locator('button').click();
+  await expect(payment.getByTestId('qr-waiting')).toBeVisible();
+
+  // the cashier reports the payment: the sale completes by itself
+  await payment.getByTestId('qr-received').click();
+  const done = page.getByRole('dialog', { name: 'Venta completada' });
+  await expect(done).toBeVisible();
+  await expect(done.getByTestId('sale-total')).toHaveText(cartTotal ?? '');
+  const number = (await done.getByTestId('sale-subtitle').textContent())?.match(/V-\d{6}/)?.[0] ?? '';
+
+  // stock went down by the unit sold, the payment is a confirmed QR and the register got no cash
+  expect(await stockOf()).toBe(stockBefore - 1);
+  const stored = await prisma.sale.findFirstOrThrow({ where: { number }, include: { payments: true } });
+  expect(stored.payments.map((p) => [p.method, p.providerStatus])).toEqual([['QR', 'CONFIRMED']]);
+  expect(await prisma.cashMovement.count({ where: { userId: user.id } })).toBe(cashMovementsBefore);
+
+  await done.getByTestId('sale-new').click();
+  await expect(done).toHaveCount(0);
 });

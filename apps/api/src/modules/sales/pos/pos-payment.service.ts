@@ -1,11 +1,13 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Inject, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   availableQuantity,
+  canCompleteWithPayments,
   cartTotals,
   Decimal,
   InvalidTransitionError,
   lineTotal,
+  paymentMachine,
   paymentsCover,
   posCheckoutMachine,
   SALE_REF_TYPE,
@@ -30,6 +32,7 @@ import { StockMovementService } from '../../inventory/stock-movement.service';
 import { cashErrors } from '../cash/cash.errors';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { nextDocumentNumber } from '../document-sequence';
+import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from '../payments/payment-provider';
 import type { CompletePosCheckoutDto } from './pos-payment.dto';
 import { PosCheckoutService } from './pos-checkout.service';
 import { invoiceDataOf } from './pos-invoice-data';
@@ -51,6 +54,14 @@ type TenantDb = TenantTransaction | PrismaService['tenant'];
 
 const MY_CART_STATUSES: PosCheckoutStatus[] = ['OPEN', 'PAYING'];
 
+/** What the customer paid with, as `complete` reads it from the request. */
+type Tender = { method: 'CASH'; received: string } | { method: 'QR'; paymentId: string };
+
+/** The payment once checked against the total: what was received, the change, and for QR the provider's reference. */
+type Settled =
+  | { method: 'CASH'; received: Decimal; change: Decimal }
+  | { method: 'QR'; received: Decimal; change: Decimal; providerRef: string };
+
 /**
  * Paying the cart in cash and completing the sale (HU-VEN-07 and HU-VEN-11). `pay` freezes the total for the payment screen
  * (`OPEN → PAYING`), `back` returns to the cart, and `complete` writes the whole sale in ONE transaction: the `Sale` and its
@@ -69,7 +80,19 @@ export class PosPaymentService {
     private readonly outbox: OutboxService,
     private readonly stock: StockMovementService,
     private readonly checkout: PosCheckoutService,
+    @Inject(PAYMENT_PROVIDERS) private readonly providers: PaymentProviderRegistry,
   ) {}
+
+  /**
+   * The cart as the payment screen sees it, under the cart row lock: its status, the current total and whether a line's price
+   * moved since `pay`. The QR payment (HU-VEN-08) starts from this, so it charges exactly what `complete` will ask for.
+   */
+  async quote(tx: TenantTransaction, cartId: string): Promise<{ status: PosCheckoutStatus; total: Decimal; priceMoved: boolean }> {
+    const status = await this.lockStatus(tx, cartId);
+    const cart = await this.loadCart(tx, cartId);
+    const totals = await this.totalsOf(tx, cart);
+    return { status, total: totals.total, priceMoved: this.priceMoved(cart) };
+  }
 
   /**
    * `OPEN → PAYING`. Checks every line's price against the product's current price first: if one changed, the lines are
@@ -128,6 +151,7 @@ export class PosPaymentService {
       const status = await this.lockStatus(tx, mine.id);
       if (status !== 'PAYING') throw posErrors.checkoutNotPaying();
       const next = this.next(status, 'back');
+      await this.dropQrPayments(tx, mine.id);
       await tx.posCheckout.update({ where: { id: mine.id }, data: { status: next } });
       await this.audit.log(
         {
@@ -145,10 +169,17 @@ export class PosPaymentService {
 
   /** Completes the sale: see the class comment. A repeat with the same `idempotencyKey` returns the stored sale. */
   async complete(dto: CompletePosCheckoutDto): Promise<CompletePosCheckoutResponse> {
-    // only cash until QR, card, transfer, credit and mixed payments arrive (HU-VEN-08, 09, 10, 34)
-    if (dto.payments.length !== 1 || dto.payments[0].method !== 'CASH')
-      throw posErrors.paymentMethodNotAvailable();
-    const receivedText = dto.payments[0].received;
+    // cash and QR, one payment; card, transfer, credit and mixed arrive with HU-VEN-09, 10 and 34
+    const only = dto.payments.length === 1 ? dto.payments[0] : null;
+    if (!only || (only.method !== 'CASH' && only.method !== 'QR')) throw posErrors.paymentMethodNotAvailable();
+    let tender: Tender;
+    if (only.method === 'CASH') {
+      if (typeof only.received !== 'string') throw posErrors.invalidPayment('received');
+      tender = { method: 'CASH', received: only.received };
+    } else {
+      if (typeof only.paymentId !== 'string') throw posErrors.invalidPayment('paymentId');
+      tender = { method: 'QR', paymentId: only.paymentId };
+    }
 
     // a retry of a sale that already committed returns it, even if the shift was closed in between
     const done = await this.findCompleted(this.prisma.tenant, dto.idempotencyKey, dto.expectedTotal);
@@ -169,7 +200,7 @@ export class PosPaymentService {
     }
 
     try {
-      return await this.completeInTransaction(dto, receivedText, shift, mine.id);
+      return await this.completeInTransaction(dto, tender, shift, mine.id);
     } catch (err) {
       // two carts of the company sent the same key: the second one loses, with a coded error instead of a 500
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')
@@ -180,7 +211,7 @@ export class PosPaymentService {
 
   private completeInTransaction(
     dto: CompletePosCheckoutDto,
-    receivedText: string,
+    tender: Tender,
     shift: CurrentCashShift,
     cartId: string,
   ): Promise<CompletePosCheckoutResponse> {
@@ -202,21 +233,17 @@ export class PosPaymentService {
       const invoice = invoiceDataOf(cart.customer);
 
       // a price changed after `pay`: the cashier must see the new total, so the sale is refused and `pay` is repeated
-      const priceMoved = cart.items.some(
-        (item) => item.product.salePrice.toFixed(2) !== item.unitPrice.toFixed(2),
-      );
       const totals = await this.totalsOf(tx, cart);
       const expected = Decimal.of(dto.expectedTotal);
-      if (priceMoved || !totals.total.eq(expected))
+      if (this.priceMoved(cart) || !totals.total.eq(expected))
         throw posErrors.totalChanged(expected.toString(), totals.total.toString());
 
-      const tendered = validateCashTendered(totals.total, receivedText);
-      if (!tendered.ok) {
-        if (tendered.error === 'INSUFFICIENT_CASH') throw posErrors.insufficientCash(totals.total.toString());
-        throw tendered.error === 'AMOUNT_TOO_LARGE' ? posErrors.amountTooLarge() : posErrors.invalidAmount();
-      }
-      const cover = paymentsCover(totals.total, [{ method: 'CASH', amount: tendered.received }]);
-      if (!cover.ok) throw posErrors.insufficientCash(totals.total.toString());
+      // cash cannot pay a cart the customer already paid by QR (a stale client or a second tab); a QR still waiting is dropped
+      if (tender.method === 'CASH') await this.dropQrPayments(tx, cart.id);
+      const settled =
+        tender.method === 'CASH'
+          ? this.settleCash(totals.total, tender.received)
+          : await this.settleQr(tx, cart.id, tender.paymentId, dto.idempotencyKey, totals.total);
 
       const companyId = this.companyId();
       const userId = this.userId();
@@ -263,40 +290,55 @@ export class PosPaymentService {
       for (const item of byProduct)
         await this.takeStock(tx, shift, item.productId, item.quantity, sale.id, number);
 
-      const change = cover.change;
-      await tx.salePayment.create({
-        data: {
-          companyId,
-          saleId: sale.id,
-          method: 'CASH',
-          amount: totals.total.toString(),
-          change: change.toString(),
-        },
-      });
-      await tx.posCheckoutPayment.create({
-        data: {
-          companyId,
-          checkoutId: cart.id,
-          method: 'CASH',
-          amount: totals.total.toString(),
-          change: change.toString(),
-          idempotencyKey: dto.idempotencyKey,
-          status: 'CONFIRMED',
-        },
-      });
-      // the register keeps the cash of the sale net of the change given back
-      await tx.cashMovement.create({
-        data: {
-          companyId,
-          shiftId: shift.id,
-          type: 'SALE_PAYMENT',
-          amount: totals.total.toString(),
-          reason: `Venta ${number}`,
-          refType: SALE_REF_TYPE,
-          refId: sale.id,
-          userId,
-        },
-      });
+      const change = settled.change;
+      if (settled.method === 'CASH') {
+        await tx.salePayment.create({
+          data: {
+            companyId,
+            saleId: sale.id,
+            method: 'CASH',
+            amount: totals.total.toString(),
+            change: change.toString(),
+          },
+        });
+        await tx.posCheckoutPayment.create({
+          data: {
+            companyId,
+            checkoutId: cart.id,
+            method: 'CASH',
+            amount: totals.total.toString(),
+            change: change.toString(),
+            idempotencyKey: dto.idempotencyKey,
+            status: 'CONFIRMED',
+          },
+        });
+        // the register keeps the cash of the sale net of the change given back
+        await tx.cashMovement.create({
+          data: {
+            companyId,
+            shiftId: shift.id,
+            type: 'SALE_PAYMENT',
+            amount: totals.total.toString(),
+            reason: `Venta ${number}`,
+            refType: SALE_REF_TYPE,
+            refId: sale.id,
+            userId,
+          },
+        });
+      } else {
+        // the QR payment row already exists and is CONFIRMED; the money goes to the provider, so the register gets nothing
+        await tx.salePayment.create({
+          data: {
+            companyId,
+            saleId: sale.id,
+            method: 'QR',
+            amount: totals.total.toString(),
+            change: '0.00',
+            reference: settled.providerRef,
+            providerStatus: 'CONFIRMED',
+          },
+        });
+      }
       // no SIAT call here: the invoice is a PENDING record that the SIAT epic issues (HU-FAC)
       await tx.invoice.create({
         data: {
@@ -319,8 +361,9 @@ export class PosPaymentService {
           before: { checkoutStatus: status },
           after: {
             number,
+            method: settled.method,
             total: totals.total.toString(),
-            received: tendered.received.toString(),
+            received: settled.received.toString(),
             change: change.toString(),
             checkoutStatus: next,
           },
@@ -345,7 +388,7 @@ export class PosPaymentService {
         number,
         createdAt: sale.createdAt.toISOString(),
         total: totals.total.toString(),
-        received: tendered.received.toString(),
+        received: settled.received.toString(),
         change: change.toString(),
         customerName: invoice.name,
         invoiceStatus: 'PENDING',
@@ -353,6 +396,74 @@ export class PosPaymentService {
       };
       return { sale: completed };
     });
+  }
+
+  /** A line whose price moved since `pay`: the cashier must see the new total first. */
+  private priceMoved(cart: CartForPayment): boolean {
+    return cart.items.some((item) => item.product.salePrice.toFixed(2) !== item.unitPrice.toFixed(2));
+  }
+
+  /** Cash: what the customer handed over must cover the total; the rest is the change. */
+  private settleCash(total: Decimal, receivedText: string): Settled {
+    const tendered = validateCashTendered(total, receivedText);
+    if (!tendered.ok) {
+      if (tendered.error === 'INSUFFICIENT_CASH') throw posErrors.insufficientCash(total.toString());
+      throw tendered.error === 'AMOUNT_TOO_LARGE' ? posErrors.amountTooLarge() : posErrors.invalidAmount();
+    }
+    const cover = paymentsCover(total, [{ method: 'CASH', amount: tendered.received }]);
+    if (!cover.ok) throw posErrors.insufficientCash(total.toString());
+    return { method: 'CASH', received: tendered.received, change: cover.change };
+  }
+
+  /**
+   * QR (HU-VEN-08): the payment must be this checkout's, carry the key the sale completes with, be `CONFIRMED` and charge the
+   * total. The cart row is already locked, and confirm and cancel take that lock first, so the status cannot move meanwhile.
+   */
+  private async settleQr(
+    tx: TenantTransaction,
+    cartId: string,
+    paymentId: string,
+    key: string,
+    total: Decimal,
+  ): Promise<Settled> {
+    const row = await tx.posCheckoutPayment.findFirst({ where: { id: paymentId, checkoutId: cartId, method: 'QR' } });
+    if (!row) throw posErrors.paymentNotFound();
+    if (row.idempotencyKey !== key) throw posErrors.idempotencyKeyReused();
+    if (!canCompleteWithPayments([{ method: 'QR', status: row.status }])) throw posErrors.paymentNotConfirmed(row.status);
+    if (!row.amount.eq(total.toString())) throw posErrors.totalChanged(row.amount.toFixed(2), total.toString());
+    const cover = paymentsCover(total, [{ method: 'QR', amount: total }]);
+    if (!cover.ok) throw posErrors.paymentNotConfirmed(row.status);
+    return { method: 'QR', received: total, change: cover.change, providerRef: row.providerRef ?? row.id };
+  }
+
+  /**
+   * Going back to the cart drops the QR the cart still waits for. A QR that was already confirmed cannot be dropped: the
+   * customer paid, so the cashier finishes the sale (a refund is a return, HU-VEN-21).
+   */
+  private async dropQrPayments(tx: TenantTransaction, cartId: string): Promise<void> {
+    const qrs = await tx.posCheckoutPayment.findMany({
+      where: { checkoutId: cartId, method: 'QR', status: { in: ['PENDING', 'CONFIRMED'] } },
+    });
+    if (qrs.some((qr) => qr.status === 'CONFIRMED')) throw posErrors.paymentAlreadyConfirmed();
+    for (const qr of qrs) {
+      const next = paymentMachine.next(qr.status, 'cancel');
+      try {
+        if (qr.providerRef) await this.providers.QR.cancel(qr.providerRef);
+      } catch {
+        // the provider no longer knows the payment (or already dropped it): the row is what counts
+      }
+      await tx.posCheckoutPayment.update({ where: { id: qr.id }, data: { status: next } });
+      await this.audit.log(
+        {
+          action: 'sales.payment.qr-cancel',
+          entity: 'PosCheckoutPayment',
+          entityId: qr.id,
+          before: { status: qr.status },
+          after: { status: next, reason: 'back-to-cart' },
+        },
+        tx as unknown as Prisma.TransactionClient,
+      );
+    }
   }
 
   /** The sale a payment key already produced, as the caller's own; another cashier's key does not exist for me. */
@@ -364,6 +475,7 @@ export class PosPaymentService {
     const payment = await db.posCheckoutPayment.findFirst({
       where: { idempotencyKey: key },
       select: {
+        method: true,
         amount: true,
         change: true,
         checkout: {
@@ -385,7 +497,12 @@ export class PosPaymentService {
     });
     if (!payment) return null;
     const { checkout } = payment;
-    if (checkout.cashierId !== this.userId() || !checkout.sale) throw posErrors.checkoutNotFound();
+    if (checkout.cashierId !== this.userId()) throw posErrors.checkoutNotFound();
+    // a confirmed QR carries the key before its sale exists: this is the first `complete` with it, not a retry
+    if (!checkout.sale) {
+      if (payment.method === 'QR') return null;
+      throw posErrors.checkoutNotFound();
+    }
     const sale = checkout.sale;
     // the key is bound to the sale it produced: the same key with another total is a client mistake, not a retry
     if (!sale.total.eq(expectedTotal)) throw posErrors.idempotencyKeyReused();
@@ -461,7 +578,11 @@ export class PosPaymentService {
     if (quantity > available) throw posErrors.insufficientStockFor(productId, Math.max(0, available));
   }
 
-  /** `FOR SHARE` on the shift row, which must still be `OPEN`: a close waits for the sales in flight. */
+  /**
+   * `FOR SHARE` on the shift row, which must still be `OPEN`: a close waits for the sales in flight. Lock order of a sale: shift,
+   * then the cart row, then the document sequence, then products and stock levels. Anything that locks a shift (closing it,
+   * HU-VEN-23) must not take a cart lock while holding it in the other order.
+   */
   private async lockOpenShift(tx: TenantTransaction, shiftId: string): Promise<void> {
     const rows = await tx.$queryRaw<{ status: string }[]>`
       SELECT status::text AS status FROM cash_shifts WHERE id = ${shiftId}::uuid AND company_id = ${this.companyId()}::uuid FOR SHARE`;
@@ -499,7 +620,7 @@ export class PosPaymentService {
   }
 
   /** `FOR UPDATE` on the cart row; two calls on the same cart run one after the other. */
-  private async lockStatus(tx: TenantTransaction, checkoutId: string): Promise<PosCheckoutStatus> {
+  async lockStatus(tx: TenantTransaction, checkoutId: string): Promise<PosCheckoutStatus> {
     const rows = await tx.$queryRaw<{ status: PosCheckoutStatus }[]>`
       SELECT status::text AS status FROM pos_checkouts WHERE id = ${checkoutId}::uuid AND company_id = ${this.companyId()}::uuid FOR UPDATE`;
     if (!rows[0]) throw posErrors.checkoutNotFound();

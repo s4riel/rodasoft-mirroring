@@ -91,8 +91,14 @@ export interface PosCashPaymentInput {
   received: string;
 }
 
-/** Only cash for now; QR, card, transfer, credit and mixed arrive with HU-VEN-08, 09, 10 and 34. */
-export type PosPaymentInput = PosCashPaymentInput;
+/** A QR payment the cashier already got confirmed (HU-VEN-08); the sale takes its amount from the stored payment. */
+export interface PosQrPaymentInput {
+  method: 'QR';
+  paymentId: string;
+}
+
+/** Cash and QR for now; card, transfer, credit and mixed arrive with HU-VEN-09, 10 and 34. */
+export type PosPaymentInput = PosCashPaymentInput | PosQrPaymentInput;
 
 export interface CompletePosCheckoutInput {
   payments: PosPaymentInput[];

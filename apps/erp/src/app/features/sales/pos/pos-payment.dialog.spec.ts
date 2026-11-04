@@ -1,6 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Decimal } from '@rodasoft/domain';
+import { Decimal, type PosQrPayment } from '@rodasoft/domain';
+import { of } from 'rxjs';
+import { PosApi } from './pos-api.service';
 import { PosPaymentDialog, typedAmount } from './pos-payment.dialog';
 
 describe('typedAmount', () => {
@@ -20,19 +22,36 @@ describe('typedAmount', () => {
     [suggested]="['1150.00', '1200.00']"
     [busy]="busy()"
     (confirm)="confirmed.push($event)"
+    [resumeQr]="resumeQr()"
     (cancelled)="cancelled = cancelled + 1"
+    (qrConfirmed)="paidByQr.push($event)"
   />`,
 })
 class HostComponent {
   readonly open = signal(true);
   readonly busy = signal(false);
+  readonly resumeQr = signal<PosQrPayment | null>(null);
+  paidByQr: PosQrPayment[] = [];
   confirmed: string[] = [];
   cancelled = 0;
 }
 
 describe('PosPaymentDialog', () => {
-  async function render() {
+  const qr = (status: PosQrPayment['status'] = 'PENDING'): PosQrPayment => ({
+    paymentId: 'q1',
+    idempotencyKey: 'qr-key-0001',
+    amount: '1111.00',
+    qrPayload: 'RODASOFT-MOCK|ref|1111.00',
+    status,
+    expiresAt: new Date(Date.now() + 300_000).toISOString(),
+  });
+
+  async function render(resume: PosQrPayment | null = null) {
+    TestBed.configureTestingModule({
+      providers: [{ provide: PosApi, useValue: { startQr: () => of({ payment: qr() }), qrPayment: () => of({ payment: qr() }) } }],
+    });
     const fixture = TestBed.createComponent(HostComponent);
+    fixture.componentInstance.resumeQr.set(resume);
     await fixture.whenStable();
     const root = (): HTMLElement => fixture.nativeElement;
     const text = (id: string) => root().querySelector(`[data-testid=${id}]`)?.textContent;
@@ -54,11 +73,11 @@ describe('PosPaymentDialog', () => {
     expect(confirm().disabled).toBe(true);
   });
 
-  it('draws the six payment methods with only cash enabled', async () => {
+  it('draws the six payment methods with cash and QR enabled', async () => {
     const { root } = await render();
     const chips = Array.from(root().querySelectorAll('.methods rs-filter-chip'));
     expect(chips.map((c) => c.textContent?.trim())).toEqual(['Efectivo', 'QR', 'Tarjeta', 'Transferencia', 'Crédito', 'Mixto']);
-    expect(chips.map((c) => c.getAttribute('data-disabled'))).toEqual([null, 'true', 'true', 'true', 'true', 'true']);
+    expect(chips.map((c) => c.getAttribute('data-disabled'))).toEqual([null, null, 'true', 'true', 'true', 'true']);
   });
 
   it('"Exacto" receives the total with no change and confirms it', async () => {
@@ -117,6 +136,44 @@ describe('PosPaymentDialog', () => {
     Array.from(root().querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes('Cancelar'))!.click();
     await settle();
     expect(host.cancelled).toBe(1);
+  });
+
+  it('QR shows the QR screen instead of the keypad and the cash confirmation', async () => {
+    const { root, settle, confirm } = await render();
+    root().querySelectorAll<HTMLButtonElement>('.methods rs-filter-chip button')[1].click();
+    await settle();
+    expect(root().querySelector('rs-pos-qr-panel')).not.toBeNull();
+    expect(root().querySelector('rs-numpad')).toBeNull();
+    expect(root().querySelector('[data-testid=pay-confirm]')).toBeNull();
+    expect(confirm()).toBeNull();
+  });
+
+  it('Enter does not confirm a cash amount while the QR screen is on', async () => {
+    const { host, root, settle } = await render();
+    root().querySelectorAll<HTMLButtonElement>('.methods rs-filter-chip button')[1].click();
+    await settle();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(host.confirmed).toEqual([]);
+  });
+
+  it('opens on the QR the server already has (a refresh)', async () => {
+    const { root, settle } = await render(qr());
+    await settle();
+    expect(root().querySelector('rs-pos-qr-panel')).not.toBeNull();
+    expect(root().querySelector('[data-testid=qr-waiting]')).not.toBeNull();
+  });
+
+  it('a confirmed QR locks "Cancelar" and the close button, and tells the page to complete the sale', async () => {
+    const { host, root, settle } = await render(qr('CONFIRMED'));
+    await settle();
+    expect(host.paidByQr).toHaveLength(1);
+    const cancel = Array.from(root().querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes('Cancelar'))!;
+    expect(cancel.disabled).toBe(true);
+    root().querySelector<HTMLButtonElement>('.close')?.click();
+    await settle();
+    expect(host.cancelled).toBe(0);
+    // the modal closed itself on the X: the dialog opens it again, because the page still has the payment open
+    expect(root().querySelector('[role=dialog]')).not.toBeNull();
   });
 
   it('every opening starts empty', async () => {

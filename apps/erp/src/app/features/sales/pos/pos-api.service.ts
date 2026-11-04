@@ -9,14 +9,18 @@ import type {
   CustomerSummary,
   PosInvoiceDataResponse,
   PosCategoryListResponse,
+  PosActiveQrResponse,
   PosCheckoutResponse,
   PosPayResponse,
+  PosQrOutcome,
+  PosQrPaymentResponse,
   PosEquivalentsResponse,
   PosProductSearchQuery,
   PosProductSearchResponse,
   PosProductSheet,
   SaleReceipt,
   SendReceiptEmailResponse,
+  StartPosQrInput,
 } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
@@ -102,6 +106,31 @@ export class PosApi {
   /** VP-16a (HU-VEN-11): charges and completes the sale. */
   complete(body: CompletePosCheckoutInput): Observable<CompletePosCheckoutResponse> {
     return this.http.post<CompletePosCheckoutResponse>(`${BASE}/checkout/complete`, body);
+  }
+
+  /** VP-04b (HU-VEN-08): the QR my cart waits for or already got confirmed, to resume after a refresh. */
+  activeQr(): Observable<PosActiveQrResponse> {
+    return this.http.get<PosActiveQrResponse>(`${BASE}/checkout/payments/qr`);
+  }
+
+  /** Opens a QR for the whole total. The same key returns the same payment. */
+  startQr(body: StartPosQrInput): Observable<PosQrPaymentResponse> {
+    return this.http.post<PosQrPaymentResponse>(`${BASE}/checkout/payments/qr`, body);
+  }
+
+  /** The state of a QR payment; polled while the screen waits for the customer. */
+  qrPayment(id: string): Observable<PosQrPaymentResponse> {
+    return this.http.get<PosQrPaymentResponse>(`${BASE}/checkout/payments/${id}`);
+  }
+
+  /** The cashier reports whether the customer paid (mock provider, decision #6). */
+  confirmQr(id: string, outcome: PosQrOutcome): Observable<PosQrPaymentResponse> {
+    return this.http.post<PosQrPaymentResponse>(`${BASE}/checkout/payments/${id}/confirm`, { outcome });
+  }
+
+  /** "Cambiar método": drops a pending QR. */
+  cancelQr(id: string): Observable<PosQrPaymentResponse> {
+    return this.http.post<PosQrPaymentResponse>(`${BASE}/checkout/payments/${id}/cancel`, {});
   }
 
   /** The receipt of a completed sale, for the ticket and the WhatsApp text. */
