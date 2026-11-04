@@ -4,16 +4,19 @@
  * that writes stock.
  */
 import { PrismaClient } from '@prisma/client';
+import { normalizePair } from '@rodasoft/domain';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../../../common/audit/audit.service';
 import { OutboxService } from '../../../common/outbox/outbox.service';
 import type { PrismaService } from '../../../common/prisma/prisma.service';
 import { tenantExtension } from '../../../common/prisma/tenant.extension';
 import { SettingsService } from '../../../common/settings/settings.service';
+import { EquivalencesService } from '../../inventory/equivalences.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
+import { PosEquivalentsService } from './pos-equivalents.service';
 
 export interface Caller {
   userId: string;
@@ -68,7 +71,12 @@ export function createPosFixture(prefix: string) {
       get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? caller.membershipId : k === 'userId' ? caller.userId : null),
     } as never;
     const shifts = new CashShiftsService(prisma, cls, new AuditService(prisma, cls), new OutboxService(prisma, cls), membership);
-    return { catalog: new PosCatalogService(prisma, shifts, settings), checkout: new PosCheckoutService(prisma, cls, shifts, settings) };
+    const audit = new AuditService(prisma, cls);
+    return {
+      catalog: new PosCatalogService(prisma, shifts, settings),
+      checkout: new PosCheckoutService(prisma, cls, shifts, settings),
+      equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
+    };
   }
 
   async function newMember(label: string, companyId: string): Promise<Caller> {
@@ -101,6 +109,8 @@ export function createPosFixture(prefix: string) {
     reserved?: Record<string, number>;
     minStock?: Record<string, number>;
     dimensions?: { innerDiameter: string; outerDiameter: string; width: string };
+    /** technical specifications (seal, cage…), compared by the equivalences */
+    attributes?: Record<string, unknown>;
   }
 
   async function newProduct(opts: ProductOptions = {}) {
@@ -117,6 +127,7 @@ export function createPosFixture(prefix: string) {
         salePrice: opts.price ?? '245.00',
         cost: '100.0000',
         status: opts.status ?? 'ACTIVE',
+        ...(opts.attributes ? { attributes: opts.attributes as object } : {}),
         ...(opts.dimensions ? { dimensions: { create: { companyId, ...opts.dimensions } } } : {}),
       },
     });
@@ -149,6 +160,39 @@ export function createPosFixture(prefix: string) {
       create: { companyId: state.companyId, key: 'inventory.allowNegativeStock', value },
       update: { value },
     });
+  }
+
+  /** Links two products as equivalents (stored once, in canonical order). Approved unless `approved: false`. */
+  async function link(idA: string, idB: string, opts: { notes?: string; substitute?: boolean; approved?: boolean } = {}) {
+    const [productAId, productBId] = normalizePair(idA, idB);
+    await base.equivalence.create({
+      data: {
+        companyId: state.companyId,
+        productAId,
+        productBId,
+        notes: opts.notes ?? null,
+        substitute: opts.substitute ?? false,
+        approvedAt: opts.approved === false ? null : new Date(),
+      },
+    });
+  }
+
+  async function setRequireApproval(value: boolean) {
+    await base.companySetting.upsert({
+      where: { companyId_key: { companyId: state.companyId, key: 'inventory.equivalences.requireApproval' } },
+      create: { companyId: state.companyId, key: 'inventory.equivalences.requireApproval', value },
+      update: { value },
+    });
+  }
+
+  /** Another branch of the company with one warehouse; returns the warehouse id. */
+  async function newBranch(name: string, opts: { status?: 'ACTIVE' | 'INACTIVE'; warehouseStatus?: 'ACTIVE' | 'INACTIVE' } = {}) {
+    seq += 1;
+    const branch = await base.branch.create({ data: { companyId: state.companyId, code: 50 + seq, name, status: opts.status ?? 'ACTIVE' } });
+    const warehouse = await base.warehouse.create({
+      data: { companyId: state.companyId, branchId: branch.id, code: `B${seq}-${run}`, name: `Almacén ${name}`, status: opts.warehouseStatus ?? 'ACTIVE' },
+    });
+    return warehouse.id;
   }
 
   async function setup() {
@@ -213,7 +257,7 @@ export function createPosFixture(prefix: string) {
     await base.$disconnect();
   }
 
-  return { state, as, useCompany, newProduct, setAllowNegativeStock, setup, teardown };
+  return { state, as, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, setup, teardown };
 }
 
 /** The error code of a rejected call, or null when it succeeds. */

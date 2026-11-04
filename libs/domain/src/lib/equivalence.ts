@@ -429,3 +429,64 @@ export interface EquivalenceComparisonResponse {
 export function isTaperedCategory(name: string): boolean {
   return /c[oó]nic|tapered/i.test(name);
 }
+
+/** An equivalent the POS offers: never `INCOMPATIBLE`, those links are not equivalents (HU-VEN-03). */
+export type PosEquivalentKind = Exclude<EquivalenceKind, 'INCOMPATIBLE'>;
+
+/** One equivalent of an out-of-stock product, with its stock in the register's warehouse. Never carries cost. */
+export interface PosEquivalentItem {
+  productId: string;
+  /** Manufacturer code. */
+  code: string;
+  name: string;
+  brand: { name: string; initials: string };
+  /** Decimal string, scale 2. */
+  salePrice: string;
+  /** `quantity − reserved` in the warehouse of the cashier's register; always above 0 (equivalents without stock are left out). */
+  available: number;
+  kind: PosEquivalentKind;
+  differences: EquivalenceDifference[];
+  /** A functional replacement that is not a technical equivalent. */
+  substitute: boolean;
+  /** Observed differences written when the link was made; null when none. */
+  notes: string | null;
+  /** d × D × B in mm, decimal strings. */
+  measures: EquivalenceMeasures | null;
+}
+
+/** An active branch other than the register's that still has the original in stock. */
+export interface PosOtherBranchStock {
+  branchName: string;
+  available: number;
+}
+
+export interface PosEquivalentsResponse {
+  original: { id: string; code: string; /** Available stock in the register's warehouse. */ available: number };
+  warehouse: { id: string; name: string };
+  /** Exact first, then by stock, highest first. */
+  items: PosEquivalentItem[];
+  /** The original's stock in the other branches, highest first. */
+  otherBranches: PosOtherBranchStock[];
+}
+
+/** Differences shown in a row's second line when the link has no note. */
+export const POS_EQUIVALENT_DIFFERENCES_SHOWN = 2;
+
+/**
+ * What the second line of an equivalent's row says, as data (the ERP writes the Spanish sentence):
+ * the measurements for an exact equivalent; the cashier's note, or else the first differences, for one with differences.
+ */
+export type PosEquivalentSummary =
+  | { kind: 'EXACT'; measures: EquivalenceMeasures | null }
+  | { kind: 'WITH_DIFFERENCES'; note: string | null; differences: EquivalenceDifference[] };
+
+export function posEquivalentSummary(
+  kind: PosEquivalentKind,
+  differences: readonly EquivalenceDifference[],
+  notes: string | null | undefined,
+  measures: EquivalenceMeasures | null = null,
+): PosEquivalentSummary {
+  if (kind === 'EXACT') return { kind, measures };
+  const note = notes?.trim() || null;
+  return { kind, note, differences: note ? [] : differences.slice(0, POS_EQUIVALENT_DIFFERENCES_SHOWN) };
+}
