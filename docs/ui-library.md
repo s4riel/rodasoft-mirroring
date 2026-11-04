@@ -64,6 +64,7 @@ Written without a compiler and partly without Figma access (the Figma MCP quota 
 | ERP components | ProductTable, FilterBarProducts, RowMenu, ProductThumb | implemented (HU-INV-01) | re-check vs Figma |
 | | KpiCard, StockFlag (extracted from ProductTable) | implemented (HU-INV-03), names from the Figma plan | re-check vs Figma |
 | | ImageViewer (gallery lightbox, product sheet photos) | implemented (HU-INV-03), **not in Figma**: estimated | add to the Design System |
+| | BearingDiagram (`rs-bearing-diagram`: the d/D section drawing, extracted from the inventory sheet and used by the POS sheet, HU-VEN-04) | implemented, **not in Figma as a component**: estimated | add to the Design System |
 | | DataField (`2198:4942`), BranchStockTable (`2200:5023`, with Row Current) | Figma page 03 (read, HU-INV-03) | review |
 | | DocTable (`2086:4176`, as `rs-doc-table`: generic columns, typed cells, custom cell templates, total row and footer slot; also used for the IN-02b equivalents table at 52 px rows; optional checkbox column with `selectable`, `selectedIds`, `maxSelected`, `maxSelectedLabel`, `selectionHeader` and `DocTableRow.label`, used by the HU-INV-12 comparator) | Figma page 03 (read, HU-INV-04) | review |
 | | CategoryCard | implemented (HU-INV-06): Selected and Disabled as inputs, Hover in CSS; checked against Figma 2132:4801 | re-check vs Figma in `/design-system` |

@@ -1,0 +1,224 @@
+<rs-modal size="wide" [(open)]="open" label="Ficha técnica del producto" closeLabel="Cerrar">
+  @switch (state()) {
+    @case ('loading') {
+      <div class="loading" role="status" aria-busy="true" aria-label="Cargando la ficha técnica">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+        <div class="columns">
+          <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+          <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+        </div>
+      </div>
+    }
+    @case ('error') {
+      <div class="message" role="alert">
+        <p>No pudimos cargar la ficha técnica.</p>
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </div>
+    }
+    @case ('forbidden') {
+      <div class="message" role="alert">
+        <p>No tienes permiso para ver la ficha técnica.</p>
+      </div>
+    }
+    @case ('not-found') {
+      <div class="message" role="alert">
+        <p>Producto no disponible</p>
+        @if (canGoBack()) {
+          <button rsButton variant="secondary" type="button" (click)="back()">Volver</button>
+        }
+      </div>
+    }
+    @default {
+      @if (sheet(); as s) {
+        <div class="sheet">
+          <header class="head">
+            @if (canGoBack()) {
+              <button rsButton variant="secondary" type="button" (click)="back()">Volver</button>
+            }
+            <rs-chip-media type="brand" [text]="initialsOf(s.product.brand.name)" [logoUrl]="s.product.brand.logoUrl" />
+            <div class="head-text">
+              <span class="brand-name">{{ s.product.brand.name }}</span>
+              <span class="origin">
+                País de origen:
+                @if (s.product.country; as country) {
+                  @if (flag(); as code) {
+                    <rs-flag [country]="code" />
+                  }
+                  {{ country.name }}
+                } @else {
+                  –
+                }
+              </span>
+            </div>
+            <h2 class="product-title">
+              <span class="code">{{ s.product.manufacturerCode }}</span>
+              · {{ s.product.name }} · SKU <span class="code">{{ s.product.sku }}</span>
+            </h2>
+            @if (s.product.sectors.length) {
+              <ul class="tags" aria-label="Sectores de aplicación">
+                @for (sector of s.product.sectors; track sector) {
+                  <li>{{ sector }}</li>
+                }
+              </ul>
+            }
+          </header>
+
+          <div class="columns">
+            <div class="left">
+              <section class="card gallery" aria-label="Fotos">
+                <div class="photo">
+                  @if (mainPhoto(); as src) {
+                    <button type="button" class="photo-button" [attr.aria-label]="'Ampliar foto de ' + s.product.manufacturerCode" (click)="zoom()">
+                      <img [src]="src" [alt]="s.product.name" />
+                    </button>
+                  } @else {
+                    <rs-icon [name]="thumbIcon()" [size]="24" aria-hidden="true" />
+                  }
+                </div>
+                @if (photos().length > 1) {
+                  <ul class="thumbs">
+                    @for (photo of photos(); track photo; let i = $index) {
+                      <li>
+                        <button type="button" class="photo-button" [class.selected]="i === galleryIndex()" [attr.aria-current]="i === galleryIndex() ? 'true' : null" [attr.aria-label]="'Ver foto ' + (i + 1)" (click)="showPhoto(i)">
+                          <img [src]="photo" alt="" loading="lazy" />
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+                @if (photos().length === 0 && s.product.photos.length === 0) {
+                  <p class="muted">Este producto no tiene fotos.</p>
+                }
+              </section>
+
+              <section class="card" aria-labelledby="pos-sheet-dimensions">
+                <h3 id="pos-sheet-dimensions" class="card-title">Dimensiones</h3>
+                @if (s.product.dimensions; as dims) {
+                  <div class="dimensions">
+                    <div class="diagram">
+                      <rs-bearing-diagram [outerDiameter]="dims.outerDiameter" [innerDiameter]="dims.innerDiameter" />
+                    </div>
+                    <div class="fields">
+                      @for (field of dimensionFields(); track field.label) {
+                        <rs-data-field [label]="field.label" [icon]="field.icon" type="mono">{{ field.value }}</rs-data-field>
+                      }
+                      @for (field of dimensionSpecs(); track field.key) {
+                        <rs-data-field [label]="field.label" [icon]="field.icon" [type]="field.mono ? 'mono' : 'text'">{{ field.value }}</rs-data-field>
+                      }
+                    </div>
+                  </div>
+                } @else {
+                  <p class="muted">Este producto no tiene medidas registradas.</p>
+                }
+                @if (otherSpecs().length) {
+                  <div class="fields">
+                    @for (field of otherSpecs(); track field.key) {
+                      <rs-data-field [label]="field.label" [icon]="field.icon" [type]="field.mono ? 'mono' : 'text'">{{ field.value }}</rs-data-field>
+                    }
+                  </div>
+                }
+                @if (datasheetUrl(); as url) {
+                  <a class="link" [href]="url" target="_blank" rel="noopener noreferrer">Ficha técnica<span class="sr-only"> (se abre en una pestaña nueva)</span></a>
+                }
+              </section>
+            </div>
+
+            <div class="right">
+              <section class="card" aria-labelledby="pos-sheet-price">
+                <h3 id="pos-sheet-price" class="card-title">Precio de venta</h3>
+                <p class="price" data-testid="pos-sheet-price">{{ price() }}</p>
+                <p class="muted">Precio único por empresa · {{ stockHere() }}</p>
+              </section>
+
+              <section class="card" aria-labelledby="pos-sheet-stock">
+                <h3 id="pos-sheet-stock" class="card-title">Stock por sucursal</h3>
+                <ul class="stock-list">
+                  @for (b of branches(); track b.id) {
+                    <li [class.current]="b.current" [attr.aria-current]="b.current ? 'true' : null">
+                      <span class="branch">
+                        <span class="branch-name">{{ b.name }}@if (b.current) {<span class="sr-only"> (esta sucursal)</span>}</span>
+                        @if (b.limits) {
+                          <span class="limits">{{ b.limits }}</span>
+                        }
+                      </span>
+                      <span class="qty">
+                        @if (b.availability !== 'available') {
+                          <rs-stock-flag
+                            [level]="b.availability === 'out' ? 'out' : 'low'"
+                            [label]="b.availability === 'out' ? 'Agotado' : 'Stock bajo'"
+                          />
+                        }
+                        {{ b.quantity }}
+                      </span>
+                    </li>
+                  } @empty {
+                    <li class="muted">No tienes sucursales asignadas.</li>
+                  }
+                </ul>
+                <div class="stock-total">
+                  <span>Total</span>
+                  <span class="qty">{{ s.product.totalStock }}</span>
+                </div>
+              </section>
+
+              <section class="card" aria-labelledby="pos-sheet-eq">
+                <h3 id="pos-sheet-eq" class="card-title">Equivalencias</h3>
+                @if (equivalents().length) {
+                  <p class="muted">{{ referenceLabel() }}</p>
+                  <ul class="eq-list">
+                    @for (entry of equivalents(); track entry.item.productId) {
+                      <li>
+                        <button type="button" class="eq-row" (click)="openEquivalent(entry.item)">
+                          <rs-chip-media type="brand" [text]="entry.item.brand.initials" />
+                          <span class="eq-text">
+                            <span class="eq-code"><span class="sr-only">Ver ficha de </span>{{ entry.item.code }}</span>
+                            <span class="eq-brand">{{ entry.item.brand.name }} · {{ entry.item.available }} en esta sucursal</span>
+                          </span>
+                          <rs-status-pill [status]="entry.pill.status" [icon]="entry.pill.icon ?? null" [tooltip]="entry.pill.tooltip">{{
+                            entry.pill.label
+                          }}</rs-status-pill>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="muted">Sin equivalentes registrados.</p>
+                }
+              </section>
+            </div>
+          </div>
+        </div>
+      }
+    }
+  }
+
+  <div slot="footer" class="footer">
+    <p class="footer-note">El costo no se muestra en ventas</p>
+    @if (state() === 'ready') {
+      <rs-qty-stepper
+        [(value)]="quantity"
+        [min]="1"
+        [max]="sheet()?.maxQuantity ?? null"
+        [disabled]="soldOutHere() || adding()"
+        label="Cantidad"
+        decrementLabel="Restar uno"
+        incrementLabel="Sumar uno"
+      />
+      <button rsButton variant="primary" type="button" [disabled]="!canAdd()" (click)="confirm()">
+        {{ soldOutHere() ? 'Agotado aquí' : 'Agregar a la venta' }}
+      </button>
+    }
+  </div>
+</rs-modal>
+
+@if (sheet(); as s) {
+  <rs-image-viewer
+    [(open)]="galleryOpen"
+    [(index)]="galleryIndex"
+    [images]="photos()"
+    [label]="'Fotos de ' + s.product.manufacturerCode"
+    closeLabel="Cerrar"
+    previousLabel="Foto anterior"
+    nextLabel="Foto siguiente"
+  />
+}

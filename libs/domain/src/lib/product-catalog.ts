@@ -1,7 +1,8 @@
 /** Product catalog contracts and pure rules shared by the API and the ERP (HU-INV-01, 02, 03). */
 
-import { normalizePair } from './equivalence';
+import { normalizePair, type PosEquivalentItem } from './equivalence';
 import { Decimal } from './money';
+import type { PosStockStatus } from './pos-cart';
 
 export const PRODUCT_PAGE_SIZE_DEFAULT = 25;
 export const PRODUCT_PAGE_SIZE_MAX = 100;
@@ -372,6 +373,29 @@ export interface ProductDetail {
   updatedAt: string;
   createdBy: ProductActor | null;
   updatedBy: ProductActor | null;
+}
+
+/**
+ * Technical sheet of a product inside the POS (HU-VEN-04, VP-03e): `ProductDetail` without anything a cashier must not see
+ * (cost, margin, audit actors, internal supplier) plus the stock in the register's warehouse and the product's equivalents.
+ */
+export interface PosProductSheet {
+  product: Omit<ProductDetail, 'pricing' | 'createdBy' | 'updatedBy' | 'createdAt' | 'updatedAt' | 'hasMovements' | 'extra'> & {
+    /** Decimal string, scale 2. There is one price per company. */
+    salePrice: string;
+    /** Sectors the bearing is used in (comma separated on the product), as chips. */
+    sectors: string[];
+  };
+  /** `quantity − reserved` in the warehouse of the cashier's register. */
+  available: number;
+  stockStatus: PosStockStatus;
+  /** Most the cashier may add (`maxSellable`); `null` without a limit. */
+  maxQuantity: number | null;
+  warehouse: { id: string; name: string };
+  /** Branch of the register, to highlight it in `product.stockByBranch`. */
+  branchId: string;
+  /** Approved, compatible equivalents, with or without stock (the sheet is for reference). Exact first. */
+  equivalents: PosEquivalentItem[];
 }
 
 export type FieldIconName = 'barcode' | 'hash' | 'diameter' | 'ruler' | 'package' | 'currency' | 'percent' | 'calendar' | 'warehouse' | 'tag' | 'info' | 'check' | 'user';

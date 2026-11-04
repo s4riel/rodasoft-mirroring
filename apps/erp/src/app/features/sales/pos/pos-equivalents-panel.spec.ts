@@ -75,7 +75,7 @@ describe('PosEquivalentsPanel', () => {
     expect(row.textContent).toContain('Exacta · 40 × 80 × 18 · NTN');
     expect(row.textContent).toContain('8 en Central');
     expect(row.textContent).toContain('Bs 245,00');
-    expect(row.querySelector('button')?.textContent).toContain('Agregar');
+    expect(Array.from(row.querySelectorAll('button')).at(-1)?.textContent).toContain('Agregar');
   });
 
   it('shows the cashier note of an equivalent with differences', async () => {
@@ -119,14 +119,14 @@ describe('PosEquivalentsPanel', () => {
     await answer(response({ items: [item(), item({ productId: 'e2', code: '6208-DDU' })] }));
     const added: PosEquivalentItem[] = [];
     fixture.componentInstance.add.subscribe((i) => added.push(i));
-    rows()[1].querySelector<HTMLButtonElement>('button')!.click();
+    Array.from(rows()[1].querySelectorAll<HTMLButtonElement>('button')).at(-1)!.click();
     expect(added.map((i) => i.productId)).toEqual(['e2']);
   });
 
   it('disables Agregar of the equivalent being added', async () => {
     open(['e1']);
     await answer(response());
-    expect(rows()[0].querySelector<HTMLButtonElement>('button')!.disabled).toBe(true);
+    expect(Array.from(rows()[0].querySelectorAll<HTMLButtonElement>('button')).at(-1)!.disabled).toBe(true);
   });
 
   it('lists the stock of the original in other branches below the rows', async () => {

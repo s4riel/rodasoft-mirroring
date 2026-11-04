@@ -25,7 +25,7 @@ import { checkUpload, UPLOAD_CONTENT_TYPE, type UploadKind } from '@rodasoft/dom
 import { ClsService } from 'nestjs-cls';
 import { catchError, type Observable, throwError } from 'rxjs';
 import type { AppClsStore } from '../../common/cls';
-import { RequirePermissions } from '../access/require-permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../access/require-permissions.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { UploadFieldsDto } from './product-write.dto';
 
@@ -87,7 +87,8 @@ export class UploadsController {
 
   /** Serves a stored file of the caller's company, so the wizard can preview photos and open the datasheet. */
   @Get('files/:kind/:file')
-  @RequirePermissions('inventory.products.view')
+  // the POS product sheet (HU-VEN-04) shows photos to roles that only have `sales.pos.use`
+  @RequireAnyPermission('inventory.products.view', 'sales.pos.use')
   async file(@Param('kind') kind: string, @Param('file') file: string): Promise<StreamableFile> {
     const type = FILE_TYPES[file.slice(file.lastIndexOf('.') + 1)];
     const companyId = this.cls.get('companyId');

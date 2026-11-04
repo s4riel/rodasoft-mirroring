@@ -1,9 +1,12 @@
-import { BadRequestException, NotFoundException, PayloadTooLargeException, StreamableFile, UnsupportedMediaTypeException } from '@nestjs/common';
+import { BadRequestException, ExecutionContext, ForbiddenException, NotFoundException, PayloadTooLargeException, StreamableFile, UnsupportedMediaTypeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StorageService } from '../../common/storage/storage.service';
+import { MembershipService } from '../access/membership.service';
+import { PermissionsGuard } from '../access/permissions.guard';
 import { UploadsController } from './uploads.controller';
 
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46]);
@@ -64,5 +67,37 @@ describe('UploadsController', () => {
   it('refuses a photo over its limit with 413', async () => {
     const big = Buffer.concat([jpeg, Buffer.alloc(5 * 1024 * 1024)]);
     await expect(controller.upload(file(big), { kind: 'photo', code: 'RT-1' })).rejects.toBeInstanceOf(PayloadTooLargeException);
+  });
+});
+
+describe('UploadsController permissions (HU-VEN-04)', () => {
+  const contextOf = (handler: (...args: never[]) => unknown, mid: string): ExecutionContext =>
+    ({
+      getHandler: () => handler,
+      getClass: () => UploadsController,
+      switchToHttp: () => ({ getRequest: () => ({ user: { mid } }) }),
+    }) as unknown as ExecutionContext;
+
+  const grants: Record<string, string[]> = {
+    pos: ['sales.pos.use'],
+    inventory: ['inventory.products.view'],
+    neither: ['sales.quotes.manage'],
+  };
+  const guard = new PermissionsGuard(new Reflector(), {
+    permissions: async (mid: string) => new Set(grants[mid]),
+  } as unknown as MembershipService);
+
+  it.each(['pos', 'inventory'])('lets a user with only %s permissions read a file', async (mid) => {
+    await expect(guard.canActivate(contextOf(UploadsController.prototype.file, mid))).resolves.toBe(true);
+  });
+
+  it('answers 403 NO_PERMISSION with neither sales.pos.use nor inventory.products.view', async () => {
+    const attempt = guard.canActivate(contextOf(UploadsController.prototype.file, 'neither'));
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(attempt).rejects.toMatchObject({ response: { code: 'NO_PERMISSION' } });
+  });
+
+  it('does not open the upload to sales.pos.use', async () => {
+    await expect(guard.canActivate(contextOf(UploadsController.prototype.upload, 'pos'))).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

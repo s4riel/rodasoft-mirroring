@@ -52,6 +52,7 @@ import { CashApi } from '../cash/cash-api.service';
 import { registerPlace } from '../cash/cash-format';
 import { PosApi } from './pos-api.service';
 import { PosEquivalentsPanel } from './pos-equivalents-panel';
+import { PosProductSheetDialog, type PosSheetAdd } from './pos-product-sheet.dialog';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
 type SearchState = 'idle' | 'loading' | 'ready' | 'error';
@@ -92,6 +93,7 @@ const money = (value: string) => Decimal.of(value).format();
     NgTemplateOutlet,
     PosCartLineComponent,
     PosEquivalentsPanel,
+    PosProductSheetDialog,
     PosResultRowComponent,
     SkeletonComponent,
     ToastOutletComponent,
@@ -131,6 +133,10 @@ export class PosPage implements OnInit {
   private readonly resultsKey = signal<string | null>(null);
   /** The out-of-stock result whose equivalents panel is open (VP-03b); only one at a time. */
   protected readonly equivalentsOpenId = signal<string | null>(null);
+  /** The technical sheet (VP-03e) is open for this product. */
+  protected readonly sheetOpen = signal(false);
+  protected readonly sheetProductId = signal<string | null>(null);
+  protected readonly sheetAdding = signal(false);
   /** Enter pressed before the results of the current text arrived: add the first one when they do. */
   private pendingEnter: string | null = null;
   private readonly searchKey = computed<SearchKey>(() => ({ q: this.query().trim(), categoryId: this.categoryId() }));
@@ -334,6 +340,23 @@ export class PosPage implements OnInit {
     this.equivalentsOpenId.update((open) => (open === product.id ? null : product.id));
   }
 
+  /** The eye button of a row, or Space: opens the technical sheet of a product. */
+  protected openSheet(productId: string) {
+    this.sheetProductId.set(productId);
+    this.sheetOpen.set(true);
+  }
+
+  /** "Agregar a la venta" of the sheet: adds the quantity and closes the sheet once the server accepted it. */
+  protected addFromSheet({ productId, quantity }: PosSheetAdd) {
+    if (this.sheetAdding()) return;
+    this.sheetAdding.set(true);
+    this.mutate(
+      this.api.addItem({ productId, quantity }),
+      () => this.sheetAdding.set(false),
+      () => this.sheetOpen.set(false),
+    );
+  }
+
   protected equivalentsFailed(err: unknown) {
     this.handleShiftLost(err);
   }
@@ -403,7 +426,7 @@ export class PosPage implements OnInit {
    * Sends a cart change. While changes are in flight the screen keeps its optimistic lines; once the last one settles it
    * shows the server's cart, which leaves out any change the server refused.
    */
-  private mutate(request: Observable<PosCheckoutResponse>, done: () => void = () => undefined) {
+  private mutate(request: Observable<PosCheckoutResponse>, done: () => void = () => undefined, succeeded: () => void = () => undefined) {
     this.inFlight += 1;
     const seq = ++this.requestSeq;
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -414,6 +437,7 @@ export class PosPage implements OnInit {
         }
         this.settle();
         done();
+        succeeded();
       },
       error: (err: unknown) => {
         if (!this.handleShiftLost(err)) this.toast.danger(this.errorMessage(err));
@@ -457,9 +481,24 @@ export class PosPage implements OnInit {
 
   /** F2 focuses the search from anywhere in the POS. */
   protected onShortcut(event: KeyboardEvent) {
+    if (event.key === ' ') return this.onSpace(event);
     if (event.key !== 'F2' || !this.shift()) return;
     event.preventDefault();
     this.searchBox()?.nativeElement.focus();
+  }
+
+  /**
+   * Space opens the sheet of the highlighted result (the first one, which Enter would add). It only acts when the focus is not
+   * on something that uses Space itself (the search box, a button, a link), so typing and pressing buttons are untouched.
+   */
+  private onSpace(event: KeyboardEvent) {
+    if (!this.shift() || this.sheetOpen() || this.searchState() !== 'ready') return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('input, textarea, select, button, a, [contenteditable], [role="dialog"]')) return;
+    const first = this.results()[0];
+    if (!first) return;
+    event.preventDefault();
+    this.openSheet(first.id);
   }
 
   /** Keeps Tab inside the card, and ignores Escape: the card is left only through its buttons. */

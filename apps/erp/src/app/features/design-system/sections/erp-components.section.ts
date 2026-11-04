@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import {
+  BearingDiagramComponent,
   CategoryCardComponent,
   IconComponent,
   BranchStockLabels,
@@ -20,6 +21,7 @@ import {
 @Component({
   selector: 'rs-erp-components-section',
   imports: [
+    BearingDiagramComponent,
     BranchStockTableComponent,
     CategoryCardComponent,
     DataFieldComponent,
@@ -43,6 +45,11 @@ import {
         <rs-kpi-card label="Ventas del mes" value="Bs 128.450,00" trend="neutral" note="Sin cambios vs. mes anterior" />
         <rs-kpi-card label="Ventas del mes" value="Bs 128.450,00" trend="positive" note="+12% vs. mes anterior" disabled />
         <rs-kpi-card label="Ventas del mes" value="Bs 128.450,00" trend="positive" note="+12% vs. mes anterior" tabindex="0" />
+      </div>
+
+      <h3>BearingDiagram (HU-VEN-04, no está en Figma: estimado)</h3>
+      <div class="row">
+        <rs-bearing-diagram style="width: 10rem; height: 10rem" outerDiameter="52 mm" innerDiameter="25 mm" />
       </div>
 
       <h3>CategoryCard · State = Default | Selected | Disabled (Hover: CSS, pointer over the card)</h3>

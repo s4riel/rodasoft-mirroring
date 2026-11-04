@@ -51,6 +51,8 @@ export class PosEquivalentsPanel implements OnInit {
 
   /** Agregar of an equivalent. */
   readonly add = output<PosEquivalentItem>();
+  /** The eye button of an equivalent: its product id, to open the technical sheet (HU-VEN-04). */
+  readonly detail = output<string>();
   /** The request failed; the page checks whether the cash shift was lost. */
   readonly loadFailed = output<unknown>();
 
