@@ -1,3 +1,5 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -10,7 +12,7 @@ import { SALES_ROUTES } from './sales.routes';
 @Component({ template: '<p>page</p>' })
 class StubPage {}
 
-const CASHIER = ['sales.pos.use', 'sales.cash-register.open', 'sales.quotes.manage', 'sales.orders.manage', 'sales.cancellations.request'];
+const CASHIER = ['sales.pos.use', 'sales.cash-register.open', 'sales.quotes.manage', 'sales.orders.manage', 'sales.cancellations.request', 'sales.returns.manage'];
 const ALL = [...CASHIER, 'sales.prices.edit', 'sales.cancellations.approve', 'sales.cash-register.review'];
 
 describe('sales section', () => {
@@ -21,12 +23,16 @@ describe('sales section', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([{ path: 'sales', children: SALES_ROUTES }, { path: '', component: StubPage }]),
-        { provide: ToastService, useValue: { warning } },
+        // the POS and Caja tabs are real screens now: they call the API when opened
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ToastService, useValue: { warning, toasts: () => [], dismiss: jest.fn() } },
         {
           provide: ContextStore,
           useValue: {
             can: (p: string) => granted.includes(p),
-            context: signal(loaded ? {} : null),
+            currentBranch: () => null,
+            context: signal(loaded ? { user: { name: 'Ana' } } : null),
             permissions: signal(new Set(granted)),
           },
         },
@@ -43,7 +49,7 @@ describe('sales section', () => {
     const h = await RouterTestingHarness.create();
     await h.navigateByUrl('/sales/pos', SalesLayoutPage);
     h.detectChanges();
-    for (const label of ['Punto de venta', 'Caja', 'Ventas', 'Cotizaciones', 'Pedidos', 'Precios', 'Aprobaciones']) {
+    for (const label of ['Punto de venta', 'Cotizaciones', 'Pedidos', 'Ventas realizadas', 'Devoluciones', 'Caja', 'Precios y descuentos', 'Aprobaciones']) {
       expect(tabsText(h)).toContain(label);
     }
   });

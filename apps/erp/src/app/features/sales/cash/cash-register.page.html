@@ -1,0 +1,55 @@
+<rs-page-header title="Caja" description="Tu turno de caja." [breadcrumbs]="breadcrumbs" breadcrumbLabel="Ruta de navegación" />
+
+@switch (state()) {
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para usar la caja"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar tu turno" description="Revisa tu conexión e inténtalo de nuevo.">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('ready') {
+    @if (shift(); as s) {
+      <section class="card" aria-labelledby="cash-shift-title">
+        <h2 id="cash-shift-title" class="card-title">Turno abierto</h2>
+        <dl class="details">
+          <div>
+            <dt>Caja</dt>
+            <dd>{{ s.register.name }} · {{ s.branch.name }}</dd>
+          </div>
+          <div>
+            <dt>Abierto por</dt>
+            <dd>{{ s.openedBy.name }}</dd>
+          </div>
+          <div>
+            <dt>Abierto el</dt>
+            <dd>{{ formatDateTime(s.openedAt) }}</dd>
+          </div>
+          <div>
+            <dt>Efectivo inicial</dt>
+            <dd>{{ formatBs(s.openingFloat) }}</dd>
+          </div>
+        </dl>
+        <div>
+          <a rsButton variant="brand" routerLink="/sales/pos">Ir al punto de venta</a>
+        </div>
+      </section>
+    }
+  }
+  @default {
+    <section class="card" role="status" aria-busy="true" aria-label="Cargando tu turno">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+    </section>
+  }
+}

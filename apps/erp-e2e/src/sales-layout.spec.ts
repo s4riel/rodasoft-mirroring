@@ -7,7 +7,7 @@ import { login } from './support/auth';
  * tabs are driven by those permissions, which is what the test is about.
  */
 
-const ADMIN_TABS = ['Punto de venta', 'Caja', 'Ventas', 'Cotizaciones', 'Pedidos', 'Precios', 'Aprobaciones'];
+const ADMIN_TABS = ['Punto de venta', 'Cotizaciones', 'Pedidos', 'Ventas realizadas', 'Devoluciones', 'Caja', 'Precios y descuentos', 'Aprobaciones'];
 
 const CASHIER_PERMISSIONS = [
   'inventory.products.view',

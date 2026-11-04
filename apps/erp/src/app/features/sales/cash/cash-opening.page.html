@@ -1,0 +1,126 @@
+<rs-page-header
+  title="Apertura de caja"
+  type="form"
+  [description]="description()"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para abrir la caja"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('loading') {
+    <section class="card" role="status" aria-busy="true" aria-label="Cargando las cajas">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las cajas" description="Revisa tu conexión e inténtalo de nuevo.">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (ownShift(); as shift) {
+      <rs-note type="info" title="Ya tienes un turno abierto">
+        Tu turno está abierto en {{ shift.register.name }}. Ciérralo antes de abrir uno nuevo.
+        <a rsButton variant="secondary" size="sm" routerLink="/sales/pos">Ir al punto de venta</a>
+      </rs-note>
+    } @else if (visibleRegisters().length === 0) {
+      <section class="state" aria-live="polite">
+        <rs-empty-state-illustrated
+          illustration="no-results"
+          heading="No hay cajas en esta sucursal"
+          description="Elige otra sucursal en la barra superior o pide que configuren una caja."
+          [showAction]="false"
+        />
+      </section>
+    } @else {
+      <form id="cash-opening-form" class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <section class="card" aria-labelledby="cash-opening-card-title">
+          <h2 id="cash-opening-card-title" class="card-title">Datos del turno</h2>
+
+          <div class="row">
+            <rs-field label="Caja" forId="cash-register" [error]="registerMessage()">
+              <rs-select
+                inputId="cash-register"
+                formControlName="registerId"
+                leadingIcon="branch"
+                placeholder="Selecciona una caja"
+                [options]="registerOptions()"
+                [invalid]="!!registerMessage()"
+              />
+            </rs-field>
+
+            <rs-field label="Cajero" forId="cash-cashier">
+              <rs-select inputId="cash-cashier" formControlName="cashier" leadingIcon="user" [options]="cashierOptions()" />
+            </rs-field>
+
+            <rs-field
+              label="Efectivo inicial (Bs)"
+              forId="cash-float"
+              required
+              hint="Fondo de caja: PENDIENTE del cliente."
+              [error]="floatMessage()"
+            >
+              <rs-input-group [invalid]="!!floatMessage()">
+                <rs-icon rsInputLeading name="currency" [size]="16" />
+                <input
+                  rsInput
+                  rsNumeric="decimal"
+                  id="cash-float"
+                  class="mono"
+                  formControlName="openingFloat"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="0,00"
+                  [invalid]="!!floatMessage()"
+                  (blur)="markFloatTouched()"
+                />
+              </rs-input-group>
+            </rs-field>
+          </div>
+
+          @if (lastCloseText(); as last) {
+            <div class="last-close" aria-live="polite">
+              <p class="last-close-caption">Último cierre de esta caja</p>
+              <p class="last-close-value">{{ last }}</p>
+            </div>
+          }
+        </section>
+
+        <rs-note type="info" title="Queda registrado con tu usuario y la hora">
+          Al abrir, el punto de venta queda habilitado. Si el efectivo no coincide con el último cierre, se avisa a Contabilidad.
+        </rs-note>
+
+        @if (noFreeRegister()) {
+          <rs-note type="warning" title="Todas las cajas de la sucursal están en uso">
+            Elige otra sucursal o espera a que se cierre un turno.
+          </rs-note>
+        }
+
+        @if (submitError(); as error) {
+          <rs-note type="danger" title="No se pudo abrir la caja" role="alert">{{ error }}</rs-note>
+        }
+
+        <div class="actions">
+          <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+          <button rsButton variant="primary" type="submit" [disabled]="saving()" [loading]="saving()">Abrir caja</button>
+        </div>
+      </form>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

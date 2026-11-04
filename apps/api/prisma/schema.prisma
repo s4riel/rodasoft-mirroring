@@ -1029,6 +1029,8 @@ model CashShift {
   expectedAmount   Decimal?        @map("expected_amount") @db.Decimal(14, 2)
   countedAmount    Decimal?        @map("counted_amount") @db.Decimal(14, 2)
   differenceAmount Decimal?        @map("difference_amount") @db.Decimal(14, 2)
+  /// Cash left in the register when the shift closed (filled by HU-VEN-23); the next opening compares its float with it.
+  closingFloat     Decimal?        @map("closing_float") @db.Decimal(14, 2)
   reviewedById     String?         @map("reviewed_by_id") @db.Uuid
   reviewedAt       DateTime?       @map("reviewed_at") @db.Timestamptz(3)
   reviewNote       String?         @map("review_note")
