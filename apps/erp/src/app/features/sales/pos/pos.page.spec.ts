@@ -9,6 +9,7 @@ import type {
   CurrentCashShift,
   CustomerSummary,
   PosCheckoutLine,
+  CompletedSale,
   PosCheckoutView,
   PosEquivalentItem,
   PosEquivalentsResponse,
@@ -358,7 +359,7 @@ describe('PosPage', () => {
       expect(text(h)).toContain('Agrega productos para empezar la venta');
       expect(total(h)).toBe('Bs 0,00');
       expect(button(h, 'Cobrar')!.disabled).toBe(true);
-      expect(text(h)).toContain('F2 Buscar · F4 Cliente · Enter Agregar · Espacio Ficha · Esc Limpiar');
+      expect(text(h)).toContain('F2 Buscar · F4 Cliente · F9 Cobrar · Enter Agregar · Espacio Ficha · Esc Limpiar');
       expect(Array.from(root(h).querySelectorAll('rs-filter-chip')).map((c) => c.textContent?.trim())).toEqual(['Todos', 'Rodamientos']);
     });
 
@@ -641,6 +642,291 @@ describe('PosPage', () => {
       const h = await open(undefined, shift);
       press(document.body, 'F2');
       expect(document.activeElement).toBe(searchBox(h));
+    });
+  });
+
+  describe('payment and completed sale (VP-04, VP-16a, HU-VEN-07, HU-VEN-11)', () => {
+    const PAY = '/api/v1/sales/pos/checkout/pay';
+    const BACK = '/api/v1/sales/pos/checkout/back';
+    const COMPLETE = '/api/v1/sales/pos/checkout/complete';
+    const total = (h: RouterTestingHarness) => root(h).querySelector('[data-testid=pos-total]')!.textContent!.trim();
+    const byId = (h: RouterTestingHarness, id: string) => root(h).querySelector<HTMLElement>(`[data-testid=${id}]`);
+    const payDialog = (h: RouterTestingHarness) => root(h).querySelector<HTMLElement>('rs-pos-payment-dialog');
+    const keydown = (key: string) => document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+    const sale: CompletedSale = {
+      saleId: 's1',
+      number: 'V-000125',
+      createdAt: '2026-10-14T14:42:00.000Z',
+      total: '1111.00',
+      received: '1200.00',
+      change: '89.00',
+      customerName: 'S/N',
+      invoiceStatus: 'PENDING',
+      customerEmail: null,
+    };
+
+    /** A cart of Bs 1.111,00 with the shift open. */
+    const withCart = () => open(undefined, shift, undefined, cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'));
+
+    /** Presses "Cobrar" and answers `pay` with the frozen total. */
+    async function startPayment(h: RouterTestingHarness) {
+      button(h, 'Cobrar')!.click();
+      await settle(h);
+      http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: ['1150.00', '1200.00', '1500.00'] });
+      await settle(h);
+    }
+
+    it('enables "Cobrar" with products and opens the payment with the frozen total and the quick amounts', async () => {
+      const h = await withCart();
+      expect(button(h, 'Cobrar')!.disabled).toBe(false);
+      await startPayment(h);
+      expect(dialog(h)).not.toBeNull();
+      expect(byId(h, 'pay-total')!.textContent).toBe('Bs 1.111,00');
+      const quick = Array.from(payDialog(h)!.querySelectorAll('.quick rs-filter-chip')).map((c) => c.textContent?.trim());
+      expect(quick).toEqual(['Exacto', 'Bs 1.150', 'Bs 1.200', 'Bs 1.500']);
+    });
+
+    it('F9 opens the payment, but not with an empty cart', async () => {
+      const h = await open(undefined, shift);
+      keydown('F9');
+      await settle(h);
+      http.expectNone(PAY);
+      expect(dialog(h)).toBeNull();
+    });
+
+    it('F9 starts the payment of a cart with products', async () => {
+      const h = await withCart();
+      keydown('F9');
+      await settle(h);
+      http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: [] });
+      await settle(h);
+      expect(dialog(h)).not.toBeNull();
+    });
+
+    it('shows the change and keeps "Confirmar cobro" disabled until the received amount covers the total', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      const confirm = () => byId(h, 'pay-confirm') as HTMLButtonElement;
+      expect(confirm().disabled).toBe(true);
+      const key = (k: string) => Array.from(payDialog(h)!.querySelectorAll<HTMLButtonElement>('rs-numpad button.key')).find((b) => b.textContent?.trim() === k)!;
+      for (const k of ['1', '1', '0', '0']) key(k).click();
+      await settle(h);
+      expect(confirm().disabled).toBe(true);
+      expect(byId(h, 'pay-received')!.textContent).toBe('Bs 1.100,00');
+      expect(byId(h, 'pay-shortfall')!.textContent).toBe('Bs 11,00');
+      key('0').click();
+      await settle(h);
+      expect(byId(h, 'pay-received')!.textContent).toBe('Bs 11.000,00');
+      expect(byId(h, 'pay-change')!.textContent).toBe('Bs 9.889,00');
+      expect(confirm().disabled).toBe(false);
+    });
+
+    it('a quick amount fills the received amount: "Bs 1.200" gives Bs 89,00 of change', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      Array.from(payDialog(h)!.querySelectorAll<HTMLButtonElement>('.quick rs-filter-chip button')).find((b) => b.textContent?.includes('Bs 1.200'))!.click();
+      await settle(h);
+      expect(byId(h, 'pay-received')!.textContent).toBe('Bs 1.200,00');
+      expect(byId(h, 'pay-change')!.textContent).toBe('Bs 89,00');
+    });
+
+    it('the physical keyboard types, and Enter confirms the payment', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      expect(byId(h, 'pay-received')!.textContent).toBe('Bs 1.200,00');
+      keydown('Enter');
+      await settle(h);
+      const req = http.expectOne(COMPLETE);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toMatchObject({ payments: [{ method: 'CASH', received: '1200.00' }], expectedTotal: '1111.00' });
+      expect(typeof req.request.body.idempotencyKey).toBe('string');
+      req.flush({ sale });
+      await settle(h);
+    });
+
+    it('does not confirm with less than the total, not even with Enter', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['5', '0', '0']) keydown(k);
+      keydown('Enter');
+      await settle(h);
+      http.expectNone(COMPLETE);
+    });
+
+    it('completes the sale: shows "Venta completada" with the number, the change and an empty cart', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      http.expectOne(COMPLETE).flush({ sale });
+      await settle(h);
+      expect(root(h).querySelector('rs-pos-payment-dialog [role=dialog]')).toBeNull();
+      expect(byId(h, 'sale-subtitle')!.textContent).toBe('V-000125 · S/N · 14/10/2026 10:42');
+      expect(byId(h, 'sale-total')!.textContent).toBe('Bs 1.111,00');
+      expect(byId(h, 'sale-received')!.textContent).toBe('Bs 1.200,00');
+      expect(byId(h, 'sale-change')!.textContent).toBe('Bs 89,00');
+      expect(text(h)).toContain('Factura pendiente de emisión');
+      expect(total(h)).toBe('Bs 0,00');
+    });
+
+    it('"Nueva venta" (and Enter) closes the sale and leaves the empty cart', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      http.expectOne(COMPLETE).flush({ sale });
+      await settle(h);
+      keydown('Enter');
+      await settle(h);
+      expect(byId(h, 'sale-subtitle')).toBeNull();
+      expect(text(h)).toContain('Agrega productos para empezar la venta');
+    });
+
+    it('"Cancelar" returns the cart to OPEN', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      button(h, 'Cancelar', payDialog(h)!)!.click();
+      await settle(h);
+      http.expectOne(BACK).flush({ checkout: cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00') });
+      await settle(h);
+      expect(root(h).querySelector('rs-pos-payment-dialog [role=dialog]')).toBeNull();
+      expect(total(h)).toBe('Bs 1.111,00');
+    });
+
+    it('a changed price refuses the payment, says so and shows the cart with the new price', async () => {
+      const h = await withCart();
+      button(h, 'Cobrar')!.click();
+      await settle(h);
+      http.expectOne(PAY).flush({ code: 'CHECKOUT_PRICES_CHANGED', message: 'changed', details: { lines: [] } }, { status: 409, statusText: 'Conflict' });
+      await settle(h);
+      expect(dialog(h)).toBeNull();
+      expect(text(h)).toContain('Algunos precios cambiaron. Revisa la venta antes de cobrar.');
+      http.expectOne(CHECKOUT).flush({ checkout: cart([line({ unitPrice: '560.00', quantity: 2, lineTotal: '1120.00' })], '1120.00') });
+      await settle(h);
+      expect(total(h)).toBe('Bs 1.120,00');
+    });
+
+    it('a refused sale (stock ran out) closes the payment, says why and goes back to the cart', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      http
+        .expectOne(COMPLETE)
+        .flush({ code: 'INSUFFICIENT_STOCK', message: 'no stock', details: { productId: 'p1', available: 1 } }, { status: 409, statusText: 'Conflict' });
+      await settle(h);
+      expect(text(h)).toContain('Solo hay 1 disponibles en Central.');
+      http.expectOne(BACK).flush({ checkout: cart([line()], '490.00') });
+      await settle(h);
+      expect(root(h).querySelector('rs-pos-payment-dialog [role=dialog]')).toBeNull();
+      expect(byId(h, 'sale-subtitle')).toBeNull();
+    });
+
+    it('with no answer from the server the payment stays open and a retry sends the same key', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      const first = http.expectOne(COMPLETE);
+      const key = first.request.body.idempotencyKey;
+      first.error(new ProgressEvent('error'));
+      await settle(h);
+      expect(text(h)).toContain('No pudimos confirmar el cobro');
+      expect(root(h).querySelector('rs-pos-payment-dialog [role=dialog]')).not.toBeNull();
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      const retry = http.expectOne(COMPLETE);
+      expect(retry.request.body.idempotencyKey).toBe(key);
+      retry.flush({ sale });
+      await settle(h);
+    });
+
+    it('cancelling after a lost answer finds the saved sale instead of hiding it', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      const first = http.expectOne(COMPLETE);
+      const key = first.request.body.idempotencyKey;
+      first.error(new ProgressEvent('error'));
+      await settle(h);
+      // the sale did commit: the cart is gone, so going back finds nothing and the same key returns the sale
+      button(h, 'Cancelar', payDialog(h)!)!.click();
+      await settle(h);
+      http.expectOne(BACK).flush({ code: 'CHECKOUT_NOT_FOUND', message: 'none' }, { status: 404, statusText: 'Not Found' });
+      await settle(h);
+      const retry = http.expectOne(COMPLETE);
+      expect(retry.request.body.idempotencyKey).toBe(key);
+      retry.flush({ sale });
+      await settle(h);
+      expect(byId(h, 'sale-subtitle')!.textContent).toContain('V-000125');
+    });
+
+    it('cancelling after a lost answer goes back to the cart when nothing was saved', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      http.expectOne(COMPLETE).error(new ProgressEvent('error'));
+      await settle(h);
+      button(h, 'Cancelar', payDialog(h)!)!.click();
+      await settle(h);
+      http.expectOne(BACK).flush({ checkout: cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00') });
+      await settle(h);
+      http.expectNone(COMPLETE);
+      expect(total(h)).toBe('Bs 1.111,00');
+      expect(byId(h, 'sale-subtitle')).toBeNull();
+    });
+
+    it('a cart left waiting for payment (a refresh) goes back to OPEN when the page loads', async () => {
+      const paying: PosCheckoutView = { ...cart([line()], '490.00'), status: 'PAYING' };
+      const h = await open(undefined, shift, undefined, paying);
+      http.expectOne(BACK).flush({ checkout: cart([line()], '490.00') });
+      await settle(h);
+      expect(total(h)).toBe('Bs 490,00');
+      expect(dialog(h)).toBeNull();
+    });
+
+    it('prints the ticket in its own tab', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      http.expectOne(COMPLETE).flush({ sale });
+      await settle(h);
+      const opened = jest.spyOn(window, 'open').mockReturnValue(null);
+      button(h, 'Imprimir ticket')!.click();
+      expect(opened).toHaveBeenCalledWith('/sales/receipts/s1/print', '_blank', 'noopener');
+      opened.mockRestore();
+    });
+
+    it('sends the receipt by e-mail through the server', async () => {
+      const h = await withCart();
+      await startPayment(h);
+      for (const k of ['1', '2', '0', '0']) keydown(k);
+      await settle(h);
+      (byId(h, 'pay-confirm') as HTMLButtonElement).click();
+      http.expectOne(COMPLETE).flush({ sale: { ...sale, customerEmail: 'compras@minerademo.bo' } });
+      await settle(h);
+      button(h, 'Correo')!.click();
+      await settle(h);
+      const input = root(h).querySelector<HTMLInputElement>('#sale-email')!;
+      expect(input.value).toBe('compras@minerademo.bo');
+      button(h, 'Enviar')!.click();
+      const req = http.expectOne('/api/v1/sales/sales/s1/receipt/email');
+      expect(req.request.body).toEqual({ email: 'compras@minerademo.bo' });
+      req.flush({ queued: true });
+      await settle(h);
+      expect(text(h)).toContain('Enviamos el comprobante a compras@minerademo.bo.');
     });
   });
 

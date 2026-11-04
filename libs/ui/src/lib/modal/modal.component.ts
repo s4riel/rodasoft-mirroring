@@ -16,8 +16,11 @@ import { DOCUMENT } from '@angular/common';
 import { IconComponent } from '../icon/icon.component';
 
 export type ModalVariant = 'confirmation' | 'form';
-/** `wide` is for dialogs that hold a table (the import preview); every other dialog keeps the default width. */
-export type ModalSize = 'default' | 'wide';
+/**
+ * `wide` is for dialogs that hold a table (the import preview). `medium` (600) and `large` (800) are the widths Figma draws
+ * for the POS "Venta completada" and "Cobrar venta" dialogs (HU-VEN-07, 11); every other dialog keeps the default width.
+ */
+export type ModalSize = 'default' | 'medium' | 'large' | 'wide';
 
 const FOCUSABLE = [
   'a[href]',

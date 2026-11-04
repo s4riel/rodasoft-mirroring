@@ -12,13 +12,15 @@ import {
   DocTableComponent,
   DocTableRow,
   KpiCardComponent,
+  NumpadComponent,
   PosCartLineComponent,
   PosCustomerComponent,
   PosResultRowComponent,
+  ReceiptComponent,
   StockFlagComponent,
 } from '@rodasoft/ui';
 
-/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). PosCustomer (HU-VEN-05). */
+/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). PosCustomer (HU-VEN-05). Numpad and Receipt (HU-VEN-07, 11). */
 @Component({
   selector: 'rs-erp-components-section',
   imports: [
@@ -30,9 +32,11 @@ import {
     DocTableComponent,
     IconComponent,
     KpiCardComponent,
+    NumpadComponent,
     PosCartLineComponent,
     PosCustomerComponent,
     PosResultRowComponent,
+    ReceiptComponent,
     StockFlagComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -117,6 +121,25 @@ import {
       <div class="pos-cart">
         <rs-pos-customer type="final" name="Consumidor final" detail="Sin NIT · factura a S/N" actionLabel="Agregar NIT" />
         <rs-pos-customer type="identified" name="Minera Demo Ltda." detail="NIT 1023456027 · compras@minerademo.bo" actionLabel="Cambiar" />
+      </div>
+
+      <h3>Numpad · Type = Amount | Qty (Qty estimated: Figma only draws Amount)</h3>
+      <div class="row">
+        <rs-numpad type="amount" label="Monto recibido" prefix="Bs " value="1200,5" backspaceLabel="Borrar" decimalLabel="Coma decimal" />
+        <rs-numpad type="qty" label="Cantidad" value="12" backspaceLabel="Borrar" decimalLabel="Coma decimal" clearLabel="Borrar todo" />
+      </div>
+
+      <h3>Receipt · Paper = Ticket 80 mm | Carta (not in Figma: estimated)</h3>
+      <div class="row">
+        <rs-receipt
+          paper="ticket-80mm"
+          title="Rodalaser"
+          [headerLines]="['Rodalaser S.R.L.', 'NIT 1020304050', 'Sucursal central']"
+          [metaRows]="[{ label: 'Comprobante', value: 'V-000125' }, { label: 'Fecha', value: '14/10/2026 10:42' }, { label: 'Cliente', value: 'S/N' }]"
+          [items]="[{ description: '6205-2RS · Rodamiento rígido de bolas', detail: '2 × Bs 245,00', total: 'Bs 490,00' }]"
+          [totalRows]="[{ label: 'Total', value: 'Bs 490,00', strong: true }, { label: 'Efectivo recibido', value: 'Bs 500,00' }, { label: 'Cambio', value: 'Bs 10,00' }]"
+          [footerLines]="['Factura pendiente de emisión', 'Gracias por su compra.']"
+        />
       </div>
     </section>
   `,

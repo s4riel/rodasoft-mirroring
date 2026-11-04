@@ -9,7 +9,10 @@ import { PosController } from './pos/pos.controller';
 import { PosCatalogService } from './pos/pos-catalog.service';
 import { PosCheckoutService } from './pos/pos-checkout.service';
 import { PosEquivalentsService } from './pos/pos-equivalents.service';
+import { PosPaymentService } from './pos/pos-payment.service';
 import { PosProductSheetService } from './pos/pos-product-sheet.service';
+import { SaleReceiptController } from './sales/sale-receipt.controller';
+import { SaleReceiptService } from './sales/sale-receipt.service';
 import { MockPaymentProvider } from './payments/mock-payment.provider';
 import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/payment-provider';
 
@@ -21,13 +24,15 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
 @Module({
   // the POS reads the inventory's equivalences (HU-VEN-03) and product sheet (HU-VEN-04)
   imports: [InventoryModule],
-  controllers: [CashController, CustomersController, PosController],
+  controllers: [CashController, CustomersController, PosController, SaleReceiptController],
   providers: [
     CashRegistersService,
     CashShiftsService,
     CustomersService,
     PosCatalogService,
     PosCheckoutService,
+    PosPaymentService,
+    SaleReceiptService,
     PosEquivalentsService,
     PosProductSheetService,
     MockPaymentProvider,

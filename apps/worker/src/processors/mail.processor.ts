@@ -39,6 +39,14 @@ export class MailProcessor extends WorkerHost {
       case 'auth.invitation':
         await this.send(p['email'], 'Te invitaron al ERP', `<p><a href="${p['url']}">Aceptar la invitación</a></p>`);
         break;
+      case 'sale.receipt-email':
+        // HU-VEN-11: the API pre-renders the receipt text (no NIT, no costs); the worker only delivers it
+        await this.send(
+          p['email'],
+          `Comprobante ${p['number']} · ${p['company']}`,
+          `<p>${escapeHtml(p['text']).replace(/\n/g, '<br>')}</p>`,
+        );
+        break;
       default:
         this.logger.warn(`Unknown mail job: ${job.name}`);
     }

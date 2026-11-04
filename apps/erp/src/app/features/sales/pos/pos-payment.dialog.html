@@ -1,0 +1,60 @@
+<rs-modal [open]="open()" (openChange)="onOpenChange($event)" variant="form" size="large" heading="Cobrar venta" closeLabel="Cerrar" [closeOnBackdrop]="false">
+  <div class="content">
+    <div class="total-row">
+      <span class="total-label">Total a cobrar</span>
+      <span class="total-value" data-testid="pay-total">{{ totalText() }}</span>
+    </div>
+
+    <div class="methods" role="group" aria-label="Forma de pago">
+      <!-- only cash until QR, card, transfer, credit and mixed payments arrive (HU-VEN-08, 09, 10, 34) -->
+      <rs-filter-chip #cash [selected]="true" (selectedChange)="$event || cash.selected.set(true)" label="Efectivo">
+        <rs-chip-media type="icon"><rs-icon name="currency" [size]="20" /></rs-chip-media>
+      </rs-filter-chip>
+      <rs-filter-chip disabled title="Disponible próximamente" label="QR"><rs-chip-media type="icon"><rs-icon name="barcode" [size]="20" /></rs-chip-media></rs-filter-chip>
+      <rs-filter-chip disabled title="Disponible próximamente" label="Tarjeta"><rs-chip-media type="icon"><rs-icon name="wallet" [size]="20" /></rs-chip-media></rs-filter-chip>
+      <rs-filter-chip disabled title="Disponible próximamente" label="Transferencia"><rs-chip-media type="icon"><rs-icon name="transfer" [size]="20" /></rs-chip-media></rs-filter-chip>
+      <rs-filter-chip disabled title="Disponible próximamente" label="Crédito"><rs-chip-media type="icon"><rs-icon name="document" [size]="20" /></rs-chip-media></rs-filter-chip>
+      <rs-filter-chip disabled title="Disponible próximamente" label="Mixto"><rs-chip-media type="icon"><rs-icon name="adjust" [size]="20" /></rs-chip-media></rs-filter-chip>
+    </div>
+
+    <div class="body">
+      <div class="summary">
+        <p class="section">Montos rápidos</p>
+        <div class="quick" role="group" aria-label="Montos rápidos">
+          @for (amount of quickAmounts(); track amount.key) {
+            <rs-filter-chip
+              [selected]="isSelected(amount.typed)"
+              (selectedChange)="pickAmount(amount.typed, $event)"
+              [label]="amount.label"
+              [removeLabel]="'Quitar ' + amount.label"
+            />
+          }
+        </div>
+
+        <dl class="change-card" aria-live="polite">
+          <div class="change-row">
+            <dt>Recibido</dt>
+            <dd data-testid="pay-received">{{ receivedText() }}</dd>
+          </div>
+          <div class="change-row">
+            <dt>Cambio a devolver</dt>
+            <dd class="change" data-testid="pay-change">{{ changeText() }}</dd>
+          </div>
+          @if (shortfallText(); as shortfall) {
+            <div class="change-row short">
+              <dt>Faltan</dt>
+              <dd data-testid="pay-shortfall">{{ shortfall }}</dd>
+            </div>
+          }
+        </dl>
+      </div>
+
+      <rs-numpad type="amount" label="Monto recibido" prefix="Bs " [(value)]="received" backspaceLabel="Borrar" decimalLabel="Coma decimal" />
+    </div>
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="ghost" type="button" data-cancel [disabled]="busy()" (click)="cancelled.emit()">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="pay-confirm" [disabled]="!canConfirm()" (click)="doConfirm()">Confirmar cobro (Enter)</button>
+  </div>
+</rs-modal>

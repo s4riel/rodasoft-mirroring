@@ -44,6 +44,6 @@ import { WarehousesService } from './warehouses.service';
     StorageService,
   ],
   // the POS offers the equivalents of an out-of-stock product (HU-VEN-03) and shows the product sheet (HU-VEN-04)
-  exports: [EquivalencesService, ProductsService],
+  exports: [EquivalencesService, ProductsService, StockMovementService],
 })
 export class InventoryModule {}

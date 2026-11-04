@@ -1,0 +1,104 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Figma "Total a cobrar" row */
+.total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.total-label {
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+}
+.total-value {
+  color: var(--text-primary);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: 600; /* Figma display/h3 weight, no token */
+}
+
+.methods,
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-6);
+}
+/* a narrow window stacks the summary above the keypad (no breakpoint token) */
+@media (max-width: 760px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.section {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+/* Figma "Cambio" card: bordered, two rows */
+.change-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.change-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.change-row dt {
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+}
+.change-row dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  font-weight: 500; /* Figma mono/md weight, no token */
+}
+.change-row dd.change {
+  color: var(--status-success);
+  font-family: var(--font-family-ui);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: 600; /* Figma display/h3 weight, no token */
+}
+.change-row.short dd {
+  color: var(--status-danger);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

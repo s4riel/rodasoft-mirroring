@@ -17,8 +17,10 @@ import {
   cartTotals,
   Decimal,
   lineTotal,
+  receiptShareText,
   FINAL_CONSUMER,
   type CashRegisterOption,
+  type CompletedSale,
   type CurrentCashShift,
   type CustomerSummary,
   type PosCategory,
@@ -57,6 +59,8 @@ import { registerPlace } from '../cash/cash-format';
 import { PosApi } from './pos-api.service';
 import { PosCustomerDialog } from './pos-customer.dialog';
 import { PosEquivalentsPanel } from './pos-equivalents-panel';
+import { PosPaymentDialog } from './pos-payment.dialog';
+import { PosSaleCompletedDialog } from './pos-sale-completed.dialog';
 import { PosProductSheetDialog, type PosSheetAdd } from './pos-product-sheet.dialog';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
@@ -76,6 +80,14 @@ const keyOf = (k: SearchKey) => `${k.categoryId ?? ''}|${k.q}`;
 const isEmptySearch = (k: SearchKey) => !k.q && !k.categoryId;
 
 const money = (value: string) => Decimal.of(value).format();
+
+/** A key for one payment attempt. `randomUUID` only exists in secure contexts, so there is a fallback with enough entropy. */
+function newIdempotencyKey(): string {
+  const c = globalThis.crypto;
+  if (typeof c?.randomUUID === 'function') return c.randomUUID();
+  const bytes = c?.getRandomValues ? c.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 /**
  * VP-03 · Point of sale, full screen (HU-VEN-02). Left: search by code, measurement or brand, category chips and results
@@ -100,7 +112,9 @@ const money = (value: string) => Decimal.of(value).format();
     PosCustomerComponent,
     PosCustomerDialog,
     PosEquivalentsPanel,
+    PosPaymentDialog,
     PosProductSheetDialog,
+    PosSaleCompletedDialog,
     PosResultRowComponent,
     SkeletonComponent,
     ToastOutletComponent,
@@ -169,6 +183,24 @@ export class PosPage implements OnInit {
   });
   protected readonly customerOpen = signal(false);
   protected readonly customerSaving = signal(false);
+
+  // --- payment (VP-04) and completed sale (VP-16a) ---
+  protected readonly paymentOpen = signal(false);
+  /** The total the server froze when the cart went to payment. */
+  protected readonly payTotal = signal('0.00');
+  protected readonly paySuggested = signal<string[]>([]);
+  /** `pay` is in flight: a second F9 or click does nothing. */
+  protected readonly payStarting = signal(false);
+  /** `complete` is in flight: the payment screen waits for the answer. */
+  protected readonly paying = signal(false);
+  /** Sent with `complete`; the same key on a retry returns the sale instead of selling twice. */
+  private paymentKey = '';
+  /** The amount of a `complete` that got no answer: the sale may be saved, so cancelling must find out first. */
+  private uncertainReceived: string | null = null;
+  protected readonly completedOpen = signal(false);
+  protected readonly completedSale = signal<CompletedSale | null>(null);
+  protected readonly emailSending = signal(false);
+  protected readonly canCharge = computed(() => !!this.shift() && this.lines().length > 0 && !this.payStarting());
 
   protected readonly totals = computed(() => {
     const pricing = this.serverCheckout()?.pricing ?? { roundingMode: 'NONE' as const, discount: null };
@@ -262,8 +294,177 @@ export class PosPage implements OnInit {
         next: ({ checkout }) => {
           this.adopt(checkout);
           this.cartState.set('ready');
+          // the payment screen is gone after a refresh: a cart still waiting for payment goes back to the cart
+          if (checkout?.status === 'PAYING') this.returnToCart();
         },
         error: (err: unknown) => (this.handleShiftLost(err) ? undefined : this.cartState.set('error')),
+      });
+  }
+
+  // --- payment ---
+
+  /** F9 or "Cobrar": freezes the total on the server and opens the payment screen. */
+  protected startPayment() {
+    if (!this.canCharge() || this.inFlight > 0) return;
+    this.payStarting.set(true);
+    this.api
+      .pay()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.payStarting.set(false);
+          this.payTotal.set(res.total);
+          this.paySuggested.set(res.suggestedAmounts);
+          this.paymentKey = newIdempotencyKey();
+          this.paymentOpen.set(true);
+        },
+        error: (err: unknown) => {
+          this.payStarting.set(false);
+          if (this.handleShiftLost(err)) return;
+          this.toast.danger(this.errorMessage(err));
+          // a changed price or a stale cart: show the cart as the server has it now
+          this.loadCart();
+        },
+      });
+  }
+
+  /** "Cancelar", Esc or the close button of the payment screen: the cart goes back to `OPEN`. */
+  protected cancelPayment() {
+    // once the sale is being saved there is nothing to cancel: the answer decides what happens next
+    if (this.paying()) return;
+    this.paymentOpen.set(false);
+    if (this.uncertainReceived !== null) {
+      this.cancelAfterNoAnswer(this.uncertainReceived);
+      return;
+    }
+    this.returnToCart();
+  }
+
+  /**
+   * A `complete` got no answer and the cashier cancels. If the cart is still waiting for payment the sale was not saved and
+   * it goes back to the cart. If it is gone the sale was saved: asking again with the same key returns it.
+   */
+  private cancelAfterNoAnswer(received: string) {
+    this.uncertainReceived = null;
+    this.api
+      .back()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.adopt(res.checkout),
+        error: (err: unknown) => {
+          if (problemOf(err).code === 'CHECKOUT_NOT_FOUND') {
+            this.confirmPayment(received);
+            return;
+          }
+          if (!this.handleShiftLost(err)) this.loadCart();
+        },
+      });
+  }
+
+  /** `PAYING → OPEN`, then shows the cart the server answers with. */
+  private returnToCart() {
+    this.api
+      .back()
+      .pipe(
+        catchError((err: unknown) => {
+          if (!this.handleShiftLost(err)) this.loadCart();
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        if (res) this.adopt(res.checkout);
+      });
+  }
+
+  /** "Confirmar cobro": the server writes the whole sale; the dialog closes only once it is saved. */
+  protected confirmPayment(received: string) {
+    if (this.paying()) return;
+    this.paying.set(true);
+    this.uncertainReceived = null;
+    this.api
+      .complete({ payments: [{ method: 'CASH', received }], expectedTotal: this.payTotal(), idempotencyKey: this.paymentKey })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ sale }) => {
+          this.paying.set(false);
+          this.paymentOpen.set(false);
+          this.completedSale.set(sale);
+          this.completedOpen.set(true);
+          // the sale is saved: the cart is empty
+          this.serverCheckout.set(null);
+          this.lines.set([]);
+        },
+        error: (err: unknown) => {
+          this.paying.set(false);
+          const problem = problemOf(err);
+          if (problem.status === 0) {
+            // no answer: the sale may or may not be saved. Retrying with the same key never sells twice.
+            this.uncertainReceived = received;
+            this.toast.danger('No pudimos confirmar el cobro. Revisa tu conexión y vuelve a confirmar.');
+            return;
+          }
+          this.paymentOpen.set(false);
+          if (this.handleShiftLost(err)) return;
+          this.toast.danger(this.errorMessage(err));
+          // the sale was not saved: back to the cart, as the server has it
+          this.returnToCart();
+        },
+      });
+  }
+
+  /** "Nueva venta": the cart is already empty; the cashier goes back to searching. */
+  protected newSale() {
+    this.completedOpen.set(false);
+    this.completedSale.set(null);
+    this.searchBox()?.nativeElement.focus();
+  }
+
+  protected printReceipt() {
+    const sale = this.completedSale();
+    if (!sale) return;
+    const url = this.router.serializeUrl(this.router.createUrlTree(['/sales', 'receipts', sale.saleId, 'print']));
+    window.open(url, '_blank', 'noopener');
+  }
+
+  protected shareWhatsapp() {
+    const sale = this.completedSale();
+    if (!sale) return;
+    // the tab opens on the click (a popup opened after the request would be blocked) and goes to WhatsApp when the text is ready
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
+    this.api
+      .receipt(sale.saleId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (receipt) => {
+          const url = `https://wa.me/?text=${encodeURIComponent(receiptShareText(receipt))}`;
+          if (tab) tab.location.href = url;
+          else window.open(url, '_blank', 'noopener');
+        },
+        error: (err: unknown) => {
+          tab?.close();
+          this.toast.danger(this.errorMessage(err));
+        },
+      });
+  }
+
+  protected emailReceipt(email: string) {
+    const sale = this.completedSale();
+    if (!sale || this.emailSending()) return;
+    this.emailSending.set(true);
+    this.api
+      .sendReceiptEmail(sale.saleId, email)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.emailSending.set(false);
+          this.toast.success(`Enviamos el comprobante a ${email}.`);
+        },
+        error: (err: unknown) => {
+          this.emailSending.set(false);
+          this.toast.danger(this.errorMessage(err));
+        },
       });
   }
 
@@ -515,8 +716,14 @@ export class PosPage implements OnInit {
 
   /** F2 focuses the search from anywhere in the POS. */
   protected onShortcut(event: KeyboardEvent) {
+    if (this.paymentOpen() || this.completedOpen()) return;
     if (event.key === ' ') return this.onSpace(event);
     if (!this.shift()) return;
+    if (event.key === 'F9') {
+      event.preventDefault();
+      this.startPayment();
+      return;
+    }
     if (event.key === 'F4') {
       event.preventDefault();
       this.openCustomer();

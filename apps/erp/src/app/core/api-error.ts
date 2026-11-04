@@ -70,6 +70,18 @@ const MESSAGES: Record<string, string> = {
   CUSTOMER_INACTIVE: 'Este cliente está desactivado y no se puede usar en una venta.',
   CUSTOMER_DOCUMENT_DUPLICATED: 'Ya existe un cliente con este documento.',
   INVALID_NIT: 'El documento del cliente no es válido para facturar.',
+  CHECKOUT_NOT_FOUND: 'No hay una venta en curso.',
+  CHECKOUT_EMPTY: 'Agrega al menos un producto para cobrar.',
+  CHECKOUT_NOT_PAYING: 'La venta no estaba esperando el cobro. Vuelve a presionar Cobrar.',
+  CHECKOUT_PRICES_CHANGED: 'Algunos precios cambiaron. Revisa la venta antes de cobrar.',
+  CHECKOUT_TOTAL_CHANGED: 'El total cambió. Revisa la venta y vuelve a cobrar.',
+  INSUFFICIENT_CASH: 'El monto recibido no alcanza para cubrir el total.',
+  INVALID_AMOUNT: 'El monto no es válido. Usa hasta 2 decimales.',
+  AMOUNT_TOO_LARGE: 'El monto es demasiado grande.',
+  PAYMENT_METHOD_NOT_AVAILABLE: 'Por ahora solo se puede cobrar en efectivo.',
+  INVALID_TRANSITION: 'La venta cambió de estado. Actualiza la pantalla.',
+  SALE_NOT_FOUND: 'La venta no existe.',
+  INVALID_EMAIL: 'El correo no es válido.',
   INVALID_DISCOUNT: 'El descuento debe ser un porcentaje entre 0 y 100, o un monto en Bs mayor que cero.',
 };
 

@@ -4,6 +4,10 @@ import { ROUNDING_MODES, type RoundingMode } from './sales-pricing';
 export const NIT_VERIFICATION_MODES = ['FORMAT', 'SIAT'] as const;
 export type NitVerificationMode = (typeof NIT_VERIFICATION_MODES)[number];
 
+/** Paper of the sale receipt (decision #9): the 80 mm ticket roll or a letter-size page. */
+export const RECEIPT_FORMATS = ['TICKET_80MM', 'LETTER'] as const;
+export type ReceiptFormat = (typeof RECEIPT_FORMATS)[number];
+
 /**
  * Per-company settings (HU-INV-06). Each key is typed here with its default, so code always has a value even when
  * the company has no `company_settings` row. Defaults follow the open client decisions (#32, #37): a missing
@@ -38,6 +42,8 @@ export interface CompanySettings {
   'sales.cashExpenseApprovalLimit': string | null;
   /** How the NIT is verified before invoicing (HU-VEN-05). `SIAT` waits for the invoicing epic; until then only the format is checked. */
   'sales.nitVerification': NitVerificationMode;
+  /** Paper the sale receipt prints on (decision #9, HU-VEN-11). */
+  'sales.receiptFormat': ReceiptFormat;
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -57,6 +63,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.cancellationWindowDays': null,
   'sales.cashExpenseApprovalLimit': null,
   'sales.nitVerification': 'FORMAT',
+  'sales.receiptFormat': 'TICKET_80MM',
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */
@@ -69,6 +76,7 @@ const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettin
 const ENUM_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>> = {
   'sales.roundingMode': ROUNDING_MODES,
   'sales.nitVerification': NIT_VERIFICATION_MODES,
+  'sales.receiptFormat': RECEIPT_FORMATS,
 };
 
 /** Settings that are a positive whole number or null (null = no limit); their default is null, so the type is not inferable from it. */

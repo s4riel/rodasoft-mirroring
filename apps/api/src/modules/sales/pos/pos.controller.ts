@@ -16,10 +16,12 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type {
   CustomerSearchResponse,
+  CompletePosCheckoutResponse,
   CustomerSummary,
   PosCategoryListResponse,
   PosCheckoutResponse,
   PosEquivalentsResponse,
+  PosPayResponse,
   PosInvoiceDataResponse,
   PosProductSearchResponse,
   PosProductSheet,
@@ -27,12 +29,14 @@ import type {
 import { RequirePermissions } from '../../access/require-permissions.decorator';
 import { CreatePosCustomerDto, PosCustomerSearchQueryDto, SetPosCustomerDto } from '../customers/customers.dto';
 import { CustomersService } from '../customers/customers.service';
+import { CompletePosCheckoutDto } from './pos-payment.dto';
 import { AddPosCheckoutItemDto, PosProductSearchQueryDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { posErrors } from './pos.errors';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
+import { PosPaymentService } from './pos-payment.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
 
 function strictValidationPipe(code: string, message: string): ValidationPipe {
@@ -61,6 +65,7 @@ export class PosController {
   constructor(
     private readonly catalog: PosCatalogService,
     private readonly checkout: PosCheckoutService,
+    private readonly payment: PosPaymentService,
     private readonly equivalents: PosEquivalentsService,
     private readonly sheets: PosProductSheetService,
     private readonly shifts: CashShiftsService,
@@ -113,6 +118,24 @@ export class PosController {
   @Get('checkout/invoice-data')
   invoiceData(): Promise<PosInvoiceDataResponse> {
     return this.checkout.invoiceData();
+  }
+
+  /** VP-04 (HU-VEN-07): freezes the total and opens the payment. A changed price answers `CHECKOUT_PRICES_CHANGED`. */
+  @Post('checkout/pay')
+  pay(): Promise<PosPayResponse> {
+    return this.payment.pay();
+  }
+
+  /** "Cancelar" on the payment screen: back to the cart. */
+  @Post('checkout/back')
+  back(): Promise<PosCheckoutResponse> {
+    return this.payment.back();
+  }
+
+  /** VP-16a (HU-VEN-11): charges and completes the sale in one transaction. */
+  @Post('checkout/complete')
+  complete(@Body(bodyPipe) body: CompletePosCheckoutDto): Promise<CompletePosCheckoutResponse> {
+    return this.payment.complete(body);
   }
 
   @Get('checkout')

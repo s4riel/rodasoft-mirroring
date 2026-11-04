@@ -26,6 +26,13 @@ describe('settingOrDefault', () => {
     expect(settingOrDefault('sales.cancellationWindowDays', undefined)).toBeNull();
     expect(settingOrDefault('sales.cashExpenseApprovalLimit', undefined)).toBeNull();
     expect(settingOrDefault('sales.nitVerification', undefined)).toBe('FORMAT');
+    expect(settingOrDefault('sales.receiptFormat', undefined)).toBe('TICKET_80MM');
+  });
+
+  it('accepts only the known receipt formats', () => {
+    expect(settingOrDefault('sales.receiptFormat', 'LETTER')).toBe('LETTER');
+    expect(settingOrDefault('sales.receiptFormat', 'A4')).toBe('TICKET_80MM');
+    expect(settingOrDefault('sales.receiptFormat', 3)).toBe('TICKET_80MM');
   });
 
   it('accepts only the known NIT verification modes', () => {

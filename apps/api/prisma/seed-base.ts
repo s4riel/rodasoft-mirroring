@@ -116,6 +116,7 @@ export async function seedCompany(prisma: PrismaClient, c: SeedCompany): Promise
     'sales.quoteValidityDays',
     'sales.allowPartialDispatch',
     'sales.nitVerification',
+    'sales.receiptFormat',
   ] as const) {
     await prisma.companySetting.upsert({
       where: { companyId_key: { companyId: company.id, key } },

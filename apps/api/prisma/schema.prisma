@@ -1140,6 +1140,8 @@ model PosCheckoutPayment {
   amount         Decimal       @db.Decimal(14, 2)
   idempotencyKey String        @map("idempotency_key")
   providerRef    String?       @map("provider_ref")
+  /// cash given back (HU-VEN-07); only CASH may have it. The received amount is `amount + change`
+  change         Decimal       @default(0) @db.Decimal(14, 2)
   status         PaymentStatus @default(PENDING)
   reference      String?
   /// credit payments only (HU-VEN-34)
