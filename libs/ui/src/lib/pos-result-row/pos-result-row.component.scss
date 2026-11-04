@@ -13,9 +13,6 @@
 :host(:hover) {
   background: var(--bg-surface-2);
 }
-:host(:last-child) {
-  border-bottom: 0;
-}
 
 .info {
   display: flex;

@@ -26,7 +26,11 @@
   flex: 1 1 0;
 }
 
-/* Figma "Encabezado POS": title and description on the left, "Salir del POS" on the right */
+/* Figma "Encabezado POS": title and description on the left, "Salir del POS" on the right; 100 px tall in VP-03 */
+.products .header {
+  height: 100px; /* Figma header height, no token */
+}
+
 .header {
   display: flex;
   flex: none;
