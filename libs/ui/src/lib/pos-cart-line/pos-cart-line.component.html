@@ -1,0 +1,19 @@
+<div class="info">
+  <span class="title" [title]="title()">{{ title() }}</span>
+  <span class="unit">{{ unitPrice() }}</span>
+  @if (hasDiscount()) {
+    <span class="discount">{{ discountLabel() }}</span>
+  }
+</div>
+<rs-qty-stepper
+  [(value)]="quantity"
+  [min]="1"
+  [max]="max()"
+  [label]="quantityLabel()"
+  [decrementLabel]="decrementLabel()"
+  [incrementLabel]="incrementLabel()"
+/>
+<span class="total">{{ total() }}</span>
+<button type="button" class="remove" [attr.aria-label]="removeLabel()" (click)="remove.emit()">
+  <rs-icon name="trash" [size]="20" />
+</button>

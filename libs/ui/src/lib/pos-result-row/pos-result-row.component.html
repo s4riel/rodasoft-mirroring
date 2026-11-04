@@ -1,0 +1,33 @@
+<div class="info">
+  <span class="code">{{ code() }}</span>
+  <div class="brand">
+    @if (brandInitials()) {
+      <span class="mark" aria-hidden="true">{{ brandInitials() }}</span>
+    }
+    <span class="description" [title]="description()">{{ description() }}</span>
+  </div>
+</div>
+<div class="stock">
+  @if (stockLevel() !== 'ok') {
+    <rs-stock-flag [level]="flagLevel()" />
+  }
+  <span class="stock-label">{{ stockLabel() }}</span>
+</div>
+<span class="price">{{ price() }}</span>
+@if (showDetail()) {
+  <button rsIconButton type="button" [label]="detailLabel()" (click)="detail.emit()"><rs-icon name="eye" /></button>
+}
+@if (swapsToEquivalents()) {
+  <button rsButton variant="secondary" type="button" (click)="equivalents.emit()">{{ equivalentsLabel() }}</button>
+} @else {
+  <button
+    rsButton
+    variant="primary"
+    type="button"
+    [disabled]="isOut() || addDisabled()"
+    [attr.aria-label]="addAriaLabel() || null"
+    (click)="add.emit()"
+  >
+    {{ addLabel() }}
+  </button>
+}

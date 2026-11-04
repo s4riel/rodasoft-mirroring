@@ -19,3 +19,4 @@ export * from './lib/brand-logos';
 export * from './lib/sales-pricing';
 export * from './lib/sales-numbering';
 export * from './lib/cash-shift';
+export * from './lib/pos-cart';

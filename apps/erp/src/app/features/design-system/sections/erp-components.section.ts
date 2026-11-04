@@ -11,10 +11,12 @@ import {
   DocTableComponent,
   DocTableRow,
   KpiCardComponent,
+  PosCartLineComponent,
+  PosResultRowComponent,
   StockFlagComponent,
 } from '@rodasoft/ui';
 
-/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. */
+/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). */
 @Component({
   selector: 'rs-erp-components-section',
   imports: [
@@ -25,6 +27,8 @@ import {
     DocTableComponent,
     IconComponent,
     KpiCardComponent,
+    PosCartLineComponent,
+    PosResultRowComponent,
     StockFlagComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -85,6 +89,20 @@ import {
         <div slot="footer">1–3 de 3 registros</div>
       </rs-doc-table>
       <rs-doc-table size="md" tableLabel="Equivalentes" [columns]="docColumns" [rows]="docRows.slice(0, 2)" />
+
+      <h3>PosResultRow · Stock = Default | Low | None (con y sin Equivalentes), ShowDetail (Hover: CSS)</h3>
+      <div class="pos-list">
+        <rs-pos-result-row code="6205-2RS" description="Rodamiento rígido de bolas · SKF" brandInitials="SK" stockLabel="24 en Central" price="Bs 245,00" addLabel="Agregar" showDetail detailLabel="Ver ficha de 6205-2RS" />
+        <rs-pos-result-row code="6306-2RS" description="Rodamiento rígido de bolas · NSK" brandInitials="NS" stockLabel="3 en Central" stockLevel="low" price="Bs 380,00" addLabel="Agregar" />
+        <rs-pos-result-row code="6208-2RS" description="Rodamiento rígido de bolas · NSK" brandInitials="NS" stockLabel="Agotado aquí" stockLevel="out" price="Bs 410,00" addLabel="Agregar" />
+        <rs-pos-result-row code="6208-2RS" description="Rodamiento rígido de bolas · NSK" brandInitials="NS" stockLabel="Agotado aquí" stockLevel="out" price="Bs 410,00" addLabel="Agregar" showDetail detailLabel="Ver ficha de 6208-2RS" showEquivalents equivalentsLabel="Equivalentes" />
+      </div>
+
+      <h3>PosCartLine · State = Default | Discount</h3>
+      <div class="pos-cart">
+        <rs-pos-cart-line title="6205-2RS · SKF" unitPrice="Bs 245,00 c/u" [quantity]="2" [max]="24" total="Bs 490,00" removeLabel="Quitar 6205-2RS" quantityLabel="Cantidad" decrementLabel="Restar uno" incrementLabel="Sumar uno" />
+        <rs-pos-cart-line title="6306-2RS · NSK" unitPrice="Bs 380,00 c/u" [quantity]="1" [max]="3" total="Bs 361,00" discountLabel="−5 % · −Bs 19,00" removeLabel="Quitar 6306-2RS" quantityLabel="Cantidad" decrementLabel="Restar uno" incrementLabel="Sumar uno" />
+      </div>
     </section>
   `,
   styles: `
@@ -92,6 +110,8 @@ import {
     .row > rs-kpi-card { width: 400px; }
     .row > rs-data-field { width: 280px; }
     .row > rs-data-field[data-layout="inline"] { width: 440px; }
+    .pos-list { max-width: 760px; border: var(--stroke-default) solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; }
+    .pos-cart { width: 420px; }
   `,
 })
 export class ErpComponentsSection {
