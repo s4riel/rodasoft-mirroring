@@ -9,6 +9,7 @@ export type OutboxType =
   | 'auth.password-reset'
   | 'auth.invitation'
   | 'sale.completed'
+  | 'sale.receipt-email'
   | 'sales.cash-shift.opened'
   | 'sales.cash-shift.float-mismatch'
   | 'invoice.issue'

@@ -147,7 +147,7 @@
           }
         </div>
 
-        <p class="shortcuts">F2 Buscar · F4 Cliente · Enter Agregar · Espacio Ficha · Esc Limpiar</p>
+        <p class="shortcuts">F2 Buscar · F4 Cliente · F9 Cobrar · Enter Agregar · Espacio Ficha · Esc Limpiar</p>
       </section>
 
       <aside class="sale" aria-labelledby="pos-sale-title">
@@ -226,8 +226,7 @@
           </div>
         </dl>
 
-        <!-- payment arrives with HU-VEN-07 -->
-        <button rsButton variant="primary" type="button" fill disabled>
+        <button rsButton variant="primary" type="button" fill data-testid="pos-charge" [disabled]="!canCharge()" (click)="startPayment()">
           Cobrar {{ totalText() }} (F9)
         </button>
       </aside>
@@ -277,6 +276,26 @@
   [saving]="customerSaving()"
   (choose)="chooseCustomer($event)"
   (failed)="equivalentsFailed($event)"
+/>
+
+<rs-pos-payment-dialog
+  [open]="paymentOpen()"
+  [total]="payTotal()"
+  [suggested]="paySuggested()"
+  [busy]="paying()"
+  (confirm)="confirmPayment($event)"
+  (cancelled)="cancelPayment()"
+/>
+
+<rs-pos-sale-completed-dialog
+  [open]="completedOpen()"
+  [sale]="completedSale()"
+  [registerName]="shift()?.register?.name ?? ''"
+  [emailSending]="emailSending()"
+  (print)="printReceipt()"
+  (whatsapp)="shareWhatsapp()"
+  (sendEmail)="emailReceipt($event)"
+  (newSale)="newSale()"
 />
 
 <rs-toast-outlet closeLabel="Cerrar" />

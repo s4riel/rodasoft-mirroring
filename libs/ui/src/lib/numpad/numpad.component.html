@@ -1,0 +1,20 @@
+<div class="display">
+  <span class="caption">{{ label() }}</span>
+  <span class="amount" aria-live="polite" [class.empty]="value() === ''">{{ prefix() }}{{ shown() }}</span>
+</div>
+@for (row of digitRows; track $index) {
+  <div class="row">
+    @for (digit of row; track digit) {
+      <button type="button" class="key" (click)="press(digit)">{{ digit }}</button>
+    }
+  </div>
+}
+<div class="row">
+  @if (type() === 'amount') {
+    <button type="button" class="key aux" [attr.aria-label]="decimalLabel()" (click)="press(',')">,</button>
+  } @else {
+    <button type="button" class="key aux" [attr.aria-label]="clearLabel()" (click)="clear()">C</button>
+  }
+  <button type="button" class="key" (click)="press('0')">0</button>
+  <button type="button" class="key aux" [attr.aria-label]="backspaceLabel()" (click)="backspace()">⌫</button>
+</div>

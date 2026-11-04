@@ -2,16 +2,21 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
   AddPosCheckoutItemInput,
+  CompletePosCheckoutInput,
+  CompletePosCheckoutResponse,
   CreatePosCustomerInput,
   CustomerSearchResponse,
   CustomerSummary,
   PosInvoiceDataResponse,
   PosCategoryListResponse,
   PosCheckoutResponse,
+  PosPayResponse,
   PosEquivalentsResponse,
   PosProductSearchQuery,
   PosProductSearchResponse,
   PosProductSheet,
+  SaleReceipt,
+  SendReceiptEmailResponse,
 } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
@@ -82,5 +87,30 @@ export class PosApi {
 
   removeItem(id: string): Observable<PosCheckoutResponse> {
     return this.http.delete<PosCheckoutResponse>(`${BASE}/checkout/items/${id}`);
+  }
+
+  /** VP-04 (HU-VEN-07): freezes the total and opens the payment; a changed price answers `CHECKOUT_PRICES_CHANGED`. */
+  pay(): Observable<PosPayResponse> {
+    return this.http.post<PosPayResponse>(`${BASE}/checkout/pay`, {});
+  }
+
+  /** "Cancelar" on the payment screen: the cart goes back to `OPEN`. */
+  back(): Observable<PosCheckoutResponse> {
+    return this.http.post<PosCheckoutResponse>(`${BASE}/checkout/back`, {});
+  }
+
+  /** VP-16a (HU-VEN-11): charges and completes the sale. */
+  complete(body: CompletePosCheckoutInput): Observable<CompletePosCheckoutResponse> {
+    return this.http.post<CompletePosCheckoutResponse>(`${BASE}/checkout/complete`, body);
+  }
+
+  /** The receipt of a completed sale, for the ticket and the WhatsApp text. */
+  receipt(saleId: string): Observable<SaleReceipt> {
+    return this.http.get<SaleReceipt>(`/api/v1/sales/sales/${saleId}/receipt`);
+  }
+
+  /** Queues the receipt e-mail. */
+  sendReceiptEmail(saleId: string, email: string): Observable<SendReceiptEmailResponse> {
+    return this.http.post<SendReceiptEmailResponse>(`/api/v1/sales/sales/${saleId}/receipt/email`, { email });
   }
 }

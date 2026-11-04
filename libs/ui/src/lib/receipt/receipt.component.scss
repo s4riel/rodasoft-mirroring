@@ -1,0 +1,120 @@
+/* Printed receipt. The paper widths are print geometry (80 mm roll, letter page), so they have no token. Colours stay
+   semantic tokens; on paper the browser prints them as they are. */
+:host {
+  display: block;
+  box-sizing: border-box;
+  margin: 0 auto;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  letter-spacing: var(--mono-md-tracking);
+}
+
+:host([data-paper='ticket-80mm']) {
+  width: 80mm;
+  padding: var(--space-3);
+}
+
+/* on screen the letter page is previewed at its width; on paper `@page` owns the size and the margins */
+:host([data-paper='letter']) {
+  width: 100%;
+  max-width: 216mm; /* letter page width */
+  padding: var(--space-8);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+}
+
+.head,
+.foot {
+  text-align: center;
+}
+
+.title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: 600; /* display/h3 weight, no token */
+}
+
+.line {
+  margin: 0;
+}
+
+.rows {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: var(--stroke-default) dashed var(--border-control);
+}
+.meta {
+  border-top: var(--stroke-default) dashed var(--border-control);
+  margin-top: var(--space-3);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.row dt {
+  color: var(--text-muted);
+}
+.row dd {
+  margin: 0;
+  text-align: right;
+}
+.row.strong dt,
+.row.strong dd {
+  color: var(--text-primary);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: 600; /* display/h3 weight, no token */
+}
+
+.items {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: var(--stroke-default) dashed var(--border-control);
+  list-style: none;
+}
+
+/* description on its own line; detail and total share the next one */
+.item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+.description {
+  grid-column: 1 / -1;
+}
+.detail {
+  color: var(--text-muted);
+}
+.total {
+  text-align: right;
+}
+
+.foot {
+  padding-top: var(--space-3);
+  color: var(--text-muted);
+}
+
+/* paper is white: a dark theme must not print light text on it, so the print colours are the fixed light pair */
+@media print {
+  :host,
+  :host([data-paper='letter']) {
+    margin: 0;
+    max-width: none;
+    padding: 0;
+    background: var(--white);
+    color: var(--black);
+  }
+  .row dt,
+  .row.strong dd,
+  .detail,
+  .foot {
+    color: var(--black);
+  }
+}

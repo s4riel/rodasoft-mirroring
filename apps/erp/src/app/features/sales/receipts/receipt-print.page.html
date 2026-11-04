@@ -1,0 +1,38 @@
+@switch (state()) {
+  @case ('loading') {
+    <div class="state" role="status" aria-busy="true" aria-label="Cargando el comprobante">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+    </div>
+  }
+  @case ('forbidden') {
+    <div class="state" role="alert">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver este comprobante"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </div>
+  }
+  @case ('error') {
+    <div class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el comprobante" [description]="errorText()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </div>
+  }
+  @default {
+    <div class="toolbar">
+      <button rsButton variant="primary" type="button" (click)="print()">Imprimir</button>
+    </div>
+    <rs-receipt
+      [paper]="paper()"
+      [title]="receipt()?.company?.tradeName ?? ''"
+      [headerLines]="headerLines()"
+      [metaRows]="metaRows()"
+      [items]="items()"
+      [totalRows]="totalRows()"
+      [footerLines]="footerLines()"
+    />
+  }
+}

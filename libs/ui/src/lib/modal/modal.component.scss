@@ -25,6 +25,13 @@
 .panel[data-variant='form'] {
   max-width: 520px;
 }
+/* Figma "Venta completada" is 600 wide and "Cobrar venta" 800 (no tokens for dialog widths) */
+.panel[data-size='medium'] {
+  max-width: 600px;
+}
+.panel[data-size='large'] {
+  max-width: 800px;
+}
 /* no Figma token for the width of a dialog with a table: 960px fits the 5-column preview of the import */
 .panel[data-size='wide'] {
   max-width: 960px;
@@ -85,6 +92,21 @@
 .panel[data-variant='form'] .footer {
   padding-top: var(--space-4);
   border-top: var(--stroke-default) solid var(--border-default);
+}
+/* the POS dialogs of Figma (VP-04 "Cobrar venta", VP-16a "Venta completada") are 600 and 800 wide with 32 px padding, 24 px
+   between the title, the content and the actions, and no divider above the actions */
+.panel[data-size='medium'] .header,
+.panel[data-size='large'] .header {
+  padding: var(--space-8) var(--space-8) 0;
+}
+.panel[data-size='medium'] .body,
+.panel[data-size='large'] .body {
+  padding: var(--space-6) var(--space-8) 0;
+}
+.panel[data-size='medium'] .footer,
+.panel[data-size='large'] .footer {
+  padding: var(--space-6) var(--space-8) var(--space-8);
+  border-top: 0;
 }
 @media (prefers-reduced-motion: no-preference) {
   .panel {

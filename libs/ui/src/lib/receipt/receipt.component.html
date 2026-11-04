@@ -1,0 +1,40 @@
+<header class="head">
+  <h1 class="title">{{ title() }}</h1>
+  @for (line of headerLines(); track $index) {
+    <p class="line">{{ line }}</p>
+  }
+</header>
+
+<dl class="rows meta">
+  @for (row of metaRows(); track $index) {
+    <div class="row">
+      <dt>{{ row.label }}</dt>
+      <dd>{{ row.value }}</dd>
+    </div>
+  }
+</dl>
+
+<ul class="items">
+  @for (item of items(); track $index) {
+    <li class="item">
+      <span class="description">{{ item.description }}</span>
+      <span class="detail">{{ item.detail }}</span>
+      <span class="total">{{ item.total }}</span>
+    </li>
+  }
+</ul>
+
+<dl class="rows totals">
+  @for (row of totalRows(); track $index) {
+    <div class="row" [class.strong]="row.strong">
+      <dt>{{ row.label }}</dt>
+      <dd>{{ row.value }}</dd>
+    </div>
+  }
+</dl>
+
+<footer class="foot">
+  @for (line of footerLines(); track $index) {
+    <p class="line">{{ line }}</p>
+  }
+</footer>

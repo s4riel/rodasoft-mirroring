@@ -5,8 +5,6 @@ import {
   cartTotals,
   lineTotal,
   maxSellable,
-  FINAL_CONSUMER,
-  validateInvoiceDocument,
   type CurrentCashShift,
   type PosCheckoutResponse,
   type PosCheckoutView,
@@ -17,10 +15,10 @@ import type { AppClsStore } from '../../../common/cls';
 import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
-import { customerErrors } from '../customers/customers.errors';
 import { CustomersService, toCustomerSummary } from '../customers/customers.service';
 import type { AddPosCheckoutItemDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { assertQuantity, posErrors } from './pos.errors';
+import { invoiceDataOf } from './pos-invoice-data';
 
 const checkoutWithLines = (warehouseId: string) =>
   ({
@@ -64,7 +62,7 @@ export class PosCheckoutService {
   async current(): Promise<PosCheckoutResponse> {
     const shift = await this.shifts.requireOpenShift();
     const checkout = await this.prisma.tenant.posCheckout.findFirst({
-      where: { cashierId: this.userId(), status: 'OPEN' },
+      where: { cashierId: this.userId(), status: { in: ['OPEN', 'PAYING'] } },
       include: checkoutWithLines(shift.warehouse.id),
     });
     return { checkout: checkout ? await this.toView(checkout, this.prisma.tenant) : null };
@@ -92,21 +90,10 @@ export class PosCheckoutService {
   async invoiceData(): Promise<PosInvoiceDataResponse> {
     await this.shifts.requireOpenShift();
     const checkout = await this.prisma.tenant.posCheckout.findFirst({
-      where: { cashierId: this.userId(), status: 'OPEN' },
+      where: { cashierId: this.userId(), status: { in: ['OPEN', 'PAYING'] } },
       select: { customer: true },
     });
-    const customer = checkout?.customer;
-    if (!customer) return { ...FINAL_CONSUMER, finalConsumer: true };
-    if (customer.status !== 'ACTIVE') throw customerErrors.inactive();
-    const document = validateInvoiceDocument(customer.documentType, customer.documentNumber, customer.complement);
-    if (!document.valid) throw customerErrors.invalidNit(document.error);
-    return {
-      name: customer.name,
-      documentType: customer.documentType,
-      documentNumber: document.documentNumber,
-      complement: document.complement,
-      finalConsumer: false,
-    };
+    return invoiceDataOf(checkout?.customer);
   }
 
   /** Adds the product, or raises the quantity of its line. Creates the cart on the first add. */
@@ -141,7 +128,7 @@ export class PosCheckoutService {
             checkoutId,
             productId: product.id,
             quantity,
-            // the price is copied when the product is added; HU-VEN-07 checks it again before payment
+            // the price is copied when the product is added; `pay` checks it again before payment (HU-VEN-07)
             unitPrice: product.salePrice,
             sortOrder: (last._max.sortOrder ?? -1) + 1,
           },
@@ -182,7 +169,11 @@ export class PosCheckoutService {
    */
   private async ensureCheckout(shift: CurrentCashShift): Promise<string> {
     const cashierId = this.userId();
-    const find = () => this.prisma.tenant.posCheckout.findFirst({ where: { cashierId, status: 'OPEN' }, select: { id: true, shiftId: true } });
+    const find = () =>
+      this.prisma.tenant.posCheckout.findFirst({
+        where: { cashierId, status: { in: ['OPEN', 'PAYING'] } },
+        select: { id: true, shiftId: true },
+      });
     const adopt = async (cart: { id: string; shiftId: string }) => {
       // an open cart left from a closed shift now belongs to the shift the cashier works in (the sale links to it, HU-VEN-07)
       if (cart.shiftId !== shift.id) await this.prisma.tenant.posCheckout.update({ where: { id: cart.id }, data: { shiftId: shift.id } });

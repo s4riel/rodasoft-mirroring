@@ -1,0 +1,81 @@
+/* Figma Numpad: card with padding 16 and radius lg, gap 12 between display and rows, gap 8 between keys, 96 × 56 keys (no tokens) */
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  width: fit-content;
+  padding: var(--space-4);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.display {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+  white-space: nowrap;
+}
+
+.caption {
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  letter-spacing: var(--body-sm-tracking);
+}
+
+/* the amount reads as Figma "mono/amount-lg": mono family at the h3 size */
+.amount {
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: 500; /* Figma mono/amount-lg weight, no token */
+  letter-spacing: var(--mono-md-tracking);
+}
+.amount.empty {
+  color: var(--text-muted);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.key {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 96px; /* Figma key size, no token */
+  height: 56px;
+  padding: 0;
+  border: var(--stroke-default) solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: 600; /* Figma display/h3 weight, no token */
+  letter-spacing: var(--display-h3-tracking);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.key.aux {
+  background: var(--bg-surface-2);
+}
+.key:hover {
+  background: var(--bg-surface-2);
+}
+.key:active {
+  background: var(--border-default);
+}
+.key:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}

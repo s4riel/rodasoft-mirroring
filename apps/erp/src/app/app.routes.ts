@@ -44,6 +44,13 @@ export const routes: Route[] = [
     loadComponent: () => import('./features/sales/pos/pos.page').then((m) => m.PosPage),
   },
   {
+    // HU-VEN-11 · the printable receipt of a sale opens in its own tab, outside the shell: only the receipt is on the page
+    path: 'sales/receipts/:saleId/print',
+    title: t('Comprobante'),
+    canActivate: [authGuard, requiresSalesTab(POS_TAB)],
+    loadComponent: () => import('./features/sales/receipts/receipt-print.page').then((m) => m.ReceiptPrintPage),
+  },
+  {
     path: '',
     component: ShellComponent,
     canActivate: [authGuard],

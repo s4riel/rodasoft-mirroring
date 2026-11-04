@@ -1,0 +1,53 @@
+<rs-modal [open]="open()" (openChange)="onOpenChange($event)" variant="form" size="medium" heading="Venta completada" closeLabel="Cerrar" [closeOnBackdrop]="false">
+  <div class="content">
+    <p class="subtitle" data-testid="sale-subtitle">{{ subtitle() }}</p>
+
+    <dl class="summary">
+      <div class="card">
+        <dt>Total</dt>
+        <dd data-testid="sale-total">{{ totalText() }}</dd>
+      </div>
+      <div class="card">
+        <dt>Recibido</dt>
+        <dd data-testid="sale-received">{{ receivedText() }}</dd>
+      </div>
+      <div class="card">
+        <dt>Cambio</dt>
+        <dd data-testid="sale-change">{{ changeText() }}</dd>
+      </div>
+    </dl>
+
+    <rs-note type="info" title="Factura pendiente de emisión">
+      El SIAT la emitirá cuando esté disponible. Stock descontado y cobro registrado{{ registerName() ? ' en ' + registerName() : '' }}.
+    </rs-note>
+
+    <div class="share">
+      <button rsButton variant="secondary" type="button" (click)="print.emit()">Imprimir ticket</button>
+      <button rsButton variant="secondary" type="button" (click)="whatsapp.emit()">WhatsApp</button>
+      <button rsButton variant="secondary" type="button" [attr.aria-expanded]="emailOpen()" aria-controls="sale-email-row" (click)="toggleEmail()">Correo</button>
+    </div>
+
+    @if (emailOpen()) {
+      <div class="email" id="sale-email-row">
+        <rs-field label="Enviar el comprobante a" forId="sale-email">
+          <input
+            #emailInput
+            rsInput
+            id="sale-email"
+            type="email"
+            autocomplete="off"
+            placeholder="cliente@correo.com"
+            [value]="email()"
+            (input)="email.set(emailInput.value)"
+          />
+        </rs-field>
+        <button rsButton variant="primary" type="button" [disabled]="!canSend()" (click)="submitEmail()">Enviar</button>
+      </div>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <!-- "Ver venta" arrives with the sales history (HU-VEN-12) -->
+    <button rsButton variant="primary" type="button" data-testid="sale-new" (click)="newSale.emit()">Nueva venta (Enter)</button>
+  </div>
+</rs-modal>

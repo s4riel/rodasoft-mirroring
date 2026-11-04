@@ -19,6 +19,8 @@ import { CustomersService } from '../customers/customers.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
+import { PosPaymentService } from './pos-payment.service';
+import { SaleReceiptService } from '../sales/sale-receipt.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
 
 export interface Caller {
@@ -76,10 +78,14 @@ export function createPosFixture(prefix: string) {
     const shifts = new CashShiftsService(prisma, cls, new AuditService(prisma, cls), new OutboxService(prisma, cls), membership);
     const audit = new AuditService(prisma, cls);
     const customers = new CustomersService(prisma, cls, audit);
+    const outbox = new OutboxService(prisma, cls);
+    const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     return {
       customers,
       catalog: new PosCatalogService(prisma, shifts, settings),
-      checkout: new PosCheckoutService(prisma, cls, shifts, settings, customers),
+      checkout,
+      payment: new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout),
+      receipts: new SaleReceiptService(prisma, cls, settings, outbox, audit),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
       sheet: new PosProductSheetService(
         prisma,
@@ -250,6 +256,10 @@ export function createPosFixture(prefix: string) {
       await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
       await tx.stockMovement.deleteMany({ where: { companyId: { in: companies } } });
     });
+    await base.invoice.deleteMany({ where: { companyId: { in: companies } } });
+    await base.sale.deleteMany({ where: { companyId: { in: companies } } });
+    await base.cashMovement.deleteMany({ where: { companyId: { in: companies } } });
+    await base.documentSequence.deleteMany({ where: { companyId: { in: companies } } });
     await base.posCheckoutItem.deleteMany({ where: { companyId: { in: companies } } });
     await base.posCheckout.deleteMany({ where: { companyId: { in: companies } } });
     await base.customer.deleteMany({ where: { companyId: { in: companies } } });

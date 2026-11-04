@@ -140,10 +140,10 @@ describe('POS cart customer (integration, real Postgres)', () => {
     const minera = await customer();
     const { checkout } = await cashier().checkout.addItem({ productId: bearing, quantity: 1 });
     await state.base.posCheckout.update({ where: { id: checkout!.id }, data: { status: 'PAYING' } });
-    // no OPEN cart is left, so a new one is created for the customer instead of touching the paying one
-    const next = await cashier().checkout.setCustomer(minera.id);
-    expect(next.checkout?.id).not.toBe(checkout!.id);
+    // a PAYING cart is still the cashier's cart (HU-VEN-07): it is refused, not replaced by a second cart
+    expect(await codeOf(cashier().checkout.setCustomer(minera.id))).toBe('CHECKOUT_NOT_EDITABLE');
     expect((await state.base.posCheckout.findUniqueOrThrow({ where: { id: checkout!.id } })).customerId).toBeNull();
+    expect(await state.base.posCheckout.count({ where: { companyId: state.companyId, cashierId: state.cashier.userId } })).toBe(1);
   });
 
   it('needs an open shift', async () => {
