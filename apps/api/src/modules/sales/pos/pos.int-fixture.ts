@@ -12,11 +12,13 @@ import type { PrismaService } from '../../../common/prisma/prisma.service';
 import { tenantExtension } from '../../../common/prisma/tenant.extension';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { EquivalencesService } from '../../inventory/equivalences.service';
+import { ProductsService } from '../../inventory/products.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
+import { PosProductSheetService } from './pos-product-sheet.service';
 
 export interface Caller {
   userId: string;
@@ -76,6 +78,13 @@ export function createPosFixture(prefix: string) {
       catalog: new PosCatalogService(prisma, shifts, settings),
       checkout: new PosCheckoutService(prisma, cls, shifts, settings),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
+      sheet: new PosProductSheetService(
+        prisma,
+        shifts,
+        settings,
+        new ProductsService(prisma, cls),
+        new EquivalencesService(prisma, cls, audit, settings),
+      ),
     };
   }
 
@@ -109,6 +118,8 @@ export function createPosFixture(prefix: string) {
     reserved?: Record<string, number>;
     minStock?: Record<string, number>;
     dimensions?: { innerDiameter: string; outerDiameter: string; width: string };
+    photos?: string[];
+    sectors?: string[];
     /** technical specifications (seal, cage…), compared by the equivalences */
     attributes?: Record<string, unknown>;
   }
@@ -127,6 +138,8 @@ export function createPosFixture(prefix: string) {
         salePrice: opts.price ?? '245.00',
         cost: '100.0000',
         status: opts.status ?? 'ACTIVE',
+        ...(opts.photos ? { photos: opts.photos } : {}),
+        ...(opts.sectors ? { sectors: opts.sectors } : {}),
         ...(opts.attributes ? { attributes: opts.attributes as object } : {}),
         ...(opts.dimensions ? { dimensions: { create: { companyId, ...opts.dimensions } } } : {}),
       },

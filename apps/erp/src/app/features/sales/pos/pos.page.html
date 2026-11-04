@@ -120,6 +120,9 @@
                       [addAriaLabel]="'Agregar ' + product.code"
                       [addDisabled]="isAdding(product.id)"
                       (add)="add(product)"
+                      showDetail
+                      detailLabel="Ver ficha técnica"
+                      (detail)="openSheet(product.id)"
                       showEquivalents
                       equivalentsLabel="Equivalentes"
                       (equivalents)="toggleEquivalents(product)"
@@ -132,6 +135,7 @@
                           [warehouseName]="product.warehouse.name"
                           [adding]="adding()"
                           (add)="addEquivalent($event)"
+                          (detail)="openSheet($event)"
                           (loadFailed)="equivalentsFailed($event)"
                         />
                       </div>
@@ -143,7 +147,7 @@
           }
         </div>
 
-        <p class="shortcuts">F2 Buscar · Enter Agregar · Esc Limpiar</p>
+        <p class="shortcuts">F2 Buscar · Enter Agregar · Espacio Ficha · Esc Limpiar</p>
       </section>
 
       <aside class="sale" aria-labelledby="pos-sale-title">
@@ -248,5 +252,13 @@
     }
   }
 }
+
+<rs-pos-product-sheet-dialog
+  [(open)]="sheetOpen"
+  [productId]="sheetProductId()"
+  [adding]="sheetAdding()"
+  (add)="addFromSheet($event)"
+  (loadFailed)="equivalentsFailed($event)"
+/>
 
 <rs-toast-outlet closeLabel="Cerrar" />

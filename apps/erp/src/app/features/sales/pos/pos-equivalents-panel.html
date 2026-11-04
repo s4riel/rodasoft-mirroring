@@ -39,6 +39,9 @@
                 [addAriaLabel]="'Agregar ' + item.code"
                 [addDisabled]="isAdding(item.productId)"
                 (add)="add.emit(item)"
+                showDetail
+                detailLabel="Ver ficha técnica"
+                (detail)="detail.emit(item.productId)"
               />
             }
           </div>

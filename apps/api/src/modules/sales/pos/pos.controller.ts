@@ -13,13 +13,14 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { PosCategoryListResponse, PosCheckoutResponse, PosEquivalentsResponse, PosProductSearchResponse } from '@rodasoft/domain';
+import type { PosCategoryListResponse, PosCheckoutResponse, PosEquivalentsResponse, PosProductSearchResponse, PosProductSheet } from '@rodasoft/domain';
 import { RequirePermissions } from '../../access/require-permissions.decorator';
 import { AddPosCheckoutItemDto, PosProductSearchQueryDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { posErrors } from './pos.errors';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
+import { PosProductSheetService } from './pos-product-sheet.service';
 
 function strictValidationPipe(code: string, message: string): ValidationPipe {
   return new ValidationPipe({
@@ -48,6 +49,7 @@ export class PosController {
     private readonly catalog: PosCatalogService,
     private readonly checkout: PosCheckoutService,
     private readonly equivalents: PosEquivalentsService,
+    private readonly sheets: PosProductSheetService,
   ) {}
 
   @Get('categories')
@@ -64,6 +66,12 @@ export class PosController {
   @Get('products/:id/equivalents')
   productEquivalents(@Param('id', productIdPipe) id: string): Promise<PosEquivalentsResponse> {
     return this.equivalents.list(id);
+  }
+
+  /** VP-03e (HU-VEN-04): the technical sheet of a product, without costs. */
+  @Get('products/:id/sheet')
+  productSheet(@Param('id', productIdPipe) id: string): Promise<PosProductSheet> {
+    return this.sheets.sheet(id);
   }
 
   @Get('checkout')

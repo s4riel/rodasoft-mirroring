@@ -442,7 +442,7 @@ export interface PosEquivalentItem {
   brand: { name: string; initials: string };
   /** Decimal string, scale 2. */
   salePrice: string;
-  /** `quantity − reserved` in the warehouse of the cashier's register; always above 0 (equivalents without stock are left out). */
+  /** `quantity − reserved` in the warehouse of the cashier's register; above 0 in the equivalents list (VP-03b), can be 0 in a product sheet (VP-03e). */
   available: number;
   kind: PosEquivalentKind;
   differences: EquivalenceDifference[];

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RouterLink } from '@angular/router';
 import { fieldIconOf, SPEC_STEP_DIMENSIONS } from '@rodasoft/domain';
 import {
+  BearingDiagramComponent,
   ChipMediaComponent,
   DataFieldComponent,
   FlagComponent,
@@ -34,6 +35,7 @@ import { ProductSheetStore } from './product-sheet.store';
 @Component({
   selector: 'rs-product-data-tab',
   imports: [
+    BearingDiagramComponent,
     ChipMediaComponent,
     DataFieldComponent,
     FlagComponent,

@@ -7,6 +7,7 @@ import type {
   PosEquivalentsResponse,
   PosProductSearchQuery,
   PosProductSearchResponse,
+  PosProductSheet,
 } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
@@ -30,6 +31,17 @@ export class PosApi {
   /** VP-03b (HU-VEN-03): in-stock equivalents of a product and the original's stock in other branches. */
   equivalents(productId: string): Observable<PosEquivalentsResponse> {
     return this.http.get<PosEquivalentsResponse>(`${BASE}/products/${productId}/equivalents`);
+  }
+
+  /** VP-03e (HU-VEN-04): the technical sheet of a product, without costs. */
+  sheet(productId: string): Observable<PosProductSheet> {
+    return this.http.get<PosProductSheet>(`${BASE}/products/${productId}/sheet`);
+  }
+
+  /** The bytes of a stored photo, fetched with the session. Keys are `company/kind/name`. */
+  file(key: string): Observable<Blob> {
+    const [, kind, name] = key.split('/');
+    return this.http.get(`/api/v1/inventory/files/${kind}/${name}`, { responseType: 'blob' });
   }
 
   checkout(): Observable<PosCheckoutResponse> {

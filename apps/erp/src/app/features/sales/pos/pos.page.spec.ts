@@ -12,6 +12,7 @@ import type {
   PosEquivalentItem,
   PosEquivalentsResponse,
   PosProductResult,
+  PosProductSheet,
 } from '@rodasoft/domain';
 import { ContextStore } from '../../../core/context.store';
 import { POS_SEARCH_DEBOUNCE_MS, PosPage } from './pos.page';
@@ -79,6 +80,38 @@ const equivalents = (over: Partial<PosEquivalentsResponse> = {}): PosEquivalents
   warehouse: { id: 'w1', name: 'Central' },
   items: [equivalent()],
   otherBranches: [],
+  ...over,
+});
+
+const sheetUrl = (id: string) => `/api/v1/sales/pos/products/${id}/sheet`;
+
+const sheetOf = (over: Partial<PosProductSheet> = {}): PosProductSheet => ({
+  product: {
+    id: 'p1',
+    sku: 'RL-000124',
+    manufacturerCode: '6205-2RS',
+    name: 'Rodamiento rígido de bolas',
+    unit: 'UN',
+    status: 'ACTIVE',
+    brand: { id: 'b', name: 'SKF', logoUrl: null },
+    country: null,
+    category: { id: 'c', name: 'Rodamientos', icon: 'bearing' },
+    subcategory: null,
+    dimensions: { innerDiameter: '25', outerDiameter: '52', width: '15', weight: null },
+    specs: [],
+    salePrice: '245.00',
+    sectors: [],
+    totalStock: 24,
+    stockByBranch: [],
+    photos: [],
+    datasheetUrl: null,
+  },
+  available: 24,
+  stockStatus: 'ok',
+  maxQuantity: 24,
+  warehouse: { id: 'w1', name: 'Central' },
+  branchId: 'b1',
+  equivalents: [],
   ...over,
 });
 
@@ -323,7 +356,7 @@ describe('PosPage', () => {
       expect(text(h)).toContain('Agrega productos para empezar la venta');
       expect(total(h)).toBe('Bs 0,00');
       expect(button(h, 'Cobrar')!.disabled).toBe(true);
-      expect(text(h)).toContain('F2 Buscar · Enter Agregar · Esc Limpiar');
+      expect(text(h)).toContain('F2 Buscar · Enter Agregar · Espacio Ficha · Esc Limpiar');
       expect(Array.from(root(h).querySelectorAll('rs-filter-chip')).map((c) => c.textContent?.trim())).toEqual(['Todos', 'Rodamientos']);
     });
 
@@ -556,6 +589,50 @@ describe('PosPage', () => {
     it('limits the stepper to the available stock', async () => {
       const h = await open(undefined, shift, undefined, cart([line({ maxQuantity: 2 })], '490.00'));
       expect(button(h, 'Sumar uno')!.disabled).toBe(true);
+    });
+
+    describe('technical sheet (VP-03e, HU-VEN-04)', () => {
+      async function openFromEye(h: RouterTestingHarness) {
+        await search(h, '6205', [product()]);
+        button(h, 'Ver ficha técnica')!.click();
+        await settle(h);
+        http.expectOne(sheetUrl('p1')).flush(sheetOf());
+        await settle(h);
+      }
+
+      it('opens the sheet from the eye button of a result', async () => {
+        const h = await open(undefined, shift);
+        await openFromEye(h);
+        expect(dialog(h)!.textContent).toContain('Dimensiones');
+        expect(dialog(h)!.textContent).toContain('Stock por sucursal');
+      });
+
+      it('opens the sheet of the first result with Space, but not while typing in the search box', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '6205', [product()]);
+        searchBox(h).dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+        await settle(h);
+        http.expectNone(sheetUrl('p1'));
+        press(document.body, ' ');
+        await settle(h);
+        http.expectOne(sheetUrl('p1')).flush(sheetOf());
+        await settle(h);
+        expect(dialog(h)).not.toBeNull();
+      });
+
+      it('adds the chosen quantity from the sheet, updates the cart and closes the sheet', async () => {
+        const h = await open(undefined, shift);
+        await openFromEye(h);
+        button(h, 'Sumar uno', dialog(h)!)!.click();
+        await settle(h);
+        button(h, 'Agregar a la venta', dialog(h)!)!.click();
+        const req = http.expectOne(ITEMS);
+        expect(req.request.body).toEqual({ productId: 'p1', quantity: 2 });
+        req.flush({ checkout: cart([line()], '490.00') });
+        await settle(h);
+        expect(dialog(h)).toBeNull();
+        expect(total(h)).toBe('Bs 490,00');
+      });
     });
 
     it('F2 focuses the search', async () => {
