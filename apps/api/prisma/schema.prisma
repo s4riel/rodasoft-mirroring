@@ -990,6 +990,7 @@ model Customer {
 
   @@unique([companyId, documentType, documentNumber])
   @@index([companyId, name])
+  @@index([companyId, documentNumber])
   @@map("customers")
 }
 

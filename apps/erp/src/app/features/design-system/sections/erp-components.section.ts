@@ -13,11 +13,12 @@ import {
   DocTableRow,
   KpiCardComponent,
   PosCartLineComponent,
+  PosCustomerComponent,
   PosResultRowComponent,
   StockFlagComponent,
 } from '@rodasoft/ui';
 
-/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). */
+/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). PosCustomer (HU-VEN-05). */
 @Component({
   selector: 'rs-erp-components-section',
   imports: [
@@ -30,6 +31,7 @@ import {
     IconComponent,
     KpiCardComponent,
     PosCartLineComponent,
+    PosCustomerComponent,
     PosResultRowComponent,
     StockFlagComponent,
   ],
@@ -109,6 +111,12 @@ import {
       <div class="pos-cart">
         <rs-pos-cart-line title="6205-2RS · SKF" unitPrice="Bs 245,00 c/u" [quantity]="2" [max]="24" total="Bs 490,00" removeLabel="Quitar 6205-2RS" quantityLabel="Cantidad" decrementLabel="Restar uno" incrementLabel="Sumar uno" />
         <rs-pos-cart-line title="6306-2RS · NSK" unitPrice="Bs 380,00 c/u" [quantity]="1" [max]="3" total="Bs 361,00" discountLabel="−5 % · −Bs 19,00" removeLabel="Quitar 6306-2RS" quantityLabel="Cantidad" decrementLabel="Restar uno" incrementLabel="Sumar uno" />
+      </div>
+
+      <h3>PosCustomer · Type = Final | Identified</h3>
+      <div class="pos-cart">
+        <rs-pos-customer type="final" name="Consumidor final" detail="Sin NIT · factura a S/N" actionLabel="Agregar NIT" />
+        <rs-pos-customer type="identified" name="Minera Demo Ltda." detail="NIT 1023456027 · compras@minerademo.bo" actionLabel="Cambiar" />
       </div>
     </section>
   `,

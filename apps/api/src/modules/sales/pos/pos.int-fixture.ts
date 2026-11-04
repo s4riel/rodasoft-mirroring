@@ -15,6 +15,7 @@ import { EquivalencesService } from '../../inventory/equivalences.service';
 import { ProductsService } from '../../inventory/products.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
+import { CustomersService } from '../customers/customers.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
@@ -74,9 +75,11 @@ export function createPosFixture(prefix: string) {
     } as never;
     const shifts = new CashShiftsService(prisma, cls, new AuditService(prisma, cls), new OutboxService(prisma, cls), membership);
     const audit = new AuditService(prisma, cls);
+    const customers = new CustomersService(prisma, cls, audit);
     return {
+      customers,
       catalog: new PosCatalogService(prisma, shifts, settings),
-      checkout: new PosCheckoutService(prisma, cls, shifts, settings),
+      checkout: new PosCheckoutService(prisma, cls, shifts, settings, customers),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
       sheet: new PosProductSheetService(
         prisma,
@@ -249,6 +252,7 @@ export function createPosFixture(prefix: string) {
     });
     await base.posCheckoutItem.deleteMany({ where: { companyId: { in: companies } } });
     await base.posCheckout.deleteMany({ where: { companyId: { in: companies } } });
+    await base.customer.deleteMany({ where: { companyId: { in: companies } } });
     await base.cashShift.deleteMany({ where: { companyId: { in: companies } } });
     await base.cashRegister.deleteMany({ where: { companyId: { in: companies } } });
     await base.siatPointOfSale.deleteMany({ where: { companyId: { in: companies } } });

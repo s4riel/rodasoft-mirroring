@@ -1,0 +1,102 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+}
+
+.results {
+  min-height: var(--space-12);
+}
+
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+/* Figma VP-03c "Resultados": bordered list, a selected row on surface-2 */
+.list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.option:hover,
+.option.is-selected {
+  background: var(--bg-surface-2);
+}
+.option:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: calc(-1 * var(--stroke-focus));
+}
+
+.option-name {
+  color: var(--text-primary);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+}
+
+.option-detail {
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.new {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.new-text {
+  flex: 1 1 0;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.final {
+  margin-right: auto;
+}

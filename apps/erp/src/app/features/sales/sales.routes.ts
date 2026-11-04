@@ -4,6 +4,7 @@ import { POS_TAB, SALES_TABS } from './sales-tabs';
 
 /** Screens already built; every other tab is a placeholder until its story fills it (see `SALES_TABS`). */
 const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
+  customers: { loadComponent: () => import('./customers/customers.page').then((m) => m.CustomersPage) },
   'cash-register': {
     children: [
       { path: '', pathMatch: 'full', loadComponent: () => import('./cash/cash-register.page').then((m) => m.CashRegisterPage) },

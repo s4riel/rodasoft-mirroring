@@ -8,15 +8,28 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   ValidationError,
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { PosCategoryListResponse, PosCheckoutResponse, PosEquivalentsResponse, PosProductSearchResponse, PosProductSheet } from '@rodasoft/domain';
+import type {
+  CustomerSearchResponse,
+  CustomerSummary,
+  PosCategoryListResponse,
+  PosCheckoutResponse,
+  PosEquivalentsResponse,
+  PosInvoiceDataResponse,
+  PosProductSearchResponse,
+  PosProductSheet,
+} from '@rodasoft/domain';
 import { RequirePermissions } from '../../access/require-permissions.decorator';
+import { CreatePosCustomerDto, PosCustomerSearchQueryDto, SetPosCustomerDto } from '../customers/customers.dto';
+import { CustomersService } from '../customers/customers.service';
 import { AddPosCheckoutItemDto, PosProductSearchQueryDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { posErrors } from './pos.errors';
+import { CashShiftsService } from '../cash/cash-shifts.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
@@ -50,6 +63,8 @@ export class PosController {
     private readonly checkout: PosCheckoutService,
     private readonly equivalents: PosEquivalentsService,
     private readonly sheets: PosProductSheetService,
+    private readonly shifts: CashShiftsService,
+    private readonly customers: CustomersService,
   ) {}
 
   @Get('categories')
@@ -72,6 +87,32 @@ export class PosController {
   @Get('products/:id/sheet')
   productSheet(@Param('id', productIdPipe) id: string): Promise<PosProductSheet> {
     return this.sheets.sheet(id);
+  }
+
+  /** VP-03c (HU-VEN-05): searches the company's customers by name or document. */
+  @Get('customers')
+  async searchCustomers(@Query(filterPipe) query: PosCustomerSearchQueryDto): Promise<CustomerSearchResponse> {
+    await this.shifts.requireOpenShift();
+    return this.customers.search(query.q);
+  }
+
+  /** VP-03c: quick creation of a customer. Never sets a discount or credit: that is `sales.customers.manage`. */
+  @Post('customers')
+  async createCustomer(@Body(bodyPipe) body: CreatePosCustomerDto): Promise<CustomerSummary> {
+    await this.shifts.requireOpenShift();
+    return this.customers.quickCreate(body);
+  }
+
+  /** Sets the customer of my cart, or `null` for a final consumer. */
+  @Put('checkout/customer')
+  setCustomer(@Body(bodyPipe) body: SetPosCustomerDto): Promise<PosCheckoutResponse> {
+    return this.checkout.setCustomer(body.customerId);
+  }
+
+  /** The tax data the invoice will carry; refuses a customer whose document is not valid. */
+  @Get('checkout/invoice-data')
+  invoiceData(): Promise<PosInvoiceDataResponse> {
+    return this.checkout.invoiceData();
   }
 
   @Get('checkout')

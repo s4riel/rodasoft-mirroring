@@ -17,8 +17,10 @@ import {
   cartTotals,
   Decimal,
   lineTotal,
+  FINAL_CONSUMER,
   type CashRegisterOption,
   type CurrentCashShift,
+  type CustomerSummary,
   type PosCategory,
   type PosCheckoutLine,
   type PosCheckoutResponse,
@@ -39,6 +41,7 @@ import {
   InputDirective,
   InputGroupComponent,
   PosCartLineComponent,
+  PosCustomerComponent,
   PosResultRowComponent,
   SkeletonComponent,
   ToastOutletComponent,
@@ -49,8 +52,10 @@ import { catchError, debounceTime, distinctUntilChanged, map, of, switchMap, tap
 import { problemOf } from '../../../core/api-error';
 import { ContextStore } from '../../../core/context.store';
 import { CashApi } from '../cash/cash-api.service';
+import { customerDetail } from '../customers/customer-format';
 import { registerPlace } from '../cash/cash-format';
 import { PosApi } from './pos-api.service';
+import { PosCustomerDialog } from './pos-customer.dialog';
 import { PosEquivalentsPanel } from './pos-equivalents-panel';
 import { PosProductSheetDialog, type PosSheetAdd } from './pos-product-sheet.dialog';
 
@@ -92,6 +97,8 @@ const money = (value: string) => Decimal.of(value).format();
     InputGroupComponent,
     NgTemplateOutlet,
     PosCartLineComponent,
+    PosCustomerComponent,
+    PosCustomerDialog,
     PosEquivalentsPanel,
     PosProductSheetDialog,
     PosResultRowComponent,
@@ -152,6 +159,16 @@ export class PosPage implements OnInit {
   private requestSeq = 0;
   private appliedSeq = 0;
   protected readonly adding = signal<ReadonlySet<string>>(new Set());
+
+  /** The customer of the sale (VP-03c); `null` invoices a final consumer. */
+  protected readonly customer = computed(() => this.serverCheckout()?.customer ?? null);
+  protected readonly customerName = computed(() => this.customer()?.name ?? 'Consumidor final');
+  protected readonly customerDetail = computed(() => {
+    const customer = this.customer();
+    return customer ? customerDetail(customer) : `Sin NIT · factura a ${FINAL_CONSUMER.name}`;
+  });
+  protected readonly customerOpen = signal(false);
+  protected readonly customerSaving = signal(false);
 
   protected readonly totals = computed(() => {
     const pricing = this.serverCheckout()?.pricing ?? { roundingMode: 'NONE' as const, discount: null };
@@ -401,6 +418,23 @@ export class PosPage implements OnInit {
     });
   }
 
+  // --- customer (VP-03c) ---
+
+  protected openCustomer() {
+    if (this.shift()) this.customerOpen.set(true);
+  }
+
+  /** "Usar" in the dialog: sets the customer of the cart (or a final consumer) and closes the dialog once the server accepted it. */
+  protected chooseCustomer(customer: CustomerSummary | null) {
+    if (this.customerSaving()) return;
+    this.customerSaving.set(true);
+    this.mutate(
+      this.api.setCustomer(customer?.id ?? null),
+      () => this.customerSaving.set(false),
+      () => this.customerOpen.set(false),
+    );
+  }
+
   protected changeQuantity(line: PosCheckoutLine, quantity: number) {
     if (quantity === line.quantity) return;
     this.lines.update((lines) =>
@@ -482,7 +516,13 @@ export class PosPage implements OnInit {
   /** F2 focuses the search from anywhere in the POS. */
   protected onShortcut(event: KeyboardEvent) {
     if (event.key === ' ') return this.onSpace(event);
-    if (event.key !== 'F2' || !this.shift()) return;
+    if (!this.shift()) return;
+    if (event.key === 'F4') {
+      event.preventDefault();
+      this.openCustomer();
+      return;
+    }
+    if (event.key !== 'F2') return;
     event.preventDefault();
     this.searchBox()?.nativeElement.focus();
   }

@@ -1,5 +1,9 @@
 import { ROUNDING_MODES, type RoundingMode } from './sales-pricing';
 
+/** How the customer's NIT is checked before invoicing: its format only, or also online with the SIN (HU-FAC). */
+export const NIT_VERIFICATION_MODES = ['FORMAT', 'SIAT'] as const;
+export type NitVerificationMode = (typeof NIT_VERIFICATION_MODES)[number];
+
 /**
  * Per-company settings (HU-INV-06). Each key is typed here with its default, so code always has a value even when
  * the company has no `company_settings` row. Defaults follow the open client decisions (#32, #37): a missing
@@ -32,6 +36,8 @@ export interface CompanySettings {
   'sales.cancellationWindowDays': number | null;
   /** Cash expenses above this value need approval (decision #16). Null = never asks. */
   'sales.cashExpenseApprovalLimit': string | null;
+  /** How the NIT is verified before invoicing (HU-VEN-05). `SIAT` waits for the invoicing epic; until then only the format is checked. */
+  'sales.nitVerification': NitVerificationMode;
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -50,6 +56,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.allowPartialDispatch': true,
   'sales.cancellationWindowDays': null,
   'sales.cashExpenseApprovalLimit': null,
+  'sales.nitVerification': 'FORMAT',
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */
@@ -59,7 +66,10 @@ const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettin
 ]);
 
 /** Settings whose value is one of a closed list. */
-const ENUM_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>> = { 'sales.roundingMode': ROUNDING_MODES };
+const ENUM_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>> = {
+  'sales.roundingMode': ROUNDING_MODES,
+  'sales.nitVerification': NIT_VERIFICATION_MODES,
+};
 
 /** Settings that are a positive whole number or null (null = no limit); their default is null, so the type is not inferable from it. */
 const NULLABLE_INTEGER_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>(['sales.cancellationWindowDays']);

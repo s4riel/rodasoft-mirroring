@@ -1,3 +1,4 @@
+import type { CustomerSummary } from './customer';
 import { Decimal, MONEY_SCALE } from './money';
 import { stockAvailability } from './product-catalog';
 import type { PosCheckoutStatus } from './state-machine';
@@ -23,7 +24,7 @@ export interface CartTotalsLine {
   quantity: number;
 }
 
-/** The customer discount of the sale (decision #5, filled by HU-VEN-05/37); none until then. */
+/** The customer discount of the sale (decision #5, HU-VEN-37): the discount of the customer chosen in the cart, if any. */
 export interface CartDiscount {
   type: CustomerDiscountType;
   value: Decimal | string;
@@ -125,6 +126,8 @@ export interface PosCheckoutLine {
 export interface PosCheckoutView {
   id: string;
   status: PosCheckoutStatus;
+  /** The customer of the sale (HU-VEN-05); `null` invoices a final consumer. */
+  customer: CustomerSummary | null;
   lines: PosCheckoutLine[];
   /** What the ERP feeds to `cartTotals()` so its instant total matches the server's. */
   pricing: { roundingMode: RoundingMode; discount: { type: CustomerDiscountType; value: string } | null };

@@ -1,0 +1,86 @@
+<rs-modal [(open)]="open" variant="form" size="default" heading="Cliente y datos de factura" closeLabel="Cerrar">
+  @if (mode() === 'search') {
+    <div class="content">
+      <p class="description">Busca por NIT, CI o razón social. Los datos se usan en la factura del SIAT.</p>
+
+      <rs-field label="Buscar cliente" forId="pos-customer-search">
+        <rs-input-group>
+          <rs-icon rsInputLeading name="search" [size]="16" />
+          <input
+            #searchBox
+            rsInput
+            id="pos-customer-search"
+            type="search"
+            autocomplete="off"
+            placeholder="NIT, CI o nombre"
+            [value]="query()"
+            (input)="onQuery(searchBox.value)"
+          />
+        </rs-input-group>
+      </rs-field>
+
+      @if (existing(); as found) {
+        <rs-note type="info" title="Este documento ya está registrado">Es el cliente {{ found.name }}. Puedes usarlo en esta venta.</rs-note>
+      }
+
+      <div class="results" aria-live="polite">
+        @switch (state()) {
+          @case ('loading') {
+            <div class="skeletons" role="status" aria-busy="true" aria-label="Buscando clientes">
+              <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+              <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+            </div>
+          }
+          @case ('error') {
+            <p class="message" role="alert">No pudimos buscar clientes. <button rsButton variant="ghost" size="sm" type="button" (click)="retry()">Reintentar</button></p>
+          }
+          @default {
+            @if (results().length === 0) {
+              <p class="message">{{ resultsQuery() ? 'Sin clientes para «' + resultsQuery() + '»' : 'Todavía no hay clientes registrados.' }}</p>
+            } @else {
+              <ul class="list" aria-label="Clientes">
+                @for (customer of results(); track customer.id) {
+                  <li>
+                    <button
+                      type="button"
+                      class="option"
+                      [attr.aria-pressed]="selected()?.id === customer.id"
+                      [class.is-selected]="selected()?.id === customer.id"
+                      (click)="pick(customer)"
+                      (dblclick)="pick(customer); use()"
+                    >
+                      <span class="option-name">{{ customer.name }}</span>
+                      <span class="option-detail">{{ detail(customer) }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        }
+      </div>
+
+      <div class="new">
+        <p class="new-text">¿No está registrado? Créalo con NIT o CI, razón social y correo.</p>
+        <button rsButton variant="secondary" type="button" (click)="newCustomer()">Nuevo cliente</button>
+      </div>
+
+      <rs-note type="info" title="Facturar sin NIT">Mientras no elijas un cliente se factura a Consumidor final (NIT 0, nombre S/N).</rs-note>
+    </div>
+  } @else {
+    <div class="content">
+      <p class="description">Registra al cliente con sus datos de factura. Quedará elegido para esta venta.</p>
+      <rs-customer-form [saving]="creating()" [serverError]="createError()" submitLabel="Guardar y usar" (save)="create($event)" (cancelled)="backToSearch()" />
+    </div>
+  }
+
+  @if (mode() === 'search') {
+    <div slot="footer" class="footer">
+      <button rsButton variant="ghost" type="button" class="final" [disabled]="saving()" (click)="useFinalConsumer()">Consumidor final</button>
+      <button rsButton variant="ghost" type="button" (click)="open.set(false)">Cancelar</button>
+      <button rsButton variant="primary" type="button" [disabled]="!selected() || saving()" [attr.aria-label]="selected() ? 'Usar ' + selected()?.name : null" (click)="use()">
+        Usar cliente
+      </button>
+    </div>
+  }
+</rs-modal>

@@ -7,6 +7,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import type {
   CashRegisterOption,
   CurrentCashShift,
+  CustomerSummary,
   PosCheckoutLine,
   PosCheckoutView,
   PosEquivalentItem,
@@ -135,6 +136,7 @@ const cheapLine = (over: Partial<PosCheckoutLine> = {}) =>
 const cart = (lines: PosCheckoutLine[], subtotal: string, total = subtotal): PosCheckoutView => ({
   id: 'c1',
   status: 'OPEN',
+  customer: null,
   lines,
   pricing: { roundingMode: 'NONE', discount: null },
   subtotal,
@@ -356,7 +358,7 @@ describe('PosPage', () => {
       expect(text(h)).toContain('Agrega productos para empezar la venta');
       expect(total(h)).toBe('Bs 0,00');
       expect(button(h, 'Cobrar')!.disabled).toBe(true);
-      expect(text(h)).toContain('F2 Buscar · Enter Agregar · Espacio Ficha · Esc Limpiar');
+      expect(text(h)).toContain('F2 Buscar · F4 Cliente · Enter Agregar · Espacio Ficha · Esc Limpiar');
       expect(Array.from(root(h).querySelectorAll('rs-filter-chip')).map((c) => c.textContent?.trim())).toEqual(['Todos', 'Rodamientos']);
     });
 
@@ -639,6 +641,145 @@ describe('PosPage', () => {
       const h = await open(undefined, shift);
       press(document.body, 'F2');
       expect(document.activeElement).toBe(searchBox(h));
+    });
+  });
+
+  describe('customer and invoice data (VP-03c, HU-VEN-05, HU-VEN-37)', () => {
+    const CUSTOMER_URL = '/api/v1/sales/pos/customers';
+    const SET_CUSTOMER = '/api/v1/sales/pos/checkout/customer';
+    const total = (h: RouterTestingHarness) => root(h).querySelector('[data-testid=pos-total]')!.textContent!.trim();
+    const block = (h: RouterTestingHarness) => root(h).querySelector<HTMLElement>('rs-pos-customer')!;
+    const wait = () => new Promise((resolve) => setTimeout(resolve, 300));
+
+    const minera: CustomerSummary = {
+      id: 'c1',
+      name: 'Minera Demo Ltda.',
+      documentType: 5,
+      documentNumber: '1023456027',
+      complement: null,
+      email: 'compras@minerademo.bo',
+      phone: null,
+      creditEnabled: false,
+      discount: { type: 'PERCENT', value: '10.00' },
+      status: 'ACTIVE',
+    };
+
+    /** A cart of one line (2 × Bs 245) invoiced to Minera, with its 10 % discount. */
+    const discounted = (): PosCheckoutView => ({
+      ...cart([line()], '490.00', '441.00'),
+      customer: minera,
+      pricing: { roundingMode: 'NONE', discount: { type: 'PERCENT', value: '10.00' } },
+      discount: '49.00',
+    });
+
+    /** Opens the dialog with the button of the block and answers its first (empty) search. */
+    async function openDialog(h: RouterTestingHarness, items: CustomerSummary[] = [minera]) {
+      button(h, 'Agregar NIT', block(h))!.click();
+      await settle(h);
+      await wait();
+      http.expectOne((r) => r.url === CUSTOMER_URL && r.params.get('q') === '').flush({ items });
+      await settle(h);
+    }
+
+    it('invoices a final consumer by default: "Consumidor final", no NIT, S/N', async () => {
+      const h = await open(undefined, shift);
+      expect(block(h).getAttribute('data-type')).toBe('final');
+      expect(block(h).textContent).toContain('Consumidor final');
+      expect(block(h).textContent).toContain('Sin NIT · factura a S/N');
+      expect(button(h, 'Agregar NIT', block(h))).toBeDefined();
+    });
+
+    it('shows the customer, their NIT and the discount the server applied', async () => {
+      const h = await open(undefined, shift, undefined, discounted());
+      expect(block(h).getAttribute('data-type')).toBe('identified');
+      expect(block(h).textContent).toContain('Minera Demo Ltda.');
+      expect(block(h).textContent).toContain('NIT 1023456027 · compras@minerademo.bo · 10 % de descuento');
+      expect(button(h, 'Cambiar', block(h))).toBeDefined();
+      expect(text(h)).toContain('Descuento');
+      expect(text(h)).toContain('−Bs 49,00');
+      expect(total(h)).toBe('Bs 441,00');
+    });
+
+    it('recalculates the total with the customer discount at once when the quantity changes', async () => {
+      const h = await open(undefined, shift, undefined, discounted());
+      button(h, 'Sumar uno')!.click();
+      await settle(h);
+      // 3 × 245 = 735, minus 10 % = 661,50, before the API answers
+      expect(total(h)).toBe('Bs 661,50');
+      http.expectOne(`${ITEMS}/l1`).flush({
+        checkout: { ...discounted(), lines: [line({ quantity: 3, lineTotal: '735.00' })], subtotal: '735.00', discount: '73.50', total: '661.50' },
+      });
+      await settle(h);
+      expect(total(h)).toBe('Bs 661,50');
+    });
+
+    it('opens the search from the button and from F4', async () => {
+      const h = await open(undefined, shift);
+      await openDialog(h);
+      expect(dialog(h)).not.toBeNull();
+      expect(dialog(h)!.textContent).toContain('Cliente y datos de factura');
+
+      TestBed.resetTestingModule();
+      const h2 = await open(undefined, shift);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F4', bubbles: true, cancelable: true }));
+      await settle(h2);
+      await wait();
+      http.expectOne((r) => r.url === CUSTOMER_URL).flush({ items: [] });
+      await settle(h2);
+      expect(dialog(h2)).not.toBeNull();
+    });
+
+    it('sets the customer of the cart, shows their discount and closes the dialog', async () => {
+      const h = await open(undefined, shift, undefined, cart([line()], '490.00'));
+      await openDialog(h);
+      dialog(h)!.querySelector<HTMLButtonElement>('button.option')!.click();
+      await settle(h);
+      button(h, 'Usar cliente', dialog(h)!)!.click();
+      const req = http.expectOne(SET_CUSTOMER);
+      expect(req.request.method).toBe('PUT');
+      expect(req.request.body).toEqual({ customerId: 'c1' });
+      req.flush({ checkout: discounted() });
+      await settle(h);
+      expect(dialog(h)).toBeNull();
+      expect(block(h).textContent).toContain('Minera Demo Ltda.');
+      expect(total(h)).toBe('Bs 441,00');
+    });
+
+    it('"Consumidor final" sends no customer and takes the discount off', async () => {
+      const h = await open(undefined, shift, undefined, discounted());
+      button(h, 'Cambiar', block(h))!.click();
+      await settle(h);
+      await wait();
+      http.expectOne((r) => r.url === CUSTOMER_URL).flush({ items: [minera] });
+      await settle(h);
+      button(h, 'Consumidor final', dialog(h)!)!.click();
+      const req = http.expectOne(SET_CUSTOMER);
+      expect(req.request.body).toEqual({ customerId: null });
+      req.flush({ checkout: cart([line()], '490.00') });
+      await settle(h);
+      expect(dialog(h)).toBeNull();
+      expect(block(h).getAttribute('data-type')).toBe('final');
+      expect(total(h)).toBe('Bs 490,00');
+    });
+
+    it('keeps the dialog open and says why when the server refuses the customer', async () => {
+      const h = await open(undefined, shift, undefined, cart([line()], '490.00'));
+      await openDialog(h);
+      dialog(h)!.querySelector<HTMLButtonElement>('button.option')!.click();
+      await settle(h);
+      button(h, 'Usar cliente', dialog(h)!)!.click();
+      http.expectOne(SET_CUSTOMER).flush({ code: 'CUSTOMER_INACTIVE', message: 'inactive' }, { status: 409, statusText: 'Conflict' });
+      await settle(h);
+      expect(dialog(h)).not.toBeNull();
+      expect(text(h)).toContain('Este cliente está desactivado y no se puede usar en una venta.');
+      expect(block(h).getAttribute('data-type')).toBe('final');
+    });
+
+    it('does not open the search without an open shift (F4 on the closed register)', async () => {
+      const h = await open();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F4', bubbles: true, cancelable: true }));
+      await settle(h);
+      http.expectNone((r) => r.url === CUSTOMER_URL);
     });
   });
 });
