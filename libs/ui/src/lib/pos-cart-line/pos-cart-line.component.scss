@@ -1,0 +1,84 @@
+/* Figma PosCartLine: 72 px line, padding y 12, gap 12, bottom border; total column 96, trash 32 (no tokens) */
+:host {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-height: 72px; /* Figma line height, no token */
+  padding: var(--space-3) 0;
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+
+.info {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.unit,
+.discount {
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  white-space: nowrap;
+}
+.unit {
+  color: var(--text-muted);
+}
+.discount {
+  color: var(--status-success);
+}
+
+rs-qty-stepper {
+  flex: none;
+}
+
+.total {
+  flex: none;
+  width: 96px; /* Figma total column, no token */
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  font-weight: var(--mono-md-weight);
+  letter-spacing: var(--mono-md-tracking);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px; /* Figma "Quitar" hit area, no token */
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.remove:hover {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+.remove:active {
+  background: var(--status-danger-soft);
+}
+.remove:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}

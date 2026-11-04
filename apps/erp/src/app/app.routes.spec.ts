@@ -16,8 +16,16 @@ describe('ERP routes', () => {
     const children = (await (sales?.loadChildren as () => Promise<Route[]>)()) as Route[];
     const tabs = children[0].children ?? [];
     const guarded = tabs.filter((t) => t.path);
-    expect(guarded.map((t) => t.path)).toEqual(['pos', 'quotes', 'orders', 'history', 'returns', 'cash-register', 'prices', 'approvals']);
+    expect(guarded.map((t) => t.path)).toEqual(['quotes', 'orders', 'history', 'returns', 'cash-register', 'prices', 'approvals']);
     expect(guarded.every((t) => t.canActivate?.length === 1)).toBe(true);
+  });
+
+  it('routes the full-screen POS next to the shell, behind the session and its tab permission', () => {
+    const pos = routes.find((r) => r.path === 'sales/pos');
+    expect(pos?.loadComponent).toBeDefined();
+    expect(pos?.canActivate?.length).toBe(2);
+    // not inside the shell: no sidebar
+    expect(routes.find((r) => r.path === '' && r.children)?.children?.some((c) => c.path === 'sales/pos')).toBe(false);
   });
 
   it('has one route per menu item', () => {

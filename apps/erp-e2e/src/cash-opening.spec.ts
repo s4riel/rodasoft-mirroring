@@ -55,7 +55,7 @@ test('the cashier finds the POS closed, opens the register with the float and se
   // success: toast, and the POS has no modal any more
   await expect(page).toHaveURL(/\/sales\/pos$/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText('Turno abierto')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Venta actual' })).toBeVisible();
 
   // the Caja tab now shows the shift instead of the opening form
   await page.goto('/sales/cash-register');

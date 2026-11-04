@@ -1103,6 +1103,8 @@ model PosCheckout {
   payments PosCheckoutPayment[]
   sale     Sale?
 
+  /// partial unique index `pos_checkouts_one_open_per_cashier` on (company_id, cashier_id) WHERE status = 'OPEN', raw SQL in
+  /// the migration `pos_checkout_cart` (HU-VEN-02): a cashier has a single sale in progress
   @@index([companyId, cashierId, status])
   @@index([companyId, shiftId])
   @@map("pos_checkouts")
@@ -1121,6 +1123,8 @@ model PosCheckoutItem {
   checkout PosCheckout @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
   product  Product     @relation(fields: [productId], references: [id])
 
+  /// one line per product: adding it again raises the quantity of its line (HU-VEN-02)
+  @@unique([checkoutId, productId], map: "pos_checkout_items_checkout_product_key")
   @@index([companyId, checkoutId])
   @@map("pos_checkout_items")
 }

@@ -47,7 +47,7 @@ describe('sales section', () => {
   it('shows every tab to a user with every permission', async () => {
     setup(ALL);
     const h = await RouterTestingHarness.create();
-    await h.navigateByUrl('/sales/pos', SalesLayoutPage);
+    await h.navigateByUrl('/sales/history', SalesLayoutPage);
     h.detectChanges();
     for (const label of ['Punto de venta', 'Cotizaciones', 'Pedidos', 'Ventas realizadas', 'Devoluciones', 'Caja', 'Precios y descuentos', 'Aprobaciones']) {
       expect(tabsText(h)).toContain(label);
@@ -57,7 +57,7 @@ describe('sales section', () => {
   it('hides the tabs the permissions do not allow: a cashier does not see Precios or Aprobaciones', async () => {
     setup(CASHIER);
     const h = await RouterTestingHarness.create();
-    await h.navigateByUrl('/sales/pos', SalesLayoutPage);
+    await h.navigateByUrl('/sales/history', SalesLayoutPage);
     h.detectChanges();
     expect(tabsText(h)).toContain('Punto de venta');
     expect(hasTab(h, '/sales/prices')).toBe(false);
@@ -69,7 +69,7 @@ describe('sales section', () => {
       TestBed.resetTestingModule();
       setup([permission, 'sales.pos.use']);
       const h = await RouterTestingHarness.create();
-      await h.navigateByUrl('/sales/pos', SalesLayoutPage);
+      await h.navigateByUrl('/sales/history', SalesLayoutPage);
       h.detectChanges();
       expect(hasTab(h, '/sales/approvals')).toBe(true);
     }

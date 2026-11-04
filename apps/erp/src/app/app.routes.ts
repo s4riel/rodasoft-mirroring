@@ -1,6 +1,8 @@
 import { isDevMode } from '@angular/core';
 import { Route } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guard';
+import { requiresSalesTab } from './features/sales/sales-permission.guard';
+import { POS_TAB } from './features/sales/sales-tabs';
 import { ShellComponent } from './layout/shell.component';
 
 const t = (s: string) => `${s} · ERP`;
@@ -33,6 +35,13 @@ export const routes: Route[] = [
   {
     path: 'auth/callback',
     loadComponent: () => import('./features/auth/google-callback.page').then((m) => m.GoogleCallbackPage),
+  },
+  {
+    // VP-03 · the POS is full screen: declared next to the shell, not inside it, so it has no sidebar (HU-VEN-02)
+    path: 'sales/pos',
+    title: t(POS_TAB.label),
+    canActivate: [authGuard, requiresSalesTab(POS_TAB)],
+    loadComponent: () => import('./features/sales/pos/pos.page').then((m) => m.PosPage),
   },
   {
     path: '',

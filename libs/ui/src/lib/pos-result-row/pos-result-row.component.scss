@@ -1,0 +1,99 @@
+/* Figma PosResultRow: 72 px row, padding x 16, gap 12, bottom border; info grows, stock 116, price 88 (no tokens) */
+:host {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-height: 72px; /* Figma row height, no token */
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+  background: var(--bg-surface);
+  transition: background-color 120ms ease;
+}
+:host(:hover) {
+  background: var(--bg-surface-2);
+}
+:host(:last-child) {
+  border-bottom: 0;
+}
+
+.info {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.code,
+.price {
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  line-height: var(--mono-md-line-height);
+  font-weight: var(--mono-md-weight);
+  letter-spacing: var(--mono-md-tracking);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Figma BrandMark: 28 px tile, radius/md, surface-2 with the default border */
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px; /* Figma BrandMark size, no token */
+  height: 28px;
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.description {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stock {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  width: 116px; /* Figma stock column, no token */
+}
+
+.stock-label {
+  color: var(--text-primary);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  white-space: nowrap;
+}
+:host([data-stock='out']) .stock-label {
+  color: var(--status-danger);
+}
+
+.price {
+  flex: none;
+  width: 88px; /* Figma price column, no token */
+  text-align: right;
+}
+
+button {
+  flex: none;
+}

@@ -67,6 +67,7 @@ Written without a compiler and partly without Figma access (the Figma MCP quota 
 | | DataField (`2198:4942`), BranchStockTable (`2200:5023`, with Row Current) | Figma page 03 (read, HU-INV-03) | review |
 | | DocTable (`2086:4176`, as `rs-doc-table`: generic columns, typed cells, custom cell templates, total row and footer slot; also used for the IN-02b equivalents table at 52 px rows; optional checkbox column with `selectable`, `selectedIds`, `maxSelected`, `maxSelectedLabel`, `selectionHeader` and `DocTableRow.label`, used by the HU-INV-12 comparator) | Figma page 03 (read, HU-INV-04) | review |
 | | CategoryCard | implemented (HU-INV-06): Selected and Disabled as inputs, Hover in CSS; checked against Figma 2132:4801 | re-check vs Figma in `/design-system` |
+| | PosResultRow (`385:36146`, Stock=Default/Low/None; Equivalentes and the eye button behind `showEquivalents` / `showDetail`), PosCartLine (`80:4553`, State=Default/Discount; drag handle pending HU-VEN-33) | Figma VP-03 instances (read, HU-VEN-02); the component sets themselves were not opened | re-check vs Figma in `/design-system` |
 | Store & Web | header, product card, footer… | not started | next |
 
 Known gaps: dark values of `action/primary-hover|pressed` are assumed (`TODO(figma)` in `_tokens.scss`); illustrations and

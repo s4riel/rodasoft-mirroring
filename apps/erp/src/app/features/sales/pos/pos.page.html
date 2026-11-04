@@ -1,41 +1,208 @@
-<header class="header">
-  <div class="title">
-    <h1 class="title-text">Punto de venta</h1>
-    <p class="title-description">{{ description() }}</p>
-  </div>
-  <button rsButton variant="secondary" type="button" (click)="leave()">Salir del POS</button>
-</header>
+<ng-template #header>
+  <header class="header">
+    <div class="title">
+      <h1 class="title-text">Punto de venta</h1>
+      <p class="title-description">{{ description() }}</p>
+    </div>
+    <button rsButton variant="secondary" type="button" (click)="leave()">Salir del POS</button>
+  </header>
+</ng-template>
 
 @switch (state()) {
   @case ('forbidden') {
-    <section class="state" aria-live="polite">
-      <rs-empty-state-illustrated
-        illustration="no-access"
-        heading="No tienes permiso para usar el punto de venta"
-        description="Pide acceso al administrador de tu empresa."
-        [showAction]="false"
-      />
-    </section>
+    <div class="column">
+      <ng-container *ngTemplateOutlet="header" />
+      <section class="state" aria-live="polite">
+        <rs-empty-state-illustrated
+          illustration="no-access"
+          heading="No tienes permiso para usar el punto de venta"
+          description="Pide acceso al administrador de tu empresa."
+          [showAction]="false"
+        />
+      </section>
+    </div>
   }
   @case ('loading') {
-    <section class="card" role="status" aria-busy="true" aria-label="Cargando el punto de venta">
-      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
-      <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
-    </section>
+    <div class="column">
+      <ng-container *ngTemplateOutlet="header" />
+      <section class="card" role="status" aria-busy="true" aria-label="Cargando el punto de venta">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+      </section>
+    </div>
   }
   @case ('error') {
-    <section class="state" role="alert">
-      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el punto de venta" description="Revisa tu conexión e inténtalo de nuevo.">
-        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
-      </rs-empty-state-illustrated>
-    </section>
+    <div class="column">
+      <ng-container *ngTemplateOutlet="header" />
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el punto de venta" description="Revisa tu conexión e inténtalo de nuevo.">
+          <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    </div>
   }
   @default {
-    <section class="card" [attr.inert]="closed() ? '' : null" [attr.aria-hidden]="closed() ? 'true' : null">
-      @if (shift()) {
-        <rs-note type="info" title="Turno abierto">La pantalla de venta llega en la historia HU-VEN-02.</rs-note>
-      }
-    </section>
+    <div class="pos" [attr.inert]="closed() ? '' : null" [attr.aria-hidden]="closed() ? 'true' : null">
+      <section class="column products" aria-label="Productos">
+        <ng-container *ngTemplateOutlet="header" />
+
+        <rs-input-group class="search">
+          <rs-icon rsInputLeading name="search" [size]="16" />
+          <input
+            #searchBox
+            rsInput
+            type="search"
+            autocomplete="off"
+            aria-label="Buscar producto"
+            placeholder="busca por código, medida o marca (F2)"
+            [value]="query()"
+            (input)="onQuery(searchBox.value)"
+            (keydown.enter)="$event.preventDefault(); addFirst()"
+            (keydown.escape)="$event.preventDefault(); clearSearch()"
+          />
+        </rs-input-group>
+
+        <div class="chips" role="group" aria-label="Categorías">
+          <rs-filter-chip #allChip [selected]="categoryId() === null" (selectedChange)="selectAll($event)" label="Todos">
+            <rs-chip-media type="icon"><rs-icon name="category" [size]="20" /></rs-chip-media>
+          </rs-filter-chip>
+          @for (category of categories(); track category.id) {
+            <rs-filter-chip
+              [selected]="categoryId() === category.id"
+              (selectedChange)="selectCategory(category.id, $event)"
+              [label]="category.name"
+              [removeLabel]="'Quitar filtro: ' + category.name"
+            >
+              <rs-chip-media type="icon"><rs-icon [name]="categoryIcon(category.icon)" [size]="20" /></rs-chip-media>
+            </rs-filter-chip>
+          }
+        </div>
+
+        <div class="results" aria-live="polite">
+          @switch (searchState()) {
+            @case ('idle') {
+              <rs-empty-state heading="Busca un producto" description="Escribe un código, una medida (25x52x15) o una marca.">
+                <rs-icon slot="icon" name="search" [size]="24" />
+              </rs-empty-state>
+            }
+            @case ('loading') {
+              <div class="results-card" role="status" aria-busy="true" aria-label="Buscando productos">
+                @for (row of [1, 2, 3]; track row) {
+                  <div class="skeleton-row"><rs-skeleton shape="rect" width="100%" height="var(--space-10)" /></div>
+                }
+              </div>
+            }
+            @case ('error') {
+              <rs-empty-state heading="No pudimos buscar" description="Revisa tu conexión e inténtalo de nuevo." role="alert">
+                <rs-icon slot="icon" name="alert" [size]="24" />
+              </rs-empty-state>
+            }
+            @default {
+              @if (results().length === 0) {
+                <rs-empty-state
+                  [heading]="resultsQuery() ? 'Sin resultados para «' + resultsQuery() + '»' : 'Sin productos en esta categoría'"
+                  description="Prueba con otro código, otra medida u otra marca."
+                >
+                  <rs-icon slot="icon" name="search" [size]="24" />
+                </rs-empty-state>
+              } @else {
+                <div class="results-card" role="list" aria-label="Resultados">
+                  @for (product of results(); track product.id) {
+                    <rs-pos-result-row
+                      role="listitem"
+                      [code]="product.code"
+                      [description]="product.name + ' · ' + product.brand.name"
+                      [brandInitials]="product.brand.initials"
+                      [stockLabel]="stockLabel(product)"
+                      [stockLevel]="product.stockStatus"
+                      [price]="price(product.salePrice)"
+                      addLabel="Agregar"
+                      [addAriaLabel]="'Agregar ' + product.code"
+                      [addDisabled]="isAdding(product.id)"
+                      (add)="add(product)"
+                    />
+                  }
+                </div>
+              }
+            }
+          }
+        </div>
+
+        <p class="shortcuts">F2 Buscar · Enter Agregar · Esc Limpiar</p>
+      </section>
+
+      <aside class="sale" aria-labelledby="pos-sale-title">
+        <div class="sale-header">
+          <h2 id="pos-sale-title" class="sale-title">Venta actual</h2>
+        </div>
+
+        <div class="lines">
+          @switch (cartState()) {
+            @case ('loading') {
+              <div role="status" aria-busy="true" aria-label="Cargando la venta" class="lines-loading">
+                <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+                <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+              </div>
+            }
+            @case ('error') {
+              <rs-empty-state heading="No pudimos cargar la venta" description="Revisa tu conexión e inténtalo de nuevo." role="alert">
+                <rs-icon slot="icon" name="alert" [size]="24" />
+                <button rsButton variant="secondary" type="button" (click)="loadCart()">Reintentar</button>
+              </rs-empty-state>
+            }
+            @default {
+              @if (lines().length === 0) {
+                <rs-empty-state heading="Agrega productos para empezar la venta" description="Busca un producto y presiona Enter o Agregar.">
+                  <rs-icon slot="icon" name="cart" [size]="24" />
+                </rs-empty-state>
+              } @else {
+                <ul class="line-list" aria-label="Productos de la venta">
+                  @for (line of lines(); track line.id) {
+                    <li>
+                      <rs-pos-cart-line
+                        [title]="line.code + ' · ' + line.brandName"
+                        [unitPrice]="lineUnit(line)"
+                        [quantity]="line.quantity"
+                        (quantityChange)="changeQuantity(line, $event)"
+                        [max]="line.maxQuantity"
+                        [total]="lineTotalText(line)"
+                        [removeLabel]="'Quitar ' + line.code"
+                        [quantityLabel]="'Cantidad de ' + line.code"
+                        decrementLabel="Restar uno"
+                        incrementLabel="Sumar uno"
+                        (remove)="remove(line)"
+                      />
+                    </li>
+                  }
+                </ul>
+              }
+            }
+          }
+        </div>
+
+        <dl class="totals">
+          <div class="totals-row">
+            <dt>Subtotal</dt>
+            <dd class="amount" data-testid="pos-subtotal">{{ subtotalText() }}</dd>
+          </div>
+          @if (discountText(); as discount) {
+            <div class="totals-row">
+              <dt>Descuento</dt>
+              <dd class="amount">{{ discount }}</dd>
+            </div>
+          }
+          <div class="totals-row total">
+            <dt>Total</dt>
+            <dd data-testid="pos-total">{{ totalText() }}</dd>
+          </div>
+        </dl>
+
+        <!-- payment arrives with HU-VEN-07 -->
+        <button rsButton variant="primary" type="button" fill disabled>
+          Cobrar {{ totalText() }} (F9)
+        </button>
+      </aside>
+    </div>
 
     @if (closed()) {
       <div class="backdrop">

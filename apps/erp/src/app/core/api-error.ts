@@ -62,6 +62,10 @@ const MESSAGES: Record<string, string> = {
   CASH_SHIFT_ALREADY_OPEN_FOR_USER: 'Ya tienes un turno abierto en otra caja. Ciérralo antes de abrir uno nuevo.',
   INVALID_OPENING_FLOAT: 'El efectivo inicial no es un monto válido.',
   CASH_SHIFT_NOT_OPEN: 'No tienes un turno de caja abierto.',
+  PRODUCT_INACTIVE: 'Este producto está desactivado y no se puede vender.',
+  INVALID_QUANTITY: 'La cantidad debe ser un número entero mayor que cero.',
+  CHECKOUT_ITEM_NOT_FOUND: 'Esa línea ya no está en la venta. Actualizamos el carrito.',
+  CHECKOUT_NOT_EDITABLE: 'Esta venta ya no se puede modificar.',
 };
 
 export function problemOf(err: unknown): ApiProblem {
