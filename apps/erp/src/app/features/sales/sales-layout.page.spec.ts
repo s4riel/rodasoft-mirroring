@@ -13,7 +13,7 @@ import { SALES_ROUTES } from './sales.routes';
 class StubPage {}
 
 const CASHIER = ['sales.pos.use', 'sales.cash-register.open', 'sales.quotes.manage', 'sales.orders.manage', 'sales.cancellations.request', 'sales.returns.manage'];
-const ALL = [...CASHIER, 'sales.prices.edit', 'sales.cancellations.approve', 'sales.cash-register.review'];
+const ALL = [...CASHIER, 'sales.customers.manage', 'sales.prices.edit', 'sales.cancellations.approve', 'sales.cash-register.review'];
 
 describe('sales section', () => {
   const warning = jest.fn();
@@ -49,7 +49,7 @@ describe('sales section', () => {
     const h = await RouterTestingHarness.create();
     await h.navigateByUrl('/sales/history', SalesLayoutPage);
     h.detectChanges();
-    for (const label of ['Punto de venta', 'Cotizaciones', 'Pedidos', 'Ventas realizadas', 'Devoluciones', 'Caja', 'Precios y descuentos', 'Aprobaciones']) {
+    for (const label of ['Punto de venta', 'Cotizaciones', 'Pedidos', 'Ventas realizadas', 'Devoluciones', 'Caja', 'Clientes', 'Precios y descuentos', 'Aprobaciones']) {
       expect(tabsText(h)).toContain(label);
     }
   });
@@ -61,6 +61,7 @@ describe('sales section', () => {
     h.detectChanges();
     expect(tabsText(h)).toContain('Punto de venta');
     expect(hasTab(h, '/sales/prices')).toBe(false);
+    expect(hasTab(h, '/sales/customers')).toBe(false);
     expect(hasTab(h, '/sales/approvals')).toBe(false);
   });
 

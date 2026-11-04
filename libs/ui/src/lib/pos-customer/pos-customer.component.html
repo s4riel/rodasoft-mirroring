@@ -1,0 +1,8 @@
+<rs-icon class="icon" name="user" [size]="24" />
+<div class="info">
+  <span class="name" [title]="name()">{{ name() }}</span>
+  @if (detail()) {
+    <span class="detail" [title]="detail()">{{ detail() }}</span>
+  }
+</div>
+<button rsButton variant="ghost" type="button" [attr.aria-label]="actionAriaLabel()" [disabled]="disabled()" (click)="action.emit()">{{ actionLabel() }}</button>

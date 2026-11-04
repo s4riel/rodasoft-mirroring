@@ -1,0 +1,124 @@
+<rs-page-header
+  title="Clientes"
+  description="Datos de factura, crédito y el descuento que el punto de venta aplica a cada cliente."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  @if (state() !== 'forbidden') {
+    <div rsActions class="header-actions">
+      <button rsButton variant="brand" type="button" (click)="openNew()">
+        <rs-icon name="plus" [size]="16" /> Nuevo cliente
+      </button>
+    </div>
+  }
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para gestionar clientes"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <rs-filter-bar-products
+    inline
+    searchPlaceholder="Buscar por nombre o documento"
+    searchLabel="Buscar clientes"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select leadingIcon="seal" placeholder="Estado" ariaLabel="Estado" [options]="statusOptions" [value]="status()" (valueChange)="setStatus($event)" />
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando clientes">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="28%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="14%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="22%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los clientes" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="Todavía no hay clientes"
+            description="Registra el primero con su NIT, su crédito y su descuento."
+          >
+            <button rsButton variant="brand" type="button" (click)="openNew()"><rs-icon name="plus" [size]="16" /> Nuevo cliente</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="No encontramos clientes" description="Prueba con otro nombre, otro documento u otro estado.">
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Clientes" [columns]="columns" [rows]="rows()">
+          <ng-template rsDocCell="name" let-row>
+            <span class="name">{{ row.cells['name'] }}</span>
+          </ng-template>
+          <ng-template rsDocCell="status" let-row>
+            <rs-status-pill [status]="row.cells['status'] === 'ACTIVE' ? 'success' : 'idle'">{{ row.cells['status'] === 'ACTIVE' ? 'Activo' : 'Inactivo' }}</rs-status-pill>
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as customer) {
+              <rs-row-action [label]="'Acciones de ' + customer.name" [items]="rowMenu" (selected)="openEdit(customer)" />
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ range() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="page()"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+@if (state() !== 'forbidden') {
+  <rs-modal [(open)]="formOpen" variant="form" [heading]="editing() ? 'Editar cliente' : 'Nuevo cliente'" closeLabel="Cerrar">
+    <rs-customer-form
+      full
+      [customer]="editing()"
+      [saving]="saving()"
+      [serverError]="saveError()"
+      [submitLabel]="editing() ? 'Guardar cambios' : 'Crear cliente'"
+      (save)="save($event)"
+      (cancelled)="formOpen.set(false)"
+    />
+  </rs-modal>
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

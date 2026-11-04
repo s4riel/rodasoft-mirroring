@@ -25,6 +25,13 @@ describe('settingOrDefault', () => {
     expect(settingOrDefault('sales.allowPartialDispatch', undefined)).toBe(true);
     expect(settingOrDefault('sales.cancellationWindowDays', undefined)).toBeNull();
     expect(settingOrDefault('sales.cashExpenseApprovalLimit', undefined)).toBeNull();
+    expect(settingOrDefault('sales.nitVerification', undefined)).toBe('FORMAT');
+  });
+
+  it('accepts only the known NIT verification modes', () => {
+    expect(settingOrDefault('sales.nitVerification', 'SIAT')).toBe('SIAT');
+    expect(settingOrDefault('sales.nitVerification', 'ONLINE')).toBe('FORMAT');
+    expect(settingOrDefault('sales.nitVerification', true)).toBe('FORMAT');
   });
 
   it('accepts only the known rounding modes', () => {

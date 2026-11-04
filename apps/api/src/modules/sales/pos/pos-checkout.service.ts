@@ -5,20 +5,26 @@ import {
   cartTotals,
   lineTotal,
   maxSellable,
+  FINAL_CONSUMER,
+  validateInvoiceDocument,
   type CurrentCashShift,
   type PosCheckoutResponse,
   type PosCheckoutView,
+  type PosInvoiceDataResponse,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
 import type { AppClsStore } from '../../../common/cls';
 import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
+import { customerErrors } from '../customers/customers.errors';
+import { CustomersService, toCustomerSummary } from '../customers/customers.service';
 import type { AddPosCheckoutItemDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { assertQuantity, posErrors } from './pos.errors';
 
 const checkoutWithLines = (warehouseId: string) =>
   ({
+    customer: true,
     items: {
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
       include: {
@@ -51,6 +57,7 @@ export class PosCheckoutService {
     private readonly cls: ClsService<AppClsStore>,
     private readonly shifts: CashShiftsService,
     private readonly settings: SettingsService,
+    private readonly customers: CustomersService,
   ) {}
 
   /** My `OPEN` cart, or `null`. */
@@ -61,6 +68,45 @@ export class PosCheckoutService {
       include: checkoutWithLines(shift.warehouse.id),
     });
     return { checkout: checkout ? await this.toView(checkout, this.prisma.tenant) : null };
+  }
+
+  /**
+   * Sets the customer of the sale, or `null` to invoice a final consumer (HU-VEN-05). The customer's discount applies to the
+   * cart's totals from then on (HU-VEN-37). Creates the cart when there is none, so the cashier can pick the customer first.
+   */
+  async setCustomer(customerId: string | null): Promise<PosCheckoutResponse> {
+    const shift = await this.shifts.requireOpenShift();
+    const checkoutId = await this.ensureCheckout(shift);
+    return this.prisma.tenant.$transaction(async (tx) => {
+      await this.lockEditable(tx, checkoutId);
+      if (customerId) await this.customers.requireActive(customerId, tx);
+      await tx.posCheckout.update({ where: { id: checkoutId }, data: { customerId } });
+      return this.load(tx, checkoutId, shift);
+    });
+  }
+
+  /**
+   * The tax data the invoice will carry, checked before invoicing (HU-VEN-05): the customer's document must be valid. A cart
+   * without a customer invoices a final consumer (decision #4).
+   */
+  async invoiceData(): Promise<PosInvoiceDataResponse> {
+    await this.shifts.requireOpenShift();
+    const checkout = await this.prisma.tenant.posCheckout.findFirst({
+      where: { cashierId: this.userId(), status: 'OPEN' },
+      select: { customer: true },
+    });
+    const customer = checkout?.customer;
+    if (!customer) return { ...FINAL_CONSUMER, finalConsumer: true };
+    if (customer.status !== 'ACTIVE') throw customerErrors.inactive();
+    const document = validateInvoiceDocument(customer.documentType, customer.documentNumber, customer.complement);
+    if (!document.valid) throw customerErrors.invalidNit(document.error);
+    return {
+      name: customer.name,
+      documentType: customer.documentType,
+      documentNumber: document.documentNumber,
+      complement: document.complement,
+      finalConsumer: false,
+    };
   }
 
   /** Adds the product, or raises the quantity of its line. Creates the cart on the first add. */
@@ -211,12 +257,17 @@ export class PosCheckoutService {
         sortOrder: item.sortOrder,
       };
     });
-    // the customer discount comes with HU-VEN-05/37; until then a cart has none
-    const pricing: PosCheckoutView['pricing'] = { roundingMode, discount: null };
+    // the discount comes from the customer's record; the cashier cannot change it (decision #5)
+    const customer = checkout.customer ? toCustomerSummary(checkout.customer) : null;
+    const pricing: PosCheckoutView['pricing'] = {
+      roundingMode,
+      discount: customer && customer.discount.type !== 'NONE' ? customer.discount : null,
+    };
     const totals = cartTotals(lines, pricing);
     return {
       id: checkout.id,
       status: checkout.status,
+      customer,
       lines,
       pricing,
       subtotal: totals.subtotal.toString(),

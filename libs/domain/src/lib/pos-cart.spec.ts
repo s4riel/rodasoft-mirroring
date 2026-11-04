@@ -48,6 +48,24 @@ describe('cartTotals', () => {
     // 90.27 → 90.50
     expect(t.total.toString()).toBe('90.50');
   });
+
+  it('never goes below 0: a fixed discount larger than the sale takes only the sale (HU-VEN-37)', () => {
+    const t = cartTotals([{ unitPrice: '40.00', quantity: 1 }], { discount: { type: 'AMOUNT', value: '100.00' }, roundingMode: 'NONE' });
+    expect(t.discount.toString()).toBe('40.00');
+    expect(t.total.toString()).toBe('0.00');
+  });
+
+  it('takes a fixed amount off the whole sale, not off each line', () => {
+    const t = cartTotals(
+      [
+        { unitPrice: '50.00', quantity: 2 },
+        { unitPrice: '30.00', quantity: 1 },
+      ],
+      { discount: { type: 'AMOUNT', value: '15.00' }, roundingMode: 'NONE' },
+    );
+    expect(t.discount.toString()).toBe('15.00');
+    expect(t.total.toString()).toBe('115.00');
+  });
 });
 
 describe('stockStatus', () => {

@@ -66,6 +66,11 @@ const MESSAGES: Record<string, string> = {
   INVALID_QUANTITY: 'La cantidad debe ser un número entero mayor que cero.',
   CHECKOUT_ITEM_NOT_FOUND: 'Esa línea ya no está en la venta. Actualizamos el carrito.',
   CHECKOUT_NOT_EDITABLE: 'Esta venta ya no se puede modificar.',
+  CUSTOMER_NOT_FOUND: 'El cliente ya no existe. Actualiza la búsqueda.',
+  CUSTOMER_INACTIVE: 'Este cliente está desactivado y no se puede usar en una venta.',
+  CUSTOMER_DOCUMENT_DUPLICATED: 'Ya existe un cliente con este documento.',
+  INVALID_NIT: 'El documento del cliente no es válido para facturar.',
+  INVALID_DISCOUNT: 'El descuento debe ser un porcentaje entre 0 y 100, o un monto en Bs mayor que cero.',
 };
 
 export function problemOf(err: unknown): ApiProblem {

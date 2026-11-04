@@ -147,13 +147,23 @@
           }
         </div>
 
-        <p class="shortcuts">F2 Buscar · Enter Agregar · Espacio Ficha · Esc Limpiar</p>
+        <p class="shortcuts">F2 Buscar · F4 Cliente · Enter Agregar · Espacio Ficha · Esc Limpiar</p>
       </section>
 
       <aside class="sale" aria-labelledby="pos-sale-title">
         <div class="sale-header">
           <h2 id="pos-sale-title" class="sale-title">Venta actual</h2>
         </div>
+
+        <rs-pos-customer
+          [type]="customer() ? 'identified' : 'final'"
+          [name]="customerName()"
+          [detail]="customerDetail()"
+          [actionLabel]="customer() ? 'Cambiar' : 'Agregar NIT'"
+          [actionAriaLabel]="customer() ? 'Cambiar cliente' : 'Agregar NIT o cliente'"
+          [disabled]="!shift()"
+          (action)="openCustomer()"
+        />
 
         <div class="lines">
           @switch (cartState()) {
@@ -259,6 +269,14 @@
   [adding]="sheetAdding()"
   (add)="addFromSheet($event)"
   (loadFailed)="equivalentsFailed($event)"
+/>
+
+<rs-pos-customer-dialog
+  [(open)]="customerOpen"
+  [current]="customer()"
+  [saving]="customerSaving()"
+  (choose)="chooseCustomer($event)"
+  (failed)="equivalentsFailed($event)"
 />
 
 <rs-toast-outlet closeLabel="Cerrar" />

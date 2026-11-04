@@ -2,6 +2,10 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
   AddPosCheckoutItemInput,
+  CreatePosCustomerInput,
+  CustomerSearchResponse,
+  CustomerSummary,
+  PosInvoiceDataResponse,
   PosCategoryListResponse,
   PosCheckoutResponse,
   PosEquivalentsResponse,
@@ -42,6 +46,26 @@ export class PosApi {
   file(key: string): Observable<Blob> {
     const [, kind, name] = key.split('/');
     return this.http.get(`/api/v1/inventory/files/${kind}/${name}`, { responseType: 'blob' });
+  }
+
+  /** VP-03c (HU-VEN-05): searches customers by name or document. */
+  customers(q: string): Observable<CustomerSearchResponse> {
+    return this.http.get<CustomerSearchResponse>(`${BASE}/customers`, { params: new HttpParams().set('q', q) });
+  }
+
+  /** VP-03c: quick creation of a customer (no discount, no credit). */
+  createCustomer(body: CreatePosCustomerInput): Observable<CustomerSummary> {
+    return this.http.post<CustomerSummary>(`${BASE}/customers`, body);
+  }
+
+  /** Sets the customer of the cart, or `null` to invoice a final consumer. */
+  setCustomer(customerId: string | null): Observable<PosCheckoutResponse> {
+    return this.http.put<PosCheckoutResponse>(`${BASE}/checkout/customer`, { customerId });
+  }
+
+  /** The tax data the invoice will carry; refuses a customer whose document is not valid. */
+  invoiceData(): Observable<PosInvoiceDataResponse> {
+    return this.http.get<PosInvoiceDataResponse>(`${BASE}/checkout/invoice-data`);
   }
 
   checkout(): Observable<PosCheckoutResponse> {

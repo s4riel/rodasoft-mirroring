@@ -1,0 +1,103 @@
+<form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <div class="row">
+    <rs-field label="Tipo de documento" [forId]="id('type')">
+      <rs-select [inputId]="id('type')" formControlName="documentType" [options]="documentTypeOptions" />
+    </rs-field>
+
+    <rs-field label="Número de documento" [forId]="id('number')" required [error]="documentMessage()">
+      <input
+        rsInput
+        [id]="id('number')"
+        class="mono"
+        formControlName="documentNumber"
+        autocomplete="off"
+        placeholder="1023456027"
+        [invalid]="!!documentMessage()"
+      />
+    </rs-field>
+
+    @if (isCi()) {
+      <rs-field label="Complemento" [forId]="id('complement')" hint="Opcional, ej. 1A.">
+        <input rsInput [id]="id('complement')" class="mono" formControlName="complement" autocomplete="off" maxlength="2" />
+      </rs-field>
+    }
+  </div>
+
+  <rs-field label="Nombre o razón social" [forId]="id('name')" required [error]="nameMessage()">
+    <input rsInput [id]="id('name')" formControlName="name" autocomplete="off" placeholder="Minera Demo Ltda." [invalid]="!!nameMessage()" />
+  </rs-field>
+
+  <div class="row">
+    <rs-field label="Correo" [forId]="id('email')" hint="La factura se envía a este correo." [error]="emailMessage()">
+      <input
+        rsInput
+        [id]="id('email')"
+        type="email"
+        formControlName="email"
+        autocomplete="off"
+        placeholder="compras@empresa.bo"
+        [invalid]="!!emailMessage()"
+      />
+    </rs-field>
+
+    <rs-field label="Teléfono" [forId]="id('phone')">
+      <input rsInput [id]="id('phone')" type="tel" formControlName="phone" autocomplete="off" />
+    </rs-field>
+  </div>
+
+  @if (full()) {
+    <fieldset class="group">
+      <legend class="group-title">Condiciones comerciales</legend>
+
+      <div class="row">
+        <rs-field label="Descuento" [forId]="id('discount-type')">
+          <rs-select [inputId]="id('discount-type')" formControlName="discountType" [options]="discountOptions" />
+        </rs-field>
+
+        @if (hasDiscount()) {
+          <rs-field
+            [label]="discountPercent() ? 'Porcentaje' : 'Monto (Bs)'"
+            [forId]="id('discount-value')"
+            required
+            hint="Se aplica solo a este cliente, en todas sus ventas."
+            [error]="discountMessage()"
+          >
+            <input
+              rsInput
+              rsNumeric="decimal"
+              [id]="id('discount-value')"
+              class="mono"
+              formControlName="discountValue"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="0,00"
+              [invalid]="!!discountMessage()"
+            />
+          </rs-field>
+        }
+      </div>
+
+      <div class="switches">
+        <label class="switch-row" [attr.for]="id('credit')">
+          <span class="switch-label">Crédito habilitado</span>
+          <rs-switch [inputId]="id('credit')" formControlName="creditEnabled" onText="Sí" offText="No" />
+        </label>
+        @if (customer()) {
+          <label class="switch-row" [attr.for]="id('active')">
+            <span class="switch-label">Cliente activo</span>
+            <rs-switch [inputId]="id('active')" formControlName="active" onText="Activo" offText="Inactivo" />
+          </label>
+        }
+      </div>
+    </fieldset>
+  }
+
+  @if (serverError(); as message) {
+    <rs-note type="danger" title="No pudimos guardar el cliente">{{ message }}</rs-note>
+  }
+
+  <div class="actions">
+    <button rsButton variant="ghost" type="button" (click)="cancelled.emit()">Cancelar</button>
+    <button rsButton variant="primary" type="submit" [disabled]="saving()">{{ saving() ? 'Guardando…' : submitLabel() }}</button>
+  </div>
+</form>

@@ -17,3 +17,4 @@ export * from './file-dropzone/file-dropzone.component';
 export * from './file-item/file-item.component';
 export * from './pos-result-row/pos-result-row.component';
 export * from './pos-cart-line/pos-cart-line.component';
+export * from './pos-customer/pos-customer.component';
