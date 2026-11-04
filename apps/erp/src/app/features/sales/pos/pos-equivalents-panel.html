@@ -1,0 +1,52 @@
+<section class="panel" [attr.aria-label]="'Equivalentes de ' + code()">
+  <h3 class="heading">Sin stock de {{ code() }} en {{ warehouseName() }} · equivalentes disponibles</h3>
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="rows" role="status" aria-busy="true" aria-label="Buscando equivalentes">
+        @for (row of [1, 2]; track row) {
+          <div class="skeleton-row"><rs-skeleton shape="rect" width="100%" height="var(--space-10)" /></div>
+        }
+      </div>
+    }
+    @case ('error') {
+      <div class="message" role="alert">
+        @if (forbidden()) {
+          <p class="message-text">No tienes permiso para ver los equivalentes.</p>
+        } @else {
+          <p class="message-text">No pudimos cargar los equivalentes.</p>
+          <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        }
+      </div>
+    }
+    @default {
+      @if (data(); as res) {
+        @if (res.items.length === 0) {
+          <p class="message-text empty">Ningún equivalente tiene stock en {{ warehouseName() }}</p>
+        } @else {
+          <div class="rows" role="list" aria-label="Equivalentes">
+            @for (item of res.items; track item.productId) {
+              <!-- the API only returns equivalents with stock, so the stock level is always ok -->
+              <rs-pos-result-row
+                role="listitem"
+                [code]="item.code"
+                [description]="description(item)"
+                [brandInitials]="item.brand.initials"
+                [stockLabel]="stockLabel(item)"
+                stockLevel="ok"
+                [price]="price(item.salePrice)"
+                addLabel="Agregar"
+                [addAriaLabel]="'Agregar ' + item.code"
+                [addDisabled]="isAdding(item.productId)"
+                (add)="add.emit(item)"
+              />
+            }
+          </div>
+        }
+        @if (res.otherBranches.length > 0) {
+          <p class="branches">{{ code() }} en otras sucursales: {{ otherBranchesText(res) }}</p>
+        }
+      }
+    }
+  }
+</section>

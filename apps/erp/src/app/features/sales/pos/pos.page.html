@@ -120,7 +120,22 @@
                       [addAriaLabel]="'Agregar ' + product.code"
                       [addDisabled]="isAdding(product.id)"
                       (add)="add(product)"
+                      showEquivalents
+                      equivalentsLabel="Equivalentes"
+                      (equivalents)="toggleEquivalents(product)"
                     />
+                    @if (equivalentsOpenId() === product.id) {
+                      <div role="listitem">
+                        <rs-pos-equivalents-panel
+                          [productId]="product.id"
+                          [code]="product.code"
+                          [warehouseName]="product.warehouse.name"
+                          [adding]="adding()"
+                          (add)="addEquivalent($event)"
+                          (loadFailed)="equivalentsFailed($event)"
+                        />
+                      </div>
+                    }
                   }
                 </div>
               }

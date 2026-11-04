@@ -23,6 +23,7 @@ import {
   type PosCheckoutLine,
   type PosCheckoutResponse,
   type PosCheckoutView,
+  type PosEquivalentItem,
   type PosProductResult,
 } from '@rodasoft/domain';
 import {
@@ -50,6 +51,7 @@ import { ContextStore } from '../../../core/context.store';
 import { CashApi } from '../cash/cash-api.service';
 import { registerPlace } from '../cash/cash-format';
 import { PosApi } from './pos-api.service';
+import { PosEquivalentsPanel } from './pos-equivalents-panel';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
 type SearchState = 'idle' | 'loading' | 'ready' | 'error';
@@ -89,6 +91,7 @@ const money = (value: string) => Decimal.of(value).format();
     InputGroupComponent,
     NgTemplateOutlet,
     PosCartLineComponent,
+    PosEquivalentsPanel,
     PosResultRowComponent,
     SkeletonComponent,
     ToastOutletComponent,
@@ -126,6 +129,8 @@ export class PosPage implements OnInit {
   /** The text the shown results answer (for "Sin resultados para «…»"). */
   protected readonly resultsQuery = signal('');
   private readonly resultsKey = signal<string | null>(null);
+  /** The out-of-stock result whose equivalents panel is open (VP-03b); only one at a time. */
+  protected readonly equivalentsOpenId = signal<string | null>(null);
   /** Enter pressed before the results of the current text arrived: add the first one when they do. */
   private pendingEnter: string | null = null;
   private readonly searchKey = computed<SearchKey>(() => ({ q: this.query().trim(), categoryId: this.categoryId() }));
@@ -140,7 +145,7 @@ export class PosPage implements OnInit {
   /** Order in which cart requests were sent: a slower, older answer must not overwrite a newer one. */
   private requestSeq = 0;
   private appliedSeq = 0;
-  private readonly adding = signal<ReadonlySet<string>>(new Set());
+  protected readonly adding = signal<ReadonlySet<string>>(new Set());
 
   protected readonly totals = computed(() => {
     const pricing = this.serverCheckout()?.pricing ?? { roundingMode: 'NONE' as const, discount: null };
@@ -246,6 +251,8 @@ export class PosPage implements OnInit {
       .pipe(
         distinctUntilChanged((a, b) => keyOf(a) === keyOf(b)),
         tap((key) => {
+          // the panel belongs to the results of the previous search
+          this.equivalentsOpenId.set(null);
           if (isEmptySearch(key)) {
             this.searchState.set('idle');
             this.resetResults();
@@ -316,7 +323,19 @@ export class PosPage implements OnInit {
       return;
     }
     const first = this.results()[0];
-    if (first && first.stockStatus !== 'out') this.add(first);
+    if (!first) return;
+    // an out-of-stock product cannot be added: Enter offers its equivalents instead
+    if (first.stockStatus === 'out') this.equivalentsOpenId.set(first.id);
+    else this.add(first);
+  }
+
+  /** "Equivalentes" of an out-of-stock row: opens its panel, or closes it when it is already open. */
+  protected toggleEquivalents(product: PosProductResult) {
+    this.equivalentsOpenId.update((open) => (open === product.id ? null : product.id));
+  }
+
+  protected equivalentsFailed(err: unknown) {
+    this.handleShiftLost(err);
   }
 
   protected clearSearch() {
@@ -339,12 +358,21 @@ export class PosPage implements OnInit {
   // --- cart ---
 
   protected add(product: PosProductResult) {
-    if (this.isAdding(product.id)) return;
-    this.adding.update((s) => new Set(s).add(product.id));
-    this.mutate(this.api.addItem({ productId: product.id, quantity: 1 }), () => {
+    this.addById(product.id);
+  }
+
+  /** Agregar of an equivalent in the panel of an out-of-stock product. */
+  protected addEquivalent(item: PosEquivalentItem) {
+    this.addById(item.productId);
+  }
+
+  private addById(productId: string) {
+    if (this.isAdding(productId)) return;
+    this.adding.update((s) => new Set(s).add(productId));
+    this.mutate(this.api.addItem({ productId, quantity: 1 }), () => {
       this.adding.update((s) => {
         const next = new Set(s);
-        next.delete(product.id);
+        next.delete(productId);
         return next;
       });
     });

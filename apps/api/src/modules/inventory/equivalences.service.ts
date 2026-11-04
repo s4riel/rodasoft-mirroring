@@ -8,7 +8,9 @@ import {
   EQUIVALENCE_COMPARE_MAX,
   EQUIVALENCE_COMPARE_MIN,
   equivalenceApprovalState,
+  type EquivalenceApprovalState,
   type EquivalenceComparable,
+  type EquivalenceDifference,
   type EquivalenceCompareDefinition,
   type EquivalenceComparisonResponse,
   type EquivalenceKind,
@@ -49,6 +51,22 @@ const productInclude = {
   country: countrySelect,
   dimensions: { select: { innerDiameter: true, outerDiameter: true, width: true } },
 } as const;
+
+const sourceInclude = { ...productInclude, category: { select: { id: true, parentId: true } } } as const;
+
+/** A product linked to the one asked about, with the link behind it and the verdict of comparing them. */
+export interface ComparedEquivalent {
+  product: Prisma.ProductGetPayload<{ include: typeof productInclude }>;
+  link: { id: string; approvedAt: Date | null; substitute: boolean; notes: string | null };
+  kind: EquivalenceKind;
+  differences: EquivalenceDifference[];
+  approvalState: EquivalenceApprovalState;
+}
+
+export interface ComparedEquivalents {
+  source: Prisma.ProductGetPayload<{ include: typeof sourceInclude }>;
+  items: ComparedEquivalent[];
+}
 
 const listProductInclude = {
   ...productInclude,
@@ -442,59 +460,78 @@ export class EquivalencesService {
     return [...merged.values()];
   }
 
-  async listForProduct(id: string, query: ListEquivalentsQueryDto): Promise<ProductEquivalentsResponse> {
-    const page = clampPage(query.page);
-    const pageSize = clampPageSize(query.pageSize);
-
-    const source = await this.prisma.tenant.product.findFirst({ where: { id }, include: { ...productInclude, category: { select: { id: true, parentId: true } } } });
+  /**
+   * The products linked to `id`, each compared with it (never stored), without stock. The caller sorts and decorates them.
+   * With `approvedOnly`, links still waiting for approval are left out; that only matters when the company requires
+   * approval (decision #34), otherwise every saved link is approved. `INCOMPATIBLE` links are returned with that kind.
+   */
+  async comparedEquivalents(id: string, options: { approvedOnly: boolean }): Promise<ComparedEquivalents> {
+    const source = await this.prisma.tenant.product.findFirst({ where: { id }, include: sourceInclude });
     if (!source) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
 
     const links = await this.prisma.tenant.equivalence.findMany({
       where: { OR: [{ productAId: id }, { productBId: id }] },
       select: { id: true, productAId: true, productBId: true, approvedAt: true, substitute: true, notes: true },
     });
-    const otherIds = links.map((l) => (l.productAId === id ? l.productBId : l.productAId));
-    const linkOf = new Map(links.map((l) => [l.productAId === id ? l.productBId : l.productAId, l]));
+    const otherIdOf = (l: { productAId: string; productBId: string }) => (l.productAId === id ? l.productBId : l.productAId);
     const requireApproval = await this.settings.get('inventory.equivalences.requireApproval');
+    const offered = links
+      .map((link) => ({ link, approvalState: equivalenceApprovalState(link.approvedAt, requireApproval) }))
+      .filter(({ approvalState }) => !options.approvedOnly || approvalState === 'APPROVED');
 
-    const [others, labels, stock] = await Promise.all([
-      this.prisma.tenant.product.findMany({ where: { id: { in: otherIds } }, include: productInclude }),
+    const [others, labels] = await Promise.all([
+      this.prisma.tenant.product.findMany({ where: { id: { in: offered.map(({ link }) => otherIdOf(link)) } }, include: productInclude }),
       this.labelsOf(source.category.id, source.category.parentId),
-      this.prisma.tenant.stockLevel.groupBy({
-        by: ['productId'],
-        where: { productId: { in: [id, ...otherIds] } },
-        _sum: { quantity: true },
-      }),
     ]);
-    const stockOf = new Map(stock.map((s) => [s.productId, s._sum.quantity ?? 0]));
-
+    const byId = new Map(others.map((p) => [p.id, p]));
     const sourceComparable = toComparable(source);
     // an equivalent shares the original's type only when its leaf category matches, which `compareEquivalents` checks
-    const toItem = (p: (typeof others)[number], kind: EquivalenceKind, differences: ProductEquivalentItem['differences']): ProductEquivalentItem => {
-      const link = linkOf.get(p.id);
-      return {
-        productId: p.id,
-        manufacturerCode: p.manufacturerCode,
-        brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl },
-        country: p.country ?? p.brand.country,
-        totalStock: stockOf.get(p.id) ?? 0,
-        salePrice: p.salePrice.toFixed(2),
-        status: p.status,
-        kind,
-        differences,
-        // the original has no link of its own
-        equivalenceId: link?.id ?? null,
-        approvalState: link ? equivalenceApprovalState(link.approvedAt, requireApproval) : 'APPROVED',
-        substitute: link?.substitute ?? false,
-        notes: link?.notes ?? null,
-      };
-    };
+    const items = offered.flatMap(({ link, approvalState }): ComparedEquivalent[] => {
+      const product = byId.get(otherIdOf(link));
+      if (!product) return [];
+      const { kind, differences } = compareEquivalents(sourceComparable, toComparable(product), labels);
+      return [{ product, link, kind, differences, approvalState }];
+    });
+    return { source, items };
+  }
 
-    const all = others
-      .map((p) => {
-        const { kind, differences } = compareEquivalents(sourceComparable, toComparable(p), labels);
-        return toItem(p, kind, differences);
-      })
+  async listForProduct(id: string, query: ListEquivalentsQueryDto): Promise<ProductEquivalentsResponse> {
+    const page = clampPage(query.page);
+    const pageSize = clampPageSize(query.pageSize);
+
+    const { source, items: compared } = await this.comparedEquivalents(id, { approvedOnly: false });
+    const stock = await this.prisma.tenant.stockLevel.groupBy({
+      by: ['productId'],
+      where: { productId: { in: [id, ...compared.map((c) => c.product.id)] } },
+      _sum: { quantity: true },
+    });
+    const stockOf = new Map(stock.map((s) => [s.productId, s._sum.quantity ?? 0]));
+
+    const toItem = (
+      p: ComparedEquivalent['product'],
+      kind: EquivalenceKind,
+      differences: ProductEquivalentItem['differences'],
+      link: ComparedEquivalent['link'] | null,
+      approvalState: EquivalenceApprovalState,
+    ): ProductEquivalentItem => ({
+      productId: p.id,
+      manufacturerCode: p.manufacturerCode,
+      brand: { id: p.brand.id, name: p.brand.name, logoUrl: p.brand.logoUrl },
+      country: p.country ?? p.brand.country,
+      totalStock: stockOf.get(p.id) ?? 0,
+      salePrice: p.salePrice.toFixed(2),
+      status: p.status,
+      kind,
+      differences,
+      // the original has no link of its own
+      equivalenceId: link?.id ?? null,
+      approvalState,
+      substitute: link?.substitute ?? false,
+      notes: link?.notes ?? null,
+    });
+
+    const all = compared
+      .map((c) => toItem(c.product, c.kind, c.differences, c.link, c.approvalState))
       .sort(
         (a, b) =>
           KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
@@ -504,7 +541,7 @@ export class EquivalencesService {
           a.productId.localeCompare(b.productId),
       );
 
-    const sourceItem = toItem(source, 'EXACT', []);
+    const sourceItem = toItem(source, 'EXACT', [], null, 'APPROVED');
     return {
       source: sourceItem,
       items: all.slice((page - 1) * pageSize, page * pageSize),

@@ -1,0 +1,65 @@
+:host {
+  display: block;
+}
+
+/* VP-03b: the panel sits under the out-of-stock row on the muted surface, with the rows in a card of their own */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+  background: var(--bg-surface-2);
+}
+
+.heading {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+/* the card already draws the bottom edge */
+.rows rs-pos-result-row:last-child {
+  border-bottom: 0;
+}
+
+.skeleton-row {
+  padding: var(--space-4);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+
+.skeleton-row:last-child {
+  border-bottom: 0;
+}
+
+.message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.message-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.branches {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}

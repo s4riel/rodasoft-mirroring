@@ -13,12 +13,13 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { PosCategoryListResponse, PosCheckoutResponse, PosProductSearchResponse } from '@rodasoft/domain';
+import type { PosCategoryListResponse, PosCheckoutResponse, PosEquivalentsResponse, PosProductSearchResponse } from '@rodasoft/domain';
 import { RequirePermissions } from '../../access/require-permissions.decorator';
 import { AddPosCheckoutItemDto, PosProductSearchQueryDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { posErrors } from './pos.errors';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
+import { PosEquivalentsService } from './pos-equivalents.service';
 
 function strictValidationPipe(code: string, message: string): ValidationPipe {
   return new ValidationPipe({
@@ -32,6 +33,8 @@ function strictValidationPipe(code: string, message: string): ValidationPipe {
 
 const filterPipe = strictValidationPipe('INVALID_FILTER', 'Invalid filter');
 const bodyPipe = strictValidationPipe('VALIDATION_FAILED', 'Invalid request');
+/** A malformed product id is simply a product that does not exist. */
+const productIdPipe = new ParseUUIDPipe({ exceptionFactory: () => posErrors.productNotFound() });
 /** Another cashier's line, or a malformed id, is simply a line that does not exist. */
 const itemIdPipe = new ParseUUIDPipe({ exceptionFactory: () => posErrors.itemNotFound() });
 
@@ -44,6 +47,7 @@ export class PosController {
   constructor(
     private readonly catalog: PosCatalogService,
     private readonly checkout: PosCheckoutService,
+    private readonly equivalents: PosEquivalentsService,
   ) {}
 
   @Get('categories')
@@ -54,6 +58,12 @@ export class PosController {
   @Get('product-search')
   productSearch(@Query(filterPipe) query: PosProductSearchQueryDto): Promise<PosProductSearchResponse> {
     return this.catalog.search(query);
+  }
+
+  /** VP-03b (HU-VEN-03): in-stock equivalents of a product, and where the original is in stock. */
+  @Get('products/:id/equivalents')
+  productEquivalents(@Param('id', productIdPipe) id: string): Promise<PosEquivalentsResponse> {
+    return this.equivalents.list(id);
   }
 
   @Get('checkout')

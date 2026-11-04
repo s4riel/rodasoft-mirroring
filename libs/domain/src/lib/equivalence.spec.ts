@@ -10,6 +10,7 @@ import {
   EquivalenceLinkProduct,
   isTaperedCategory,
   normalizePair,
+  posEquivalentSummary,
   validateEquivalenceLink,
 } from './equivalence';
 
@@ -304,5 +305,33 @@ describe('equivalenceApprovalState', () => {
   it('is approved when approval is required and the link was approved', () => {
     expect(equivalenceApprovalState(new Date(), true)).toBe('APPROVED');
     expect(equivalenceApprovalState('2026-10-24T10:00:00Z', true)).toBe('APPROVED');
+  });
+});
+
+describe('posEquivalentSummary', () => {
+  const measures = { innerDiameter: '40', outerDiameter: '80', width: '18' };
+  const diff = (key: string) => ({ key, label: key, source: 'a', other: 'b' });
+
+  it('gives the measurements of an exact equivalent', () => {
+    expect(posEquivalentSummary('EXACT', [], null, measures)).toEqual({ kind: 'EXACT', measures });
+  });
+
+  it('ignores a note on an exact equivalent', () => {
+    expect(posEquivalentSummary('EXACT', [], 'nota', measures)).toEqual({ kind: 'EXACT', measures });
+  });
+
+  it('prefers the note, trimmed, over the differences', () => {
+    expect(posEquivalentSummary('WITH_DIFFERENCES', [diff('seal')], '  blindaje metálico  ')).toEqual({
+      kind: 'WITH_DIFFERENCES',
+      note: 'blindaje metálico',
+      differences: [],
+    });
+  });
+
+  it('falls back to the first two differences without a note', () => {
+    for (const notes of [null, undefined, '', '   ']) {
+      const summary = posEquivalentSummary('WITH_DIFFERENCES', [diff('seal'), diff('cage'), diff('dynamicLoad')], notes);
+      expect(summary).toEqual({ kind: 'WITH_DIFFERENCES', note: null, differences: [diff('seal'), diff('cage')] });
+    }
   });
 });

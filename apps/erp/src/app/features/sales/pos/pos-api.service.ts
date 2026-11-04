@@ -4,6 +4,7 @@ import type {
   AddPosCheckoutItemInput,
   PosCategoryListResponse,
   PosCheckoutResponse,
+  PosEquivalentsResponse,
   PosProductSearchQuery,
   PosProductSearchResponse,
 } from '@rodasoft/domain';
@@ -24,6 +25,11 @@ export class PosApi {
     let params = new HttpParams().set('q', query.q);
     if (query.categoryId) params = params.set('categoryId', query.categoryId);
     return this.http.get<PosProductSearchResponse>(`${BASE}/product-search`, { params });
+  }
+
+  /** VP-03b (HU-VEN-03): in-stock equivalents of a product and the original's stock in other branches. */
+  equivalents(productId: string): Observable<PosEquivalentsResponse> {
+    return this.http.get<PosEquivalentsResponse>(`${BASE}/products/${productId}/equivalents`);
   }
 
   checkout(): Observable<PosCheckoutResponse> {

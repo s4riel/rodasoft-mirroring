@@ -4,7 +4,15 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import type { CashRegisterOption, CurrentCashShift, PosCheckoutLine, PosCheckoutView, PosProductResult } from '@rodasoft/domain';
+import type {
+  CashRegisterOption,
+  CurrentCashShift,
+  PosCheckoutLine,
+  PosCheckoutView,
+  PosEquivalentItem,
+  PosEquivalentsResponse,
+  PosProductResult,
+} from '@rodasoft/domain';
 import { ContextStore } from '../../../core/context.store';
 import { POS_SEARCH_DEBOUNCE_MS, PosPage } from './pos.page';
 
@@ -46,6 +54,31 @@ const product = (over: Partial<PosProductResult> = {}): PosProductResult => ({
   stockStatus: 'ok',
   maxQuantity: 24,
   warehouse: { id: 'w1', name: 'Central' },
+  ...over,
+});
+
+const equivalentsUrl = (id: string) => `/api/v1/sales/pos/products/${id}/equivalents`;
+
+const equivalent = (over: Partial<PosEquivalentItem> = {}): PosEquivalentItem => ({
+  productId: 'e1',
+  code: '6208-2RSR',
+  name: 'Rodamiento 6208-2RSR',
+  brand: { name: 'FAG', initials: 'FA' },
+  salePrice: '245.00',
+  available: 8,
+  kind: 'WITH_DIFFERENCES',
+  differences: [{ key: 'seal', label: 'Sello', source: '2RS', other: '2Z' }],
+  substitute: false,
+  notes: 'blindaje metálico en vez de sello',
+  measures: { innerDiameter: '40', outerDiameter: '80', width: '18' },
+  ...over,
+});
+
+const equivalents = (over: Partial<PosEquivalentsResponse> = {}): PosEquivalentsResponse => ({
+  original: { id: 'p3', code: '6208-2RS', available: 0 },
+  warehouse: { id: 'w1', name: 'Central' },
+  items: [equivalent()],
+  otherBranches: [],
   ...over,
 });
 
@@ -306,8 +339,9 @@ describe('PosPage', () => {
       expect(rows[0].textContent).toContain('Bs 245,00');
       expect(rows[1].querySelector('rs-stock-flag')?.getAttribute('data-level')).toBe('low');
       expect(rows[2].textContent).toContain('Agotado aquí');
-      // an out-of-stock product cannot be added
-      expect(button(h, 'Agregar 6208-2RS', rows[2])!.disabled).toBe(true);
+      // an out-of-stock product cannot be added: its action is Equivalentes (HU-VEN-03)
+      expect(button(h, 'Agregar 6208-2RS', rows[2])).toBeUndefined();
+      expect(button(h, 'Equivalentes', rows[2])).toBeDefined();
     });
 
     it('filters by category', async () => {
@@ -348,15 +382,121 @@ describe('PosPage', () => {
       expect(http.expectOne(ITEMS).request.body).toEqual({ productId: 'p1', quantity: 1 });
     });
 
-    it('Enter does not add an out-of-stock first result, and Esc clears the search', async () => {
+    it('Enter does not add an out-of-stock first result (it opens its equivalents), and Esc clears the search', async () => {
       const h = await open(undefined, shift);
       await search(h, '6208', [product({ stockStatus: 'out', available: 0, maxQuantity: 0 })]);
       press(searchBox(h), 'Enter');
       http.expectNone(ITEMS);
+      await settle(h);
+      http.expectOne(equivalentsUrl('p1')).flush(equivalents());
       press(searchBox(h), 'Escape');
       await settle(h);
       expect(searchBox(h).value).toBe('');
       expect(text(h)).toContain('Busca un producto');
+    });
+
+    describe('equivalents of an out-of-stock product (VP-03b, HU-VEN-03)', () => {
+      const out = (over: Partial<PosProductResult> = {}) =>
+        product({ id: 'p3', code: '6208-2RS', available: 0, stockStatus: 'out', maxQuantity: 0, ...over });
+      const panels = (h: RouterTestingHarness) => root(h).querySelectorAll('rs-pos-equivalents-panel');
+      const rowOf = (h: RouterTestingHarness, code: string) =>
+        Array.from(root(h).querySelectorAll<HTMLElement>('rs-pos-result-row')).find((r) => r.textContent?.includes(code))!;
+
+      /** Presses Equivalentes of the row and answers the panel's request. */
+      async function openPanel(h: RouterTestingHarness, productId: string, row?: HTMLElement) {
+        button(h, 'Equivalentes', row)!.click();
+        await settle(h);
+        http.expectOne(equivalentsUrl(productId)).flush(equivalents());
+        await settle(h);
+      }
+
+      it('offers Equivalentes only on out-of-stock rows, instead of Agregar', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '62', [product(), out()]);
+        expect(button(h, 'Equivalentes', rowOf(h, '6205-2RS'))).toBeUndefined();
+        expect(button(h, 'Agregar 6205-2RS', rowOf(h, '6205-2RS'))).toBeDefined();
+        expect(button(h, 'Agregar 6208-2RS')).toBeUndefined();
+        expect(button(h, 'Equivalentes', rowOf(h, '6208-2RS'))).toBeDefined();
+      });
+
+      it('opens the panel under the row, shows the equivalents, and closes it on a second click', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '62', [out(), product({ id: 'p2', code: '6306-2RS' })]);
+        await openPanel(h, 'p3');
+        expect(panels(h)).toHaveLength(1);
+        expect(text(h)).toContain('Sin stock de 6208-2RS en Central · equivalentes disponibles');
+        expect(text(h)).toContain('Con diferencias · blindaje metálico en vez de sello · FAG');
+        // right under the out-of-stock row, before the next result
+        const children = Array.from(root(h).querySelectorAll('.results-card > *'));
+        expect(children[1].querySelector('rs-pos-equivalents-panel')).not.toBeNull();
+
+        button(h, 'Equivalentes')!.click();
+        await settle(h);
+        expect(panels(h)).toHaveLength(0);
+      });
+
+      it('Enter opens the panel when the first result is out of stock', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '6208', [out()]);
+        press(searchBox(h), 'Enter');
+        await settle(h);
+        http.expectOne(equivalentsUrl('p3')).flush(equivalents());
+        await settle(h);
+        expect(panels(h)).toHaveLength(1);
+        http.expectNone(ITEMS);
+      });
+
+      it('keeps one panel open at a time', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '62', [out(), out({ id: 'p4', code: '6210-2RS' })]);
+        await openPanel(h, 'p3', rowOf(h, '6208-2RS'));
+        await openPanel(h, 'p4', rowOf(h, '6210-2RS'));
+        expect(panels(h)).toHaveLength(1);
+        expect(text(h)).toContain('Sin stock de 6210-2RS');
+        expect(text(h)).not.toContain('Sin stock de 6208-2RS');
+      });
+
+      it('closes the panel when the search changes', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '6208', [out()]);
+        await openPanel(h, 'p3');
+        expect(panels(h)).toHaveLength(1);
+
+        type(h, '6209');
+        await settle(h);
+        expect(panels(h)).toHaveLength(0);
+        await wait();
+        http.expectOne((r) => r.url === SEARCH).flush({ items: [] });
+        await settle(h);
+      });
+
+      it('adds the chosen equivalent to the cart', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '6208', [out()]);
+        await openPanel(h, 'p3');
+
+        button(h, 'Agregar 6208-2RSR', panels(h)[0] as HTMLElement)!.click();
+        const req = http.expectOne(ITEMS);
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual({ productId: 'e1', quantity: 1 });
+        req.flush({ checkout: cart([line({ id: 'l9', productId: 'e1', code: '6208-2RSR', brandName: 'FAG', quantity: 1, lineTotal: '245.00' })], '245.00') });
+        await settle(h);
+        expect(root(h).querySelector('rs-pos-cart-line')!.textContent).toContain('6208-2RSR · FAG');
+      });
+
+      it('shows the panel error with a retry', async () => {
+        const h = await open(undefined, shift);
+        await search(h, '6208', [out()]);
+        button(h, 'Equivalentes')!.click();
+        await settle(h);
+        http.expectOne(equivalentsUrl('p3')).flush({}, { status: 500, statusText: 'Server Error' });
+        await settle(h);
+        expect(text(h)).toContain('No pudimos cargar los equivalentes');
+        button(h, 'Reintentar', panels(h)[0] as HTMLElement)!.click();
+        http.expectOne(equivalentsUrl('p3')).flush(equivalents());
+        await settle(h);
+        expect(text(h)).toContain('6208-2RSR');
+      });
     });
 
     it('says there are no results for the text', async () => {
