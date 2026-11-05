@@ -675,7 +675,7 @@ describe('PosPage', () => {
     async function startPayment(h: RouterTestingHarness) {
       button(h, 'Cobrar')!.click();
       await settle(h);
-      http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: ['1150.00', '1200.00', '1500.00'] });
+      http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: ['1150.00', '1200.00', '1500.00'], allowMixed: true });
       await settle(h);
     }
 
@@ -1035,6 +1035,82 @@ describe('PosPage', () => {
         complete.flush({ sale });
         await settle(h);
         expect(text(h)).toContain('V-000125');
+      });
+    });
+
+    describe('mixed payment (VP-04c, HU-VEN-09)', () => {
+      const part = (status: PosQrPayment['status'] = 'PENDING', amount = '700.00'): PosQrPayment => ({
+        paymentId: 'q1',
+        idempotencyKey: 'mix-key-0001',
+        amount,
+        qrPayload: `RODASOFT-MOCK|ref-1|${amount}`,
+        status,
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      });
+      const PAYMENT = '/api/v1/sales/pos/checkout/payments/q1';
+      const field = (h: RouterTestingHarness, id: string) => root(h).querySelector<HTMLInputElement>(`#${id}`)!;
+      const typeIn = async (h: RouterTestingHarness, id: string, value: string) => {
+        const input = field(h, id);
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await settle(h);
+      };
+
+      it('pays 511 by QR and the rest in cash with one sale, under the QR key', async () => {
+        const h = await withCart();
+        await startPayment(h);
+        Array.from(root(h).querySelectorAll('.methods rs-filter-chip'))
+          .find((c) => c.textContent?.trim() === 'Mixto')!
+          .querySelector('button')!
+          .click();
+        await settle(h);
+        await typeIn(h, 'mix-qr-field', '511');
+        expect(field(h, 'mix-cash').value).toBe('600');
+        expect(byId(h, 'mix-remaining')!.textContent).toBe('Bs 0,00');
+        byId(h, 'mix-confirm')!.click();
+        await settle(h);
+        const start = http.expectOne(QR);
+        expect(start.request.body).toMatchObject({ expectedTotal: '1111.00', amount: '511.00' });
+        start.flush({ payment: part('PENDING', '511.00') });
+        await settle(h);
+        byId(h, 'qr-received')!.click();
+        http.expectOne(PAYMENT + '/confirm').flush({ payment: part('CONFIRMED', '511.00') });
+        await settle(h);
+        const complete = http.expectOne(COMPLETE);
+        expect(complete.request.body).toEqual({
+          payments: [
+            { method: 'CASH', received: '600.00' },
+            { method: 'QR', paymentId: 'q1' },
+          ],
+          expectedTotal: '1111.00',
+          idempotencyKey: 'mix-key-0001',
+        });
+        complete.flush({ sale: { ...sale, received: '1111.00', change: '0.00' } });
+        await settle(h);
+        expect(text(h)).toContain('V-000125');
+      });
+
+      it('does not offer "Mixto" when the company turned it off', async () => {
+        const h = await withCart();
+        button(h, 'Cobrar')!.click();
+        await settle(h);
+        http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: ['1150.00'], allowMixed: false });
+        await settle(h);
+        const labels = Array.from(root(h).querySelectorAll('.methods rs-filter-chip')).map((c) => c.textContent?.trim());
+        expect(labels).not.toContain('Mixto');
+      });
+
+      it('a refresh with a paid part resumes on the form with the QR fixed and does not complete by itself', async () => {
+        const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
+        const h = await open(undefined, shift, undefined, paying);
+        http.expectOne(QR).flush({ payment: part('CONFIRMED'), total: '1111.00', allowMixed: true });
+        await settle(h);
+        http.expectNone(COMPLETE);
+        expect(byId(h, 'pay-total')!.textContent).toBe('Bs 1.111,00');
+        expect(field(h, 'mix-qr-field').disabled).toBe(true);
+        expect(field(h, 'mix-qr-field').value).toBe('700');
+        expect(field(h, 'mix-cash').value).toBe('411');
+        expect(byId(h, 'mix-confirm')).not.toBeNull();
       });
     });
 

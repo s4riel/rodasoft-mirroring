@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsIn,
+  IsOptional,
   IsString,
   IsUUID,
   Length,
@@ -71,6 +72,11 @@ export class StartPosQrDto {
   @ApiProperty({ example: '1111.00', description: 'The total the cashier saw' })
   @Matches(/^\d{1,12}(\.\d{1,2})?$/)
   expectedTotal!: string;
+
+  @ApiProperty({ required: false, example: '300.00', description: 'Part of the total, when the QR is one line of a mixed payment' })
+  @IsOptional()
+  @Matches(/^\d{1,12}(\.\d{1,2})?$/)
+  amount?: string;
 }
 
 export class ConfirmPosQrDto {

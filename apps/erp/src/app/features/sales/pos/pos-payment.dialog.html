@@ -6,20 +6,34 @@
     </div>
 
     <div class="methods" role="group" aria-label="Forma de pago">
-      <!-- cash and QR; card, transfer, credit and mixed payments arrive with HU-VEN-09, 10 and 34 -->
-      <rs-filter-chip #cash [selected]="method() === 'CASH'" [disabled]="method() === 'QR'" (selectedChange)="pickMethod('CASH', $event, cash)" label="Efectivo">
+      <!-- cash, QR and both together; card, transfer and credit arrive with HU-VEN-10 and 34 -->
+      <rs-filter-chip #cash [selected]="method() === 'CASH'" [disabled]="method() !== 'CASH'" (selectedChange)="pickMethod('CASH', $event, cash)" label="Efectivo">
         <rs-chip-media type="icon"><rs-icon name="currency" [size]="20" /></rs-chip-media>
       </rs-filter-chip>
-      <rs-filter-chip #qr [selected]="method() === 'QR'" [disabled]="busy()" (selectedChange)="pickMethod('QR', $event, qr)" label="QR">
+      <rs-filter-chip #qr [selected]="method() === 'QR'" [disabled]="busy() || method() === 'MIXED'" (selectedChange)="pickMethod('QR', $event, qr)" label="QR">
         <rs-chip-media type="icon"><rs-icon name="barcode" [size]="20" /></rs-chip-media>
       </rs-filter-chip>
       <rs-filter-chip disabled title="Disponible próximamente" label="Tarjeta"><rs-chip-media type="icon"><rs-icon name="wallet" [size]="20" /></rs-chip-media></rs-filter-chip>
       <rs-filter-chip disabled title="Disponible próximamente" label="Transferencia"><rs-chip-media type="icon"><rs-icon name="transfer" [size]="20" /></rs-chip-media></rs-filter-chip>
       <rs-filter-chip disabled title="Disponible próximamente" label="Crédito"><rs-chip-media type="icon"><rs-icon name="document" [size]="20" /></rs-chip-media></rs-filter-chip>
-      <rs-filter-chip disabled title="Disponible próximamente" label="Mixto"><rs-chip-media type="icon"><rs-icon name="adjust" [size]="20" /></rs-chip-media></rs-filter-chip>
+      @if (allowMixed()) {
+        <rs-filter-chip #mixed [selected]="method() === 'MIXED'" [disabled]="busy() || method() === 'QR'" (selectedChange)="pickMethod('MIXED', $event, mixed)" label="Mixto">
+          <rs-chip-media type="icon"><rs-icon name="adjust" [size]="20" /></rs-chip-media>
+        </rs-filter-chip>
+      }
     </div>
 
-    @if (method() === 'QR') {
+    @if (method() === 'MIXED') {
+      <rs-pos-mixed-panel
+        [total]="total()"
+        [resume]="resume()"
+        [busy]="busy()"
+        (confirmed)="mixedConfirmed.emit($event)"
+        (changeMethod)="backToCash()"
+        (lockedChange)="locked.set($event)"
+        (problem)="qrProblem.emit($event)"
+      />
+    } @else if (method() === 'QR') {
       <rs-pos-qr-panel
         [total]="total()"
         [resume]="resume()"
@@ -71,6 +85,8 @@
     <button rsButton variant="ghost" type="button" data-cancel [disabled]="busy() || locked()" (click)="cancelled.emit()">Cancelar</button>
     @if (method() === 'CASH') {
       <button rsButton variant="primary" type="button" data-testid="pay-confirm" [disabled]="!canConfirm()" (click)="doConfirm()">Confirmar cobro (Enter)</button>
+    } @else if (method() === 'MIXED' && mixedPanel()?.showSubmit()) {
+      <button rsButton variant="primary" type="button" data-testid="mix-confirm" [disabled]="!mixedPanel()?.canSubmit()" (click)="mixedPanel()?.submit()">Confirmar cobro</button>
     }
   </div>
 </rs-modal>

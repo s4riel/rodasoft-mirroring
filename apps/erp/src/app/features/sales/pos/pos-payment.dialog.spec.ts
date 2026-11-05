@@ -23,6 +23,7 @@ describe('typedAmount', () => {
     [busy]="busy()"
     (confirm)="confirmed.push($event)"
     [resumeQr]="resumeQr()"
+    [allowMixed]="allowMixed()"
     (cancelled)="cancelled = cancelled + 1"
     (qrConfirmed)="paidByQr.push($event)"
   />`,
@@ -31,6 +32,7 @@ class HostComponent {
   readonly open = signal(true);
   readonly busy = signal(false);
   readonly resumeQr = signal<PosQrPayment | null>(null);
+  readonly allowMixed = signal(true);
   paidByQr: PosQrPayment[] = [];
   confirmed: string[] = [];
   cancelled = 0;
@@ -73,11 +75,11 @@ describe('PosPaymentDialog', () => {
     expect(confirm().disabled).toBe(true);
   });
 
-  it('draws the six payment methods with cash and QR enabled', async () => {
+  it('draws the six payment methods with cash, QR and Mixto enabled', async () => {
     const { root } = await render();
     const chips = Array.from(root().querySelectorAll('.methods rs-filter-chip'));
     expect(chips.map((c) => c.textContent?.trim())).toEqual(['Efectivo', 'QR', 'Tarjeta', 'Transferencia', 'Crédito', 'Mixto']);
-    expect(chips.map((c) => c.getAttribute('data-disabled'))).toEqual([null, null, 'true', 'true', 'true', 'true']);
+    expect(chips.map((c) => c.getAttribute('data-disabled'))).toEqual([null, null, 'true', 'true', 'true', null]);
   });
 
   it('"Exacto" receives the total with no change and confirms it', async () => {
@@ -174,6 +176,31 @@ describe('PosPaymentDialog', () => {
     expect(host.cancelled).toBe(0);
     // the modal closed itself on the X: the dialog opens it again, because the page still has the payment open
     expect(root().querySelector('[role=dialog]')).not.toBeNull();
+  });
+
+  it('"Mixto" shows the mixed panel instead of the cash keypad', async () => {
+    const { root, settle } = await render();
+    root().querySelectorAll<HTMLButtonElement>('.methods rs-filter-chip button')[5].click();
+    await settle();
+    expect(root().querySelector('rs-pos-mixed-panel')).not.toBeNull();
+    expect(root().querySelector('[data-testid=pay-confirm]')).toBeNull();
+  });
+
+  it('does not draw "Mixto" when the company turned mixed payment off', async () => {
+    const { fixture, root, settle } = await render();
+    fixture.componentInstance.allowMixed.set(false);
+    await settle();
+    const chips = Array.from(root().querySelectorAll('.methods rs-filter-chip'));
+    expect(chips.map((c) => c.textContent?.trim())).toEqual(['Efectivo', 'QR', 'Tarjeta', 'Transferencia', 'Crédito']);
+  });
+
+  it('resumes a QR that covers only part of the total on the mixed panel', async () => {
+    const { root, settle } = await render({ ...qr('CONFIRMED'), amount: '700.00' });
+    await settle();
+    expect(root().querySelector('rs-pos-mixed-panel')).not.toBeNull();
+    expect(root().querySelector('[data-testid=mix-confirm]')).not.toBeNull();
+    const cancel = Array.from(root().querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes('Cancelar'))!;
+    expect(cancel.disabled).toBe(true);
   });
 
   it('every opening starts empty', async () => {

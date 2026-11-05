@@ -4,6 +4,7 @@ import {
   buildQrPayload,
   Decimal,
   isQrExpired,
+  MONEY_SCALE,
   paymentMachine,
   qrExpiresAt,
   type PaymentEvent,
@@ -62,7 +63,7 @@ export class PosQrPaymentService {
     @Inject(PAYMENT_PROVIDERS) private readonly providers: PaymentProviderRegistry,
   ) {}
 
-  /** Opens the QR for the whole total. A repeat with the same key returns the same payment. */
+  /** Opens the QR for the whole total, or for the part the cashier gives when mixing with cash. A repeat with the same key returns the same payment. */
   async start(dto: StartPosQrDto): Promise<PosQrPaymentResponse> {
     await this.shifts.requireOpenShift();
     const cartId = await this.myPayingCartId();
@@ -97,9 +98,13 @@ export class PosQrPaymentService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    if (!row) return { payment: null };
+    const allowMixed = await this.settings.get('sales.allowMixedPayment');
+    if (!row) return { payment: null, total: null, allowMixed };
     const fresh = await this.expireIfDue(row);
-    return { payment: fresh.status === 'PENDING' || fresh.status === 'CONFIRMED' ? this.view(fresh) : null };
+    if (fresh.status !== 'PENDING' && fresh.status !== 'CONFIRMED') return { payment: null, total: null, allowMixed };
+    // the frozen total: a QR of a mixed payment covers only part of it, and the screen resumes on the whole
+    const { total } = await this.prisma.tenant.$transaction((tx) => this.payments.quote(tx, row.checkoutId));
+    return { payment: this.view(fresh), total: total.toString(), allowMixed };
   }
 
   /** The cashier reports the outcome: the customer paid (`APPROVED`) or the payment did not arrive (`DECLINED`). */
@@ -153,6 +158,11 @@ export class PosQrPaymentService {
     const expected = Decimal.of(dto.expectedTotal);
     if (priceMoved || !total.eq(expected)) throw posErrors.totalChanged(expected.toString(), total.toString());
 
+    // the whole total, or only a part when the QR is one line of a mixed payment (HU-VEN-09)
+    const amount = dto.amount === undefined ? total : Decimal.of(dto.amount).round(MONEY_SCALE);
+    if (amount.cmp(Decimal.zero(MONEY_SCALE)) <= 0 || amount.cmp(total) > 0) throw posErrors.qrAmountInvalid(total.toString());
+    if (amount.cmp(total) < 0 && !(await this.settings.get('sales.allowMixedPayment', tx))) throw posErrors.mixedPaymentDisabled();
+
     // a QR that is still waiting blocks a second one; one past its deadline is dropped first
     const open = await tx.posCheckoutPayment.findFirst({
       where: { checkoutId: cartId, method: 'QR', status: { in: ['PENDING', 'CONFIRMED'] } },
@@ -165,7 +175,7 @@ export class PosQrPaymentService {
 
     const companyId = this.companyId();
     // the provider is idempotent per key, so a retry after a crash charges once; its reference is what the row stores
-    const charge = await this.providers.QR.charge({ amount: total, method: 'QR', idempotencyKey: dto.idempotencyKey, companyId });
+    const charge = await this.providers.QR.charge({ amount, method: 'QR', idempotencyKey: dto.idempotencyKey, companyId });
     if (charge.status !== 'PENDING') throw posErrors.paymentInvalidState(charge.status);
     const timeout = await this.settings.get('sales.qrConfirmTimeoutSeconds', tx);
     const row = await tx.posCheckoutPayment.create({
@@ -173,11 +183,11 @@ export class PosQrPaymentService {
         companyId,
         checkoutId: cartId,
         method: 'QR',
-        amount: total.toString(),
+        amount: amount.toString(),
         idempotencyKey: dto.idempotencyKey,
         providerRef: charge.providerRef,
         status: 'PENDING',
-        qrPayload: buildQrPayload(charge.providerRef, total),
+        qrPayload: buildQrPayload(charge.providerRef, amount),
         expiresAt: qrExpiresAt(new Date(), timeout),
       },
     });
@@ -187,7 +197,7 @@ export class PosQrPaymentService {
         entity: 'PosCheckoutPayment',
         entityId: row.id,
         before: null,
-        after: { status: row.status, amount: total.toString(), providerRef: charge.providerRef },
+        after: { status: row.status, amount: amount.toString(), total: total.toString(), providerRef: charge.providerRef },
       },
       tx as unknown as Prisma.TransactionClient,
     );

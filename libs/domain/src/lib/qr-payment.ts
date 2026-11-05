@@ -60,6 +60,8 @@ export interface StartPosQrInput {
   idempotencyKey: string;
   /** The total the cashier saw; the server refuses if it differs (`CHECKOUT_TOTAL_CHANGED`). */
   expectedTotal: string;
+  /** Only part of the total, when the QR is one line of a mixed payment (HU-VEN-09); omitted, the QR charges the whole total. */
+  amount?: string;
 }
 
 /** What the cashier reports with the mock adapter: the customer paid, or the payment did not arrive. */
@@ -76,4 +78,7 @@ export interface PosQrPaymentResponse {
 /** `GET /sales/pos/checkout/payments/qr`: the QR the cart is still waiting for or already got confirmed (after a refresh). */
 export interface PosActiveQrResponse {
   payment: PosQrPayment | null;
+  /** The frozen total of the cart, when there is a payment: a mixed payment's QR covers only part of it (HU-VEN-09). */
+  total: string | null;
+  allowMixed: boolean;
 }
