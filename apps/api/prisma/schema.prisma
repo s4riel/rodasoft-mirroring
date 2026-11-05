@@ -1156,8 +1156,8 @@ model PosCheckoutPayment {
   company  Company     @relation(fields: [companyId], references: [id])
   checkout PosCheckout @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
 
-  /// partial unique index `pos_checkout_payments_one_pending_qr` on (checkout_id) WHERE method = 'QR' AND status = 'PENDING',
-  /// raw SQL in the migration `pos_qr_payment` (HU-VEN-08): a checkout waits for a single QR at a time
+  /// partial unique index `pos_checkout_payments_one_live_qr` on (checkout_id) WHERE method = 'QR' AND status IN ('PENDING', 'CONFIRMED'),
+  /// raw SQL in the migration `pos_mixed_payment` (HU-VEN-09, it replaced the HU-VEN-08 index): a checkout holds a single live QR
 
   @@unique([companyId, idempotencyKey])
   @@index([companyId, checkoutId])

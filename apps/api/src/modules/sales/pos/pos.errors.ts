@@ -28,7 +28,7 @@ export const posErrors = {
   invalidAmount: () => new BadRequestException({ code: 'INVALID_AMOUNT', message: 'The amount is not valid (at most 2 decimals)' }),
   amountTooLarge: () => new BadRequestException({ code: 'AMOUNT_TOO_LARGE', message: 'The amount is too large' }),
   paymentMethodNotAvailable: () =>
-    new ConflictException({ code: 'PAYMENT_METHOD_NOT_AVAILABLE', message: 'Only cash and QR payments are available for now' }),
+    new ConflictException({ code: 'PAYMENT_METHOD_NOT_AVAILABLE', message: 'Only cash and QR payments, alone or mixed, are available for now' }),
   // --- QR payment (HU-VEN-08) ---
   invalidPayment: (field: string) =>
     new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field }] }),
@@ -41,6 +41,17 @@ export const posErrors = {
     new ConflictException({ code: 'PAYMENT_ALREADY_CONFIRMED', message: 'A confirmed payment cannot be dropped: finish the sale' }),
   qrAlreadyPending: () => new ConflictException({ code: 'QR_ALREADY_PENDING', message: 'This sale already waits for a QR payment' }),
   qrExpired: () => new ConflictException({ code: 'QR_EXPIRED', message: 'The QR expired and was cancelled' }),
+  // --- mixed payment (HU-VEN-09) ---
+  mixedPaymentDisabled: () =>
+    new ConflictException({ code: 'MIXED_PAYMENT_DISABLED', message: 'Mixed payment is turned off for this company' }),
+  paymentNotCovered: (total: string) =>
+    new ConflictException({ code: 'PAYMENT_NOT_COVERED', message: 'The payments do not add up to the total', details: { total } }),
+  paymentInvalidAmount: () =>
+    new BadRequestException({ code: 'PAYMENT_INVALID_AMOUNT', message: 'A payment amount must be above zero' }),
+  paymentDuplicateMethod: () =>
+    new BadRequestException({ code: 'PAYMENT_DUPLICATE_METHOD', message: 'A sale takes one payment per method' }),
+  qrAmountInvalid: (total: string) =>
+    new BadRequestException({ code: 'QR_AMOUNT_INVALID', message: 'The QR amount must be above zero and not exceed the total', details: { total } }),
   insufficientStockFor: (productId: string, available: number) =>
     new ConflictException({ code: 'INSUFFICIENT_STOCK', message: 'Not enough stock in the register warehouse', details: { productId, available } }),
   saleNotFound: () => new NotFoundException({ code: 'SALE_NOT_FOUND', message: 'Sale not found' }),

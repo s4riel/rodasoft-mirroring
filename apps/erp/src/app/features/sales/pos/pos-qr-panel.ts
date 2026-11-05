@@ -59,6 +59,8 @@ export class PosQrPanel implements OnInit {
 
   /** The total the server froze (`pay`), a decimal string. */
   readonly total = input.required<string>();
+  /** Only part of the total, when the QR is one line of a mixed payment (HU-VEN-09); empty, the QR charges the whole total. */
+  readonly amount = input<string | null>(null);
   /** A QR the server already has for this cart (after a refresh): shown instead of opening a new one. */
   readonly resume = input<PosQrPayment | null>(null);
   /** The sale is being saved: the buttons wait. */
@@ -124,7 +126,11 @@ export class PosQrPanel implements OnInit {
   protected start() {
     this.screen.set('starting');
     this.payment.set(null);
-    this.run(this.api.startQr({ idempotencyKey: newIdempotencyKey(), expectedTotal: this.total() }), 'failed');
+    const amount = this.amount();
+    this.run(
+      this.api.startQr({ idempotencyKey: newIdempotencyKey(), expectedTotal: this.total(), ...(amount ? { amount } : {}) }),
+      'failed',
+    );
   }
 
   /** "Pago recibido" / "Pago no recibido": the cashier reports what happened. */

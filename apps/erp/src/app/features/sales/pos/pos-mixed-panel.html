@@ -1,0 +1,85 @@
+@if (step() === 'qr') {
+  <rs-pos-qr-panel
+    [total]="total()"
+    [amount]="qrAmountParam()"
+    [resume]="qrResume()"
+    [busy]="busy()"
+    (confirmed)="onQrConfirmed($event)"
+    (changeMethod)="backToForm()"
+    (lockedChange)="lockedChange.emit($event)"
+    (problem)="problem.emit($event)"
+  />
+} @else {
+  <div class="panel">
+    <div class="fields">
+      <rs-field label="Efectivo (Bs)" forId="mix-cash">
+        <rs-input-group>
+          <rs-icon rsInputLeading name="currency" [size]="16" />
+          <input
+            rsInput
+            rsNumeric="decimal"
+            id="mix-cash"
+            class="mono"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="0,00"
+            [value]="cashTyped()"
+            [disabled]="busy()"
+            (input)="onCash($event)"
+          />
+        </rs-input-group>
+      </rs-field>
+
+      <rs-field label="QR (Bs)" forId="mix-qr-field" [error]="qrError()">
+        <rs-input-group [invalid]="!!qrError()">
+          <rs-icon rsInputLeading name="wallet" [size]="16" />
+          <input
+            rsInput
+            rsNumeric="decimal"
+            id="mix-qr-field"
+            class="mono"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="0,00"
+            [value]="qrTyped()"
+            [disabled]="busy() || payment() !== null"
+            [invalid]="!!qrError()"
+            (input)="onQr($event)"
+          />
+        </rs-input-group>
+      </rs-field>
+
+      <div class="more">
+        <button rsButton variant="ghost" type="button" disabled title="Disponible próximamente">+ Agregar forma de pago</button>
+        @if (payment() === null) {
+          <button rsButton variant="ghost" type="button" data-testid="mix-change" [disabled]="busy()" (click)="changeMethod.emit()">Cambiar forma de pago</button>
+        }
+      </div>
+    </div>
+
+    <dl class="balance">
+      <div class="line">
+        <dt>Pagado</dt>
+        <dd data-testid="mix-paid">{{ paidText() }}</dd>
+      </div>
+      <div class="line remaining" [class.covered]="covered()">
+        <dt>Restante</dt>
+        <dd data-testid="mix-remaining" aria-live="polite">{{ remainingText() }}</dd>
+      </div>
+      @if (changeText(); as change) {
+        @if (change !== 'Bs 0,00') {
+          <div class="line">
+            <dt>Cambio a devolver</dt>
+            <dd class="change" data-testid="mix-change-amount">{{ change }}</dd>
+          </div>
+        }
+      }
+    </dl>
+
+    @if (payment() !== null) {
+      <rs-note type="success" role="status">QR recibido. Cobra el efectivo y confirma para completar la venta.</rs-note>
+    } @else {
+      <rs-note type="info" title="Pago mixto: PENDIENTE de confirmar con el cliente">Cada forma de pago queda registrada por separado para el cierre de caja.</rs-note>
+    }
+  </div>
+}

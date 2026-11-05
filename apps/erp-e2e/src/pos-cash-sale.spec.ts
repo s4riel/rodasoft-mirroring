@@ -189,3 +189,71 @@ test('the cashier charges by QR, sees the code with the amount, confirms the pay
   await done.getByTestId('sale-new').click();
   await expect(done).toHaveCount(0);
 });
+
+/**
+ * HU-VEN-09 · the same walking skeleton paid with both methods: Bs 1 by QR and the rest in cash. The screen shows how much is
+ * still uncovered, the QR part is confirmed by the cashier, and one sale is saved with two payments; only the cash reaches the
+ * register. Like the QR test, it opens the register itself when it is closed.
+ */
+test('the cashier splits the payment between QR and cash and completes one sale with both payments', async ({ page }) => {
+  await login(page);
+  await page.goto('/sales/pos');
+  const closed = page.getByRole('dialog', { name: 'Caja cerrada' });
+  await expect(closed.or(page.getByRole('searchbox', { name: 'Buscar producto' }))).toBeVisible();
+  if (await closed.isVisible()) {
+    await page.goto('/sales/cash-register/open');
+    await page.locator('#cash-register').click();
+    await page.locator('li[role="option"]').filter({ hasText: BRANCH }).first().click();
+    await page.locator('#cash-float').fill('500,00');
+    await page.getByRole('button', { name: 'Abrir caja' }).click();
+    await expect(page).toHaveURL(/\/sales\/pos$/);
+  }
+
+  const stockBefore = await stockOf();
+  const user = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL }, select: { id: true } });
+  const cashMovementsBefore = await prisma.cashMovement.count({ where: { userId: user.id } });
+
+  await page.keyboard.press('F2');
+  const search = page.getByRole('searchbox', { name: 'Buscar producto' });
+  await search.fill(code);
+  await expect(page.locator('rs-pos-result-row').first()).toContainText(code);
+  await Promise.all([page.waitForResponse((r) => r.url().includes('/checkout/items') && r.request().method() === 'POST'), search.press('Enter')]);
+  const sale = page.getByRole('complementary', { name: 'Venta actual' });
+  await expect(sale.locator('rs-pos-cart-line')).toHaveCount(1);
+
+  const cartTotal = (await page.getByTestId('pos-total').textContent())?.trim();
+  await page.keyboard.press('F9');
+  const payment = page.getByRole('dialog', { name: 'Cobrar venta' });
+  await expect(payment).toBeVisible();
+
+  // Mixto: nothing is covered until the cashier types the QR part; the cash fills with the rest
+  await payment.locator('.methods rs-filter-chip').filter({ hasText: 'Mixto' }).locator('button').click();
+  await expect(payment.getByTestId('mix-remaining')).toHaveText(cartTotal ?? '');
+  await payment.locator('#mix-qr-field').fill('1');
+  await expect(payment.getByTestId('mix-remaining')).toHaveText('Bs 0,00');
+  await expect(payment.locator('#mix-cash')).not.toHaveValue('');
+
+  // "Confirmar cobro" opens the QR for the part only; the cashier reports it paid and the sale completes with both payments
+  await payment.getByTestId('mix-confirm').click();
+  await expect(payment.locator('rs-qr-code')).toBeVisible();
+  await expect(payment.getByTestId('qr-amount')).toHaveText('Bs 1,00');
+  await payment.getByTestId('qr-received').click();
+
+  const done = page.getByRole('dialog', { name: 'Venta completada' });
+  await expect(done).toBeVisible();
+  await expect(done.getByTestId('sale-total')).toHaveText(cartTotal ?? '');
+  const number = (await done.getByTestId('sale-subtitle').textContent())?.match(/V-\d{6}/)?.[0] ?? '';
+
+  expect(await stockOf()).toBe(stockBefore - 1);
+  const stored = await prisma.sale.findFirstOrThrow({ where: { number }, include: { payments: { orderBy: { method: 'asc' } } } });
+  expect(stored.payments.map((p) => [p.method, p.providerStatus])).toEqual([
+    ['CASH', null],
+    ['QR', 'CONFIRMED'],
+  ]);
+  expect(stored.payments.find((p) => p.method === 'QR')?.amount.toFixed(2)).toBe('1.00');
+  // only the cash line reaches the register
+  expect(await prisma.cashMovement.count({ where: { userId: user.id } })).toBe(cashMovementsBefore + 1);
+
+  await done.getByTestId('sale-new').click();
+  await expect(done).toHaveCount(0);
+});

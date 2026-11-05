@@ -72,7 +72,7 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
     it('moves the cart to PAYING and answers the total with the quick amounts', async () => {
       const p = await product(10);
       const response = await pay([[p.id, 2]]);
-      expect(response).toEqual({ total: '490.00', suggestedAmounts: ['500.00'] });
+      expect(response).toEqual({ total: '490.00', suggestedAmounts: ['500.00'], allowMixed: true });
       const stored = await state.base.posCheckout.findFirstOrThrow({ where: { companyId: state.companyId } });
       expect(stored.status).toBe('PAYING');
       const audit = await state.base.auditLog.findFirstOrThrow({
@@ -355,7 +355,7 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
       expect(await codeOf(complete('99999999999999', total))).toBe('AMOUNT_TOO_LARGE');
     });
 
-    it('only cash and QR are available for now', async () => {
+    it('only cash and QR are available for now, and one line per method', async () => {
       const p = await product(10);
       const { total } = await pay([[p.id, 1]]);
       expect(
@@ -378,7 +378,7 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
             idempotencyKey: key(),
           }),
         ),
-      ).toBe('PAYMENT_METHOD_NOT_AVAILABLE');
+      ).toBe('PAYMENT_DUPLICATE_METHOD');
     });
 
     it('refuses a total that is not the one shown', async () => {

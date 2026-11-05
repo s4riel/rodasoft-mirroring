@@ -1,16 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, untracked, viewChild } from '@angular/core';
 import { Decimal, MONEY_SCALE, validateCashTendered, validateOpeningFloat, type PosQrPayment } from '@rodasoft/domain';
 import { ButtonComponent, ChipMediaComponent, FilterChipComponent, IconComponent, ModalComponent, NumpadComponent, groupThousands } from '@rodasoft/ui';
+import { PosMixedPanel, type PosMixedConfirmation } from './pos-mixed-panel';
 import { PosQrPanel } from './pos-qr-panel';
+import { typedAmount } from './typed-amount';
 
-/** The ways to pay that have a screen so far; card, transfer, credit and mixed arrive with HU-VEN-09, 10 and 34. */
-export type PosPayMethod = 'CASH' | 'QR';
+/** The ways to pay that have a screen so far (cash, QR and the two together); card, transfer and credit arrive with HU-VEN-10 and 34. */
+export type PosPayMethod = 'CASH' | 'QR' | 'MIXED';
 
-/** What the amount looks like when typed: no cents when there are none ("1150"), a comma otherwise ("1150,5"). */
-export function typedAmount(amount: Decimal): string {
-  const [integer, cents] = amount.round(MONEY_SCALE).toString().split('.');
-  return cents === '00' ? integer : `${integer},${cents.replace(/0$/, '')}`;
-}
+export { typedAmount };
 
 /**
  * VP-04 · Cobrar venta, in cash (HU-VEN-07) or by QR (HU-VEN-08). The total comes frozen from the server (`pay`); the cashier types what the
@@ -18,11 +16,12 @@ export function typedAmount(amount: Decimal): string {
  * possible. The page decides what happens next: it sends `confirm` to the server and closes this dialog once the sale is saved.
  * Enter confirms, Esc cancels, digits and the comma type on the physical keyboard too.
  * With QR the panel (VP-04b) takes the body: the page completes the sale once the QR is confirmed, and the dialog cannot be
- * cancelled from then on, because the customer already paid.
+ * cancelled from then on, because the customer already paid. "Mixto" (VP-04c, HU-VEN-09) pays part by QR and the rest in cash
+ * through its own panel, with the same lock once the QR is confirmed.
  */
 @Component({
   selector: 'rs-pos-payment-dialog',
-  imports: [ButtonComponent, ChipMediaComponent, FilterChipComponent, IconComponent, ModalComponent, NumpadComponent, PosQrPanel],
+  imports: [ButtonComponent, ChipMediaComponent, FilterChipComponent, IconComponent, ModalComponent, NumpadComponent, PosMixedPanel, PosQrPanel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown)': 'onKey($event)' },
   templateUrl: './pos-payment.dialog.html',
@@ -31,6 +30,8 @@ export function typedAmount(amount: Decimal): string {
 export class PosPaymentDialog {
   private readonly pad = viewChild(NumpadComponent);
   private readonly modal = viewChild(ModalComponent);
+  /** The mixed payment panel while "Mixto" is chosen: its form is confirmed from this dialog's footer. */
+  protected readonly mixedPanel = viewChild(PosMixedPanel);
 
   readonly open = input(false);
   /** The total to charge, a decimal string the server froze (`pay`). */
@@ -41,6 +42,8 @@ export class PosPaymentDialog {
   readonly busy = input(false);
   /** A QR the server already has for the cart (after a refresh): the dialog opens on it. */
   readonly resumeQr = input<PosQrPayment | null>(null);
+  /** The company allows mixed payment (`sales.allowMixedPayment`); without it the "Mixto" chip is not drawn. */
+  readonly allowMixed = input(true);
 
   /** The amount received, as a decimal string, when the cashier confirms. */
   readonly confirm = output<string>();
@@ -48,6 +51,8 @@ export class PosPaymentDialog {
   readonly cancelled = output<void>();
   /** The QR was confirmed: the page completes the sale with this payment. */
   readonly qrConfirmed = output<PosQrPayment>();
+  /** The mixed panel has the QR paid and the cash typed: the page completes the sale with both. */
+  readonly mixedConfirmed = output<PosMixedConfirmation>();
   /** The server refused something the QR panel cannot fix. */
   readonly qrProblem = output<unknown>();
 
@@ -98,10 +103,17 @@ export class PosPaymentDialog {
         untracked(() => {
           this.received.set('');
           this.resume.set(this.resumeQr());
-          this.method.set(this.resumeQr() ? 'QR' : 'CASH');
+          this.method.set(this.methodToResume());
           this.locked.set(false);
         });
     });
+  }
+
+  /** After a refresh: a QR that covers only part of the total belongs to a mixed payment. */
+  private methodToResume(): PosPayMethod {
+    const resumed = this.resumeQr();
+    if (!resumed) return 'CASH';
+    return Decimal.of(resumed.amount).cmp(this.totalAmount()) < 0 ? 'MIXED' : 'QR';
   }
 
   protected isSelected(typed: string): boolean {

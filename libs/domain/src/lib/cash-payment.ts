@@ -75,6 +75,8 @@ export function paymentsCover(total: Decimal, payments: readonly PaymentToCover[
 export interface PosPayResponse {
   total: string;
   suggestedAmounts: string[];
+  /** The company setting `sales.allowMixedPayment` (HU-VEN-09): whether the screen offers "Mixto". */
+  allowMixed: boolean;
 }
 
 /** One line whose price changed since the cashier added it; the cart was updated to the new price. */

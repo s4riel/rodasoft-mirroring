@@ -1,0 +1,59 @@
+:host {
+  display: block;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Figma VP-04c "Pagos": the two amount fields stacked, then the "+ Agregar forma de pago" row */
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Figma VP-04c "Saldo": bordered card with Pagado and Restante */
+.balance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.line dt {
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+}
+.line dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  font-weight: 500; /* Figma body weight of the Saldo values, no token */
+}
+.line.remaining dd {
+  color: var(--status-danger);
+}
+.line.remaining.covered dd {
+  color: var(--status-success);
+}
+.line dd.change {
+  color: var(--status-success);
+}

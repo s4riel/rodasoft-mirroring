@@ -62,6 +62,7 @@ import { PosApi } from './pos-api.service';
 import { PosCustomerDialog } from './pos-customer.dialog';
 import { PosEquivalentsPanel } from './pos-equivalents-panel';
 import { newIdempotencyKey } from './idempotency-key';
+import type { PosMixedConfirmation } from './pos-mixed-panel';
 import { PosPaymentDialog } from './pos-payment.dialog';
 import { PosSaleCompletedDialog } from './pos-sale-completed.dialog';
 import { PosProductSheetDialog, type PosSheetAdd } from './pos-product-sheet.dialog';
@@ -194,6 +195,8 @@ export class PosPage implements OnInit {
   private uncertain: { payments: PosPaymentInput[]; key: string } | null = null;
   /** The QR the server still has for the cart, when the payment screen reopens after a refresh (HU-VEN-08). */
   protected readonly resumeQr = signal<PosQrPayment | null>(null);
+  /** The company allows mixed payment: the payment screen offers "Mixto" (HU-VEN-09). */
+  protected readonly payAllowMixed = signal(true);
   protected readonly completedOpen = signal(false);
   protected readonly completedSale = signal<CompletedSale | null>(null);
   protected readonly emailSending = signal(false);
@@ -313,6 +316,7 @@ export class PosPage implements OnInit {
           this.payStarting.set(false);
           this.payTotal.set(res.total);
           this.paySuggested.set(res.suggestedAmounts);
+          this.payAllowMixed.set(res.allowMixed);
           this.paymentKey = newIdempotencyKey();
           this.paymentOpen.set(true);
         },
@@ -357,7 +361,9 @@ export class PosPage implements OnInit {
           this.returnToCart();
           return;
         }
-        this.payTotal.set(payment.amount);
+        // a QR of a mixed payment covers only part of the total: the screen resumes on the whole
+        this.payTotal.set(res?.total ?? payment.amount);
+        this.payAllowMixed.set(res?.allowMixed ?? true);
         this.paySuggested.set([]);
         this.paymentKey = newIdempotencyKey();
         this.resumeQr.set(payment);
@@ -410,6 +416,17 @@ export class PosPage implements OnInit {
   /** The QR panel got the payment confirmed: the sale is completed with it, under the payment's own key (HU-VEN-08). */
   protected confirmQrPayment(payment: PosQrPayment) {
     this.submitPayment([{ method: 'QR', paymentId: payment.paymentId }], payment.idempotencyKey);
+  }
+
+  /** The mixed panel has the QR paid and the cash typed: one sale with both payments, under the QR's own key (HU-VEN-09). */
+  protected confirmMixedPayment(mix: PosMixedConfirmation) {
+    this.submitPayment(
+      [
+        { method: 'CASH', received: mix.received },
+        { method: 'QR', paymentId: mix.payment.paymentId },
+      ],
+      mix.payment.idempotencyKey,
+    );
   }
 
   /** The QR panel met something it cannot fix (the cart changed, the shift closed…): back to the cart, as the server has it. */
