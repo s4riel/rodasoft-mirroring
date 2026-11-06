@@ -14,11 +14,12 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { CARD_DECLINE_REASONS, type CardDeclineReason } from '@rodasoft/domain';
 
 const PAYMENT_METHODS = ['CASH', 'QR', 'CARD', 'TRANSFER', 'CREDIT'] as const;
 
 export class PosPaymentDto {
-  /** `CASH` and `QR` are available; the other methods are refused by the service (`PAYMENT_METHOD_NOT_AVAILABLE`). */
+  /** `CASH`, `QR` and `CARD` are available; the other methods are refused by the service (`PAYMENT_METHOD_NOT_AVAILABLE`). */
   @ApiProperty({ enum: PAYMENT_METHODS })
   @IsIn(PAYMENT_METHODS)
   method!: string;
@@ -30,9 +31,9 @@ export class PosPaymentDto {
   @MaxLength(30)
   received?: string;
 
-  /** QR only: the confirmed payment of this checkout. */
-  @ApiProperty({ required: false, description: 'The QR payment the cashier got confirmed' })
-  @ValidateIf((payment: PosPaymentDto) => payment.method === 'QR')
+  /** QR and card: the confirmed payment of this checkout. */
+  @ApiProperty({ required: false, description: 'The QR or card payment the cashier got confirmed' })
+  @ValidateIf((payment: PosPaymentDto) => payment.method === 'QR' || payment.method === 'CARD')
   @IsUUID()
   paymentId?: string;
 }
@@ -83,4 +84,34 @@ export class ConfirmPosQrDto {
   @ApiProperty({ enum: ['APPROVED', 'DECLINED'] })
   @IsIn(['APPROVED', 'DECLINED'])
   outcome!: 'APPROVED' | 'DECLINED';
+}
+
+/** HU-VEN-10: opens a card attempt for the whole frozen total. A retry after a decline is a new attempt with a new key. */
+export class StartPosCardDto {
+  @ApiProperty({ description: 'One key per card attempt: the same key returns the same payment' })
+  @IsString()
+  @Length(8, 100)
+  idempotencyKey!: string;
+
+  @ApiProperty({ example: '1111.00', description: 'The total the cashier saw' })
+  @Matches(/^\d{1,12}(\.\d{1,2})?$/)
+  expectedTotal!: string;
+}
+
+/** The cashier reports what the terminal said: approved with the voucher's code, or declined with the reason. */
+export class ConfirmPosCardDto {
+  @ApiProperty({ enum: ['APPROVED', 'DECLINED'] })
+  @IsIn(['APPROVED', 'DECLINED'])
+  outcome!: 'APPROVED' | 'DECLINED';
+
+  @ApiProperty({ required: false, example: 'A1B2C3', description: 'Approved only: the authorization code of the voucher' })
+  @ValidateIf((body: ConfirmPosCardDto) => body.outcome === 'APPROVED')
+  @IsString()
+  @MaxLength(30)
+  authorizationCode?: string;
+
+  @ApiProperty({ required: false, enum: CARD_DECLINE_REASONS, description: 'Declined only: why the terminal declined' })
+  @ValidateIf((body: ConfirmPosCardDto) => body.outcome === 'DECLINED')
+  @IsIn(CARD_DECLINE_REASONS)
+  reason?: CardDeclineReason;
 }

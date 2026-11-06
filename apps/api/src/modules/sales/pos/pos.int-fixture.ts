@@ -20,6 +20,7 @@ import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
 import { PosPaymentService } from './pos-payment.service';
+import { PosCardPaymentService } from './pos-card-payment.service';
 import { PosQrPaymentService } from './pos-qr-payment.service';
 import { MockPaymentProvider } from '../payments/mock-payment.provider';
 import type { PaymentProviderRegistry } from '../payments/payment-provider';
@@ -93,6 +94,7 @@ export function createPosFixture(prefix: string) {
       checkout,
       payment,
       qr: new PosQrPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
+      card: new PosCardPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
       receipts: new SaleReceiptService(prisma, cls, settings, outbox, audit),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
       sheet: new PosProductSheetService(

@@ -77,6 +77,8 @@ export interface PosPayResponse {
   suggestedAmounts: string[];
   /** The company setting `sales.allowMixedPayment` (HU-VEN-09): whether the screen offers "Mixto". */
   allowMixed: boolean;
+  /** The company setting `sales.cardPaymentEnabled` (HU-VEN-10): whether the screen offers "Tarjeta". */
+  cardEnabled: boolean;
 }
 
 /** One line whose price changed since the cashier added it; the cart was updated to the new price. */
@@ -99,8 +101,14 @@ export interface PosQrPaymentInput {
   paymentId: string;
 }
 
-/** Cash and QR for now; card, transfer, credit and mixed arrive with HU-VEN-09, 10 and 34. */
-export type PosPaymentInput = PosCashPaymentInput | PosQrPaymentInput;
+/** A card payment the cashier got approved (HU-VEN-10); it is always the only line of the sale. */
+export interface PosCardPaymentInput {
+  method: 'CARD';
+  paymentId: string;
+}
+
+/** Cash, QR (alone or mixed) and card (alone); transfer and credit arrive with HU-VEN-34. */
+export type PosPaymentInput = PosCashPaymentInput | PosQrPaymentInput | PosCardPaymentInput;
 
 export interface CompletePosCheckoutInput {
   payments: PosPaymentInput[];

@@ -916,6 +916,14 @@ enum PaymentStatus {
   CANCELLED
 }
 
+/// Why the card terminal declined a payment (HU-VEN-10); the cashier picks it. Same values as `CARD_DECLINE_REASONS` in libs/domain.
+enum PaymentDeclineReason {
+  INSUFFICIENT_FUNDS
+  CARD_DECLINED
+  TERMINAL_ERROR
+  OTHER
+}
+
 /// Same values as `InvoiceStatus` in libs/domain (`invoiceMachine`); a sale writes it as PENDING.
 enum InvoiceStatus {
   PENDING
@@ -1143,7 +1151,10 @@ model PosCheckoutPayment {
   /// cash given back (HU-VEN-07); only CASH may have it. The received amount is `amount + change`
   change         Decimal       @default(0) @db.Decimal(14, 2)
   status         PaymentStatus @default(PENDING)
+  /// card: the authorization code of the terminal voucher (HU-VEN-10); required once a card payment is CONFIRMED
   reference      String?
+  /// card payments only (HU-VEN-10): why the terminal declined; set only while the payment is DECLINED
+  declineReason  PaymentDeclineReason? @map("decline_reason")
   /// QR payments only (HU-VEN-08): what the QR encodes, kept so a refresh can draw it again
   qrPayload      String?       @map("qr_payload")
   /// QR payments only: after this moment a still-pending QR is cancelled by the server (`sales.qrConfirmTimeoutSeconds`)
@@ -1158,6 +1169,9 @@ model PosCheckoutPayment {
 
   /// partial unique index `pos_checkout_payments_one_live_qr` on (checkout_id) WHERE method = 'QR' AND status IN ('PENDING', 'CONFIRMED'),
   /// raw SQL in the migration `pos_mixed_payment` (HU-VEN-09, it replaced the HU-VEN-08 index): a checkout holds a single live QR
+  /// partial unique index `pos_checkout_payments_one_live_card` on (checkout_id) WHERE method = 'CARD' AND status IN ('PENDING', 'CONFIRMED'),
+  /// raw SQL in the migration `pos_card_payment` (HU-VEN-10): a checkout holds a single live card payment. A card and a QR never
+  /// live together; the services check that under the cart row lock
 
   @@unique([companyId, idempotencyKey])
   @@index([companyId, checkoutId])

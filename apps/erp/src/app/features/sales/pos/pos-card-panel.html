@@ -1,0 +1,85 @@
+<div class="panel">
+  @switch (screen()) {
+    @case ('starting') {
+      <div class="loading" role="status" aria-label="Preparando el cobro con tarjeta">
+        <rs-skeleton width="10rem" height="4rem" />
+      </div>
+    }
+    @case ('failed') {
+      <rs-note type="danger">No pudimos iniciar el cobro con tarjeta. Revisa tu conexión e inténtalo de nuevo.</rs-note>
+      <div class="actions">
+        <button rsButton variant="primary" type="button" data-testid="card-retry" data-autofocus (click)="start()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="switchMethod()">Cambiar forma de pago</button>
+      </div>
+    }
+    @default {
+      @if (payment(); as card) {
+        <p class="amount" data-testid="card-amount">{{ amountText() }}</p>
+
+        @switch (screen()) {
+          @case ('pending') {
+            @switch (reporting()) {
+              @case ('approve') {
+                <rs-field label="Código de autorización" forId="card-code" [error]="codeError()">
+                  <rs-input-group [invalid]="!!codeError()">
+                    <input
+                      rsInput
+                      id="card-code"
+                      class="mono"
+                      autocomplete="off"
+                      maxlength="12"
+                      placeholder="A1B2C3"
+                      data-testid="card-code"
+                      data-autofocus
+                      [value]="code()"
+                      [disabled]="disabled()"
+                      [invalid]="!!codeError()"
+                      (input)="onCode($event)"
+                    />
+                  </rs-input-group>
+                </rs-field>
+                <div class="actions">
+                  <button rsButton variant="primary" type="button" data-testid="card-approve-confirm" [disabled]="disabled()" (click)="approve()">Confirmar aprobación</button>
+                  <button rsButton variant="secondary" type="button" [disabled]="disabled()" (click)="closeReport()">Volver</button>
+                </div>
+              }
+              @case ('decline') {
+                <rs-radio-group class="reasons" ariaLabel="Motivo del rechazo" [(value)]="reason">
+                  @for (option of reasons; track option.value) {
+                    <rs-radio [value]="option.value" [disabled]="disabled()">{{ option.label }}</rs-radio>
+                  }
+                </rs-radio-group>
+                <div class="actions">
+                  <button rsButton variant="primary" type="button" data-testid="card-decline-confirm" [disabled]="disabled() || !reason()" (click)="decline()">Confirmar rechazo</button>
+                  <button rsButton variant="secondary" type="button" [disabled]="disabled()" (click)="closeReport()">Volver</button>
+                </div>
+              }
+              @default {
+                <p class="caption">Pasa o inserta la tarjeta en el terminal</p>
+                <p class="hint"><span role="status" data-testid="card-waiting">Esperando respuesta del terminal</span> · Intento {{ attempt() }}</p>
+                <rs-note type="info" title="El terminal responde al cajero">El terminal está procesando el cobro. Indica aquí lo que muestra el voucher. Para salir, responde o cambia la forma de pago.</rs-note>
+                <div class="actions">
+                  <button rsButton variant="primary" type="button" data-testid="card-approved" data-autofocus [disabled]="disabled()" (click)="openApproval()">Aprobado</button>
+                  <button rsButton variant="secondary" type="button" data-testid="card-declined" [disabled]="disabled()" (click)="openDecline()">Rechazado</button>
+                  <button rsButton variant="secondary" type="button" data-testid="card-change" [disabled]="disabled()" (click)="switchMethod()">Cambiar forma de pago</button>
+                </div>
+              }
+            }
+          }
+          @case ('confirmed') {
+            <rs-note type="success">Pago aprobado ({{ card.authorizationCode }}). Completando la venta…</rs-note>
+            <div class="actions">
+              <button rsButton variant="primary" type="button" data-testid="card-complete" data-autofocus [disabled]="busy()" (click)="retryConfirmed()">Completar venta</button>
+            </div>
+          }
+          @case ('declined') {
+            <!-- Figma VP-12: only the note; "Reintentar cobro" and "Cancelar" are the dialog's footer, other methods are its chips -->
+            <rs-note type="danger" title="Tarjeta rechazada" role="alert">
+              <span data-testid="card-decline-reason">{{ declineText() }}</span> · Intento {{ attempt() }}. Prueba otra tarjeta o cambia la forma de pago.
+            </rs-note>
+          }
+        }
+      }
+    }
+  }
+</div>

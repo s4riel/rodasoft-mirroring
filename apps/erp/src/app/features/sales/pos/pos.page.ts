@@ -29,6 +29,7 @@ import {
   type PosCheckoutView,
   type PosEquivalentItem,
   type PosPaymentInput,
+  type PosCardPayment,
   type PosQrPayment,
   type PosProductResult,
 } from '@rodasoft/domain';
@@ -52,7 +53,7 @@ import {
   ToastService,
   type IconName,
 } from '@rodasoft/ui';
-import { catchError, debounceTime, distinctUntilChanged, map, of, switchMap, tap, type Observable } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, switchMap, tap, type Observable } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
 import { ContextStore } from '../../../core/context.store';
 import { CashApi } from '../cash/cash-api.service';
@@ -197,6 +198,10 @@ export class PosPage implements OnInit {
   protected readonly resumeQr = signal<PosQrPayment | null>(null);
   /** The company allows mixed payment: the payment screen offers "Mixto" (HU-VEN-09). */
   protected readonly payAllowMixed = signal(true);
+  /** The company takes cards: the payment screen offers "Tarjeta" (HU-VEN-10). */
+  protected readonly payCardEnabled = signal(true);
+  /** The card attempt the server still has for the cart, when the payment screen reopens after a refresh (HU-VEN-10). */
+  protected readonly resumeCard = signal<PosCardPayment | null>(null);
   protected readonly completedOpen = signal(false);
   protected readonly completedSale = signal<CompletedSale | null>(null);
   protected readonly emailSending = signal(false);
@@ -317,6 +322,7 @@ export class PosPage implements OnInit {
           this.payTotal.set(res.total);
           this.paySuggested.set(res.suggestedAmounts);
           this.payAllowMixed.set(res.allowMixed);
+          this.payCardEnabled.set(res.cardEnabled);
           this.paymentKey = newIdempotencyKey();
           this.paymentOpen.set(true);
         },
@@ -336,6 +342,7 @@ export class PosPage implements OnInit {
     if (this.paying()) return;
     this.paymentOpen.set(false);
     this.resumeQr.set(null);
+    this.resumeCard.set(null);
     if (this.uncertain) {
       this.cancelAfterNoAnswer(this.uncertain);
       return;
@@ -349,14 +356,25 @@ export class PosPage implements OnInit {
    * was already paid brings the screen back on it (the customer's money must not be dropped); otherwise the cart goes back.
    */
   private resumePayment() {
-    this.api
-      .activeQr()
-      .pipe(
-        catchError(() => of(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((res) => {
+    forkJoin({
+      qr: this.api.activeQr().pipe(catchError(() => of(null))),
+      card: this.api.activeCard().pipe(catchError(() => of(null))),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ qr: res, card }) => {
         const payment = res?.payment;
+        // a card the terminal approved or is still answering (or declined, so the cashier sees why) brings its screen back
+        if (card?.payment && !payment) {
+          this.payTotal.set(card.payment.amount);
+          this.payAllowMixed.set(res?.allowMixed ?? true);
+          this.payCardEnabled.set(true);
+          this.paySuggested.set([]);
+          this.paymentKey = newIdempotencyKey();
+          this.resumeQr.set(null);
+          this.resumeCard.set(card.payment);
+          this.paymentOpen.set(true);
+          return;
+        }
         if (!payment) {
           this.returnToCart();
           return;
@@ -418,6 +436,11 @@ export class PosPage implements OnInit {
     this.submitPayment([{ method: 'QR', paymentId: payment.paymentId }], payment.idempotencyKey);
   }
 
+  /** The terminal approved the card: the sale is completed with it, under the attempt's own key (HU-VEN-10). */
+  protected confirmCardPayment(payment: PosCardPayment) {
+    this.submitPayment([{ method: 'CARD', paymentId: payment.paymentId }], payment.idempotencyKey);
+  }
+
   /** The mixed panel has the QR paid and the cash typed: one sale with both payments, under the QR's own key (HU-VEN-09). */
   protected confirmMixedPayment(mix: PosMixedConfirmation) {
     this.submitPayment(
@@ -433,6 +456,7 @@ export class PosPage implements OnInit {
   protected qrProblem(err: unknown) {
     this.paymentOpen.set(false);
     this.resumeQr.set(null);
+    this.resumeCard.set(null);
     if (this.handleShiftLost(err)) return;
     this.toast.danger(this.errorMessage(err));
     this.returnToCart();
@@ -442,7 +466,8 @@ export class PosPage implements OnInit {
     if (this.paying()) return;
     this.paying.set(true);
     this.uncertain = null;
-    const byQr = payments.some((payment) => payment.method === 'QR');
+    // the customer already paid a QR or a card, so the cart cannot go back if the sale fails
+    const byQr = payments.some((payment) => payment.method === 'QR' || payment.method === 'CARD');
     this.api
       .complete({ payments, expectedTotal: this.payTotal(), idempotencyKey: key })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -451,6 +476,7 @@ export class PosPage implements OnInit {
           this.paying.set(false);
           this.paymentOpen.set(false);
           this.resumeQr.set(null);
+          this.resumeCard.set(null);
           this.completedSale.set(sale);
           this.completedOpen.set(true);
           // the sale is saved: the cart is empty

@@ -285,9 +285,12 @@
   [busy]="paying()"
   [resumeQr]="resumeQr()"
   [allowMixed]="payAllowMixed()"
+  [cardEnabled]="payCardEnabled()"
+  [resumeCard]="resumeCard()"
   (confirm)="confirmPayment($event)"
   (mixedConfirmed)="confirmMixedPayment($event)"
   (qrConfirmed)="confirmQrPayment($event)"
+  (cardConfirmed)="confirmCardPayment($event)"
   (qrProblem)="qrProblem($event)"
   (cancelled)="cancelPayment()"
 />

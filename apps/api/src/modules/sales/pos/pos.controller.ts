@@ -18,7 +18,9 @@ import type {
   CustomerSearchResponse,
   CompletePosCheckoutResponse,
   CustomerSummary,
+  PosActiveCardResponse,
   PosActiveQrResponse,
+  PosCardPaymentResponse,
   PosCategoryListResponse,
   PosCheckoutResponse,
   PosQrPaymentResponse,
@@ -31,7 +33,8 @@ import type {
 import { RequirePermissions } from '../../access/require-permissions.decorator';
 import { CreatePosCustomerDto, PosCustomerSearchQueryDto, SetPosCustomerDto } from '../customers/customers.dto';
 import { CustomersService } from '../customers/customers.service';
-import { CompletePosCheckoutDto, ConfirmPosQrDto, StartPosQrDto } from './pos-payment.dto';
+import { CompletePosCheckoutDto, ConfirmPosCardDto, ConfirmPosQrDto, StartPosCardDto, StartPosQrDto } from './pos-payment.dto';
+import { PosCardPaymentService } from './pos-card-payment.service';
 import { PosQrPaymentService } from './pos-qr-payment.service';
 import { AddPosCheckoutItemDto, PosProductSearchQueryDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { posErrors } from './pos.errors';
@@ -72,6 +75,7 @@ export class PosController {
     private readonly checkout: PosCheckoutService,
     private readonly payment: PosPaymentService,
     private readonly qr: PosQrPaymentService,
+    private readonly card: PosCardPaymentService,
     private readonly equivalents: PosEquivalentsService,
     private readonly sheets: PosProductSheetService,
     private readonly shifts: CashShiftsService,
@@ -154,6 +158,35 @@ export class PosController {
   @Post('checkout/payments/qr')
   startQr(@Body(bodyPipe) body: StartPosQrDto): Promise<PosQrPaymentResponse> {
     return this.qr.start(body);
+  }
+
+  /** VP-12 (HU-VEN-10): the card attempt my cart waits for, got approved or was declined, for the screen to resume after a refresh. */
+  @Get('checkout/payments/card')
+  activeCard(): Promise<PosActiveCardResponse> {
+    return this.card.current();
+  }
+
+  /** VP-12: opens a card attempt for the whole total (the mock provider; the cashier reports the terminal's outcome). */
+  @Post('checkout/payments/card')
+  startCard(@Body(bodyPipe) body: StartPosCardDto): Promise<PosCardPaymentResponse> {
+    return this.card.start(body);
+  }
+
+  @Get('checkout/payments/card/:id')
+  cardPayment(@Param('id', paymentIdPipe) id: string): Promise<PosCardPaymentResponse> {
+    return this.card.get(id);
+  }
+
+  /** The cashier reports the terminal's outcome: approved with the authorization code, or declined with a reason. */
+  @Post('checkout/payments/card/:id/confirm')
+  confirmCard(@Param('id', paymentIdPipe) id: string, @Body(bodyPipe) body: ConfirmPosCardDto): Promise<PosCardPaymentResponse> {
+    return this.card.confirm(id, body);
+  }
+
+  /** "Cambiar forma de pago" while the terminal waits: drops the pending card attempt. */
+  @Post('checkout/payments/card/:id/cancel')
+  cancelCard(@Param('id', paymentIdPipe) id: string): Promise<PosCardPaymentResponse> {
+    return this.card.cancel(id);
   }
 
   /** The state of a QR payment; the ERP polls it while the screen waits for the customer. */

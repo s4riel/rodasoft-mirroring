@@ -151,7 +151,7 @@ export const posCheckoutMachine = createMachine<PosCheckoutStatus, PosCheckoutEv
 });
 
 /**
- * A payment attempt of a checkout (QR today, card in HU-VEN-10). PENDING waits for the outcome; the other three are final. A
+ * A payment attempt of a checkout (QR in HU-VEN-08, card in HU-VEN-10; a declined card is retried with a new attempt). PENDING waits for the outcome; the other three are final. A
  * confirmed payment is never cancelled here: giving the money back is a return (HU-VEN-21).
  */
 export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'CANCELLED';

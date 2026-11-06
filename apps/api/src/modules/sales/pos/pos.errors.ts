@@ -28,7 +28,7 @@ export const posErrors = {
   invalidAmount: () => new BadRequestException({ code: 'INVALID_AMOUNT', message: 'The amount is not valid (at most 2 decimals)' }),
   amountTooLarge: () => new BadRequestException({ code: 'AMOUNT_TOO_LARGE', message: 'The amount is too large' }),
   paymentMethodNotAvailable: () =>
-    new ConflictException({ code: 'PAYMENT_METHOD_NOT_AVAILABLE', message: 'Only cash and QR payments, alone or mixed, are available for now' }),
+    new ConflictException({ code: 'PAYMENT_METHOD_NOT_AVAILABLE', message: 'This payment method, or this combination of methods, is not available' }),
   // --- QR payment (HU-VEN-08) ---
   invalidPayment: (field: string) =>
     new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field }] }),
@@ -41,6 +41,13 @@ export const posErrors = {
     new ConflictException({ code: 'PAYMENT_ALREADY_CONFIRMED', message: 'A confirmed payment cannot be dropped: finish the sale' }),
   qrAlreadyPending: () => new ConflictException({ code: 'QR_ALREADY_PENDING', message: 'This sale already waits for a QR payment' }),
   qrExpired: () => new ConflictException({ code: 'QR_EXPIRED', message: 'The QR expired and was cancelled' }),
+  // --- card payment (HU-VEN-10) ---
+  paymentAlreadyPending: () =>
+    new ConflictException({ code: 'PAYMENT_ALREADY_PENDING', message: 'This sale already waits for another provider payment' }),
+  cardAwaitingOutcome: () =>
+    new ConflictException({ code: 'CARD_AWAITING_OUTCOME', message: 'The card terminal still waits for an outcome: report it or change the payment method first' }),
+  invalidAuthorizationCode: () =>
+    new BadRequestException({ code: 'INVALID_AUTHORIZATION_CODE', message: 'The authorization code must have 4 to 12 letters or digits' }),
   // --- mixed payment (HU-VEN-09) ---
   mixedPaymentDisabled: () =>
     new ConflictException({ code: 'MIXED_PAYMENT_DISABLED', message: 'Mixed payment is turned off for this company' }),

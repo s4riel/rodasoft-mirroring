@@ -4,12 +4,15 @@ import type {
   AddPosCheckoutItemInput,
   CompletePosCheckoutInput,
   CompletePosCheckoutResponse,
+  ConfirmPosCardInput,
   CreatePosCustomerInput,
   CustomerSearchResponse,
   CustomerSummary,
   PosInvoiceDataResponse,
   PosCategoryListResponse,
+  PosActiveCardResponse,
   PosActiveQrResponse,
+  PosCardPaymentResponse,
   PosCheckoutResponse,
   PosPayResponse,
   PosQrOutcome,
@@ -20,6 +23,7 @@ import type {
   PosProductSheet,
   SaleReceipt,
   SendReceiptEmailResponse,
+  StartPosCardInput,
   StartPosQrInput,
 } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
@@ -131,6 +135,26 @@ export class PosApi {
   /** "Cambiar método": drops a pending QR. */
   cancelQr(id: string): Observable<PosQrPaymentResponse> {
     return this.http.post<PosQrPaymentResponse>(`${BASE}/checkout/payments/${id}/cancel`, {});
+  }
+
+  /** VP-12 (HU-VEN-10): the card attempt my cart waits for, got approved or was declined, to resume after a refresh. */
+  activeCard(): Observable<PosActiveCardResponse> {
+    return this.http.get<PosActiveCardResponse>(`${BASE}/checkout/payments/card`);
+  }
+
+  /** Opens a card attempt for the whole total. The same key returns the same attempt; a retry needs a new key. */
+  startCard(body: StartPosCardInput): Observable<PosCardPaymentResponse> {
+    return this.http.post<PosCardPaymentResponse>(`${BASE}/checkout/payments/card`, body);
+  }
+
+  /** The cashier reports what the terminal said: approved with the voucher's code, or declined with a reason (mock provider, decision #8). */
+  confirmCard(id: string, body: ConfirmPosCardInput): Observable<PosCardPaymentResponse> {
+    return this.http.post<PosCardPaymentResponse>(`${BASE}/checkout/payments/card/${id}/confirm`, body);
+  }
+
+  /** "Cambiar forma de pago": drops a pending card attempt. */
+  cancelCard(id: string): Observable<PosCardPaymentResponse> {
+    return this.http.post<PosCardPaymentResponse>(`${BASE}/checkout/payments/card/${id}/cancel`, {});
   }
 
   /** The receipt of a completed sale, for the ticket and the WhatsApp text. */
