@@ -1,4 +1,4 @@
-import { CANCELLATION_REASONS, type CancellationReason, Decimal, saleItemsCount, type PaymentMethod, type SaleHistoryEntry, type SaleListItem, type SaleListQuery, type SaleStatus } from '@rodasoft/domain';
+import { CANCELLATION_REASONS, cancellationImpact, type CancellationImpact, type CancellationReason, Decimal, saleItemsCount, type PaymentMethod, type SaleHistoryEntry, type SaleListItem, type SaleListQuery, type SaleStatus } from '@rodasoft/domain';
 import type { DocTableCell, DocTableRow, DocTableStatus, RowMenuItem, SelectOption } from '@rodasoft/ui';
 import { formatBs, formatDateTime } from '../cash/cash-format';
 
@@ -156,14 +156,23 @@ export function historyLabel(entry: Pick<SaleHistoryEntry, 'action' | 'email'>):
       return 'Anulación solicitada · esperando a Gerencia';
     case 'sales.sale.cancellation-withdraw':
       return 'Solicitud de anulación retirada';
+    case 'sales.sale.cancellation-approve':
+      return 'Anulación aprobada · factura anulada';
+    case 'sales.sale.cancellation-reject':
+      return 'Anulación rechazada';
     default:
       return 'Movimiento registrado';
   }
 }
 
+function cancelledInvoiceLabel(number: number | null): string {
+  return number === null ? 'Factura anulada' : `Factura ${number} anulada`;
+}
+
 /** The invoice line of the detail: the record is pending until the SIAT epic issues it. */
 export function invoiceLabel(status: string, number: number | null): string {
   if (status === 'PENDING') return 'Pendiente de emisión SIAT';
+  if (status === 'CANCELLED') return cancelledInvoiceLabel(number);
   return number === null ? status : `Factura ${number}`;
 }
 
@@ -187,4 +196,57 @@ export function cancellationDeadlineText(windowEndsAt: string | null): string {
   if (!windowEndsAt) return 'sin límite';
   // the end is exclusive (the start of the next La Paz day): the last day to ask is the one before
   return formatDateTime(new Date(Date.parse(windowEndsAt) - 1).toISOString()).slice(0, 10);
+}
+
+// ── Deciding a cancellation (HU-VEN-15) ──
+
+/** "51 minutos", "3 horas", "2 días": how long ago the sale was made, rounded down to the unit that reads best. */
+export function elapsedText(fromIso: string, now: Date): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - Date.parse(fromIso)) / 60_000));
+  if (minutes < 60) return minutes === 1 ? '1 minuto' : `${minutes} minutos`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours === 1 ? '1 hora' : `${hours} horas`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? '1 día' : `${days} días`;
+}
+
+/** "QR Bs 50,00" for each refund that someone has to make by hand. */
+function manualRefundsText(impact: Pick<CancellationImpact, 'manualRefunds'>): string {
+  return impact.manualRefunds
+    .map((r) => `${r.method === 'CARD' ? 'tarjeta' : r.method === 'QR' ? 'QR' : 'transferencia'} ${formatBs(r.amount)}`)
+    .join(' y ');
+}
+
+/** What approving will do, as VP-15c says it ("Qué pasará"). */
+export function impactSentence(
+  impact: CancellationImpact & { warehouseName: string; registerName: string },
+): string {
+  const invoice =
+    impact.invoiceAction === 'VOID'
+      ? 'Se anula la factura (todavía no se emitió en el SIAT)'
+      : impact.invoiceAction === 'REQUEST_SIAT_CANCELLATION'
+        ? 'Se anula la factura en el SIAT'
+        : 'La factura no se puede anular en su estado actual';
+  const units = `${impact.stockUnits} ${impact.stockUnits === 1 ? 'pieza' : 'piezas'}`;
+  const parts = [`${invoice}, el stock (${units}) vuelve a ${impact.warehouseName}`];
+  if (!Decimal.of(impact.cashRefund).isZero()) parts.push(`se registra el reembolso de ${formatBs(impact.cashRefund)} en ${impact.registerName}`);
+  const sentence = parts.length === 2 ? `${parts[0]} y ${parts[1]}.` : `${parts[0]}.`;
+  return impact.manualRefunds.length > 0 ? `${sentence} Reembolso de ${manualRefundsText(impact)} a gestionar manualmente.` : sentence;
+}
+
+/** The banner of a cancelled sale (VP-15d), from what the sale holds: the same rule the approval used. */
+export function cancelledSummary(
+  sale: {
+    invoice: { status: string; number: number | null };
+    lines: readonly { quantity: number }[];
+    payments: readonly { method: PaymentMethod; amount: string }[];
+  },
+  place: { warehouseName: string; registerName: string },
+): string {
+  const impact = cancellationImpact({ invoiceStatus: 'PENDING', lines: sale.lines, payments: sale.payments });
+  const returned = `${impact.stockUnits} ${impact.stockUnits === 1 ? 'pieza devuelta' : 'piezas devueltas'} a ${place.warehouseName}`;
+  const parts = [cancelledInvoiceLabel(sale.invoice.number), returned];
+  if (!Decimal.of(impact.cashRefund).isZero()) parts.push(`reembolso ${formatBs(impact.cashRefund)} registrado en ${place.registerName}`);
+  if (impact.manualRefunds.length > 0) parts.push(`reembolso de ${manualRefundsText(impact)} a gestionar manualmente`);
+  return parts.join(' · ');
 }

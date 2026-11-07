@@ -3,7 +3,10 @@ import {
   CANCELLATION_REASON_OPTIONS,
   cancellationDeadlineText,
   cancellationReasonLabel,
+  cancelledSummary,
+  elapsedText,
   historyLabel,
+  impactSentence,
   invoiceLabel,
   parseMethod,
   parseStatus,
@@ -115,5 +118,61 @@ describe('sale format', () => {
   it('says the invoice state', () => {
     expect(invoiceLabel('PENDING', null)).toBe('Pendiente de emisión SIAT');
     expect(invoiceLabel('VALID', 456)).toBe('Factura 456');
+  });
+});
+
+describe('deciding a cancellation (HU-VEN-15)', () => {
+  const place = { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' };
+
+  it('labels the decision in the history and the cancelled invoice', () => {
+    expect(historyLabel({ action: 'sales.sale.cancellation-approve', email: null })).toBe('Anulación aprobada · factura anulada');
+    expect(historyLabel({ action: 'sales.sale.cancellation-reject', email: null })).toBe('Anulación rechazada');
+    expect(invoiceLabel('CANCELLED', 1528)).toBe('Factura 1528 anulada');
+    expect(invoiceLabel('CANCELLED', null)).toBe('Factura anulada');
+  });
+
+  it('says how long ago the sale was made, rounded down', () => {
+    const now = new Date('2026-10-14T15:15:00.000Z');
+    expect(elapsedText('2026-10-14T14:24:00.000Z', now)).toBe('51 minutos');
+    expect(elapsedText('2026-10-14T15:14:00.000Z', now)).toBe('1 minuto');
+    expect(elapsedText('2026-10-14T12:00:00.000Z', now)).toBe('3 horas');
+    expect(elapsedText('2026-10-14T14:00:00.000Z', now)).toBe('1 hora');
+    expect(elapsedText('2026-10-12T12:00:00.000Z', now)).toBe('2 días');
+    expect(elapsedText('2026-10-14T16:00:00.000Z', now)).toBe('0 minutos');
+  });
+
+  it('tells what an approval will do for a cash sale with a pending invoice', () => {
+    const text = impactSentence({ invoiceAction: 'VOID', stockUnits: 8, cashRefund: '1280.00', manualRefunds: [], ...place });
+    expect(text).toBe('Se anula la factura (todavía no se emitió en el SIAT), el stock (8 piezas) vuelve a Huayna Kapac y se registra el reembolso de Bs 1.280,00 en Caja 1.');
+  });
+
+  it('asks the SIAT to cancel a valid invoice and leaves the QR part to refund by hand', () => {
+    const text = impactSentence({
+      invoiceAction: 'REQUEST_SIAT_CANCELLATION',
+      stockUnits: 1,
+      cashRefund: '100.00',
+      manualRefunds: [{ method: 'QR', amount: '50.00' }],
+      ...place,
+    });
+    expect(text).toContain('Se anula la factura en el SIAT');
+    expect(text).toContain('el stock (1 pieza)');
+    expect(text).toContain('Reembolso de QR Bs 50,00 a gestionar manualmente.');
+  });
+
+  it('leaves the refund out when no cash was kept and says an invoice that cannot be cancelled', () => {
+    const text = impactSentence({ invoiceAction: 'BLOCKED', stockUnits: 2, cashRefund: '0.00', manualRefunds: [{ method: 'CARD', amount: '90.00' }], ...place });
+    expect(text).toBe('La factura no se puede anular en su estado actual, el stock (2 piezas) vuelve a Huayna Kapac. Reembolso de tarjeta Bs 90,00 a gestionar manualmente.');
+  });
+
+  it('summarizes a cancelled sale', () => {
+    const sale = {
+      invoice: { status: 'CANCELLED', number: 1528 },
+      lines: [{ quantity: 4 }, { quantity: 4 }],
+      payments: [{ method: 'CASH' as const, amount: '1280.00' }],
+    };
+    expect(cancelledSummary(sale, place)).toBe('Factura 1528 anulada · 8 piezas devueltas a Huayna Kapac · reembolso Bs 1.280,00 registrado en Caja 1');
+    expect(cancelledSummary({ ...sale, invoice: { status: 'CANCELLED', number: null }, payments: [{ method: 'QR', amount: '1280.00' }] }, place)).toBe(
+      'Factura anulada · 8 piezas devueltas a Huayna Kapac · reembolso de QR Bs 1.280,00 a gestionar manualmente',
+    );
   });
 });

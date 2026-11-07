@@ -107,12 +107,14 @@ export type InvoiceEvent =
   | 'packageValidated'
   | 'packageObserved'
   | 'fix'
+  | 'void'
   | 'requestCancellation'
   | 'approveCancellation'
   | 'rejectCancellation';
 
 export const invoiceMachine = createMachine<InvoiceStatus, InvoiceEvent>({
-  PENDING: { send: 'SENDING', offline: 'CONTINGENCY' },
+  // `void`: a cancelled sale whose invoice never left the system has nothing to cancel in the SIAT (HU-VEN-15)
+  PENDING: { send: 'SENDING', offline: 'CONTINGENCY', void: 'CANCELLED' },
   SENDING: { accept: 'VALID', reject: 'REJECTED', offline: 'CONTINGENCY' },
   REJECTED: { fix: 'PENDING' },
   CONTINGENCY: { packageValidated: 'VALID', packageObserved: 'OBSERVED' },

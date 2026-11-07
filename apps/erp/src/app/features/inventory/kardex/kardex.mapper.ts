@@ -41,7 +41,7 @@ export function parseType(raw: string | null): StockMovementType | null {
   return raw !== null && (STOCK_MOVEMENT_TYPES as readonly string[]).includes(raw) ? (raw as StockMovementType) : null;
 }
 
-/** The "Tipo" filter: the eight real movement types, with their Spanish names. */
+/** The "Tipo" filter: the nine real movement types, with their Spanish names. */
 export const TYPE_OPTIONS: SelectOption[] = STOCK_MOVEMENT_TYPES.map((value) => ({ value, label: STOCK_MOVEMENT_TYPE_LABELS[value] }));
 
 /** A `YYYY-MM-DD` date, or null for anything else (a hand-edited URL). */

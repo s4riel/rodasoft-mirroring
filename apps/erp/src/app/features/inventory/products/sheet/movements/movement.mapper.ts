@@ -18,6 +18,7 @@ const TYPE_LABEL: Record<ProductMovementItem['type'], string> = {
   ADJUSTMENT_IN: 'Ajuste',
   ADJUSTMENT_OUT: 'Ajuste',
   RETURN: 'Devolución',
+  SALE_CANCELLATION: 'Anulación de venta',
 };
 
 /** "Venta V-00231", "Transferencia TR-0045", "Stock inicial". */

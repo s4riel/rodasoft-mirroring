@@ -21,6 +21,8 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   // until the approvals inbox (HU-VEN-29) has its own consumer, like the cash shift events
   'sales.cancellation.requested': QUEUE.accounting,
   'sales.cancellation.withdrawn': QUEUE.accounting,
+  'sales.cancellation.approved': QUEUE.accounting,
+  'sales.cancellation.rejected': QUEUE.accounting,
   'entry.generate': QUEUE.accounting,
   'inventory.product-created': QUEUE.inventory,
   'inventory.product-updated': QUEUE.inventory,

@@ -123,7 +123,7 @@ export class StockMovementService {
 }
 
 /** Types that add stock, and types that remove it: the sign of a movement must match its type. */
-const INWARD: readonly StockMovementType[] = ['PURCHASE_RECEIPT', 'TRANSFER_IN', 'ADJUSTMENT_IN', 'INITIAL', 'RETURN'];
+const INWARD: readonly StockMovementType[] = ['PURCHASE_RECEIPT', 'TRANSFER_IN', 'ADJUSTMENT_IN', 'INITIAL', 'RETURN', 'SALE_CANCELLATION'];
 const OUTWARD: readonly StockMovementType[] = ['SALE', 'TRANSFER_OUT', 'ADJUSTMENT_OUT'];
 
 /** Every movement says why it happened and has a non-zero quantity with the sign of its type. */

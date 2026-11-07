@@ -97,8 +97,9 @@ describe('parseType and hasLedgerFilters', () => {
     expect(parseType(null)).toBeNull();
   });
 
-  it('lists the eight movement types in the filter', () => {
-    expect(TYPE_OPTIONS).toHaveLength(8);
+  it('lists the nine movement types in the filter', () => {
+    expect(TYPE_OPTIONS).toHaveLength(9);
+    expect(TYPE_OPTIONS.find((o) => o.value === 'SALE_CANCELLATION')?.label).toBe('Anulación de venta');
     expect(TYPE_OPTIONS.find((o) => o.value === 'ADJUSTMENT_OUT')?.label).toBe('Ajuste (−)');
   });
 

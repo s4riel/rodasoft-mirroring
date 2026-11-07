@@ -1,0 +1,90 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+.muted {
+  font-size: var(--body-md-size);
+  color: var(--text-secondary);
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-4);
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+.card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.card-title {
+  margin: 0;
+  font-size: var(--body-lg-size);
+  color: var(--text-primary);
+}
+.facts {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+.fact {
+  display: grid;
+  grid-template-columns: minmax(6rem, 9rem) 1fr;
+  gap: var(--space-4);
+  font-size: var(--body-md-size);
+}
+.fact dt {
+  color: var(--text-secondary);
+}
+.fact dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+.history {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.history-item {
+  display: grid;
+  gap: var(--space-1);
+}
+.history-label {
+  font-size: var(--body-md-size);
+  color: var(--text-primary);
+}
+.actions,
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

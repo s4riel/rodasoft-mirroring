@@ -27,7 +27,7 @@ import { formatBs, formatDateTime } from '../cash/cash-format';
 import { documentText } from '../customers/customer-format';
 import { PosApi } from '../pos/pos-api.service';
 import { SaleCancellationDialog } from './sale-cancellation.dialog';
-import { cancellationReasonLabel, historyLabel, invoiceLabel, PAYMENT_METHOD_LABELS, SALE_STATUS_PILLS } from './sale-format';
+import { cancelledSummary, cancellationReasonLabel, historyLabel, invoiceLabel, PAYMENT_METHOD_LABELS, SALE_STATUS_PILLS } from './sale-format';
 import { SalesHistoryApi } from './sales-history-api.service';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
@@ -100,6 +100,27 @@ export class SaleDetailPage implements OnInit {
       text: `Solicitada por ${p.requestedBy} el ${formatDateTime(p.requestedAt)} · motivo: ${cancellationReasonLabel(p.reason).toLowerCase()}. La factura sigue válida.`,
       comment: p.comment,
     };
+  });
+
+  /** How the last request ended, for the banners of VP-15d (cancelled) and of a rejection (back to paid). */
+  protected readonly decision = computed(() => {
+    const d = this.detail();
+    const last = d?.cancellation.lastDecision;
+    if (!d || !last) return null;
+    const when = `${last.decidedBy} el ${formatDateTime(last.decidedAt)}`;
+    if (last.status === 'APPROVED' && d.status === 'CANCELLED') {
+      return {
+        approved: true,
+        title: 'Venta anulada',
+        text: cancelledSummary(d, d.cancellation.impact),
+        by: `Aprobada por ${when}`,
+        comment: last.comment,
+      };
+    }
+    if (last.status === 'REJECTED' && d.status === 'COMPLETED') {
+      return { approved: false, title: 'Anulación rechazada', text: `Rechazada por ${when}.`, by: '', comment: last.comment };
+    }
+    return null;
   });
 
   protected readonly breadcrumbs = computed(() => [
@@ -225,6 +246,12 @@ export class SaleDetailPage implements OnInit {
         this.toast.danger(problemOf(err).message);
       },
     });
+  }
+
+  /** Opens the page where Management decides the request (VP-15c). */
+  protected reviewRequest() {
+    const id = this.detail()?.id;
+    if (id) void this.router.navigate(['/sales/history', id, 'cancellation']);
   }
 
   /** The request was saved: the sale now waits for Management. */

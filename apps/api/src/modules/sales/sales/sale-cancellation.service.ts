@@ -1,14 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   approvalRequestMachine,
+  cancellationImpact,
+  type CancellationDecision,
+  type CancellationDecisionInput,
+  type CancellationDecisionSummary,
   cancellationWindowEndsAt,
   type CancellationReason,
   type CancellationRequestInput,
+  type CancellationReview,
+  Decimal,
   InvalidTransitionError,
+  invoiceCancellationAction,
+  invoiceCancellationEvent,
+  invoiceMachine,
+  type InvoiceStatus,
   isCancellableStatus,
   isWithinCancellationWindow,
+  SALE_REF_TYPE,
   saleMachine,
+  validateCancellationDecision,
   validateCancellationRequest,
   type SaleCancellationResponse,
   type SaleCancellationState,
@@ -18,9 +30,10 @@ import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../../../common/audit/audit.service';
 import type { AppClsStore } from '../../../common/cls';
 import { OutboxService } from '../../../common/outbox/outbox.service';
-import { PrismaService } from '../../../common/prisma/prisma.service';
+import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { MembershipService } from '../../access/membership.service';
+import { StockMovementService } from '../../inventory/stock-movement.service';
 import { posErrors } from '../pos/pos.errors';
 import { cancellationErrors } from './sale-cancellation.errors';
 import { SaleVisibilityService } from './sale-visibility.service';
@@ -34,10 +47,34 @@ export interface CancellationSale {
   shift: { register: { name: string } };
 }
 
+/** What deciding a cancellation reads of a sale: its lines, payments and invoice, and where it was sold. */
+const DECISION_INCLUDE = {
+  items: { select: { productId: true, quantity: true } },
+  payments: { select: { method: true, amount: true } },
+  invoice: { select: { id: true, status: true, number: true } },
+  warehouse: { select: { name: true } },
+  shift: { select: { registerId: true, register: { select: { name: true } } } },
+} satisfies Prisma.SaleInclude;
+
+type SaleForDecision = Prisma.SaleGetPayload<{ include: typeof DECISION_INCLUDE }>;
+
+/** The reason written on the stock and cash movements of an approved cancellation (a user-visible text). */
+const cancellationReason = (saleNumber: string) => `Anulación de venta ${saleNumber}`;
+
+/** What approving the sale will do, from its own lines, payments and invoice. */
+function impactOf(sale: SaleForDecision) {
+  return cancellationImpact({
+    invoiceStatus: (sale.invoice?.status ?? 'PENDING') as InvoiceStatus,
+    lines: sale.items,
+    payments: sale.payments.map((payment) => ({ method: payment.method, amount: payment.amount.toFixed(2) })),
+  });
+}
+
 /**
- * Asking for the cancellation of a sale and taking the request back (HU-VEN-14). Asking creates a `CANCELLATION` approval
+ * Asking for the cancellation of a sale and taking the request back (HU-VEN-14), and Management deciding it (HU-VEN-15). Asking creates a `CANCELLATION` approval
  * request and moves the sale to `CANCELLATION_PENDING`; nothing else changes: the invoice stays valid and no stock or cash
- * moves until Management approves (HU-VEN-15). Both actions lock the sale row, so two calls on the same sale run one after
+ * moves until Management approves. Approving cancels the sale, voids the invoice, returns the stock and refunds the cash;
+ * rejecting puts the sale back to `COMPLETED` with the reply. Both actions lock the sale row, so two calls on the same sale run one after
  * the other and the partial unique index on pending requests is only a second line of defence.
  */
 @Injectable()
@@ -50,6 +87,7 @@ export class SaleCancellationService {
     private readonly outbox: OutboxService,
     private readonly visibility: SaleVisibilityService,
     private readonly membership: MembershipService,
+    private readonly stock: StockMovementService,
   ) {}
 
   /** `COMPLETED → CANCELLATION_PENDING`, with a pending request that carries the reason and the cashier's comment. */
@@ -113,12 +151,7 @@ export class SaleCancellationService {
     const granted = await this.granted();
 
     return this.prisma.tenant.$transaction(async (tx) => {
-      const locked = await this.lockSale(tx, saleId, companyId);
-      const pending = await tx.approvalRequest.findFirst({
-        where: { type: 'CANCELLATION', subjectId: saleId, status: 'PENDING' },
-        select: { id: true, requestedById: true },
-      });
-      if (!pending || locked.status !== 'CANCELLATION_PENDING') throw cancellationErrors.notPending();
+      const { locked, pending } = await this.lockPendingCancellation(tx, saleId, companyId);
       if (pending.requestedById !== userId && !granted.has('sales.cancellations.approve')) throw cancellationErrors.withdrawForbidden();
 
       const next = saleMachine.next(locked.status, 'withdrawCancellation');
@@ -145,6 +178,159 @@ export class SaleCancellationService {
     });
   }
 
+  /** What Management sees before deciding (VP-15c): the request, the sale and what an approval will undo. */
+  async review(saleId: string): Promise<CancellationReview> {
+    const scope = await this.visibility.resolve();
+    const sale = await this.prisma.tenant.sale.findFirst({ where: { AND: [{ id: saleId }, scope.where] }, include: DECISION_INCLUDE });
+    if (!sale || !sale.invoice) throw posErrors.saleNotFound();
+    const pending = await this.prisma.tenant.approvalRequest.findFirst({ where: { type: 'CANCELLATION', subjectId: saleId, status: 'PENDING' } });
+    if (!pending) throw cancellationErrors.notPending();
+
+    const [openShift, audit] = await Promise.all([
+      this.prisma.tenant.cashShift.findFirst({ where: { registerId: sale.shift.registerId, status: 'OPEN' }, select: { id: true } }),
+      this.prisma.auditLog.findMany({
+        where: { companyId: sale.companyId, entity: 'Sale', entityId: saleId },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { action: true, createdAt: true, userId: true },
+      }),
+    ]);
+    const names = await this.userNames([pending.requestedById, ...audit.map((row) => row.userId)]);
+
+    return {
+      saleId,
+      saleNumber: sale.number,
+      request: {
+        id: pending.id,
+        reason: pending.reason as CancellationReason,
+        comment: pending.requesterComment ?? '',
+        requestedBy: names.get(pending.requestedById) ?? '',
+        requestedAt: pending.createdAt.toISOString(),
+      },
+      sale: {
+        total: sale.total.toFixed(2),
+        createdAt: sale.createdAt.toISOString(),
+        invoice: { status: sale.invoice.status as InvoiceStatus, number: sale.invoice.number },
+      },
+      impact: {
+        ...impactOf(sale),
+        warehouseName: sale.warehouse.name,
+        registerName: sale.shift.register.name,
+        shiftOpen: openShift !== null,
+      },
+      audit: audit.map((row) => ({ action: row.action, at: row.createdAt.toISOString(), userName: row.userId ? (names.get(row.userId) ?? null) : null })),
+    };
+  }
+
+  /**
+   * `CANCELLATION_PENDING → CANCELLED`: the invoice is voided (or asked to be cancelled in the SIAT), every unit goes back to
+   * the sale's warehouse and the cash the sale kept leaves the register of the sale. All of it commits or none of it does.
+   * The lock order is the POS's: the shift, then the sale, then the products by id.
+   */
+  async approve(saleId: string, input: CancellationDecisionInput): Promise<SaleCancellationResponse> {
+    const comment = this.reply('APPROVE', input);
+    const companyId = this.requireCompany();
+    const userId = this.requireUser();
+
+    return this.prisma.tenant.$transaction(async (tx) => {
+      const scope = await this.visibility.resolve();
+      const sale = await tx.sale.findFirst({ where: { AND: [{ id: saleId }, scope.where] }, include: DECISION_INCLUDE });
+      if (!sale || !sale.invoice) throw posErrors.saleNotFound();
+      const impact = impactOf(sale);
+
+      // the refund leaves the register of the sale, in a shift that is still open: a closed shift has its totals frozen
+      const refund = Decimal.of(impact.cashRefund);
+      const refundShiftId =
+        refund.cmp(Decimal.zero()) > 0 ? await this.lockRefundShift(tx, companyId, sale.shift.registerId, sale.shift.register.name) : null;
+
+      const { locked, pending } = await this.lockPendingCancellation(tx, saleId, companyId);
+
+      // read after the lock: the SIAT epic may have moved the invoice meanwhile
+      const invoice = await tx.invoice.findUniqueOrThrow({ where: { saleId }, select: { id: true, status: true } });
+      const invoiceAction = invoiceCancellationAction(invoice.status as InvoiceStatus);
+      const invoiceEvent = invoiceCancellationEvent(invoice.status as InvoiceStatus);
+      if (!invoiceEvent) throw cancellationErrors.invoiceNotCancellable(invoice.status);
+
+      const nextSale = saleMachine.next(locked.status, 'approveCancellation');
+      const nextRequest = approvalRequestMachine.next('PENDING', 'approve');
+      const nextInvoice = invoiceMachine.next(invoice.status as InvoiceStatus, invoiceEvent);
+
+      await this.returnStock(tx, sale, locked.number);
+      if (refundShiftId) await this.refundCash(tx, { companyId, shiftId: refundShiftId, amount: impact.cashRefund, saleId, saleNumber: locked.number, userId });
+
+      await tx.invoice.update({ where: { id: invoice.id }, data: { status: nextInvoice } });
+      await tx.sale.update({ where: { id: saleId }, data: { status: nextSale } });
+      await tx.approvalRequest.update({ where: { id: pending.id }, data: { status: nextRequest, decidedById: userId, decidedAt: new Date(), comment } });
+
+      await this.audit.log(
+        {
+          action: 'sales.sale.cancellation-approve',
+          entity: 'Sale',
+          entityId: saleId,
+          before: { status: locked.status, invoiceStatus: invoice.status },
+          after: {
+            status: nextSale,
+            invoiceStatus: nextInvoice,
+            invoiceAction,
+            requestId: pending.id,
+            stockUnits: impact.stockUnits,
+            cashRefund: impact.cashRefund,
+            manualRefunds: impact.manualRefunds,
+          },
+        },
+        tx as unknown as Prisma.TransactionClient,
+      );
+      await this.outbox.publish(
+        'sales.cancellation.approved',
+        {
+          saleId,
+          saleNumber: locked.number,
+          requestId: pending.id,
+          requestedById: pending.requestedById,
+          decidedById: userId,
+          invoiceId: invoice.id,
+          invoiceAction,
+          cashRefund: impact.cashRefund,
+          manualRefunds: impact.manualRefunds,
+        },
+        { tx, idempotencyKey: `cancellation-approved:${pending.id}` },
+      );
+      return { saleId, status: nextSale };
+    });
+  }
+
+  /** `CANCELLATION_PENDING → COMPLETED`: the sale stays as it was and the requester gets the reply. */
+  async reject(saleId: string, input: CancellationDecisionInput): Promise<SaleCancellationResponse> {
+    const comment = this.reply('REJECT', input);
+    const companyId = this.requireCompany();
+    const userId = this.requireUser();
+
+    return this.prisma.tenant.$transaction(async (tx) => {
+      const { locked, pending } = await this.lockPendingCancellation(tx, saleId, companyId);
+
+      const nextSale = saleMachine.next(locked.status, 'rejectCancellation');
+      const nextRequest = approvalRequestMachine.next('PENDING', 'reject');
+      await tx.approvalRequest.update({ where: { id: pending.id }, data: { status: nextRequest, decidedById: userId, decidedAt: new Date(), comment } });
+      await tx.sale.update({ where: { id: saleId }, data: { status: nextSale } });
+
+      await this.audit.log(
+        {
+          action: 'sales.sale.cancellation-reject',
+          entity: 'Sale',
+          entityId: saleId,
+          before: { status: locked.status },
+          after: { status: nextSale, requestId: pending.id },
+        },
+        tx as unknown as Prisma.TransactionClient,
+      );
+      await this.outbox.publish(
+        'sales.cancellation.rejected',
+        { saleId, saleNumber: locked.number, requestId: pending.id, requestedById: pending.requestedById, decidedById: userId, comment },
+        { tx, idempotencyKey: `cancellation-rejected:${pending.id}` },
+      );
+      return { saleId, status: nextSale };
+    });
+  }
+
   /** What the sale detail says about cancelling (VP-15): the open request, whether another may be asked, and what an approval undoes. */
   async stateOf(sale: CancellationSale): Promise<SaleCancellationState> {
     const [days, granted] = await Promise.all([this.settings.get('sales.cancellationWindowDays'), this.granted()]);
@@ -154,10 +340,12 @@ export class SaleCancellationService {
         ? await this.prisma.tenant.approvalRequest.findFirst({ where: { type: 'CANCELLATION', subjectId: sale.id, status: 'PENDING' } })
         : null;
     const requester = row ? await this.prisma.user.findUnique({ where: { id: row.requestedById }, select: { name: true } }) : null;
+    const lastDecision = sale.status === 'CANCELLATION_PENDING' ? null : await this.lastDecisionOf(sale.id);
 
     return {
       canRequest: isCancellableStatus(sale.status) && isWithinCancellationWindow(new Date(), sale.createdAt, days),
       windowEndsAt: windowEndsAt?.toISOString() ?? null,
+      lastDecision,
       pending: row
         ? {
             id: row.id,
@@ -172,12 +360,111 @@ export class SaleCancellationService {
     };
   }
 
+  /** The request that ended the sale's last cancellation attempt, when it ended in a decision (a withdrawn one says nothing). */
+  private async lastDecisionOf(saleId: string): Promise<CancellationDecisionSummary | null> {
+    const row = await this.prisma.tenant.approvalRequest.findFirst({
+      where: { type: 'CANCELLATION', subjectId: saleId, status: { not: 'PENDING' } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    if ((row?.status !== 'APPROVED' && row?.status !== 'REJECTED') || !row.decidedAt) return null;
+    const names = await this.userNames([row.decidedById]);
+    return {
+      status: row.status,
+      decidedBy: (row.decidedById && names.get(row.decidedById)) || '',
+      decidedAt: row.decidedAt.toISOString(),
+      comment: row.comment ?? '',
+    };
+  }
+
+  /** The sale locked and its open cancellation request; fails when the sale is not waiting for a decision. */
+  private async lockPendingCancellation(tx: TenantTransaction, saleId: string, companyId: string) {
+    const locked = await this.lockSale(tx, saleId, companyId);
+    const pending = await tx.approvalRequest.findFirst({
+      where: { type: 'CANCELLATION', subjectId: saleId, status: 'PENDING' },
+      select: { id: true, requestedById: true },
+    });
+    if (!pending || locked.status !== 'CANCELLATION_PENDING') throw cancellationErrors.notPending();
+    return { locked, pending };
+  }
+
+  /** Every unit goes back to the sale's warehouse, products in id order so two decisions never lock them in opposite order. */
+  private async returnStock(tx: TenantTransaction, sale: SaleForDecision, saleNumber: string): Promise<void> {
+    const units = new Map<string, number>();
+    for (const item of sale.items) units.set(item.productId, (units.get(item.productId) ?? 0) + item.quantity);
+    for (const [productId, quantity] of [...units].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+      await this.stock
+        .apply(tx, {
+          productId,
+          warehouseId: sale.warehouseId,
+          type: 'SALE_CANCELLATION',
+          quantity,
+          reason: cancellationReason(saleNumber),
+          refType: SALE_REF_TYPE,
+          refId: sale.id,
+          refNumber: saleNumber,
+        })
+        .catch((err: unknown) => {
+          // the inventory says it with its own code; Management needs to know what to do about it
+          if (err instanceof UnprocessableEntityException && (err.getResponse() as { code?: string }).code === 'WAREHOUSE_INACTIVE') {
+            throw cancellationErrors.warehouseInactive(sale.warehouse.name);
+          }
+          throw err;
+        });
+    }
+  }
+
+  /** The type says the money goes out; the amount is positive, like the other movements. */
+  private async refundCash(
+    tx: TenantTransaction,
+    refund: { companyId: string; shiftId: string; amount: string; saleId: string; saleNumber: string; userId: string },
+  ): Promise<void> {
+    await tx.cashMovement.create({
+      data: {
+        companyId: refund.companyId,
+        shiftId: refund.shiftId,
+        type: 'REFUND',
+        amount: refund.amount,
+        reason: cancellationReason(refund.saleNumber),
+        refType: SALE_REF_TYPE,
+        refId: refund.saleId,
+        userId: refund.userId,
+      },
+    });
+  }
+
+  private async userNames(ids: (string | null)[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids.filter((id): id is string => !!id))];
+    const users = unique.length ? await this.prisma.user.findMany({ where: { id: { in: unique } }, select: { id: true, name: true } }) : [];
+    return new Map(users.map((user) => [user.id, user.name]));
+  }
+
+  /** The reply of a decision, trimmed; `null` when there is none. Rejecting must have one. */
+  private reply(decision: CancellationDecision, input: CancellationDecisionInput): string | null {
+    const errors = validateCancellationDecision({ decision, comment: input.comment });
+    if (errors.length > 0) throw cancellationErrors.invalidDecision(errors);
+    const comment = input.comment?.trim() ?? '';
+    return comment === '' ? null : comment;
+  }
+
+  /**
+   * The open shift of the register the sale was made in, locked `FOR SHARE` like the POS does, so a close of that shift waits
+   * for this decision. Without one the refund has nowhere to go.
+   */
+  private async lockRefundShift(tx: TenantTransaction, companyId: string, registerId: string, registerName: string): Promise<string> {
+    const shift = await tx.cashShift.findFirst({ where: { registerId, status: 'OPEN' }, select: { id: true } });
+    if (!shift) throw cancellationErrors.refundShiftNotOpen(registerName);
+    const rows = await tx.$queryRaw<{ status: string }[]>`
+      SELECT status::text AS status FROM cash_shifts WHERE id = ${shift.id}::uuid AND company_id = ${companyId}::uuid FOR SHARE`;
+    if (rows[0]?.status !== 'OPEN') throw cancellationErrors.refundShiftNotOpen(registerName);
+    return shift.id;
+  }
+
   /**
    * The sale as the caller may see it, locked until the transaction ends. A sale the caller cannot see is a sale that does not
    * exist (the same rule as the history), and the status is read after the lock so a concurrent decision is never missed.
    */
   private async lockSale(
-    tx: Parameters<Parameters<PrismaService['tenant']['$transaction']>[0]>[0],
+    tx: TenantTransaction,
     saleId: string,
     companyId: string,
   ): Promise<{ status: SaleStatus; createdAt: Date; number: string; total: string }> {

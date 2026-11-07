@@ -10,6 +10,7 @@ export const STOCK_MOVEMENT_TYPES = [
   'ADJUSTMENT_OUT',
   'INITIAL',
   'RETURN',
+  'SALE_CANCELLATION',
 ] as const;
 
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number];

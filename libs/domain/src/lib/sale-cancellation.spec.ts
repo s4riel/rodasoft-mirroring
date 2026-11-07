@@ -1,10 +1,15 @@
 import {
   CANCELLATION_COMMENT_MAX,
+  CANCELLATION_REPLY_MAX,
   CANCELLATION_REASONS,
+  cancellationImpact,
   cancellationWindowEndsAt,
+  invoiceCancellationAction,
+  invoiceCancellationEvent,
   isCancellableStatus,
   isCancellationReason,
   isWithinCancellationWindow,
+  validateCancellationDecision,
   validateCancellationRequest,
 } from './sale-cancellation';
 
@@ -67,5 +72,73 @@ describe('isCancellableStatus', () => {
     expect(isCancellableStatus('COMPLETED')).toBe(true);
     expect(isCancellableStatus('CANCELLATION_PENDING')).toBe(false);
     expect(isCancellableStatus('CANCELLED')).toBe(false);
+  });
+});
+
+describe('validateCancellationDecision', () => {
+  it('lets an approval go without a reply', () => {
+    expect(validateCancellationDecision({ decision: 'APPROVE', comment: undefined })).toEqual([]);
+    expect(validateCancellationDecision({ decision: 'APPROVE', comment: '  ' })).toEqual([]);
+  });
+
+  it('asks a rejection for the reason, judged trimmed', () => {
+    expect(validateCancellationDecision({ decision: 'REJECT', comment: undefined })).toEqual(['COMMENT_REQUIRED']);
+    expect(validateCancellationDecision({ decision: 'REJECT', comment: '   ' })).toEqual(['COMMENT_REQUIRED']);
+    expect(validateCancellationDecision({ decision: 'REJECT', comment: 'No procede' })).toEqual([]);
+  });
+
+  it('caps the reply for both decisions', () => {
+    const long = 'x'.repeat(CANCELLATION_REPLY_MAX + 1);
+    expect(validateCancellationDecision({ decision: 'APPROVE', comment: long })).toEqual(['COMMENT_TOO_LONG']);
+    expect(validateCancellationDecision({ decision: 'REJECT', comment: 'x'.repeat(CANCELLATION_REPLY_MAX) })).toEqual([]);
+  });
+});
+
+describe('invoice cancellation', () => {
+  it('voids an invoice that never left, asks the SIAT for a valid one and refuses the rest', () => {
+    expect(invoiceCancellationAction('PENDING')).toBe('VOID');
+    expect(invoiceCancellationEvent('PENDING')).toBe('void');
+    expect(invoiceCancellationAction('VALID')).toBe('REQUEST_SIAT_CANCELLATION');
+    expect(invoiceCancellationEvent('VALID')).toBe('requestCancellation');
+    for (const status of ['SENDING', 'REJECTED', 'CONTINGENCY', 'OBSERVED', 'CANCELLATION_PENDING', 'CANCELLED'] as const) {
+      expect(invoiceCancellationAction(status)).toBe('BLOCKED');
+      expect(invoiceCancellationEvent(status)).toBeNull();
+    }
+  });
+});
+
+describe('cancellationImpact', () => {
+  const lines = [{ quantity: 4 }, { quantity: 3 }, { quantity: 1 }];
+
+  it('refunds the cash the sale kept and returns every unit', () => {
+    expect(cancellationImpact({ invoiceStatus: 'PENDING', lines, payments: [{ method: 'CASH', amount: '1280.00' }] })).toEqual({
+      invoiceAction: 'VOID',
+      stockUnits: 8,
+      cashRefund: '1280.00',
+      manualRefunds: [],
+    });
+  });
+
+  it('splits a mixed sale into the cash the register gives back and the QR left to refund by hand', () => {
+    const impact = cancellationImpact({
+      invoiceStatus: 'VALID',
+      lines,
+      payments: [
+        { method: 'CASH', amount: '300.50' },
+        { method: 'QR', amount: '979.50' },
+      ],
+    });
+    expect(impact.cashRefund).toBe('300.50');
+    expect(impact.manualRefunds).toEqual([{ method: 'QR', amount: '979.50' }]);
+    expect(impact.invoiceAction).toBe('REQUEST_SIAT_CANCELLATION');
+  });
+
+  it('leaves a card payment to refund by hand and a credit one with nothing to refund', () => {
+    const card = cancellationImpact({ invoiceStatus: 'PENDING', lines, payments: [{ method: 'CARD', amount: '100.00' }] });
+    expect(card.cashRefund).toBe('0.00');
+    expect(card.manualRefunds).toEqual([{ method: 'CARD', amount: '100.00' }]);
+    const credit = cancellationImpact({ invoiceStatus: 'PENDING', lines, payments: [{ method: 'CREDIT', amount: '100.00' }] });
+    expect(credit.cashRefund).toBe('0.00');
+    expect(credit.manualRefunds).toEqual([]);
   });
 });

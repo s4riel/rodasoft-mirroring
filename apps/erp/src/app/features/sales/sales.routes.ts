@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { requiresSalesTab, salesHomeRedirect } from './sales-permission.guard';
+import { requiresSalesPermission, requiresSalesTab, salesHomeRedirect } from './sales-permission.guard';
 import { POS_TAB, SALES_TABS } from './sales-tabs';
 
 /** Screens already built; every other tab is a placeholder until its story fills it (see `SALES_TABS`). */
@@ -7,6 +7,12 @@ const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
   history: {
     children: [
       { path: '', pathMatch: 'full', loadComponent: () => import('./history/sales-history.page').then((m) => m.SalesHistoryPage) },
+      {
+        path: ':id/cancellation',
+        title: 'Aprobar anulación · ERP',
+        canActivate: [requiresSalesPermission('sales.cancellations.approve', 'No tienes permiso para decidir anulaciones de ventas.')],
+        loadComponent: () => import('./history/sale-cancellation-review.page').then((m) => m.SaleCancellationReviewPage),
+      },
       { path: ':id', title: 'Venta · ERP', loadComponent: () => import('./history/sale-detail.page').then((m) => m.SaleDetailPage) },
     ],
   },
