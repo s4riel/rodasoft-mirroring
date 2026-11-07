@@ -16,6 +16,7 @@ import {
   PageHeaderComponent,
   PaginationComponent,
   RowActionComponent,
+  RS_PERMISSIONS,
   SelectComponent,
   SkeletonComponent,
   StatusPillComponent,
@@ -29,7 +30,7 @@ import {
   parseMethod,
   parseStatus,
   rangeLabel,
-  ROW_MENU,
+  rowMenuFor,
   SALES_PAGE_SIZE,
   SaleUrlFilters,
   STATUS_OPTIONS,
@@ -94,7 +95,8 @@ export class SalesHistoryPage {
   protected readonly columns = COLUMNS;
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly methodOptions = METHOD_OPTIONS;
-  protected readonly rowMenu = ROW_MENU;
+  private readonly permissions = inject(RS_PERMISSIONS);
+  private readonly mayRequestCancellation = computed(() => this.permissions().has('sales.cancellations.request'));
   protected readonly skeletonRows = Array.from({ length: 5 }, (_, i) => i);
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -208,6 +210,11 @@ export class SalesHistoryPage {
     return this.items().find((i) => i.id === rowId) ?? null;
   }
 
+  /** The menu of a row: the cancellation request only for a paid sale and who may ask for it (HU-VEN-14). */
+  protected menuFor(item: SaleListItem) {
+    return rowMenuFor(item, this.mayRequestCancellation());
+  }
+
   protected menuLabel(item: SaleListItem): string {
     return `Acciones de la venta ${item.number}`;
   }
@@ -219,6 +226,8 @@ export class SalesHistoryPage {
   /** The chosen action of a row's ⋯ menu. */
   protected onAction(item: SaleListItem, key: string) {
     if (key === 'view') void this.router.navigate(['/sales/history', item.id]);
+    // the detail checks the deadline and opens the request dialog
+    if (key === 'cancel') void this.router.navigate(['/sales/history', item.id], { queryParams: { cancel: 1 } });
     if (key === 'reprint') window.open(this.router.serializeUrl(this.router.createUrlTree(['/sales/receipts', item.id, 'print'], { queryParams: { reprint: 1 } })), '_blank', 'noopener');
   }
 

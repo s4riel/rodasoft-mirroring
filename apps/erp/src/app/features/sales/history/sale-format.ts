@@ -1,4 +1,4 @@
-import { Decimal, saleItemsCount, type PaymentMethod, type SaleHistoryEntry, type SaleListItem, type SaleListQuery, type SaleStatus } from '@rodasoft/domain';
+import { CANCELLATION_REASONS, type CancellationReason, Decimal, saleItemsCount, type PaymentMethod, type SaleHistoryEntry, type SaleListItem, type SaleListQuery, type SaleStatus } from '@rodasoft/domain';
 import type { DocTableCell, DocTableRow, DocTableStatus, RowMenuItem, SelectOption } from '@rodasoft/ui';
 import { formatBs, formatDateTime } from '../cash/cash-format';
 
@@ -92,11 +92,19 @@ export function toTotals(items: readonly SaleListItem[]): Record<string, DocTabl
   };
 }
 
-/** The ⋯ menu of a row. "Solicitar anulación" and the credit note arrive with HU-VEN-14 and HU-VEN-21. */
+/** The ⋯ menu of a row for a sale nobody asked to cancel. "Devolución" arrives with HU-VEN-21. */
 export const ROW_MENU: RowMenuItem[] = [
   { key: 'view', label: 'Ver venta', icon: 'eye' },
   { key: 'reprint', label: 'Reimprimir', icon: 'document' },
 ];
+
+/** "Solicitar anulación" (HU-VEN-14): only for a paid sale, to who may ask for it. The deadline is checked in the dialog. */
+const CANCEL_MENU_ITEM: RowMenuItem = { key: 'cancel', label: 'Solicitar anulación', icon: 'close', danger: true, separated: true };
+
+/** The ⋯ menu of one row. */
+export function rowMenuFor(item: Pick<SaleListItem, 'status'>, mayRequestCancellation: boolean): RowMenuItem[] {
+  return mayRequestCancellation && item.status === 'COMPLETED' ? [...ROW_MENU, CANCEL_MENU_ITEM] : ROW_MENU;
+}
 
 /** "1–10 de 23 ventas", or empty when there are none. */
 export function rangeLabel(page: number, shown: number, total: number): string {
@@ -144,6 +152,10 @@ export function historyLabel(entry: Pick<SaleHistoryEntry, 'action' | 'email'>):
       return 'Comprobante reimpreso';
     case 'sales.receipt.email':
       return entry.email ? `Comprobante enviado a ${entry.email}` : 'Comprobante enviado por correo';
+    case 'sales.sale.cancellation-request':
+      return 'Anulación solicitada · esperando a Gerencia';
+    case 'sales.sale.cancellation-withdraw':
+      return 'Solicitud de anulación retirada';
     default:
       return 'Movimiento registrado';
   }
@@ -153,4 +165,26 @@ export function historyLabel(entry: Pick<SaleHistoryEntry, 'action' | 'email'>):
 export function invoiceLabel(status: string, number: number | null): string {
   if (status === 'PENDING') return 'Pendiente de emisión SIAT';
   return number === null ? status : `Factura ${number}`;
+}
+
+/** Spanish label of each reason of a cancellation request (Figma VP-15a). */
+export const CANCELLATION_REASON_LABELS: Record<CancellationReason, string> = {
+  CUSTOMER_DATA_ERROR: 'Error en datos del cliente',
+  ITEMS_OR_PRICES_ERROR: 'Error en productos o precios',
+  SALE_NOT_COMPLETED: 'Venta no concretada',
+  OTHER: 'Otro',
+};
+
+/** The reasons in the order the dialog draws them. */
+export const CANCELLATION_REASON_OPTIONS = CANCELLATION_REASONS.map((value) => ({ value, label: CANCELLATION_REASON_LABELS[value] }));
+
+export function cancellationReasonLabel(reason: string): string {
+  return Object.hasOwn(CANCELLATION_REASON_LABELS, reason) ? CANCELLATION_REASON_LABELS[reason as CancellationReason] : reason;
+}
+
+/** The deadline sentence of the dialog: the last day to ask, or that there is no limit (decision #10 is still open). */
+export function cancellationDeadlineText(windowEndsAt: string | null): string {
+  if (!windowEndsAt) return 'sin límite';
+  // the end is exclusive (the start of the next La Paz day): the last day to ask is the one before
+  return formatDateTime(new Date(Date.parse(windowEndsAt) - 1).toISOString()).slice(0, 10);
 }

@@ -9,6 +9,16 @@
       <button rsButton variant="secondary" type="button" [attr.aria-expanded]="emailOpen()" (click)="toggleEmail()">
         <rs-icon name="mail" [size]="16" /> Enviar por correo
       </button>
+      @if (canRequestCancellation()) {
+        <button *rsCan="'sales.cancellations.request'" rsButton variant="ghost" type="button" data-testid="sale-cancel-request" (click)="cancelOpen.set(true)">
+          Solicitar anulación
+        </button>
+      }
+      @if (pending(); as p) {
+        @if (p.canWithdraw) {
+          <button rsButton variant="ghost" type="button" data-testid="sale-cancel-withdraw" (click)="withdrawOpen.set(true)">Retirar solicitud</button>
+        }
+      }
       <button rsButton variant="primary" type="button" data-testid="sale-reprint" (click)="reprint()">
         <rs-icon name="document" [size]="16" /> Reimprimir
       </button>
@@ -52,6 +62,15 @@
         <span class="meta-item"><rs-icon name="branch" [size]="16" /> {{ d.branch.name }}</span>
         <span class="meta-item"><rs-icon name="user" [size]="16" /> Cajero: {{ d.cashier.name }}</span>
       </div>
+
+      @if (pending(); as p) {
+        <rs-note type="warning" title="Anulación pendiente de aprobación" data-testid="sale-cancel-pending">
+          {{ p.text }}
+          @if (p.comment) {
+            <span class="note-comment">Comentario: {{ p.comment }}</span>
+          }
+        </rs-note>
+      }
 
       @if (emailOpen()) {
         <div class="card email" id="sale-email-row">
@@ -119,8 +138,18 @@
           }
         </ol>
       </section>
+
+      <rs-sale-cancellation-dialog [(open)]="cancelOpen" [sale]="d" (requested)="onRequested()" />
     }
   }
 }
+
+<rs-modal variant="confirmation" heading="¿Retirar la solicitud de anulación?" closeLabel="Cerrar" [open]="withdrawOpen()" (closed)="withdrawOpen.set(false)">
+  <p>La venta vuelve a quedar pagada y Gerencia ya no verá la solicitud. Puedes pedir la anulación otra vez.</p>
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="withdrawing()" (click)="withdrawOpen.set(false)">Volver</button>
+    <button rsButton variant="danger" type="button" data-testid="sale-cancel-withdraw-confirm" [loading]="withdrawing()" (click)="withdraw()">Retirar solicitud</button>
+  </div>
+</rs-modal>
 
 <rs-toast-outlet closeLabel="Cerrar" />

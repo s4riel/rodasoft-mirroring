@@ -946,6 +946,8 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+  /// the requester took the request back before anyone decided (HU-VEN-14)
+  WITHDRAWN
 }
 
 enum QuoteStatus {
@@ -1474,19 +1476,25 @@ model PriceChange {
 }
 
 /// Generic approval inbox entry: the cancellation of a sale, a cash difference or a return. `subjectId` points at the
-/// sale, shift or return, depending on `type`.
+/// sale, shift or return, depending on `type`. A partial unique index (see the HU-VEN-14 migration) allows one PENDING
+/// request per subject and type.
 model ApprovalRequest {
-  id            String         @id @default(uuid(7)) @db.Uuid
-  companyId     String         @map("company_id") @db.Uuid
-  type          ApprovalType
-  subjectId     String         @map("subject_id") @db.Uuid
-  status        ApprovalStatus @default(PENDING)
-  requestedById String         @map("requested_by_id") @db.Uuid
-  reason        String?
-  decidedById   String?        @map("decided_by_id") @db.Uuid
-  decidedAt     DateTime?      @map("decided_at") @db.Timestamptz(3)
-  comment       String?
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  id               String         @id @default(uuid(7)) @db.Uuid
+  companyId        String         @map("company_id") @db.Uuid
+  type             ApprovalType
+  subjectId        String         @map("subject_id") @db.Uuid
+  status           ApprovalStatus @default(PENDING)
+  requestedById    String         @map("requested_by_id") @db.Uuid
+  /// a reason code (`CANCELLATION_REASONS` for a cancellation)
+  reason           String?
+  /// what the requester wrote when asking
+  requesterComment String?        @map("requester_comment")
+  /// set when the request is decided or withdrawn
+  decidedById      String?        @map("decided_by_id") @db.Uuid
+  decidedAt        DateTime?      @map("decided_at") @db.Timestamptz(3)
+  /// the decider's reply (HU-VEN-15)
+  comment          String?
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company Company @relation(fields: [companyId], references: [id])
 

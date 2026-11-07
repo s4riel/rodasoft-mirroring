@@ -98,6 +98,11 @@ const MESSAGES: Record<string, string> = {
   SALE_NOT_FOUND: 'La venta no existe.',
   INVALID_FILTER: 'Los filtros no son válidos. Revisa el rango de fechas.',
   INVALID_EMAIL: 'El correo no es válido.',
+  SALE_NOT_CANCELLABLE: 'Esta venta ya no se puede anular.',
+  CANCELLATION_ALREADY_PENDING: 'Esta venta ya tiene una solicitud de anulación esperando a Gerencia.',
+  CANCELLATION_WINDOW_EXPIRED: 'Venció el plazo para anular esta venta.',
+  CANCELLATION_NOT_PENDING: 'Esta venta no tiene una solicitud de anulación pendiente.',
+  CANCELLATION_WITHDRAW_FORBIDDEN: 'Solo quien pidió la anulación, o quien puede aprobarla, puede retirar la solicitud.',
   INVALID_DISCOUNT: 'El descuento debe ser un porcentaje entre 0 y 100, o un monto en Bs mayor que cero.',
 };
 

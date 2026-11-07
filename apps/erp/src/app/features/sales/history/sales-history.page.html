@@ -103,7 +103,7 @@
           </ng-template>
           <ng-template rsDocCell="actions" let-row>
             @if (itemOf(row.id); as item) {
-              <rs-row-action [label]="menuLabel(item)" [items]="rowMenu" (selected)="onAction(item, $event)" />
+              <rs-row-action [label]="menuLabel(item)" [items]="menuFor(item)" (selected)="onAction(item, $event)" />
             }
           </ng-template>
           <div slot="footer" class="footer">
