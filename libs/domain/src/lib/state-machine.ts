@@ -198,7 +198,8 @@ export const quoteMachine = createMachine<QuoteStatus, QuoteEvent>({
   // a draft can be converted into an order before it is ever sent (HU-VEN-19)
   DRAFT: { send: 'SENT', accept: 'ACCEPTED' },
   SENT: { accept: 'ACCEPTED', expire: 'EXPIRED', reject: 'REJECTED' },
-  EXPIRED: { renew: 'SENT' },
+  // an expired quote can also be closed for good (HU-VEN-18)
+  EXPIRED: { renew: 'SENT', reject: 'REJECTED' },
   ACCEPTED: {},
   REJECTED: {},
 });

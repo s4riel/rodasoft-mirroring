@@ -2,7 +2,7 @@ import { isDevMode } from '@angular/core';
 import { Route } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guard';
 import { requiresSalesTab } from './features/sales/sales-permission.guard';
-import { POS_TAB } from './features/sales/sales-tabs';
+import { POS_TAB, QUOTES_TAB } from './features/sales/sales-tabs';
 import { ShellComponent } from './layout/shell.component';
 
 const t = (s: string) => `${s} · ERP`;
@@ -42,6 +42,13 @@ export const routes: Route[] = [
     title: t(POS_TAB.label),
     canActivate: [authGuard, requiresSalesTab(POS_TAB)],
     loadComponent: () => import('./features/sales/pos/pos.page').then((m) => m.PosPage),
+  },
+  {
+    // HU-VEN-17 · the printed copy of a quote ("Descargar PDF") opens in its own tab, outside the shell
+    path: 'sales/quotes/:id/print',
+    title: t('Cotización'),
+    canActivate: [authGuard, requiresSalesTab(QUOTES_TAB)],
+    loadComponent: () => import('./features/sales/quotes/quote-print.page').then((m) => m.QuotePrintPage),
   },
   {
     // HU-VEN-11 · the printable receipt of a sale opens in its own tab, outside the shell: only the receipt is on the page

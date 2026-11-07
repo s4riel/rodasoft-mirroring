@@ -30,6 +30,7 @@ import { SaleVisibilityService } from '../sales/sale-visibility.service';
 import { SalesHistoryService } from '../sales/sales-history.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
 import { SalesOrdersService } from '../orders/sales-orders.service';
+import { QuoteLifecycleService } from '../quotes/quote-lifecycle.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { StockReservationService } from '../../inventory/stock-reservation.service';
 
@@ -102,9 +103,11 @@ export function createPosFixture(prefix: string) {
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     const reservations = new StockReservationService(cls, settings);
+    const quotes = new QuotesService(prisma, cls, settings, audit, membership, customers);
     return {
       customers,
-      quotes: new QuotesService(prisma, cls, settings, audit, membership, customers),
+      quotes,
+      quoteLifecycle: new QuoteLifecycleService(prisma, cls, settings, audit, outbox, quotes),
       orders: new SalesOrdersService(prisma, cls, audit, outbox, scopedMembership, reservations),
       catalog: new PosCatalogService(prisma, shifts, settings),
       checkout,

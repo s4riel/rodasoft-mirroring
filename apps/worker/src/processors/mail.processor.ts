@@ -47,6 +47,14 @@ export class MailProcessor extends WorkerHost {
           `<p>${escapeHtml(p['text']).replace(/\n/g, '<br>')}</p>`,
         );
         break;
+      case 'sales.quote-email':
+        // HU-VEN-17: the API pre-renders the quote text (lines and total, no NIT, no costs); the worker only delivers it
+        await this.send(
+          p['email'],
+          `Cotización ${p['number']} · ${p['company']}`,
+          `<p>${escapeHtml(p['text']).replace(/\n/g, '<br>')}</p>`,
+        );
+        break;
       default:
         this.logger.warn(`Unknown mail job: ${job.name}`);
     }

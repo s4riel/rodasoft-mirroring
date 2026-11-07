@@ -4,9 +4,13 @@ import {
   cartTotals,
   effectiveQuoteStatus,
   isQuoteConvertible,
+  isQuoteRejectable,
+  isQuoteRenewable,
+  isQuoteSendable,
   laPazToday,
   lineTotal,
   quoteDefaultValidUntil,
+  quoteTimeline,
   quoteValidityError,
   SALES_DOCUMENT_PAGE_SIZE_DEFAULT,
   type CreateQuoteInput,
@@ -16,6 +20,7 @@ import {
   type QuoteListQuery,
   type QuoteListResponse,
   type QuoteProductResult,
+  type QuoteSendLogEntry,
   type QuoteStatus,
 } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
@@ -166,20 +171,48 @@ export class QuotesService {
     const quote = await this.prisma.tenant.quote.findFirst({
       where: { id },
       include: {
-        customer: { select: { id: true, name: true, documentNumber: true } },
+        customer: { select: { id: true, name: true, documentNumber: true, email: true, phone: true } },
         items: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { sku: true, manufacturerCode: true, name: true } } } },
         salesOrders: { where: { status: { not: 'CANCELLED' } }, select: { id: true, number: true }, take: 1 },
       },
     });
     if (!quote) throw quoteErrors.quoteNotFound();
-    const creator = await this.prisma.user.findUnique({ where: { id: quote.createdById }, select: { name: true } });
+    const [creator, company, available] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: quote.createdById }, select: { name: true } }),
+      this.prisma.company.findUniqueOrThrow({ where: { id: quote.companyId }, select: { tradeName: true } }),
+      this.availableByProduct(quote.items.map((item) => item.productId)),
+    ]);
     const today = laPazToday(new Date());
     const validUntil = day(quote.validUntil);
+    const status = effectiveQuoteStatus(quote.status, validUntil, today);
+    const sendLog = quote.sendLog as unknown as QuoteSendLogEntry[];
+    const closed = quote.status === 'REJECTED' || quote.status === 'ACCEPTED';
+    const closing = closed
+      ? await this.prisma.auditLog.findFirst({
+          where: { companyId: quote.companyId, entity: 'Quote', entityId: quote.id, action: { in: ['sales.quote.reject', 'sales.quote.accept'] } },
+          orderBy: { id: 'desc' },
+          select: { createdAt: true },
+        })
+      : null;
     return {
       id: quote.id,
       number: quote.number,
-      status: effectiveQuoteStatus(quote.status, validUntil, today),
-      customer: quote.customer,
+      status,
+      customer: { id: quote.customer.id, name: quote.customer.name, documentNumber: quote.customer.documentNumber },
+      customerEmail: quote.customer.email,
+      customerPhone: quote.customer.phone,
+      company: company.tradeName,
+      sendLog,
+      timeline: quoteTimeline({
+        status,
+        createdDay: laPazToday(quote.createdAt),
+        sentDay: sendLog[0] ? laPazToday(new Date(sendLog[0].at)) : null,
+        validUntil,
+        closedDay: closed ? laPazToday(closing?.createdAt ?? quote.updatedAt) : null,
+      }),
+      canSend: isQuoteSendable(status),
+      canRenew: isQuoteRenewable(status),
+      canReject: isQuoteRejectable(status),
       createdAt: quote.createdAt.toISOString(),
       createdByName: creator?.name ?? null,
       validUntil,
@@ -198,6 +231,7 @@ export class QuotesService {
         quantity: item.quantity,
         unitPrice: item.unitPrice.toFixed(2),
         lineTotal: item.lineTotal.toFixed(2),
+        available: available.get(item.productId) ?? null,
       })),
       order: quote.salesOrders[0] ?? null,
       convertible: isQuoteConvertible(quote.status, validUntil, today),
@@ -276,6 +310,25 @@ export class QuotesService {
       return quote.id;
     });
     return this.detail(id);
+  }
+
+  /** `quantity − reserved` of each product in the main warehouse of the user's branch (the stock column of the detail). */
+  private async availableByProduct(productIds: string[]): Promise<Map<string, number>> {
+    const branchIds = await this.operableBranchIds();
+    const warehouse = await this.prisma.tenant.warehouse.findFirst({
+      where: { status: 'ACTIVE', isMain: true, ...(branchIds ? { branchId: { in: branchIds } } : {}) },
+      // several branches: the same main warehouse every time, not whichever row comes first
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+    });
+    if (!warehouse) return new Map();
+    const levels = await this.prisma.tenant.stockLevel.findMany({
+      where: { warehouseId: warehouse.id, productId: { in: productIds } },
+      select: { productId: true, quantity: true, reserved: true },
+    });
+    const result = new Map<string, number>(productIds.map((id) => [id, 0]));
+    for (const level of levels) result.set(level.productId, level.quantity - level.reserved);
+    return result;
   }
 
   private async operableBranchIds(): Promise<string[] | null> {

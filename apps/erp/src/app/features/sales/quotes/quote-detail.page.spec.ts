@@ -25,9 +25,22 @@ const quote = (over: Partial<QuoteDetail> = {}): QuoteDetail => ({
   discountAmount: '0.00',
   roundingAmount: '0.00',
   total: '200.00',
-  lines: [{ id: 'l1', productId: 'p1', sku: 'S1', code: 'ABC-1', name: 'Rodamiento', quantity: 2, unitPrice: '100.00', lineTotal: '200.00' }],
+  lines: [{ id: 'l1', productId: 'p1', sku: 'S1', code: 'ABC-1', name: 'Rodamiento', quantity: 2, unitPrice: '100.00', lineTotal: '200.00', available: 5 }],
   order: null,
   convertible: true,
+  customerEmail: 'ana@demo.test',
+  customerPhone: '70000000',
+  company: 'RODALASER',
+  sendLog: [],
+  timeline: [
+    { key: 'DRAFT', state: 'current', date: '2026-11-07' },
+    { key: 'SENT', state: 'pending', date: null },
+    { key: 'WAITING', state: 'pending', date: null },
+    { key: 'CONVERTED', state: 'pending', date: null },
+  ],
+  canSend: true,
+  canRenew: false,
+  canReject: false,
   ...over,
 });
 const context: QuoteEditorContext = {
@@ -73,7 +86,7 @@ describe('QuoteDetailPage', () => {
     const without = await open(quote(), ['sales.quotes.manage']);
     expect(without.routeNativeElement?.querySelector('[data-testid="quote-convert"]')).toBeNull();
     TestBed.resetTestingModule();
-    const expired = await open(quote({ status: 'EXPIRED', convertible: false }));
+    const expired = await open(quote({ status: 'EXPIRED', convertible: false, canSend: false, canRenew: true, canReject: true }));
     expect(expired.routeNativeElement?.querySelector('[data-testid="quote-convert"]')).toBeNull();
     expect(text(expired)).toContain('La cotización venció');
   });
@@ -106,5 +119,103 @@ describe('QuoteDetailPage', () => {
       );
     h.detectChanges();
     expect(document.body.textContent).toContain('ABC-1 · Rodamiento: pides 2, disponible 1');
+  });
+
+  describe('following the quote (HU-VEN-17, HU-VEN-18)', () => {
+    const sentLog = [{ channel: 'EMAIL' as const, to: 'ana@demo.test', at: '2026-11-07T15:00:00.000Z', userId: 'u1', userName: 'Vendedor' }];
+    const expiredQuote = () =>
+      quote({
+        status: 'EXPIRED',
+        convertible: false,
+        canSend: false,
+        canRenew: true,
+        canReject: true,
+        sendLog: sentLog,
+        timeline: [
+          { key: 'DRAFT', state: 'done', date: '2026-11-01' },
+          { key: 'SENT', state: 'done', date: '2026-11-01' },
+          { key: 'EXPIRED', state: 'warning', date: '2026-11-07' },
+          { key: 'CONVERTED', state: 'pending', date: null },
+        ],
+      });
+
+    it('draws the timeline and the send log', async () => {
+      const h = await open(quote({ status: 'SENT', sendLog: sentLog, timeline: expiredQuote().timeline }));
+      expect(text(h)).toContain('Borrador');
+      expect(text(h)).toContain('Vencida');
+      expect(text(h)).toContain('Convertida');
+      expect(text(h)).toContain('Correo');
+      expect(text(h)).toContain('ana@demo.test');
+    });
+
+    it('offers "Enviar" on a draft and "Reenviar" once it was sent', async () => {
+      const draft = await open(quote());
+      expect(draft.routeNativeElement?.querySelector('[data-testid="quote-send"]')?.textContent).toContain('Enviar');
+      expect(draft.routeNativeElement?.querySelector('[data-testid="quote-renew"]')).toBeNull();
+      TestBed.resetTestingModule();
+      const sent = await open(quote({ status: 'SENT', sendLog: sentLog }));
+      expect(sent.routeNativeElement?.querySelector('[data-testid="quote-send"]')?.textContent).toContain('Reenviar');
+    });
+
+    it('an expired quote says so, offers renew and reject, and no sending', async () => {
+      const h = await open(expiredQuote());
+      expect(text(h)).toContain('La cotización venció');
+      expect(h.routeNativeElement?.querySelector('[data-testid="quote-renew"]')).not.toBeNull();
+      expect(h.routeNativeElement?.querySelector('[data-testid="quote-reject"]')).not.toBeNull();
+      expect(h.routeNativeElement?.querySelector('[data-testid="quote-send"]')).toBeNull();
+    });
+
+    it('renews with the default validity and shows the renewed quote', async () => {
+      const h = await open(expiredQuote());
+      (h.routeNativeElement?.querySelector('[data-testid="quote-renew"]') as HTMLButtonElement).click();
+      http.expectOne('/api/v1/sales/quotes/context').flush(context);
+      h.detectChanges();
+      (document.querySelector('[data-testid="quote-renew-confirm"]') as HTMLButtonElement).click();
+      const request = http.expectOne('/api/v1/sales/quotes/q1/renew');
+      expect(request.request.body).toEqual({ validUntil: '2026-11-14' });
+      request.flush(quote({ status: 'SENT', validUntil: '2026-11-14', total: '240.00', canSend: true, canRenew: false, canReject: true }));
+      h.detectChanges();
+      expect(text(h)).not.toContain('La cotización venció');
+      expect(text(h)).toContain('240,00');
+    });
+
+    it('shows the error when the renewal is refused', async () => {
+      const h = await open(expiredQuote());
+      (h.routeNativeElement?.querySelector('[data-testid="quote-renew"]') as HTMLButtonElement).click();
+      http.expectOne('/api/v1/sales/quotes/context').flush(context);
+      h.detectChanges();
+      (document.querySelector('[data-testid="quote-renew-confirm"]') as HTMLButtonElement).click();
+      http
+        .expectOne('/api/v1/sales/quotes/q1/renew')
+        .flush({ code: 'PRODUCT_INACTIVE', message: 'x' }, { status: 409, statusText: 'Conflict' });
+      h.detectChanges();
+      expect(document.body.textContent).toContain('No se pudo renovar');
+    });
+
+    it('rejects after confirming and hides every action', async () => {
+      const h = await open(expiredQuote());
+      (h.routeNativeElement?.querySelector('[data-testid="quote-reject"]') as HTMLButtonElement).click();
+      h.detectChanges();
+      (document.querySelector('[data-testid="quote-reject-confirm"]') as HTMLButtonElement).click();
+      http.expectOne('/api/v1/sales/quotes/q1/reject').flush(quote({ status: 'REJECTED', canSend: false, canRenew: false, canReject: false, convertible: false }));
+      h.detectChanges();
+      expect(text(h)).toContain('Rechazada');
+      expect(h.routeNativeElement?.querySelector('[data-testid="quote-reject"]')).toBeNull();
+    });
+
+    it('shows the four summary cards, with the expiry day in "Venció"', async () => {
+      const ok = await open(quote());
+      expect(text(ok)).toContain('Stock disponible');
+      expect(text(ok)).toContain('Todo disponible');
+      expect(text(ok)).toContain('en 1 producto');
+      TestBed.resetTestingModule();
+      const expired = await open(expiredQuote());
+      expect(text(expired)).toContain('Venció');
+    });
+
+    it('marks a line without enough stock', async () => {
+      const h = await open(quote({ lines: [{ ...quote().lines[0], available: 1 }] }));
+      expect(text(h)).toContain('Sin existencia');
+    });
   });
 });

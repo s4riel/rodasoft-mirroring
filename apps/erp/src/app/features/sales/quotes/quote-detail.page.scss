@@ -76,3 +76,43 @@
   margin: var(--space-2) 0 0;
   padding-left: var(--space-5);
 }
+
+.section-title {
+  margin: 0;
+  font-size: var(--body-md-strong-size);
+  line-height: var(--body-md-strong-line-height);
+  font-weight: var(--body-md-strong-weight);
+  color: var(--text-primary);
+}
+.muted {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+}
+.log {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+}
+.log-channel {
+  color: var(--text-primary);
+  font-weight: var(--body-md-strong-weight);
+}
+.log-to {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); /* four cards on a desktop row, wrapping on narrow screens */
+  gap: var(--space-4);
+}

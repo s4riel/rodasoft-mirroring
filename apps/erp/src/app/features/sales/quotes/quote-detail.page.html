@@ -4,11 +4,24 @@
   [breadcrumbs]="breadcrumbs()"
   breadcrumbLabel="Ruta de navegación"
 >
-  @if (detail()?.convertible) {
+  @if (detail(); as d) {
     <div rsActions class="header-actions">
-      <button *rsCan="'sales.orders.manage'" rsButton variant="primary" type="button" data-testid="quote-convert" (click)="openConvert()">
-        Convertir en pedido
-      </button>
+      @if (d.canReject) {
+        <button rsButton variant="ghost" type="button" data-testid="quote-reject" (click)="rejectOpen.set(true)">Marcar como rechazada</button>
+      }
+      @if (d.canSend) {
+        <button rsButton [variant]="d.convertible ? 'secondary' : 'primary'" type="button" data-testid="quote-send" (click)="openSend()">
+          {{ d.sendLog.length ? 'Reenviar' : 'Enviar' }}
+        </button>
+      }
+      @if (d.canRenew) {
+        <button rsButton variant="primary" type="button" data-testid="quote-renew" (click)="openRenew()">Renovar validez</button>
+      }
+      @if (d.convertible) {
+        <button *rsCan="'sales.orders.manage'" rsButton variant="primary" type="button" data-testid="quote-convert" (click)="openConvert()">
+          Convertir en pedido
+        </button>
+      }
     </div>
   }
 </rs-page-header>
@@ -18,6 +31,16 @@
     <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la cotización">
       <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
       <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver esta cotización"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
     </section>
   }
   @case ('error') {
@@ -30,9 +53,24 @@
   @default {
     @if (detail(); as d) {
       @if (d.status === 'EXPIRED') {
-        <rs-note type="warning" title="La cotización venció">Su validez terminó el {{ formatDay(d.validUntil) }}. Ya no se puede convertir en pedido.</rs-note>
+        <rs-note type="warning" title="La cotización venció">
+          Su validez terminó el {{ formatDay(d.validUntil) }} y los precios pudieron cambiar. Renueva la validez para actualizar los precios antes de convertirla.
+        </rs-note>
+      }
+      @if (summary(); as s) {
+        <section class="kpis" aria-label="Resumen de la cotización">
+          <rs-kpi-card label="Total" [value]="formatBs(d.total)" />
+          <rs-kpi-card label="Ítems" [value]="'' + s.units" [note]="'en ' + s.products + (s.products === 1 ? ' producto' : ' productos')" />
+          <rs-kpi-card [label]="s.expired ? 'Venció' : 'Válida'" [value]="formatDay(d.validUntil)" [trend]="s.expired ? 'negative' : 'neutral'" />
+          <rs-kpi-card
+            label="Stock disponible"
+            [value]="s.short ? s.short + (s.short === 1 ? ' ítem sin existencia' : ' ítems sin existencia') : 'Todo disponible'"
+            [trend]="s.short ? 'negative' : 'neutral'"
+          />
+        </section>
       }
       <section class="card">
+        <rs-status-timeline [steps]="timeline()" label="Estados de la cotización" />
         <div class="head">
           @if (pill(); as p) {
             <rs-status-pill [status]="p.status">{{ p.label }}</rs-status-pill>
@@ -59,9 +97,53 @@
           <div class="grand"><dt>Total</dt><dd>{{ formatBs(d.total) }}</dd></div>
         </dl>
       </section>
+      <section class="card" aria-labelledby="send-log-title">
+        <h2 id="send-log-title" class="section-title">Envíos</h2>
+        @if (d.sendLog.length === 0) {
+          <p class="muted">Todavía no se envió al cliente.</p>
+        } @else {
+          <ul class="log">
+            @for (entry of d.sendLog; track $index) {
+              <li>
+                <span class="log-channel">{{ channelLabels[entry.channel] }}</span>
+                @if (entry.to) {
+                  <span class="log-to">{{ entry.to }}</span>
+                }
+                <span class="muted">{{ formatDateTime(entry.at) }}@if (entry.userName) { · {{ entry.userName }} }</span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
     }
   }
 }
+
+@if (detail(); as d) {
+  <rs-quote-send-dialog [(open)]="sendOpen" [quote]="d" (sent)="onSent($event)" />
+}
+
+<rs-modal variant="form" heading="Renovar validez" closeLabel="Cerrar" [open]="renewOpen()" (closed)="renewOpen.set(false)">
+  <p>La cotización vuelve a estar enviada, con los precios de hoy y el descuento actual del cliente. El total puede cambiar.</p>
+  <rs-field label="Válida hasta" forId="renew-date">
+    <input rsInput id="renew-date" type="date" [value]="renewDate()" (input)="renewDate.set(renewBox.value)" #renewBox />
+  </rs-field>
+  @if (renewError()) {
+    <rs-note type="danger" title="No se pudo renovar">{{ renewError() }}</rs-note>
+  }
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="renewing()" (click)="renewOpen.set(false)">Volver</button>
+    <button rsButton variant="primary" type="button" data-testid="quote-renew-confirm" [loading]="renewing()" (click)="renew()">Renovar validez</button>
+  </div>
+</rs-modal>
+
+<rs-modal variant="form" heading="Marcar como rechazada" closeLabel="Cerrar" [open]="rejectOpen()" (closed)="rejectOpen.set(false)">
+  <p>La cotización queda cerrada como rechazada por el cliente. Ya no se podrá enviar, renovar ni convertir.</p>
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="rejecting()" (click)="rejectOpen.set(false)">Volver</button>
+    <button rsButton variant="danger" type="button" data-testid="quote-reject-confirm" [loading]="rejecting()" (click)="reject()">Marcar como rechazada</button>
+  </div>
+</rs-modal>
 
 <rs-modal variant="form" heading="Convertir en pedido" closeLabel="Cerrar" [open]="convertOpen()" (closed)="closeConvert()">
   <p>El pedido reserva el stock de todos los productos en el almacén que elijas. Nadie más podrá venderlo mientras tanto.</p>

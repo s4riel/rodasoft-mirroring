@@ -1,0 +1,40 @@
+@switch (state()) {
+  @case ('loading') {
+    <div class="state" role="status" aria-busy="true" aria-label="Cargando la cotización">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+    </div>
+  }
+  @case ('forbidden') {
+    <div class="state" role="alert">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver esta cotización"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </div>
+  }
+  @case ('error') {
+    <div class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la cotización" [description]="errorText()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </div>
+  }
+  @default {
+    @if (document(); as d) {
+      <div class="toolbar">
+        <button rsButton variant="primary" type="button" (click)="print()">Imprimir</button>
+      </div>
+      <rs-receipt
+        paper="letter"
+        [title]="quote()?.company ?? ''"
+        [headerLines]="d.headerLines"
+        [metaRows]="d.metaRows"
+        [items]="d.items"
+        [totalRows]="d.totalRows"
+        [footerLines]="d.footerLines"
+      />
+    }
+  }
+}

@@ -1,0 +1,19 @@
+<ol [attr.aria-label]="label() || null">
+  @for (step of steps(); track $index; let last = $last) {
+    <li class="step" [class]="step.state" [attr.aria-current]="step.state === 'current' ? 'step' : null">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="text">
+        <span class="label">{{ step.label }}</span>
+        @if (step.stateLabel) {
+          <span class="sr-only">{{ step.stateLabel }}</span>
+        }
+        @if (step.caption) {
+          <span class="caption">{{ step.caption }}</span>
+        }
+      </span>
+    </li>
+    @if (!last) {
+      <li class="line" [class.passed]="step.state === 'done'" aria-hidden="true"></li>
+    }
+  }
+</ol>

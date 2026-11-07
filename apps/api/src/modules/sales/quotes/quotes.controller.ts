@@ -24,7 +24,10 @@ import {
   ListQuotesQueryDto,
   QuoteCustomerSearchQueryDto,
   QuoteProductSearchQueryDto,
+  RenewQuoteDto,
+  SendQuoteDto,
 } from './quotes.dto';
+import { QuoteLifecycleService } from './quote-lifecycle.service';
 import { salesValidationPipe } from './sales-validation.pipe';
 import { quoteErrors } from './quotes.errors';
 import { QuotesService } from './quotes.service';
@@ -40,6 +43,7 @@ export class QuotesController {
   constructor(
     private readonly quotes: QuotesService,
     private readonly orders: SalesOrdersService,
+    private readonly lifecycle: QuoteLifecycleService,
   ) {}
 
   @Get()
@@ -83,5 +87,25 @@ export class QuotesController {
   @RequirePermissions('sales.orders.manage')
   convert(@Param('id', quoteIdPipe) id: string, @Body(salesValidationPipe) body: ConvertQuoteDto): Promise<SalesOrderDetail> {
     return this.orders.convert(id, body);
+  }
+
+  /** VP-08b · sends the quote by WhatsApp, e-mail or as a printed copy, and records it (HU-VEN-17). */
+  @Post(':id/send')
+  @RequirePermissions('sales.quotes.manage')
+  send(@Param('id', quoteIdPipe) id: string, @Body(salesValidationPipe) body: SendQuoteDto): Promise<QuoteDetail> {
+    return this.lifecycle.send(id, body);
+  }
+
+  /** VP-17b · gives an expired quote a new validity with today's prices (HU-VEN-18). */
+  @Post(':id/renew')
+  @RequirePermissions('sales.quotes.manage')
+  renew(@Param('id', quoteIdPipe) id: string, @Body(salesValidationPipe) body: RenewQuoteDto): Promise<QuoteDetail> {
+    return this.lifecycle.renew(id, body);
+  }
+
+  @Post(':id/reject')
+  @RequirePermissions('sales.quotes.manage')
+  reject(@Param('id', quoteIdPipe) id: string): Promise<QuoteDetail> {
+    return this.lifecycle.reject(id);
   }
 }

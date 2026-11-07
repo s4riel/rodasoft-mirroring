@@ -9,6 +9,8 @@ import type {
   QuoteListQuery,
   QuoteListResponse,
   QuoteProductResult,
+  RenewQuoteInput,
+  SendQuoteInput,
   SalesOrderDetail,
 } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
@@ -51,5 +53,19 @@ export class QuotesApi {
   /** The order born from the quote, with its lines reserved in the warehouse. */
   convert(id: string, body: ConvertQuoteInput): Observable<SalesOrderDetail> {
     return this.http.post<SalesOrderDetail>(`${BASE}/${id}/convert`, body);
+  }
+
+  /** VP-08b · sends the quote and records the sending (HU-VEN-17). */
+  send(id: string, body: SendQuoteInput): Observable<QuoteDetail> {
+    return this.http.post<QuoteDetail>(`${BASE}/${id}/send`, body);
+  }
+
+  /** VP-17b · a new validity with today's prices (HU-VEN-18). */
+  renew(id: string, body: RenewQuoteInput): Observable<QuoteDetail> {
+    return this.http.post<QuoteDetail>(`${BASE}/${id}/renew`, body);
+  }
+
+  reject(id: string): Observable<QuoteDetail> {
+    return this.http.post<QuoteDetail>(`${BASE}/${id}/reject`, {});
   }
 }

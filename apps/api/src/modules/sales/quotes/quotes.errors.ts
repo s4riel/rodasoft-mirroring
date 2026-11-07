@@ -26,4 +26,12 @@ export const quoteErrors = {
     }),
   orderNotCancellable: (status: string) =>
     new ConflictException({ code: 'ORDER_NOT_CANCELLABLE', message: 'The order can no longer be cancelled', details: { status } }),
+  /** HU-VEN-17/18 */
+  invalidTransition: (status: string) =>
+    new ConflictException({ code: 'QUOTE_INVALID_TRANSITION', message: 'The quote cannot do that in its current status', details: { status } }),
+  expired: () => new ConflictException({ code: 'QUOTE_EXPIRED', message: 'The quote expired; renew its validity first' }),
+  draftExpired: () =>
+    new ConflictException({ code: 'QUOTE_DRAFT_EXPIRED', message: 'The validity of this draft has passed; create a new quote' }),
+  invalidEmail: () => new BadRequestException({ code: 'INVALID_EMAIL', message: 'The e-mail address is not valid' }),
+  phoneInvalid: () => new BadRequestException({ code: 'QUOTE_PHONE_INVALID', message: 'The WhatsApp number is not valid' }),
 };
