@@ -7,6 +7,15 @@
   align-items: center;
   gap: var(--space-3);
 }
+.note-comment {
+  display: block;
+}
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
 .card {
   display: grid;
   gap: var(--space-3);

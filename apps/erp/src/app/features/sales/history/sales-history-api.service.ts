@@ -1,6 +1,13 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import type { ReprintReceiptResponse, SaleDetail, SaleListQuery, SaleListResponse } from '@rodasoft/domain';
+import type {
+  CancellationRequestInput,
+  ReprintReceiptResponse,
+  SaleCancellationResponse,
+  SaleDetail,
+  SaleListQuery,
+  SaleListResponse,
+} from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
 const BASE = '/api/v1/sales/sales';
@@ -26,5 +33,15 @@ export class SalesHistoryApi {
   /** Records a reprint of the receipt in the sale's history. */
   reprint(saleId: string): Observable<ReprintReceiptResponse> {
     return this.http.post<ReprintReceiptResponse>(`${BASE}/${saleId}/receipt/reprint`, {});
+  }
+
+  /** Asks Management to cancel the sale (HU-VEN-14); the sale waits as "anulación pendiente". */
+  requestCancellation(saleId: string, body: CancellationRequestInput): Observable<SaleCancellationResponse> {
+    return this.http.post<SaleCancellationResponse>(`${BASE}/${saleId}/cancellation-request`, body);
+  }
+
+  /** Takes the open cancellation request back. */
+  withdrawCancellation(saleId: string): Observable<SaleCancellationResponse> {
+    return this.http.post<SaleCancellationResponse>(`${BASE}/${saleId}/cancellation-request/withdraw`, {});
   }
 }

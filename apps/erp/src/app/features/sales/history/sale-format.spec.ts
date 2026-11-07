@@ -1,5 +1,21 @@
 import type { SaleListItem } from '@rodasoft/domain';
-import { historyLabel, invoiceLabel, parseMethod, parseStatus, rangeLabel, ROW_MENU, SALES_PAGE_SIZE, toCsv, toQuery, toRow, toTotals } from './sale-format';
+import {
+  CANCELLATION_REASON_OPTIONS,
+  cancellationDeadlineText,
+  cancellationReasonLabel,
+  historyLabel,
+  invoiceLabel,
+  parseMethod,
+  parseStatus,
+  rangeLabel,
+  ROW_MENU,
+  rowMenuFor,
+  SALES_PAGE_SIZE,
+  toCsv,
+  toQuery,
+  toRow,
+  toTotals,
+} from './sale-format';
 
 const item = (over: Partial<SaleListItem> = {}): SaleListItem => ({
   id: 's1',
@@ -63,10 +79,36 @@ describe('sale format', () => {
     expect(ROW_MENU.map((m) => m.label)).toEqual(['Ver venta', 'Reimprimir']);
   });
 
+  it('adds "Solicitar anulación" only for a paid sale and who may ask for it', () => {
+    expect(rowMenuFor({ status: 'COMPLETED' }, true).map((m) => m.label)).toEqual(['Ver venta', 'Reimprimir', 'Solicitar anulación']);
+    expect(rowMenuFor({ status: 'COMPLETED' }, false)).toBe(ROW_MENU);
+    expect(rowMenuFor({ status: 'CANCELLATION_PENDING' }, true)).toBe(ROW_MENU);
+    expect(rowMenuFor({ status: 'CANCELLED' }, true)).toBe(ROW_MENU);
+  });
+
+  it('names the four cancellation reasons in Spanish, in the order of the dialog', () => {
+    expect(CANCELLATION_REASON_OPTIONS.map((o) => o.label)).toEqual([
+      'Error en datos del cliente',
+      'Error en productos o precios',
+      'Venta no concretada',
+      'Otro',
+    ]);
+    expect(cancellationReasonLabel('SALE_NOT_COMPLETED')).toBe('Venta no concretada');
+    expect(cancellationReasonLabel('SOMETHING_NEW')).toBe('SOMETHING_NEW');
+  });
+
+  it('says the cancellation deadline as the last La Paz day to ask, or that there is no limit', () => {
+    expect(cancellationDeadlineText(null)).toBe('sin límite');
+    // the window closes at the start of 17 Oct in La Paz, so the 16th is the last day
+    expect(cancellationDeadlineText('2026-10-17T04:00:00.000Z')).toBe('16/10/2026');
+  });
+
   it('says the history actions in Spanish', () => {
     expect(historyLabel({ action: 'sales.sale.complete', email: null })).toBe('Venta completada');
     expect(historyLabel({ action: 'sales.receipt.reprint', email: null })).toBe('Comprobante reimpreso');
     expect(historyLabel({ action: 'sales.receipt.email', email: 'a@b.com' })).toBe('Comprobante enviado a a@b.com');
+    expect(historyLabel({ action: 'sales.sale.cancellation-request', email: null })).toBe('Anulación solicitada · esperando a Gerencia');
+    expect(historyLabel({ action: 'sales.sale.cancellation-withdraw', email: null })).toBe('Solicitud de anulación retirada');
     expect(historyLabel({ action: 'sales.cancellation.approve', email: null })).toBe('Movimiento registrado');
   });
 

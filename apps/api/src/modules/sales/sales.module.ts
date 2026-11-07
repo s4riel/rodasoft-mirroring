@@ -13,6 +13,8 @@ import { PosPaymentService } from './pos/pos-payment.service';
 import { PosCardPaymentService } from './pos/pos-card-payment.service';
 import { PosQrPaymentService } from './pos/pos-qr-payment.service';
 import { PosProductSheetService } from './pos/pos-product-sheet.service';
+import { SaleCancellationController } from './sales/sale-cancellation.controller';
+import { SaleCancellationService } from './sales/sale-cancellation.service';
 import { SaleReceiptController } from './sales/sale-receipt.controller';
 import { SaleReceiptService } from './sales/sale-receipt.service';
 import { SaleVisibilityService } from './sales/sale-visibility.service';
@@ -29,7 +31,7 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
 @Module({
   // the POS reads the inventory's equivalences (HU-VEN-03) and product sheet (HU-VEN-04)
   imports: [InventoryModule],
-  controllers: [CashController, CustomersController, PosController, SaleReceiptController, SalesHistoryController],
+  controllers: [CashController, CustomersController, PosController, SaleCancellationController, SaleReceiptController, SalesHistoryController],
   providers: [
     CashRegistersService,
     CashShiftsService,
@@ -39,6 +41,7 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
     PosPaymentService,
     PosQrPaymentService,
     PosCardPaymentService,
+    SaleCancellationService,
     SaleReceiptService,
     SaleVisibilityService,
     SalesHistoryService,

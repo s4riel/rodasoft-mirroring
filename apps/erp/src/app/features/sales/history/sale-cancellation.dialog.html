@@ -1,0 +1,50 @@
+<rs-modal [(open)]="open" variant="form" size="default" [heading]="heading()" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">{{ summary() }}. La factura sigue válida hasta que Gerencia apruebe.</p>
+
+    <fieldset class="reasons">
+      <legend class="legend">Motivo *</legend>
+      <div class="chips">
+        @for (option of options; track option.value) {
+          <rs-filter-chip
+            size="m"
+            [label]="option.label"
+            [selected]="reason() === option.value"
+            [removeLabel]="'Quitar motivo: ' + option.label"
+            (selectedChange)="choose(option.value, $event)"
+          />
+        }
+      </div>
+    </fieldset>
+
+    <rs-field label="Comentario *" forId="sale-cancellation-comment">
+      <textarea
+        #commentBox
+        rsTextarea
+        autosize
+        id="sale-cancellation-comment"
+        rows="2"
+        placeholder="Cuenta qué pasó para que Gerencia decida"
+        [attr.maxlength]="commentMax"
+        [value]="comment()"
+        (input)="comment.set(commentBox.value)"
+      ></textarea>
+    </rs-field>
+
+    <rs-note type="warning" title="Al aprobarse se anula la factura en el SIAT">
+      El stock vuelve a {{ sale().cancellation.impact.warehouseName }} y el reembolso de {{ total() }} se registra en
+      {{ sale().cancellation.impact.registerName }}. Plazo de anulación: {{ deadline() }}.
+    </rs-note>
+
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos enviar la solicitud">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="cancellation-send" [disabled]="!canSend()" [loading]="saving()" (click)="send()">
+      Enviar solicitud
+    </button>
+  </div>
+</rs-modal>

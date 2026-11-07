@@ -37,8 +37,8 @@ class StubPage {}
 describe('SalesHistoryPage', () => {
   let http: HttpTestingController;
 
-  async function open(url = '/history') {
-    const permissions = new Set(['sales.pos.use']);
+  async function open(url = '/history', granted: string[] = ['sales.pos.use']) {
+    const permissions = new Set(granted);
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -113,6 +113,41 @@ describe('SalesHistoryPage', () => {
     root(h).querySelector<HTMLButtonElement>('rs-row-menu [role="menuitem"]')?.click();
     await settle(h);
     expect(TestBed.inject(Router).url).toBe('/sales/history/s1');
+  });
+
+  describe('Solicitar anulación (HU-VEN-14)', () => {
+    const menuOf = async (sale: SaleListItem, granted: string[]) => {
+      const h = await open('/history', granted);
+      flushList(response([sale]));
+      await settle(h);
+      root(h).querySelector<HTMLButtonElement>(`button[aria-label="Acciones de la venta ${sale.number}"]`)?.click();
+      h.detectChanges();
+      return h;
+    };
+    const labels = (h: Awaited<ReturnType<typeof open>>) =>
+      Array.from(root(h).querySelectorAll('rs-row-menu [role="menuitem"]')).map((m) => m.textContent?.trim());
+
+    it('is in the menu of a paid sale for who may ask for it', async () => {
+      const h = await menuOf(item(), ['sales.pos.use', 'sales.cancellations.request']);
+      expect(labels(h)).toEqual(['Ver venta', 'Reimprimir', 'Solicitar anulación']);
+    });
+
+    it('is not offered without the permission', async () => {
+      const h = await menuOf(item(), ['sales.pos.use']);
+      expect(labels(h)).toEqual(['Ver venta', 'Reimprimir']);
+    });
+
+    it.each(['CANCELLATION_PENDING', 'CANCELLED'] as const)('is not offered for a sale that is %s', async (status) => {
+      const h = await menuOf(item({ status }), ['sales.pos.use', 'sales.cancellations.request']);
+      expect(labels(h)).toEqual(['Ver venta', 'Reimprimir']);
+    });
+
+    it('opens the sale with the request dialog asked for', async () => {
+      const h = await menuOf(item(), ['sales.pos.use', 'sales.cancellations.request']);
+      root(h).querySelectorAll<HTMLButtonElement>('rs-row-menu [role="menuitem"]')[2].click();
+      await settle(h);
+      expect(TestBed.inject(Router).url).toBe('/sales/history/s1?cancel=1');
+    });
   });
 
   it('Reimprimir opens the ticket in a new tab with the reprint flag', async () => {

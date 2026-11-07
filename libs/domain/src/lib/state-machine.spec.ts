@@ -109,11 +109,26 @@ describe('sales state machines (HU-VEN-00)', () => {
     expect(saleMachine.events('CANCELLED')).toEqual([]);
   });
 
+  it('the requester can take a cancellation request back, but only while it is pending', () => {
+    expect(saleMachine.next('CANCELLATION_PENDING', 'withdrawCancellation')).toBe('COMPLETED');
+    expect(() => saleMachine.next('COMPLETED', 'withdrawCancellation')).toThrow(InvalidTransitionError);
+    expect(() => saleMachine.next('CANCELLED', 'requestCancellation')).toThrow(InvalidTransitionError);
+    // a sale already waiting for a decision cannot be requested again
+    expect(() => saleMachine.next('CANCELLATION_PENDING', 'requestCancellation')).toThrow(InvalidTransitionError);
+  });
+
   it('an approval request is decided once', () => {
     expect(approvalRequestMachine.next('PENDING', 'approve')).toBe('APPROVED');
     expect(approvalRequestMachine.next('PENDING', 'reject')).toBe('REJECTED');
     expect(() => approvalRequestMachine.next('APPROVED', 'reject')).toThrow(InvalidTransitionError);
     expect(approvalRequestMachine.events('REJECTED')).toEqual([]);
+  });
+
+  it('an approval request can be withdrawn only while pending', () => {
+    expect(approvalRequestMachine.next('PENDING', 'withdraw')).toBe('WITHDRAWN');
+    expect(() => approvalRequestMachine.next('APPROVED', 'withdraw')).toThrow(InvalidTransitionError);
+    expect(() => approvalRequestMachine.next('WITHDRAWN', 'approve')).toThrow(InvalidTransitionError);
+    expect(approvalRequestMachine.events('WITHDRAWN')).toEqual([]);
   });
 
   it('a quote is sent and then accepted, rejected or expires', () => {

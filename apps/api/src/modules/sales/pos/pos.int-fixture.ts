@@ -24,6 +24,7 @@ import { PosCardPaymentService } from './pos-card-payment.service';
 import { PosQrPaymentService } from './pos-qr-payment.service';
 import { MockPaymentProvider } from '../payments/mock-payment.provider';
 import type { PaymentProviderRegistry } from '../payments/payment-provider';
+import { SaleCancellationService } from '../sales/sale-cancellation.service';
 import { SaleReceiptService } from '../sales/sale-receipt.service';
 import { SaleVisibilityService } from '../sales/sale-visibility.service';
 import { SalesHistoryService } from '../sales/sales-history.service';
@@ -93,6 +94,7 @@ export function createPosFixture(prefix: string) {
     const customers = new CustomersService(prisma, cls, audit);
     const outbox = new OutboxService(prisma, cls);
     const visibility = new SaleVisibilityService(cls, membership);
+    const cancellations = new SaleCancellationService(prisma, cls, settings, audit, outbox, visibility, membership);
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     return {
@@ -103,7 +105,8 @@ export function createPosFixture(prefix: string) {
       qr: new PosQrPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
       card: new PosCardPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
       receipts: new SaleReceiptService(prisma, cls, settings, outbox, audit, visibility),
-      history: new SalesHistoryService(prisma, visibility, settings),
+      cancellations,
+      history: new SalesHistoryService(prisma, visibility, settings, cancellations),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
       sheet: new PosProductSheetService(
         prisma,
@@ -274,6 +277,7 @@ export function createPosFixture(prefix: string) {
       await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
       await tx.stockMovement.deleteMany({ where: { companyId: { in: companies } } });
     });
+    await base.approvalRequest.deleteMany({ where: { companyId: { in: companies } } });
     await base.invoice.deleteMany({ where: { companyId: { in: companies } } });
     await base.sale.deleteMany({ where: { companyId: { in: companies } } });
     await base.cashMovement.deleteMany({ where: { companyId: { in: companies } } });

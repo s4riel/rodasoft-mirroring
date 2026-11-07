@@ -1,8 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import type { SaleDetail } from '@rodasoft/domain';
+import { RS_PERMISSIONS } from '@rodasoft/ui';
 import { SaleDetailPage } from './sale-detail.page';
 
 const URL = '/api/v1/sales/sales/s1';
@@ -27,6 +29,7 @@ const detail = (over: Partial<SaleDetail> = {}): SaleDetail => ({
     { action: 'sales.sale.complete', at: '2026-10-14T14:24:00.000Z', userName: 'Alberto Andia', email: null },
     { action: 'sales.receipt.reprint', at: '2026-10-14T15:00:00.000Z', userName: 'Alberto Andia', email: null },
   ],
+  cancellation: { canRequest: true, windowEndsAt: null, pending: null, impact: { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' } },
   receiptFormat: 'TICKET_80MM',
   ...over,
 });
@@ -34,13 +37,17 @@ const detail = (over: Partial<SaleDetail> = {}): SaleDetail => ({
 describe('SaleDetailPage', () => {
   let http: HttpTestingController;
 
-  async function render() {
+  async function render(opts: { permissions?: string[]; query?: Record<string, string> } = {}) {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 's1' }) } } },
+        { provide: RS_PERMISSIONS, useValue: signal(new Set(opts.permissions ?? ['sales.pos.use', 'sales.cancellations.request'])) },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap({ id: 's1' }), queryParamMap: convertToParamMap(opts.query ?? {}) } },
+        },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -128,5 +135,158 @@ describe('SaleDetailPage', () => {
     await settle(f);
     expect(el(f).querySelector('[role="alert"]')?.textContent).toContain('No pudimos cargar la venta');
     expect(el(f).textContent).toContain('La venta no existe.');
+  });
+
+  describe('cancellation (HU-VEN-14)', () => {
+    const noCancellation = { canRequest: false, windowEndsAt: null, pending: null, impact: { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' } };
+    const pendingSale = (over: { canWithdraw?: boolean } = {}) =>
+      detail({
+        status: 'CANCELLATION_PENDING',
+        cancellation: {
+          ...noCancellation,
+          pending: {
+            id: 'r1',
+            reason: 'CUSTOMER_DATA_ERROR',
+            comment: 'Nombre mal escrito',
+            requestedBy: 'Alberto Andia',
+            requestedAt: '2026-10-14T15:15:00.000Z',
+            canWithdraw: over.canWithdraw ?? true,
+          },
+        },
+      });
+    const testId = (f: Fixture, id: string) => el(f).querySelector<HTMLButtonElement>(`[data-testid="${id}"]`);
+
+    it('offers "Solicitar anulación" to who may ask when the sale can be cancelled', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      expect(testId(f, 'sale-cancel-request')).not.toBeNull();
+      expect(testId(f, 'sale-cancel-pending')).toBeNull();
+      expect(testId(f, 'sale-cancel-withdraw')).toBeNull();
+    });
+
+    it('hides it without the permission', async () => {
+      const f = await render({ permissions: ['sales.pos.use'] });
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      expect(testId(f, 'sale-cancel-request')).toBeNull();
+    });
+
+    it('hides it when the sale cannot be asked to be cancelled (cancelled, or past the deadline)', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(detail({ status: 'CANCELLED', cancellation: noCancellation }));
+      await settle(f);
+      expect(testId(f, 'sale-cancel-request')).toBeNull();
+      expect(el(f).textContent).toContain('Anulada');
+    });
+
+    it('opens the request dialog and reloads the sale once it is sent', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      testId(f, 'sale-cancel-request')!.click();
+      await settle(f);
+      expect(el(f).textContent).toContain('Solicitar anulación de la venta V-000124');
+      el(f).querySelector<HTMLButtonElement>('rs-filter-chip button')!.click();
+      f.detectChanges();
+      const input = el(f).querySelector<HTMLTextAreaElement>('#sale-cancellation-comment')!;
+      input.value = 'Nombre mal escrito';
+      input.dispatchEvent(new Event('input'));
+      f.detectChanges();
+      testId(f, 'cancellation-send')!.click();
+      http.expectOne({ method: 'POST', url: `${URL}/cancellation-request` }).flush({ saleId: 's1', status: 'CANCELLATION_PENDING' });
+      http.expectOne(URL).flush(pendingSale());
+      await settle(f);
+      expect(testId(f, 'sale-cancel-pending')?.textContent).toContain('Anulación pendiente de aprobación');
+      expect(testId(f, 'sale-cancel-request')).toBeNull();
+    });
+
+    it('opens the dialog at once when the row menu sent the user here', async () => {
+      const f = await render({ query: { cancel: '1' } });
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      expect(el(f).textContent).toContain('Solicitar anulación de la venta V-000124');
+    });
+
+    it('does not open it from the URL for who may not ask for cancellations', async () => {
+      const f = await render({ permissions: ['sales.pos.use'], query: { cancel: '1' } });
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      expect(el(f).textContent).not.toContain('Solicitar anulación de la venta');
+    });
+
+    it('does not open it from the row menu when the sale can no longer be asked', async () => {
+      const f = await render({ query: { cancel: '1' } });
+      http.expectOne(URL).flush(pendingSale());
+      await settle(f);
+      expect(el(f).textContent).not.toContain('Solicitar anulación de la venta');
+    });
+
+    it('shows who asked, when and why while the sale waits, with the pill and the comment', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(pendingSale());
+      await settle(f);
+      const banner = testId(f, 'sale-cancel-pending')?.textContent ?? '';
+      expect(banner).toContain('Anulación pendiente de aprobación');
+      expect(banner).toContain('Solicitada por Alberto Andia');
+      expect(banner).toContain('motivo: error en datos del cliente');
+      expect(banner).toContain('La factura sigue válida.');
+      expect(banner).toContain('Comentario: Nombre mal escrito');
+      expect(el(f).querySelector('rs-status-pill')?.textContent).toContain('Anulación pendiente');
+    });
+
+    it('lets who may withdraw take the request back, after confirming', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(pendingSale());
+      await settle(f);
+      testId(f, 'sale-cancel-withdraw')!.click();
+      await settle(f);
+      expect(el(f).textContent).toContain('¿Retirar la solicitud de anulación?');
+      testId(f, 'sale-cancel-withdraw-confirm')!.click();
+      http.expectOne({ method: 'POST', url: `${URL}/cancellation-request/withdraw` }).flush({ saleId: 's1', status: 'COMPLETED' });
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      expect(testId(f, 'sale-cancel-pending')).toBeNull();
+    });
+
+    it('hides "Retirar solicitud" from who may not withdraw it', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(pendingSale({ canWithdraw: false }));
+      await settle(f);
+      expect(testId(f, 'sale-cancel-withdraw')).toBeNull();
+      expect(testId(f, 'sale-cancel-pending')).not.toBeNull();
+    });
+
+    it('when the withdrawal fails it reloads the sale to show what it is now', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(pendingSale());
+      await settle(f);
+      testId(f, 'sale-cancel-withdraw')!.click();
+      await settle(f);
+      testId(f, 'sale-cancel-withdraw-confirm')!.click();
+      http
+        .expectOne({ method: 'POST', url: `${URL}/cancellation-request/withdraw` })
+        .flush({ code: 'CANCELLATION_NOT_PENDING', message: 'x' }, { status: 409, statusText: 'Conflict' });
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      expect(testId(f, 'sale-cancel-pending')).toBeNull();
+      expect(el(f).textContent).toContain('Esta venta no tiene una solicitud de anulación pendiente.');
+    });
+
+    it('shows the request and the withdrawal in the history', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(
+        detail({
+          history: [
+            { action: 'sales.sale.complete', at: '2026-10-14T14:24:00.000Z', userName: 'Alberto Andia', email: null },
+            { action: 'sales.sale.cancellation-request', at: '2026-10-14T15:15:00.000Z', userName: 'Alberto Andia', email: null },
+            { action: 'sales.sale.cancellation-withdraw', at: '2026-10-14T15:20:00.000Z', userName: 'Alberto Andia', email: null },
+          ],
+        }),
+      );
+      await settle(f);
+      expect(el(f).textContent).toContain('Anulación solicitada · esperando a Gerencia');
+      expect(el(f).textContent).toContain('Solicitud de anulación retirada');
+    });
   });
 });

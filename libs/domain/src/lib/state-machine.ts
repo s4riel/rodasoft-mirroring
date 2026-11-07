@@ -164,24 +164,28 @@ export const paymentMachine = createMachine<PaymentStatus, PaymentEvent>({
   CANCELLED: {},
 });
 
-/** A sale only exists once paid; a rejected cancellation puts it back to COMPLETED. */
+/**
+ * A sale only exists once paid; a rejected or withdrawn cancellation request puts it back to COMPLETED (HU-VEN-14 asks and
+ * withdraws, HU-VEN-15 decides).
+ */
 export type SaleStatus = 'COMPLETED' | 'CANCELLATION_PENDING' | 'CANCELLED';
-export type SaleEvent = 'requestCancellation' | 'approveCancellation' | 'rejectCancellation';
+export type SaleEvent = 'requestCancellation' | 'withdrawCancellation' | 'approveCancellation' | 'rejectCancellation';
 
 export const saleMachine = createMachine<SaleStatus, SaleEvent>({
   COMPLETED: { requestCancellation: 'CANCELLATION_PENDING' },
-  CANCELLATION_PENDING: { approveCancellation: 'CANCELLED', rejectCancellation: 'COMPLETED' },
+  CANCELLATION_PENDING: { approveCancellation: 'CANCELLED', rejectCancellation: 'COMPLETED', withdrawCancellation: 'COMPLETED' },
   CANCELLED: {},
 });
 
-/** Generic approval inbox entry (cancellation, cash difference, return). */
-export type ApprovalRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type ApprovalRequestEvent = 'approve' | 'reject';
+/** Generic approval inbox entry (cancellation, cash difference, return). The requester can withdraw it until it is decided. */
+export type ApprovalRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+export type ApprovalRequestEvent = 'approve' | 'reject' | 'withdraw';
 
 export const approvalRequestMachine = createMachine<ApprovalRequestStatus, ApprovalRequestEvent>({
-  PENDING: { approve: 'APPROVED', reject: 'REJECTED' },
+  PENDING: { approve: 'APPROVED', reject: 'REJECTED', withdraw: 'WITHDRAWN' },
   APPROVED: {},
   REJECTED: {},
+  WITHDRAWN: {},
 });
 
 /** An expired quote can be renewed: it goes back to SENT with a new validity date. */

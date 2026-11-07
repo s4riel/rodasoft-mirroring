@@ -27,3 +27,4 @@ export * from './lib/mixed-payment';
 export * from './lib/qr-payment';
 export * from './lib/sale-receipt';
 export * from './lib/sale-history';
+export * from './lib/sale-cancellation';

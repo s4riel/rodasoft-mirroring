@@ -3,6 +3,7 @@
  * them. Money travels as fixed-point strings. Nothing here carries costs (HU-TRV-02).
  */
 import type { ReceiptFormat } from './company-settings';
+import type { SaleCancellationState } from './sale-cancellation';
 import type { PaymentMethod, SaleReceiptLine } from './sale-receipt';
 import type { CustomerDiscountType } from './sales-pricing';
 import type { SaleStatus } from './state-machine';
@@ -88,6 +89,8 @@ export interface SaleDetail {
   payments: SaleDetailPayment[];
   invoice: { status: string; number: number | null };
   history: SaleHistoryEntry[];
+  /** The cancellation request of the sale and whether another may be asked (HU-VEN-14). */
+  cancellation: SaleCancellationState;
   receiptFormat: ReceiptFormat;
 }
 

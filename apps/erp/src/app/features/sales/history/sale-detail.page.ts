@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Decimal, type SaleDetail } from '@rodasoft/domain';
 import {
   ButtonComponent,
+  CanDirective,
   DocTableCell,
   DocTableColumn,
   DocTableComponent,
@@ -12,8 +13,10 @@ import {
   FieldComponent,
   IconComponent,
   InputDirective,
+  ModalComponent,
   NoteComponent,
   PageHeaderComponent,
+  RS_PERMISSIONS,
   SkeletonComponent,
   StatusPillComponent,
   ToastOutletComponent,
@@ -23,7 +26,8 @@ import { problemOf } from '../../../core/api-error';
 import { formatBs, formatDateTime } from '../cash/cash-format';
 import { documentText } from '../customers/customer-format';
 import { PosApi } from '../pos/pos-api.service';
-import { historyLabel, invoiceLabel, PAYMENT_METHOD_LABELS, SALE_STATUS_PILLS } from './sale-format';
+import { SaleCancellationDialog } from './sale-cancellation.dialog';
+import { cancellationReasonLabel, historyLabel, invoiceLabel, PAYMENT_METHOD_LABELS, SALE_STATUS_PILLS } from './sale-format';
 import { SalesHistoryApi } from './sales-history-api.service';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
@@ -36,18 +40,24 @@ const LINE_COLUMNS: DocTableColumn[] = [
   { key: 'lineTotal', label: 'Total', type: 'number', width: '9rem' },
 ];
 
-/** VP-02 · Detail of a sale: products, payment, linked invoice and history, with reprint and e-mail. */
+/**
+ * VP-02 · Detail of a sale: products, payment, linked invoice and history, with reprint and e-mail. It also asks for the
+ * cancellation of the sale (VP-15a, HU-VEN-14) and shows it while it waits for Management (VP-15).
+ */
 @Component({
   selector: 'rs-sale-detail-page',
   imports: [
     ButtonComponent,
+    CanDirective,
     DocTableComponent,
     EmptyStateIllustratedComponent,
     FieldComponent,
     IconComponent,
     InputDirective,
+    ModalComponent,
     NoteComponent,
     PageHeaderComponent,
+    SaleCancellationDialog,
     SkeletonComponent,
     StatusPillComponent,
     ToastOutletComponent,
@@ -62,6 +72,7 @@ export class SaleDetailPage implements OnInit {
   private readonly api = inject(SalesHistoryApi);
   private readonly posApi = inject(PosApi);
   private readonly toast = inject(ToastService);
+  private readonly permissions = inject(RS_PERMISSIONS);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly lineColumns = LINE_COLUMNS;
@@ -74,6 +85,22 @@ export class SaleDetailPage implements OnInit {
   protected readonly email = signal('');
   protected readonly emailSending = signal(false);
   protected readonly canSend = computed(() => this.email().trim() !== '' && !this.emailSending());
+
+  protected readonly cancelOpen = signal(false);
+  protected readonly withdrawOpen = signal(false);
+  protected readonly withdrawing = signal(false);
+  /** The sale can be asked to be cancelled (the button also needs the permission). */
+  protected readonly canRequestCancellation = computed(() => this.detail()?.cancellation.canRequest ?? false);
+  /** The request waiting for Management, as the banner of VP-15 says it. */
+  protected readonly pending = computed(() => {
+    const p = this.detail()?.cancellation.pending;
+    if (!p) return null;
+    return {
+      canWithdraw: p.canWithdraw,
+      text: `Solicitada por ${p.requestedBy} el ${formatDateTime(p.requestedAt)} · motivo: ${cancellationReasonLabel(p.reason).toLowerCase()}. La factura sigue válida.`,
+      comment: p.comment,
+    };
+  });
 
   protected readonly breadcrumbs = computed(() => [
     { label: 'Inicio', link: '/' },
@@ -148,6 +175,9 @@ export class SaleDetailPage implements OnInit {
           this.detail.set(detail);
           this.email.set(detail.customer.email ?? '');
           this.state.set('ready');
+          // the row menu of the list sends here to ask for the cancellation
+          const asked = this.route.snapshot.queryParamMap.get('cancel') === '1';
+          if (asked && detail.cancellation.canRequest && this.permissions().has('sales.cancellations.request')) this.cancelOpen.set(true);
         },
         error: (err: unknown) => {
           const problem = problemOf(err);
@@ -195,6 +225,36 @@ export class SaleDetailPage implements OnInit {
         this.toast.danger(problemOf(err).message);
       },
     });
+  }
+
+  /** The request was saved: the sale now waits for Management. */
+  protected onRequested() {
+    this.toast.success('Solicitud de anulación enviada a Gerencia');
+    this.refreshHistory();
+  }
+
+  protected withdraw() {
+    const d = this.detail();
+    if (!d || this.withdrawing()) return;
+    this.withdrawing.set(true);
+    this.api
+      .withdrawCancellation(d.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.withdrawing.set(false);
+          this.withdrawOpen.set(false);
+          this.toast.success('Solicitud de anulación retirada');
+          this.refreshHistory();
+        },
+        error: (err: unknown) => {
+          this.withdrawing.set(false);
+          this.withdrawOpen.set(false);
+          this.toast.danger(problemOf(err).message);
+          // another user may have decided in between: show what the sale is now
+          this.refreshHistory();
+        },
+      });
   }
 
   protected back() {
