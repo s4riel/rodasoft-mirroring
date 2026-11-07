@@ -1214,6 +1214,8 @@ model Sale {
 
   @@unique([companyId, number])
   @@index([companyId, status, createdAt(sort: Desc)])
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([companyId, createdById, createdAt(sort: Desc)])
   @@index([companyId, shiftId])
   @@index([companyId, customerId])
   @@map("sales")

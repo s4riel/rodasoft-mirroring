@@ -1,0 +1,132 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import type { SaleDetail } from '@rodasoft/domain';
+import { SaleDetailPage } from './sale-detail.page';
+
+const URL = '/api/v1/sales/sales/s1';
+
+const detail = (over: Partial<SaleDetail> = {}): SaleDetail => ({
+  id: 's1',
+  number: 'V-000124',
+  createdAt: '2026-10-14T14:24:00.000Z',
+  status: 'COMPLETED',
+  branch: { name: 'Sucursal central' },
+  cashier: { name: 'Alberto Andia' },
+  customer: { name: 'Industrias Demo S.A.', documentType: 5, documentNumber: '1023456029', email: 'ventas@demo.bo' },
+  lines: [{ code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00' }],
+  subtotal: '490.00',
+  discountType: 'NONE',
+  discountAmount: '0.00',
+  roundingAmount: '0.00',
+  total: '490.00',
+  payments: [{ method: 'CASH', amount: '490.00', change: '10.00', reference: null }],
+  invoice: { status: 'PENDING', number: null },
+  history: [
+    { action: 'sales.sale.complete', at: '2026-10-14T14:24:00.000Z', userName: 'Alberto Andia', email: null },
+    { action: 'sales.receipt.reprint', at: '2026-10-14T15:00:00.000Z', userName: 'Alberto Andia', email: null },
+  ],
+  receiptFormat: 'TICKET_80MM',
+  ...over,
+});
+
+describe('SaleDetailPage', () => {
+  let http: HttpTestingController;
+
+  async function render() {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 's1' }) } } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(SaleDetailPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return fixture;
+  }
+
+  type Fixture = Awaited<ReturnType<typeof render>>;
+  const el = (f: Fixture) => f.nativeElement as HTMLElement;
+  const settle = async (f: Fixture) => {
+    f.detectChanges();
+    await f.whenStable();
+    f.detectChanges();
+  };
+  const button = (f: Fixture, label: string) => Array.from(el(f).querySelectorAll('button')).find((b) => b.textContent?.includes(label))!;
+
+  afterEach(() => http.verify());
+
+  it('shows a skeleton while it loads', async () => {
+    const f = await render();
+    expect(el(f).querySelector('[aria-busy="true"]')).not.toBeNull();
+    http.expectOne(URL).flush(detail());
+  });
+
+  it('shows the products, the payment with its change, the pending invoice and the history', async () => {
+    const f = await render();
+    http.expectOne(URL).flush(detail());
+    await settle(f);
+    const text = el(f).textContent ?? '';
+    expect(text).toContain('V-000124');
+    expect(text).toContain('Pagada');
+    expect(text).toContain('Sucursal central');
+    expect(text).toContain('Industrias Demo S.A.');
+    expect(text).toContain('6205-2RS');
+    expect(text).toContain('Rodamiento rígido de bolas');
+    expect(text).toContain('Bs 490,00');
+    expect(text).toContain('Efectivo');
+    expect(text).toContain('cambio Bs 10,00');
+    expect(text).toContain('Pendiente de emisión SIAT');
+    expect(text).toContain('Venta completada');
+    expect(text).toContain('Comprobante reimpreso');
+    expect(text).not.toContain('Descuento');
+  });
+
+  it('shows the discount and the rounding only when there are some', async () => {
+    const f = await render();
+    http.expectOne(URL).flush(detail({ discountAmount: '49.00', roundingAmount: '-0.20', total: '440.80' }));
+    await settle(f);
+    const text = el(f).textContent ?? '';
+    expect(text).toContain('Descuento');
+    expect(text).toContain('Redondeo');
+  });
+
+  it('Reimprimir opens the ticket with the reprint flag', async () => {
+    const f = await render();
+    http.expectOne(URL).flush(detail());
+    await settle(f);
+    const opened = jest.spyOn(window, 'open').mockImplementation(() => null);
+    button(f, 'Reimprimir').click();
+    expect(opened).toHaveBeenCalledWith('/sales/receipts/s1/print?reprint=1', '_blank', 'noopener');
+    opened.mockRestore();
+  });
+
+  it('sends the receipt by e-mail to the customer address and reloads the history', async () => {
+    const f = await render();
+    http.expectOne(URL).flush(detail());
+    await settle(f);
+    button(f, 'Enviar por correo').click();
+    await settle(f);
+    const input = el(f).querySelector<HTMLInputElement>('#sale-detail-email')!;
+    expect(input.value).toBe('ventas@demo.bo');
+    Array.from(el(f).querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Enviar')!.click();
+    const post = http.expectOne({ method: 'POST', url: `${URL}/receipt/email` });
+    expect(post.request.body).toEqual({ email: 'ventas@demo.bo' });
+    post.flush({ queued: true });
+    http.expectOne(URL).flush(detail());
+    await settle(f);
+  });
+
+  it('says there is no permission or that it could not load', async () => {
+    const f = await render();
+    http.expectOne(URL).flush({ code: 'SALE_NOT_FOUND', message: 'x' }, { status: 404, statusText: 'Not Found' });
+    await settle(f);
+    expect(el(f).querySelector('[role="alert"]')?.textContent).toContain('No pudimos cargar la venta');
+    expect(el(f).textContent).toContain('La venta no existe.');
+  });
+});

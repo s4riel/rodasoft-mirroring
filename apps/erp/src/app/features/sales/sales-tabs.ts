@@ -18,7 +18,7 @@ export const SALES_TABS: readonly SalesTab[] = [
   { key: 'pos', label: 'Punto de venta', path: 'pos', permissions: ['sales.pos.use'], story: 'HU-VEN-02' },
   { key: 'quotes', label: 'Cotizaciones', path: 'quotes', permissions: ['sales.quotes.manage'], story: 'HU-VEN-16' },
   { key: 'orders', label: 'Pedidos', path: 'orders', permissions: ['sales.orders.manage'], story: 'HU-VEN-19' },
-  { key: 'history', label: 'Ventas realizadas', path: 'history', permissions: ['sales.pos.use'], story: 'HU-VEN-12' },
+  { key: 'history', label: 'Ventas realizadas', path: 'history', permissions: ['sales.pos.use', 'sales.history.view-all'], story: 'HU-VEN-12' },
   { key: 'returns', label: 'Devoluciones', path: 'returns', permissions: ['sales.returns.manage'], story: 'HU-VEN-21' },
   { key: 'cash-register', label: 'Caja', path: 'cash-register', permissions: ['sales.cash-register.open'], story: 'HU-VEN-22' },
   { key: 'customers', label: 'Clientes', path: 'customers', permissions: ['sales.customers.manage'], story: 'HU-VEN-37' },

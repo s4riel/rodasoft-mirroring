@@ -34,6 +34,7 @@ export const PERMISSIONS = {
 
   // Sales and POS
   'sales.pos.use': 'Vender en el punto de venta',
+  'sales.history.view-all': 'Ver todas las ventas realizadas',
   'sales.cash-register.open': 'Abrir y cerrar caja',
   'sales.cash-register.review': 'Revisar diferencias de caja',
   'sales.quotes.manage': 'Gestionar cotizaciones',

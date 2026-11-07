@@ -96,6 +96,7 @@ const MESSAGES: Record<string, string> = {
   IDEMPOTENCY_KEY_REUSED: 'Este cobro ya pertenece a otra venta. Vuelve a intentarlo.',
   INVALID_TRANSITION: 'La venta cambió de estado. Actualiza la pantalla.',
   SALE_NOT_FOUND: 'La venta no existe.',
+  INVALID_FILTER: 'Los filtros no son válidos. Revisa el rango de fechas.',
   INVALID_EMAIL: 'El correo no es válido.',
   INVALID_DISCOUNT: 'El descuento debe ser un porcentaje entre 0 y 100, o un monto en Bs mayor que cero.',
 };

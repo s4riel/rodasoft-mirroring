@@ -514,6 +514,12 @@ export class PosPage implements OnInit {
     this.searchBox()?.nativeElement.focus();
   }
 
+  /** Ver venta: the sale's detail in the sales history. */
+  protected viewSale() {
+    const sale = this.completedSale();
+    if (sale) void this.router.navigate(['/sales/history', sale.saleId]);
+  }
+
   protected printReceipt() {
     const sale = this.completedSale();
     if (!sale) return;

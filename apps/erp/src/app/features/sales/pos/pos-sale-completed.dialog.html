@@ -47,7 +47,7 @@
   </div>
 
   <div slot="footer" class="footer">
-    <!-- "Ver venta" arrives with the sales history (HU-VEN-12) -->
+    <button rsButton variant="secondary" type="button" data-testid="sale-view" (click)="viewSale.emit()">Ver venta</button>
     <button rsButton variant="primary" type="button" data-testid="sale-new" (click)="newSale.emit()">Nueva venta (Enter)</button>
   </div>
 </rs-modal>

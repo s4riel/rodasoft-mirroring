@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { receiptShareText, type SaleReceipt, type SendReceiptEmailResponse } from '@rodasoft/domain';
+import { receiptShareText, type ReprintReceiptResponse, type SaleReceipt, type SendReceiptEmailResponse } from '@rodasoft/domain';
 import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../../../common/audit/audit.service';
 import type { AppClsStore } from '../../../common/cls';
@@ -7,6 +7,7 @@ import { OutboxService } from '../../../common/outbox/outbox.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { posErrors } from '../pos/pos.errors';
+import { SaleVisibilityService } from './sale-visibility.service';
 
 /** Deliberately simple: the mail server is the real check. It only stops obvious typos. */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -23,13 +24,14 @@ export class SaleReceiptService {
     private readonly settings: SettingsService,
     private readonly outbox: OutboxService,
     private readonly audit: AuditService,
+    private readonly visibility: SaleVisibilityService,
   ) {}
 
   async receipt(saleId: string): Promise<SaleReceipt> {
-    // the cashier's own sales; the sales history (HU-VEN-12) widens this for those who may see every sale
-    const userId = this.cls.get('userId');
+    // the cashier's own sales, or every sale for who holds `sales.history.view-all` (HU-VEN-12)
+    const scope = await this.visibility.resolve();
     const sale = await this.prisma.tenant.sale.findFirst({
-      where: { id: saleId, createdById: userId ?? '' },
+      where: { AND: [{ id: saleId }, scope.where] },
       include: {
         items: {
           orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -85,6 +87,16 @@ export class SaleReceiptService {
       invoiceStatus: sale.invoice.status,
       format,
     };
+  }
+
+  /** Records that the receipt is printed again (HU-VEN-13); the reprinted ticket shows the returned instant. */
+  async reprint(saleId: string): Promise<ReprintReceiptResponse> {
+    const scope = await this.visibility.resolve();
+    const sale = await this.prisma.tenant.sale.findFirst({ where: { AND: [{ id: saleId }, scope.where] }, select: { id: true } });
+    if (!sale) throw posErrors.saleNotFound();
+    const printedAt = new Date();
+    await this.audit.log({ action: 'sales.receipt.reprint', entity: 'Sale', entityId: sale.id, after: { printedAt: printedAt.toISOString() } });
+    return { printedAt: printedAt.toISOString() };
   }
 
   /** Queues the receipt e-mail through the outbox; the worker delivers it. The text has no NIT and no costs. */

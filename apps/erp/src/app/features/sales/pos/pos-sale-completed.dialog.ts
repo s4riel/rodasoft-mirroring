@@ -31,6 +31,8 @@ export class PosSaleCompletedDialog {
   readonly print = output<void>();
   readonly whatsapp = output<void>();
   readonly sendEmail = output<string>();
+  /** The Ver venta button: opens the sale in the sales history (HU-VEN-13). */
+  readonly viewSale = output<void>();
   /** "Nueva venta", Enter, Esc or the close button. */
   readonly newSale = output<void>();
 

@@ -4,6 +4,12 @@ import { POS_TAB, SALES_TABS } from './sales-tabs';
 
 /** Screens already built; every other tab is a placeholder until its story fills it (see `SALES_TABS`). */
 const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
+  history: {
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./history/sales-history.page').then((m) => m.SalesHistoryPage) },
+      { path: ':id', title: 'Venta · ERP', loadComponent: () => import('./history/sale-detail.page').then((m) => m.SaleDetailPage) },
+    ],
+  },
   customers: { loadComponent: () => import('./customers/customers.page').then((m) => m.CustomersPage) },
   'cash-register': {
     children: [
