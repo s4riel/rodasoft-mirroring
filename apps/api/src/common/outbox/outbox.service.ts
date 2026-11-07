@@ -10,6 +10,7 @@ export type OutboxType =
   | 'auth.invitation'
   | 'sale.completed'
   | 'sale.receipt-email'
+  | 'sales.quote-email'
   | 'sales.cash-shift.opened'
   | 'sales.cash-shift.float-mismatch'
   | 'sales.cancellation.requested'

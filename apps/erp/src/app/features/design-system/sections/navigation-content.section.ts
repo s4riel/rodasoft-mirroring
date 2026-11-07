@@ -15,6 +15,8 @@ import {
   SidebarComponent,
   StepperComponent,
   StepperStep,
+  StatusTimelineComponent,
+  StatusTimelineStep,
   StepsComponent,
   SubNavComponent,
   SubNavItem,
@@ -27,6 +29,7 @@ import {
   selector: 'rs-navigation-content-section',
   imports: [
     AccordionComponent,
+    StatusTimelineComponent,
     BreadcrumbComponent,
     ContextBarComponent,
     PageHeaderComponent,
@@ -239,6 +242,12 @@ import {
           <rs-stepper [steps]="stepper4" [current]="n" label="Pasos del nuevo producto (4)" />
         }
       </div>
+
+      <h3>StatusTimeline · cotización enviada / vencida</h3>
+      <div class="stack">
+        <rs-status-timeline [steps]="timelineWaiting" label="Estados de la cotización" />
+        <rs-status-timeline [steps]="timelineExpired" label="Estados de la cotización vencida" />
+      </div>
     </section>
   `,
   styles: `
@@ -438,4 +447,16 @@ export class NavigationContentSection {
     { label: 'Equivalencias', tag: 'Opcional' },
   ];
   protected readonly stepper4: StepperStep[] = this.stepper6.slice(0, 4);
+  protected readonly timelineWaiting: StatusTimelineStep[] = [
+    { label: 'Borrador', caption: '14/10', state: 'done' },
+    { label: 'Enviada', caption: '14/10', state: 'done' },
+    { label: 'Esperando respuesta', caption: 'válida hasta 21/10/2026', state: 'current' },
+    { label: 'Convertida', caption: '—', state: 'pending' },
+  ];
+  protected readonly timelineExpired: StatusTimelineStep[] = [
+    { label: 'Borrador', caption: '14/10', state: 'done' },
+    { label: 'Enviada', caption: '14/10', state: 'done' },
+    { label: 'Vencida', caption: '21/10', state: 'warning' },
+    { label: 'Convertida', caption: '—', state: 'pending' },
+  ];
 }

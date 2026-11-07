@@ -2,8 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ORDER_CANCEL_REASON_MAX,
   QUOTE_MAX_LINES,
+  QUOTE_MESSAGE_MAX,
+  QUOTE_SEND_CHANNELS,
   QUOTE_MAX_QUANTITY,
   SALES_DOCUMENT_PAGE_SIZE_MAX,
+  type QuoteSendChannel,
   type QuoteStatus,
   type SalesOrderStatus,
 } from '@rodasoft/domain';
@@ -141,4 +144,31 @@ export class CancelSalesOrderDto {
   @IsNotEmpty()
   @MaxLength(ORDER_CANCEL_REASON_MAX)
   reason!: string;
+}
+
+export class SendQuoteDto {
+  @ApiProperty({ enum: QUOTE_SEND_CHANNELS })
+  @IsIn([...QUOTE_SEND_CHANNELS])
+  channel!: QuoteSendChannel;
+
+  @ApiPropertyOptional({ description: 'E-mail address or WhatsApp number; not used for PDF' })
+  @IsOptional()
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(120)
+  to?: string;
+
+  @ApiPropertyOptional({ maxLength: QUOTE_MESSAGE_MAX })
+  @IsOptional()
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(QUOTE_MESSAGE_MAX)
+  message?: string;
+}
+
+export class RenewQuoteDto {
+  @ApiPropertyOptional({ description: 'YYYY-MM-DD; today plus sales.quoteValidityDays when omitted' })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  validUntil?: string;
 }

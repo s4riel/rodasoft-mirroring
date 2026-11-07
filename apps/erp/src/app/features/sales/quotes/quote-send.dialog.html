@@ -1,0 +1,77 @@
+<rs-modal [(open)]="open" variant="form" size="large" heading="Vista previa y envío" closeLabel="Cerrar">
+  <div class="content">
+    <p class="subtitle">{{ subtitle() }} · {{ document().totalRows.at(-1)?.value }}</p>
+
+    <div class="preview">
+      <rs-receipt
+        paper="letter"
+        [title]="quote().company"
+        [headerLines]="[]"
+        [metaRows]="document().metaRows"
+        [items]="document().items"
+        [totalRows]="document().totalRows"
+        [footerLines]="document().footerLines"
+      />
+    </div>
+
+    <fieldset class="channels">
+      <legend class="legend">Enviar por</legend>
+      <div class="chips" role="radiogroup" aria-label="Enviar por">
+        @for (option of channels; track option.value) {
+          <rs-filter-chip
+            size="m"
+            [label]="option.label"
+            [selected]="channel() === option.value"
+            (selectedChange)="choose(option.value, $event)"
+          />
+        }
+      </div>
+    </fieldset>
+
+    @if (needsRecipient()) {
+      <rs-field [label]="recipientLabel()" forId="quote-send-to">
+        <input
+          rsInput
+          id="quote-send-to"
+          autocomplete="off"
+          [placeholder]="channel() === 'EMAIL' ? 'cliente@empresa.com' : '7 000 0000'"
+          [value]="to()"
+          [invalid]="to() !== '' && !recipientOk()"
+          (input)="to.set($any($event.target).value)"
+        />
+      </rs-field>
+    }
+
+    <rs-field label="Mensaje" forId="quote-send-message">
+      <textarea
+        #messageBox
+        rsTextarea
+        autosize
+        id="quote-send-message"
+        rows="2"
+        [attr.maxlength]="messageMax"
+        [value]="message()"
+        (input)="message.set(messageBox.value)"
+      ></textarea>
+    </rs-field>
+
+    @if (channel() === 'WHATSAPP') {
+      <rs-note type="info" title="Se abre WhatsApp con el mensaje escrito">
+        Todavía no hay integración con WhatsApp: el envío queda registrado en la cotización y debes pulsar «Enviar» en WhatsApp.
+      </rs-note>
+    } @else if (channel() === 'PDF') {
+      <rs-note type="info" title="Se abre la copia para imprimir">Elige «Guardar como PDF» en la ventana de impresión.</rs-note>
+    }
+
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos enviar la cotización">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="quote-send-confirm" [disabled]="!canSend()" [loading]="saving()" (click)="send()">
+      {{ sendLabel() }}
+    </button>
+  </div>
+</rs-modal>

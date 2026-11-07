@@ -16,6 +16,7 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'invoice.cancel': QUEUE.siat,
   'sale.completed': QUEUE.accounting,
   'sale.receipt-email': QUEUE.mail,
+  'sales.quote-email': QUEUE.mail,
   'sales.cash-shift.opened': QUEUE.accounting,
   'sales.cash-shift.float-mismatch': QUEUE.accounting,
   // until the approvals inbox (HU-VEN-29) has its own consumer, like the cash shift events

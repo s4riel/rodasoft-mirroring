@@ -9,7 +9,7 @@ describe('quotes and orders permissions', () => {
   const required = (controller: new (...args: never[]) => unknown, method: string) =>
     reflector.get(REQUIRED_PERMISSIONS, (controller.prototype as Record<string, () => unknown>)[method]);
 
-  it.each(['list', 'context', 'customers', 'productSearch', 'detail', 'create'])('QuotesController.%s needs sales.quotes.manage', (method) => {
+  it.each(['list', 'context', 'customers', 'productSearch', 'detail', 'create', 'send', 'renew', 'reject'])('QuotesController.%s needs sales.quotes.manage', (method) => {
     expect(required(QuotesController, method)).toEqual(['sales.quotes.manage']);
   });
 

@@ -1,5 +1,6 @@
 import type { CustomerDiscountType, RoundingMode } from './sales-pricing';
 import { availableQuantity } from './pos-cart';
+import type { QuoteSendLogEntry, QuoteTimelineStep } from './quote-tracking';
 import type { QuoteStatus, SalesOrderStatus } from './state-machine';
 
 /**
@@ -138,6 +139,8 @@ export interface QuoteLineDetail {
   quantity: number;
   unitPrice: string;
   lineTotal: string;
+  /** Available stock (`quantity − reserved`) in the main warehouse of the user's branch; `null` when there is none. */
+  available: number | null;
 }
 
 export interface QuoteDetail {
@@ -159,6 +162,17 @@ export interface QuoteDetail {
   order: { id: string; number: string } | null;
   /** Whether "Convertir en pedido" is offered. */
   convertible: boolean;
+  /** Where the quote stands (HU-VEN-17/18). */
+  timeline: QuoteTimelineStep[];
+  sendLog: QuoteSendLogEntry[];
+  /** Customer contact, to prefill the sending. */
+  customerEmail: string | null;
+  customerPhone: string | null;
+  canSend: boolean;
+  canRenew: boolean;
+  canReject: boolean;
+  /** The company name for the document header. */
+  company: string;
 }
 
 /** Product search of the quote editor: the stock is the available stock of the chosen warehouse. */

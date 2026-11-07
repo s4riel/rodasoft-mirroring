@@ -10,6 +10,7 @@ import { OutboxRelayService } from './outbox/outbox-relay.service';
 import { AccountingProcessor } from './processors/accounting.processor';
 import { InventoryProcessor } from './processors/inventory.processor';
 import { MailProcessor } from './processors/mail.processor';
+import { QuoteExpiryService } from './quotes/quote-expiry.service';
 import { SiatProcessor } from './processors/siat.processor';
 
 @Module({
@@ -25,6 +26,6 @@ import { SiatProcessor } from './processors/siat.processor';
     }),
     BullModule.registerQueue({ name: QUEUE.mail }, { name: QUEUE.siat }, { name: QUEUE.accounting }, { name: QUEUE.inventory }),
   ],
-  providers: [PrismaService, OutboxRelayService, MailProcessor, SiatProcessor, AccountingProcessor, InventoryProcessor],
+  providers: [PrismaService, OutboxRelayService, QuoteExpiryService, MailProcessor, SiatProcessor, AccountingProcessor, InventoryProcessor],
 })
 export class WorkerModule {}
