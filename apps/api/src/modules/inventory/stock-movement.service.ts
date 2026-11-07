@@ -81,11 +81,20 @@ export class StockMovementService {
       VALUES (gen_random_uuid(), ${companyId}::uuid, ${input.productId}::uuid, ${input.warehouseId}::uuid, 0, 0, now())
       ON CONFLICT (product_id, warehouse_id) DO NOTHING`;
 
-    const [level] = await tx.$queryRaw<{ quantity: number }[]>`
-      SELECT quantity FROM stock_levels
+    const [level] = await tx.$queryRaw<{ quantity: number; reserved: number }[]>`
+      SELECT quantity, reserved FROM stock_levels
       WHERE product_id = ${input.productId}::uuid AND warehouse_id = ${input.warehouseId}::uuid AND company_id = ${companyId}::uuid
       FOR UPDATE`;
     const allowNegative = await this.settings.get('inventory.allowNegativeStock', tx);
+
+    // units reserved for an order are not free to leave: a removal may not take the stock below what is reserved
+    if (input.quantity < 0 && !allowNegative && level.quantity + input.quantity < level.reserved) {
+      throw new UnprocessableEntityException({
+        code: 'INSUFFICIENT_STOCK',
+        message: 'The units left are reserved for orders',
+        details: { available: Math.max(0, level.quantity - level.reserved) },
+      });
+    }
 
     let balanceAfter: number;
     try {

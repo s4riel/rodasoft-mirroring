@@ -1,0 +1,165 @@
+<rs-page-header title="Nueva cotización" type="form" [breadcrumbs]="breadcrumbs" breadcrumbLabel="Ruta de navegación" />
+
+@if (forbidden()) {
+  <section class="card" role="alert">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para crear cotizaciones"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else if (loadFailed()) {
+  <rs-note type="danger" title="No pudimos preparar la cotización">
+    {{ loadFailed() }}
+    <button rsButton variant="secondary" size="sm" type="button" (click)="load()">Reintentar</button>
+  </rs-note>
+} @else if (!context()) {
+  <section class="card" role="status" aria-busy="true" aria-label="Preparando la cotización">
+    <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+    <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+  </section>
+} @else {
+  <div class="layout">
+    <div class="main">
+      <section class="card">
+        <h2 class="card-title">Cliente</h2>
+        @if (customer(); as c) {
+          <div class="customer">
+            <div>
+              <strong>{{ c.name }}</strong>
+              <span class="muted">{{ c.documentNumber }}</span>
+              @if (c.discount.type !== 'NONE') {
+                <span class="muted">Descuento {{ c.discount.type === 'PERCENT' ? c.discount.value + ' %' : 'Bs ' + c.discount.value }}</span>
+              }
+            </div>
+            <button rsButton variant="ghost" size="sm" type="button" (click)="changeCustomer()">Cambiar</button>
+          </div>
+        } @else {
+          <rs-field label="Buscar cliente" forId="quote-customer" required [error]="customerError() ? 'Elige un cliente.' : ''">
+            <input
+              rsInput
+              id="quote-customer"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="quote-customer-results"
+              [attr.aria-expanded]="customerResults().length > 0"
+              autocomplete="off"
+              placeholder="Nombre o NIT"
+              [value]="customerText()"
+              [invalid]="customerError()"
+              (input)="onCustomerText($any($event.target).value)"
+            />
+          </rs-field>
+          @if (customerResults().length > 0) {
+            <ul class="results" id="quote-customer-results" aria-label="Clientes">
+              @for (result of customerResults(); track result.id) {
+                <li>
+                  <button type="button" class="result" (click)="pickCustomer(result)">
+                    <strong>{{ result.name }}</strong>
+                    <span class="muted">{{ result.documentNumber }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Productos</h2>
+        <div class="row">
+          <rs-field label="Almacén para el stock" forId="quote-warehouse">
+            <rs-select inputId="quote-warehouse" [options]="warehouseOptions()" [value]="warehouseId()" (valueChange)="setWarehouse($event)" />
+          </rs-field>
+          <rs-field label="Buscar producto" forId="quote-product">
+            <input
+              rsInput
+              id="quote-product"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="quote-product-results"
+              [attr.aria-expanded]="productResults().length > 0"
+              autocomplete="off"
+              placeholder="Código, nombre o marca"
+              [value]="productText()"
+              (input)="onProductText($any($event.target).value)"
+              (keydown.enter)="addFirst()"
+            />
+          </rs-field>
+        </div>
+        @if (productResults().length > 0) {
+          <ul class="results" id="quote-product-results" aria-label="Productos">
+            @for (product of productResults(); track product.id) {
+              <li>
+                <button type="button" class="result" (click)="addProduct(product)">
+                  <span class="mono">{{ product.code }}</span>
+                  <span class="grow">{{ product.name }} · {{ product.brandName }}</span>
+                  <span class="muted" [class.short]="product.available <= 0">{{ stockText(product) }}</span>
+                  <strong>{{ formatBs(product.salePrice) }}</strong>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else if (searching()) {
+          <p class="muted" role="status">Buscando…</p>
+        }
+        <p class="sr-only" role="status">{{ productResults().length > 0 ? productResults().length + " resultados" : "" }}</p>
+
+        @if (linesError()) {
+          <p class="error" role="alert">Agrega al menos un producto.</p>
+        }
+        @if (lines().length > 0) {
+          <rs-doc-table size="md" tableLabel="Productos de la cotización" [columns]="columns" [rows]="rows()">
+            <ng-template rsDocCell="stock" let-row>
+              @if (lineOf(row.id); as line) {
+                <span [class.short]="hintOf(line).short">{{ hintOf(line).text }}</span>
+              }
+            </ng-template>
+            <ng-template rsDocCell="quantity" let-row>
+              @if (lineOf(row.id); as line) {
+                <rs-qty-stepper
+                  [value]="line.quantity"
+                  [min]="1"
+                  [label]="'Cantidad de ' + line.code"
+                  decrementLabel="Menos"
+                  incrementLabel="Más"
+                  (valueChange)="setQuantity(line.productId, $event)"
+                />
+              }
+            </ng-template>
+            <ng-template rsDocCell="remove" let-row>
+              <button rsButton variant="ghost" size="sm" type="button" (click)="remove(row.id)">Quitar</button>
+            </ng-template>
+          </rs-doc-table>
+        }
+      </section>
+    </div>
+
+    <aside class="side">
+      <section class="card">
+        <h2 class="card-title">Resumen</h2>
+        <rs-field label="Válida hasta" forId="quote-valid" [hint]="context() ? 'Por defecto ' + context()!.validityDays + ' días.' : ''">
+          <input rsInput id="quote-valid" type="date" [value]="validUntil()" (input)="onValidUntil($any($event.target).value)" />
+        </rs-field>
+        <dl class="totals">
+          <div><dt>Subtotal</dt><dd>{{ formatBs(totals().subtotal) }}</dd></div>
+          @if (hasDiscount()) {
+            <div><dt>Descuento del cliente</dt><dd>− {{ formatBs(totals().discount) }}</dd></div>
+          }
+          @if (hasRounding()) {
+            <div><dt>Redondeo</dt><dd>{{ formatBs(totals().rounding) }}</dd></div>
+          }
+          <div class="grand"><dt>Total</dt><dd data-testid="quote-total">{{ formatBs(totals().total) }}</dd></div>
+        </dl>
+        <rs-note type="info">La cotización no reserva stock. El stock se reserva al convertirla en pedido.</rs-note>
+        <div class="actions">
+          <button rsButton variant="secondary" type="button" (click)="cancel()">Cancelar</button>
+          <button rsButton variant="primary" type="button" data-testid="quote-save" [loading]="saving()" (click)="save()">Crear cotización</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -16,6 +16,23 @@ const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
       { path: ':id', title: 'Venta · ERP', loadComponent: () => import('./history/sale-detail.page').then((m) => m.SaleDetailPage) },
     ],
   },
+  quotes: {
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./quotes/quotes.page').then((m) => m.QuotesPage) },
+      {
+        path: 'new',
+        title: 'Nueva cotización · ERP',
+        loadComponent: () => import('./quotes/quote-form.page').then((m) => m.QuoteFormPage),
+      },
+      { path: ':id', title: 'Cotización · ERP', loadComponent: () => import('./quotes/quote-detail.page').then((m) => m.QuoteDetailPage) },
+    ],
+  },
+  orders: {
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./orders/orders.page').then((m) => m.OrdersPage) },
+      { path: ':id', title: 'Pedido · ERP', loadComponent: () => import('./orders/order-detail.page').then((m) => m.OrderDetailPage) },
+    ],
+  },
   customers: { loadComponent: () => import('./customers/customers.page').then((m) => m.CustomersPage) },
   'cash-register': {
     children: [

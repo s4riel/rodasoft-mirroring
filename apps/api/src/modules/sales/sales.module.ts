@@ -5,6 +5,10 @@ import { CashRegistersService } from './cash/cash-registers.service';
 import { CashShiftsService } from './cash/cash-shifts.service';
 import { CustomersController } from './customers/customers.controller';
 import { CustomersService } from './customers/customers.service';
+import { SalesOrdersController } from './orders/sales-orders.controller';
+import { SalesOrdersService } from './orders/sales-orders.service';
+import { QuotesController } from './quotes/quotes.controller';
+import { QuotesService } from './quotes/quotes.service';
 import { PosController } from './pos/pos.controller';
 import { PosCatalogService } from './pos/pos-catalog.service';
 import { PosCheckoutService } from './pos/pos-checkout.service';
@@ -31,12 +35,14 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
 @Module({
   // the POS reads the inventory's equivalences (HU-VEN-03) and product sheet (HU-VEN-04)
   imports: [InventoryModule],
-  controllers: [CashController, CustomersController, PosController, SaleCancellationController, SaleReceiptController, SalesHistoryController],
+  controllers: [CashController, CustomersController, PosController, QuotesController, SalesOrdersController, SaleCancellationController, SaleReceiptController, SalesHistoryController],
   providers: [
     CashRegistersService,
     CashShiftsService,
     CustomersService,
     PosCatalogService,
+    QuotesService,
+    SalesOrdersService,
     PosCheckoutService,
     PosPaymentService,
     PosQrPaymentService,

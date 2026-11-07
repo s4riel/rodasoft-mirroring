@@ -143,7 +143,9 @@ describe('sales state machines (HU-VEN-00)', () => {
     expect(quoteMachine.next(sent, 'accept')).toBe('ACCEPTED');
     expect(quoteMachine.next(sent, 'reject')).toBe('REJECTED');
     expect(quoteMachine.next(sent, 'expire')).toBe('EXPIRED');
-    expect(() => quoteMachine.next('DRAFT', 'accept')).toThrow(InvalidTransitionError);
+    // a draft can be accepted too: converting it into an order does not wait for the sending (HU-VEN-19)
+    expect(quoteMachine.next('DRAFT', 'accept')).toBe('ACCEPTED');
+    expect(() => quoteMachine.next('DRAFT', 'reject')).toThrow(InvalidTransitionError);
   });
 
   it('only an expired quote can be renewed, and it goes back to sent', () => {
