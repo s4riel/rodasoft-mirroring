@@ -1146,28 +1146,28 @@ model PosCheckoutItem {
 /// A payment attempt of a checkout. `idempotencyKey` is unique per company, so a repeated charge or webhook finds the
 /// stored row instead of charging twice.
 model PosCheckoutPayment {
-  id             String        @id @default(uuid(7)) @db.Uuid
-  companyId      String        @map("company_id") @db.Uuid
-  checkoutId     String        @map("checkout_id") @db.Uuid
+  id             String                @id @default(uuid(7)) @db.Uuid
+  companyId      String                @map("company_id") @db.Uuid
+  checkoutId     String                @map("checkout_id") @db.Uuid
   method         PaymentMethod
-  amount         Decimal       @db.Decimal(14, 2)
-  idempotencyKey String        @map("idempotency_key")
-  providerRef    String?       @map("provider_ref")
+  amount         Decimal               @db.Decimal(14, 2)
+  idempotencyKey String                @map("idempotency_key")
+  providerRef    String?               @map("provider_ref")
   /// cash given back (HU-VEN-07); only CASH may have it. The received amount is `amount + change`
-  change         Decimal       @default(0) @db.Decimal(14, 2)
-  status         PaymentStatus @default(PENDING)
+  change         Decimal               @default(0) @db.Decimal(14, 2)
+  status         PaymentStatus         @default(PENDING)
   /// card: the authorization code of the terminal voucher (HU-VEN-10); required once a card payment is CONFIRMED
   reference      String?
   /// card payments only (HU-VEN-10): why the terminal declined; set only while the payment is DECLINED
   declineReason  PaymentDeclineReason? @map("decline_reason")
   /// QR payments only (HU-VEN-08): what the QR encodes, kept so a refresh can draw it again
-  qrPayload      String?       @map("qr_payload")
+  qrPayload      String?               @map("qr_payload")
   /// QR payments only: after this moment a still-pending QR is cancelled by the server (`sales.qrConfirmTimeoutSeconds`)
-  expiresAt      DateTime?     @map("expires_at") @db.Timestamptz(3)
+  expiresAt      DateTime?             @map("expires_at") @db.Timestamptz(3)
   /// credit payments only (HU-VEN-34)
-  dueDate        DateTime?     @map("due_date") @db.Date
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  dueDate        DateTime?             @map("due_date") @db.Date
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company  Company     @relation(fields: [companyId], references: [id])
   checkout PosCheckout @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
@@ -1339,18 +1339,25 @@ model QuoteItem {
 
 /// Reserves stock in `warehouseId` (`StockLevel.reserved`); a dispatch turns the reservation into a movement.
 model SalesOrder {
-  id          String           @id @default(uuid(7)) @db.Uuid
-  companyId   String           @map("company_id") @db.Uuid
+  id             String               @id @default(uuid(7)) @db.Uuid
+  companyId      String               @map("company_id") @db.Uuid
   /// `PED-000012`
-  number      String
-  customerId  String           @map("customer_id") @db.Uuid
-  quoteId     String?          @map("quote_id") @db.Uuid
-  branchId    String           @map("branch_id") @db.Uuid
-  warehouseId String           @map("warehouse_id") @db.Uuid
-  status      SalesOrderStatus @default(OPEN)
-  createdById String           @map("created_by_id") @db.Uuid
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  number         String
+  customerId     String               @map("customer_id") @db.Uuid
+  quoteId        String?              @map("quote_id") @db.Uuid
+  branchId       String               @map("branch_id") @db.Uuid
+  warehouseId    String               @map("warehouse_id") @db.Uuid
+  status         SalesOrderStatus     @default(OPEN)
+  subtotal       Decimal              @db.Decimal(14, 2)
+  discountType   CustomerDiscountType @default(NONE) @map("discount_type")
+  discountValue  Decimal              @default(0) @map("discount_value") @db.Decimal(14, 2)
+  discountAmount Decimal              @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  roundingAmount Decimal              @default(0) @map("rounding_amount") @db.Decimal(14, 2)
+  total          Decimal              @db.Decimal(14, 2)
+  cancelledAt    DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  createdById    String               @map("created_by_id") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company    Company          @relation(fields: [companyId], references: [id])
   customer   Customer         @relation(fields: [customerId], references: [id])
@@ -1363,6 +1370,7 @@ model SalesOrder {
   @@unique([companyId, number])
   @@index([companyId, status, createdAt(sort: Desc)])
   @@index([companyId, customerId])
+  @@index([companyId, quoteId])
   @@map("sales_orders")
 }
 
@@ -1373,6 +1381,8 @@ model SalesOrderItem {
   productId          String  @map("product_id") @db.Uuid
   quantity           Int
   unitPrice          Decimal @map("unit_price") @db.Decimal(14, 2)
+  lineTotal          Decimal @map("line_total") @db.Decimal(14, 2)
+  sortOrder          Int     @default(0) @map("sort_order")
   reservedQuantity   Int     @default(0) @map("reserved_quantity")
   dispatchedQuantity Int     @default(0) @map("dispatched_quantity")
 

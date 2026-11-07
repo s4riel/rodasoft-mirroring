@@ -29,6 +29,9 @@ import { SaleReceiptService } from '../sales/sale-receipt.service';
 import { SaleVisibilityService } from '../sales/sale-visibility.service';
 import { SalesHistoryService } from '../sales/sales-history.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
+import { SalesOrdersService } from '../orders/sales-orders.service';
+import { QuotesService } from '../quotes/quotes.service';
+import { StockReservationService } from '../../inventory/stock-reservation.service';
 
 export interface Caller {
   userId: string;
@@ -85,7 +88,7 @@ export function createPosFixture(prefix: string) {
   }
 
   /** Services as one caller sees them. */
-  function as(caller: Caller) {
+  function as(caller: Caller, opts: { operableBranchIds?: string[] } = {}) {
     const cls = {
       get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? caller.membershipId : k === 'userId' ? caller.userId : null),
     } as never;
@@ -93,12 +96,16 @@ export function createPosFixture(prefix: string) {
     const audit = new AuditService(prisma, cls);
     const customers = new CustomersService(prisma, cls, audit);
     const outbox = new OutboxService(prisma, cls);
+    const scopedMembership = opts.operableBranchIds ? ({ ...(membership as object), operableBranchIds: async () => opts.operableBranchIds } as never) : membership;
     const visibility = new SaleVisibilityService(cls, membership);
     const cancellations = new SaleCancellationService(prisma, cls, settings, audit, outbox, visibility, membership, new StockMovementService(cls, settings));
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
+    const reservations = new StockReservationService(cls, settings);
     return {
       customers,
+      quotes: new QuotesService(prisma, cls, settings, audit, membership, customers),
+      orders: new SalesOrdersService(prisma, cls, audit, outbox, scopedMembership, reservations),
       catalog: new PosCatalogService(prisma, shifts, settings),
       checkout,
       payment,
@@ -187,7 +194,7 @@ export function createPosFixture(prefix: string) {
     } finally {
       current = previous;
     }
-    // reservations come from sales orders (HU-VEN-19), which do not exist yet: the fixture sets them directly
+    // a shortcut for the stock tests; the real path (quote -> order) is covered by sales-orders.int.spec.ts
     for (const [warehouseId, reserved] of Object.entries(opts.reserved ?? {})) {
       await base.stockLevel.update({ where: { productId_warehouseId: { productId: product.id, warehouseId } }, data: { reserved } });
     }
@@ -277,6 +284,8 @@ export function createPosFixture(prefix: string) {
       await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
       await tx.stockMovement.deleteMany({ where: { companyId: { in: companies } } });
     });
+    await base.salesOrder.deleteMany({ where: { companyId: { in: companies } } });
+    await base.quote.deleteMany({ where: { companyId: { in: companies } } });
     await base.approvalRequest.deleteMany({ where: { companyId: { in: companies } } });
     await base.invoice.deleteMany({ where: { companyId: { in: companies } } });
     await base.sale.deleteMany({ where: { companyId: { in: companies } } });
@@ -311,7 +320,14 @@ export function createPosFixture(prefix: string) {
     extraPermissions.set(caller.membershipId, permissions);
   }
 
-  return { state, as, providers, mock, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, newMember, grant, setup, teardown };
+  /** A stock service for the current company, for tests that move stock outside the POS. */
+  const stockService = () => new StockMovementService({ get: (k: string) => (k === 'companyId' ? current : null) } as never, settings);
+
+  const settingsService = () => settings;
+  /** Runs `fn` in a transaction of the current company, like `prisma.tenant.$transaction`. */
+  const tenantTransaction = <T>(fn: (tx: never) => Promise<T>): Promise<T> => prisma.tenant.$transaction((tx) => fn(tx as never));
+
+  return { state, settingsService, tenantTransaction, stockService, as, providers, mock, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, newMember, grant, setup, teardown };
 }
 
 /** The error code of a rejected call, or null when it succeeds. */

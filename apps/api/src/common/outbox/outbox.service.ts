@@ -16,6 +16,8 @@ export type OutboxType =
   | 'sales.cancellation.withdrawn'
   | 'sales.cancellation.approved'
   | 'sales.cancellation.rejected'
+  | 'sales.order.created'
+  | 'sales.order.cancelled'
   | 'invoice.issue'
   | 'invoice.cancel'
   | 'entry.generate'

@@ -46,7 +46,8 @@ Document state changes only through these, audited with `AuditService`.
 - Sale: `COMPLETED → CANCELLATION_PENDING → CANCELLED` (rejected: back to `COMPLETED`). A sale only exists once paid; everything before payment lives in `PosCheckout`.
 - Approval request: `PENDING → APPROVED | REJECTED`.
 - Quote: `DRAFT → SENT → (ACCEPTED | EXPIRED | REJECTED)`; an expired quote can be renewed into a new validity date.
-- Order: `OPEN → PARTIALLY_DISPATCHED → DISPATCHED`, plus `CANCELLED`; releasing a reservation happens on cancel.
+- Order: `OPEN → PARTIALLY_DISPATCHED → DISPATCHED`, plus `CANCELLED`; releasing a reservation happens on cancel. Converting a quote moves it to `ACCEPTED` (from `DRAFT` or `SENT`); cancelling the order does not reopen the quote, a new quote is made instead.
+- `StockLevel.reserved` is written only by `StockReservationService` (apps/api inventory); any stock removal refuses to leave less than `reserved` (unless negative stock is allowed).
 
 ## Stock rules
 

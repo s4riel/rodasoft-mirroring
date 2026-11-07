@@ -1,0 +1,91 @@
+<rs-page-header
+  [title]="detail() ? 'Cotización ' + detail()!.number : 'Cotización'"
+  type="detail"
+  [breadcrumbs]="breadcrumbs()"
+  breadcrumbLabel="Ruta de navegación"
+>
+  @if (detail()?.convertible) {
+    <div rsActions class="header-actions">
+      <button *rsCan="'sales.orders.manage'" rsButton variant="primary" type="button" data-testid="quote-convert" (click)="openConvert()">
+        Convertir en pedido
+      </button>
+    </div>
+  }
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la cotización">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la cotización" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      @if (d.status === 'EXPIRED') {
+        <rs-note type="warning" title="La cotización venció">Su validez terminó el {{ formatDay(d.validUntil) }}. Ya no se puede convertir en pedido.</rs-note>
+      }
+      <section class="card">
+        <div class="head">
+          @if (pill(); as p) {
+            <rs-status-pill [status]="p.status">{{ p.label }}</rs-status-pill>
+          }
+          <dl class="facts">
+            <div><dt>Cliente</dt><dd>{{ d.customer.name }}</dd></div>
+            <div><dt>Documento</dt><dd>{{ d.customer.documentNumber }}</dd></div>
+            <div><dt>Creada</dt><dd>{{ formatDateTime(d.createdAt) }}@if (d.createdByName) { · {{ d.createdByName }} }</dd></div>
+            <div><dt>Válida hasta</dt><dd>{{ formatDay(d.validUntil) }}</dd></div>
+            @if (d.order) {
+              <div><dt>Pedido</dt><dd><a class="link" [routerLink]="['/sales/orders', d.order.id]">{{ d.order.number }}</a></dd></div>
+            }
+          </dl>
+        </div>
+        <rs-doc-table size="md" tableLabel="Productos de la cotización" [columns]="columns" [rows]="rows()" />
+        <dl class="totals">
+          <div><dt>Subtotal</dt><dd>{{ formatBs(d.subtotal) }}</dd></div>
+          @if (hasDiscount()) {
+            <div><dt>Descuento del cliente</dt><dd>− {{ formatBs(d.discountAmount) }}</dd></div>
+          }
+          @if (hasRounding()) {
+            <div><dt>Redondeo</dt><dd>{{ formatBs(d.roundingAmount) }}</dd></div>
+          }
+          <div class="grand"><dt>Total</dt><dd>{{ formatBs(d.total) }}</dd></div>
+        </dl>
+      </section>
+    }
+  }
+}
+
+<rs-modal variant="form" heading="Convertir en pedido" closeLabel="Cerrar" [open]="convertOpen()" (closed)="closeConvert()">
+  <p>El pedido reserva el stock de todos los productos en el almacén que elijas. Nadie más podrá venderlo mientras tanto.</p>
+  <rs-field label="Almacén" forId="convert-warehouse">
+    <rs-select inputId="convert-warehouse" [options]="warehouseOptions()" [value]="warehouseId()" (valueChange)="warehouseId.set($event ? '' + $event : null)" />
+  </rs-field>
+  @if (convertError()) {
+    <rs-note type="danger" title="No se pudo crear el pedido">
+      {{ convertError() }}
+      @if (shortfalls().length > 0) {
+        <ul class="shortfalls">
+          @for (s of shortfalls(); track s.productId) {
+            <li>{{ nameOf(s.productId) }}: pides {{ s.requested }}, disponible {{ s.available }}</li>
+          }
+        </ul>
+      }
+    </rs-note>
+  }
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="converting()" (click)="closeConvert()">Volver</button>
+    <button rsButton variant="primary" type="button" data-testid="quote-convert-confirm" [disabled]="!warehouseId()" [loading]="converting()" (click)="convert()">
+      Crear pedido y reservar
+    </button>
+  </div>
+</rs-modal>
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -1,0 +1,128 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (max-width: 64rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.main,
+.side {
+  display: grid;
+  gap: var(--space-6);
+}
+.card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.card-title {
+  margin: 0;
+  font-size: var(--heading-sm-size);
+  color: var(--text-primary);
+}
+.row {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: var(--space-4);
+}
+.customer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  > div {
+    display: grid;
+    gap: var(--space-1);
+  }
+}
+.muted {
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--mono-md-size);
+}
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.short {
+  color: var(--status-warning);
+  font-weight: 600;
+}
+.error {
+  margin: 0;
+  color: var(--status-danger);
+}
+.results {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--stroke-default) solid var(--border-default);
+  cursor: pointer;
+  color: var(--text-primary);
+  &:hover {
+    background: var(--bg-canvas);
+  }
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: calc(-1 * var(--stroke-focus));
+  }
+}
+.totals {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  > div {
+    display: flex;
+    justify-content: space-between;
+  }
+  dt,
+  dd {
+    margin: 0;
+  }
+  .grand {
+    padding-top: var(--space-3);
+    border-top: var(--stroke-default) solid var(--border-default);
+    font-weight: 700;
+  }
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

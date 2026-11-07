@@ -15,6 +15,7 @@ import { StockAdjustmentService } from './stock-adjustment.service';
 import { StockAdjustmentsController } from './stock-adjustments.controller';
 import { StockAdjustmentsService } from './stock-adjustments.service';
 import { StockMovementService } from './stock-movement.service';
+import { StockReservationService } from './stock-reservation.service';
 import { StockQueriesService } from './stock-queries.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { TransferReceiptsService } from './transfer-receipts.service';
@@ -35,6 +36,7 @@ import { WarehousesService } from './warehouses.service';
     KardexService,
     KardexLedgerService,
     StockMovementService,
+    StockReservationService,
     StockAdjustmentService,
     StockAdjustmentsService,
     WarehousesService,
@@ -44,6 +46,6 @@ import { WarehousesService } from './warehouses.service';
     StorageService,
   ],
   // the POS offers the equivalents of an out-of-stock product (HU-VEN-03) and shows the product sheet (HU-VEN-04)
-  exports: [EquivalencesService, ProductsService, StockMovementService],
+  exports: [EquivalencesService, ProductsService, StockMovementService, StockReservationService],
 })
 export class InventoryModule {}

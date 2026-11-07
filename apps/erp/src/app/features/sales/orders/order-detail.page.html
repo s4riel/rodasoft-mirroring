@@ -1,0 +1,86 @@
+<rs-page-header
+  [title]="detail() ? 'Pedido ' + detail()!.number : 'Pedido'"
+  type="detail"
+  [breadcrumbs]="breadcrumbs()"
+  breadcrumbLabel="Ruta de navegación"
+>
+  @if (detail()?.cancellable) {
+    <div rsActions class="header-actions">
+      <button *rsCan="'sales.orders.manage'" rsButton variant="danger" type="button" data-testid="order-cancel" (click)="openCancel()">Anular pedido</button>
+    </div>
+  }
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el pedido">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el pedido" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      @if (d.status === 'OPEN') {
+        <rs-note type="info">El stock de este pedido está reservado en {{ d.warehouseName }}: nadie más puede venderlo.</rs-note>
+      }
+      <section class="card">
+        <div class="head">
+          @if (pill(); as p) {
+            <rs-status-pill [status]="p.status">{{ p.label }}</rs-status-pill>
+          }
+          <dl class="facts">
+            <div><dt>Cliente</dt><dd>{{ d.customer.name }}</dd></div>
+            <div><dt>Documento</dt><dd>{{ d.customer.documentNumber }}</dd></div>
+            <div><dt>Sucursal · almacén</dt><dd>{{ d.branchName }} · {{ d.warehouseName }}</dd></div>
+            <div><dt>Creado</dt><dd>{{ formatDateTime(d.createdAt) }}@if (d.createdByName) { · {{ d.createdByName }} }</dd></div>
+            @if (d.quote) {
+              <div><dt>Cotización</dt><dd><a class="link" [routerLink]="['/sales/quotes', d.quote.id]">{{ d.quote.number }}</a></dd></div>
+            }
+            @if (d.cancelledAt) {
+              <div><dt>Anulado</dt><dd>{{ formatDateTime(d.cancelledAt) }}</dd></div>
+            }
+          </dl>
+        </div>
+        <rs-doc-table size="md" tableLabel="Productos del pedido" [columns]="columns" [rows]="rows()" />
+        <dl class="totals">
+          <div><dt>Subtotal</dt><dd>{{ formatBs(d.subtotal) }}</dd></div>
+          @if (hasDiscount()) {
+            <div><dt>Descuento del cliente</dt><dd>− {{ formatBs(d.discountAmount) }}</dd></div>
+          }
+          @if (hasRounding()) {
+            <div><dt>Redondeo</dt><dd>{{ formatBs(d.roundingAmount) }}</dd></div>
+          }
+          <div class="grand"><dt>Total</dt><dd>{{ formatBs(d.total) }}</dd></div>
+        </dl>
+      </section>
+    }
+  }
+}
+
+<rs-modal variant="form" heading="¿Anular el pedido?" closeLabel="Cerrar" [open]="cancelOpen()" (closed)="cancelOpen.set(false)">
+  <p>El stock reservado que no se despachó vuelve a estar disponible para vender.</p>
+  <rs-field label="Motivo" forId="order-cancel-reason" required [error]="reasonMissing() ? 'Escribe el motivo de la anulación.' : ''">
+    <textarea
+      rsTextarea
+      id="order-cancel-reason"
+      rows="3"
+      [attr.maxlength]="reasonMax"
+      [value]="reason()"
+      [invalid]="reasonMissing()"
+      (input)="reason.set($any($event.target).value)"
+    ></textarea>
+  </rs-field>
+  <div slot="footer" class="dialog-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="cancelling()" (click)="cancelOpen.set(false)">Volver</button>
+    <button rsButton variant="danger" type="button" data-testid="order-cancel-confirm" [loading]="cancelling()" (click)="cancel()">Anular pedido</button>
+  </div>
+</rs-modal>
+
+<rs-toast-outlet closeLabel="Cerrar" />
