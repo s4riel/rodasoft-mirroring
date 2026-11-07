@@ -64,6 +64,12 @@ describe('state machines', () => {
     expect(invoiceMachine.next(s, 'rejectCancellation')).toBe('VALID');
     expect(invoiceMachine.events('CANCELLED')).toEqual([]);
   });
+
+  it('an invoice that was never sent is voided, one already sent is not', () => {
+    expect(invoiceMachine.next('PENDING', 'void')).toBe('CANCELLED');
+    expect(() => invoiceMachine.next('VALID', 'void')).toThrow(InvalidTransitionError);
+    expect(() => invoiceMachine.next('SENDING', 'void')).toThrow(InvalidTransitionError);
+  });
 });
 
 describe('sales state machines (HU-VEN-00)', () => {

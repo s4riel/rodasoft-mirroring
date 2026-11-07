@@ -102,6 +102,9 @@ const MESSAGES: Record<string, string> = {
   CANCELLATION_ALREADY_PENDING: 'Esta venta ya tiene una solicitud de anulación esperando a Gerencia.',
   CANCELLATION_WINDOW_EXPIRED: 'Venció el plazo para anular esta venta.',
   CANCELLATION_NOT_PENDING: 'Esta venta no tiene una solicitud de anulación pendiente.',
+  CASH_SHIFT_NOT_OPEN_FOR_REFUND: 'La caja de esta venta no tiene un turno abierto para registrar el reembolso. Ábrela e inténtalo de nuevo.',
+  CANCELLATION_WAREHOUSE_INACTIVE: 'El almacén de la venta está inactivo y no puede recibir el stock. Actívalo e inténtalo de nuevo.',
+  INVOICE_NOT_CANCELLABLE: 'La factura de esta venta no se puede anular en su estado actual.',
   CANCELLATION_WITHDRAW_FORBIDDEN: 'Solo quien pidió la anulación, o quien puede aprobarla, puede retirar la solicitud.',
   INVALID_DISCOUNT: 'El descuento debe ser un porcentaje entre 0 y 100, o un monto en Bs mayor que cero.',
 };

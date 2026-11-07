@@ -29,7 +29,7 @@ const detail = (over: Partial<SaleDetail> = {}): SaleDetail => ({
     { action: 'sales.sale.complete', at: '2026-10-14T14:24:00.000Z', userName: 'Alberto Andia', email: null },
     { action: 'sales.receipt.reprint', at: '2026-10-14T15:00:00.000Z', userName: 'Alberto Andia', email: null },
   ],
-  cancellation: { canRequest: true, windowEndsAt: null, pending: null, impact: { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' } },
+  cancellation: { canRequest: true, windowEndsAt: null, pending: null, lastDecision: null, impact: { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' } },
   receiptFormat: 'TICKET_80MM',
   ...over,
 });
@@ -138,7 +138,7 @@ describe('SaleDetailPage', () => {
   });
 
   describe('cancellation (HU-VEN-14)', () => {
-    const noCancellation = { canRequest: false, windowEndsAt: null, pending: null, impact: { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' } };
+    const noCancellation = { canRequest: false, windowEndsAt: null, pending: null, lastDecision: null, impact: { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' } };
     const pendingSale = (over: { canWithdraw?: boolean } = {}) =>
       detail({
         status: 'CANCELLATION_PENDING',
@@ -287,6 +287,88 @@ describe('SaleDetailPage', () => {
       await settle(f);
       expect(el(f).textContent).toContain('Anulación solicitada · esperando a Gerencia');
       expect(el(f).textContent).toContain('Solicitud de anulación retirada');
+    });
+  });
+
+  describe('cancellation decision (HU-VEN-15)', () => {
+    const place = { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' };
+    const base = { canRequest: false, windowEndsAt: null, pending: null, impact: place };
+    const testId = (f: Fixture, id: string) => el(f).querySelector<HTMLElement>(`[data-testid="${id}"]`);
+    const pending = {
+      id: 'r1',
+      reason: 'CUSTOMER_DATA_ERROR' as const,
+      comment: 'Nombre mal escrito',
+      requestedBy: 'Alberto Andia',
+      requestedAt: '2026-10-14T15:15:00.000Z',
+      canWithdraw: false,
+    };
+
+    it('offers "Ver solicitud (Gerencia)" only to who may approve, while the request is pending', async () => {
+      const f = await render({ permissions: ['sales.pos.use', 'sales.cancellations.approve'] });
+      http.expectOne(URL).flush(detail({ status: 'CANCELLATION_PENDING', cancellation: { ...base, lastDecision: null, pending } }));
+      await settle(f);
+      expect(testId(f, 'sale-cancel-review')).not.toBeNull();
+    });
+
+    it('hides it without the approve permission', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(detail({ status: 'CANCELLATION_PENDING', cancellation: { ...base, lastDecision: null, pending } }));
+      await settle(f);
+      expect(testId(f, 'sale-cancel-review')).toBeNull();
+    });
+
+    it('hides it when nothing is pending', async () => {
+      const f = await render({ permissions: ['sales.pos.use', 'sales.cancellations.approve'] });
+      http.expectOne(URL).flush(detail({ cancellation: { ...base, canRequest: true, lastDecision: null } }));
+      await settle(f);
+      expect(testId(f, 'sale-cancel-review')).toBeNull();
+    });
+
+    it('says how a cancelled sale ended: invoice, units back, refund and who approved', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(
+        detail({
+          status: 'CANCELLED',
+          invoice: { status: 'CANCELLED', number: 1528 },
+          cancellation: { ...base, lastDecision: { status: 'APPROVED', decidedBy: 'María Quispe', decidedAt: '2026-10-14T15:40:00.000Z', comment: 'Aprobado' } },
+        }),
+      );
+      await settle(f);
+      const note = testId(f, 'sale-cancel-decision')!.textContent ?? '';
+      expect(note).toContain('Venta anulada');
+      expect(note).toContain('Factura 1528 anulada');
+      expect(note).toContain('2 piezas devueltas a Huayna Kapac');
+      expect(note).toContain('reembolso Bs 490,00 registrado en Caja 1');
+      expect(note).toContain('Aprobada por María Quispe');
+      expect(note).toContain('Respuesta: Aprobado');
+      expect(el(f).textContent).toContain('Factura 1528 anulada');
+    });
+
+    it('shows the manager reply when the request was rejected and the sale is paid again', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(
+        detail({
+          cancellation: {
+            ...base,
+            canRequest: true,
+            lastDecision: { status: 'REJECTED', decidedBy: 'María Quispe', decidedAt: '2026-10-14T15:40:00.000Z', comment: 'La factura ya se entregó' },
+          },
+        }),
+      );
+      await settle(f);
+      const note = testId(f, 'sale-cancel-decision')!.textContent ?? '';
+      expect(note).toContain('Anulación rechazada');
+      expect(note).toContain('Rechazada por María Quispe');
+      expect(note).toContain('Respuesta: La factura ya se entregó');
+    });
+
+    it('shows nothing when the last decision no longer matches the status', async () => {
+      const f = await render();
+      http.expectOne(URL).flush(
+        detail({ cancellation: { ...base, canRequest: true, lastDecision: { status: 'APPROVED', decidedBy: 'x', decidedAt: '2026-10-14T15:40:00.000Z', comment: '' } } }),
+      );
+      await settle(f);
+      expect(testId(f, 'sale-cancel-decision')).toBeNull();
     });
   });
 });

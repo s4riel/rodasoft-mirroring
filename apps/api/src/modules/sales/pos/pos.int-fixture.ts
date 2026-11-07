@@ -94,7 +94,7 @@ export function createPosFixture(prefix: string) {
     const customers = new CustomersService(prisma, cls, audit);
     const outbox = new OutboxService(prisma, cls);
     const visibility = new SaleVisibilityService(cls, membership);
-    const cancellations = new SaleCancellationService(prisma, cls, settings, audit, outbox, visibility, membership);
+    const cancellations = new SaleCancellationService(prisma, cls, settings, audit, outbox, visibility, membership, new StockMovementService(cls, settings));
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     return {

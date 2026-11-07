@@ -1,7 +1,9 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
+  CancellationDecisionInput,
   CancellationRequestInput,
+  CancellationReview,
   ReprintReceiptResponse,
   SaleCancellationResponse,
   SaleDetail,
@@ -38,6 +40,21 @@ export class SalesHistoryApi {
   /** Asks Management to cancel the sale (HU-VEN-14); the sale waits as "anulación pendiente". */
   requestCancellation(saleId: string, body: CancellationRequestInput): Observable<SaleCancellationResponse> {
     return this.http.post<SaleCancellationResponse>(`${BASE}/${saleId}/cancellation-request`, body);
+  }
+
+  /** The open request with what an approval will do, for Management (HU-VEN-15). */
+  cancellationReview(saleId: string): Observable<CancellationReview> {
+    return this.http.get<CancellationReview>(`${BASE}/${saleId}/cancellation-request`);
+  }
+
+  /** Approves the request: the sale is cancelled, the stock goes back and the cash is refunded. */
+  approveCancellation(saleId: string, body: CancellationDecisionInput): Observable<SaleCancellationResponse> {
+    return this.http.post<SaleCancellationResponse>(`${BASE}/${saleId}/cancellation-request/approve`, body);
+  }
+
+  /** Rejects the request; the reply is for the cashier who asked. */
+  rejectCancellation(saleId: string, body: CancellationDecisionInput): Observable<SaleCancellationResponse> {
+    return this.http.post<SaleCancellationResponse>(`${BASE}/${saleId}/cancellation-request/reject`, body);
   }
 
   /** Takes the open cancellation request back. */

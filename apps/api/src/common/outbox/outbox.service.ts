@@ -14,6 +14,8 @@ export type OutboxType =
   | 'sales.cash-shift.float-mismatch'
   | 'sales.cancellation.requested'
   | 'sales.cancellation.withdrawn'
+  | 'sales.cancellation.approved'
+  | 'sales.cancellation.rejected'
   | 'invoice.issue'
   | 'invoice.cancel'
   | 'entry.generate'

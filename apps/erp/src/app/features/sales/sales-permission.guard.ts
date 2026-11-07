@@ -19,6 +19,20 @@ export function requiresSalesTab(tab: SalesTab): CanActivateFn {
   };
 }
 
+/**
+ * Guard of a screen inside a tab that needs one more permission (the page where Management decides a cancellation). Same
+ * shortcut as the tab guard: the API checks the permission on every request.
+ */
+export function requiresSalesPermission(permission: string, message: string): CanActivateFn {
+  return () => {
+    const context = inject(ContextStore);
+    if (!context.context()) return true;
+    if (context.permissions().has(permission)) return true;
+    inject(ToastService).warning(message);
+    return inject(Router).createUrlTree(['/sales/history']);
+  };
+}
+
 /** `/sales` opens the first tab the user may see (the point of sale for a cashier), or home when there is none. */
 export const salesHomeRedirect: RedirectFunction = () => {
   const context = inject(ContextStore);

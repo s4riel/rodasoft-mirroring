@@ -1,7 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { CANCELLATION_COMMENT_MAX, CANCELLATION_REASONS, type CancellationReason } from '@rodasoft/domain';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CANCELLATION_COMMENT_MAX, CANCELLATION_REASONS, CANCELLATION_REPLY_MAX, type CancellationReason } from '@rodasoft/domain';
 import { Transform } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 const trimmed = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -17,4 +17,15 @@ export class CancellationRequestDto {
   @IsNotEmpty()
   @MaxLength(CANCELLATION_COMMENT_MAX)
   comment!: string;
+}
+
+/**
+ * `POST /sales/sales/:id/cancellation-request/approve` and `/reject` (HU-VEN-15). The reply is optional here; rejecting
+ * requires it, and the service says so with the domain's `validateCancellationDecision`.
+ */
+export class CancellationDecisionDto {
+  @ApiPropertyOptional({ maxLength: CANCELLATION_REPLY_MAX })
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }

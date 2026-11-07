@@ -14,6 +14,11 @@
           Solicitar anulación
         </button>
       }
+      @if (pending()) {
+        <button *rsCan="'sales.cancellations.approve'" rsButton variant="secondary" type="button" data-testid="sale-cancel-review" (click)="reviewRequest()">
+          Ver solicitud (Gerencia)
+        </button>
+      }
       @if (pending(); as p) {
         @if (p.canWithdraw) {
           <button rsButton variant="ghost" type="button" data-testid="sale-cancel-withdraw" (click)="withdrawOpen.set(true)">Retirar solicitud</button>
@@ -68,6 +73,18 @@
           {{ p.text }}
           @if (p.comment) {
             <span class="note-comment">Comentario: {{ p.comment }}</span>
+          }
+        </rs-note>
+      }
+
+      @if (decision(); as dec) {
+        <rs-note [type]="dec.approved ? 'info' : 'warning'" [title]="dec.title" data-testid="sale-cancel-decision">
+          {{ dec.text }}
+          @if (dec.by) {
+            <span class="note-comment">{{ dec.by }}</span>
+          }
+          @if (dec.comment) {
+            <span class="note-comment">Respuesta: {{ dec.comment }}</span>
           }
         </rs-note>
       }

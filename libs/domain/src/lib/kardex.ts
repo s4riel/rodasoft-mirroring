@@ -13,6 +13,7 @@ export const STOCK_MOVEMENT_TYPE_LABELS: Record<StockMovementType, string> = {
   ADJUSTMENT_OUT: 'Ajuste (−)',
   INITIAL: 'Inventario inicial',
   RETURN: 'Devolución',
+  SALE_CANCELLATION: 'Anulación de venta',
 };
 
 /** Longest date range one kardex request may cover. */

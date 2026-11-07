@@ -1,0 +1,142 @@
+<rs-page-header
+  [title]="review() ? 'Aprobar anulación · Venta ' + review()!.saleNumber : 'Aprobar anulación'"
+  type="detail"
+  [breadcrumbs]="breadcrumbs()"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la solicitud">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para decidir anulaciones"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('gone') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="all-clear"
+        heading="Esta solicitud ya no espera una decisión"
+        description="Alguien la decidió o el cajero la retiró. Mira cómo quedó la venta."
+      >
+        <button rsButton variant="primary" type="button" (click)="backToSale()">Ver la venta</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la solicitud" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="backToSale()">Volver a la venta</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (review(); as r) {
+      <div class="meta">
+        <rs-status-pill status="warning" icon="alert">Por aprobar</rs-status-pill>
+        <span class="muted">{{ subtitle() }}</span>
+      </div>
+
+      <section class="kpis" aria-label="Resumen de la solicitud">
+        <rs-kpi-card label="Monto" [value]="amount()" />
+        <rs-kpi-card label="Factura" [value]="invoiceText()" />
+        <rs-kpi-card label="Motivo" [value]="reasonText()" />
+        <rs-kpi-card label="Tiempo desde la venta" [value]="elapsed()" />
+      </section>
+
+      @if (shiftClosed()) {
+        <rs-note type="warning" title="No se puede registrar el reembolso" data-testid="review-shift-closed">
+          {{ r.impact.registerName }} no tiene un turno abierto. Ábrela para aprobar la anulación y devolver el efectivo.
+        </rs-note>
+      }
+      @if (invoiceBlocked()) {
+        <rs-note type="warning" title="La factura no se puede anular ahora" data-testid="review-invoice-blocked">
+          La factura está en un estado que no permite anularla. Inténtalo cuando termine su trámite en el SIAT.
+        </rs-note>
+      }
+      @if (actionError(); as message) {
+        <rs-note type="danger" title="No pudimos registrar la decisión" data-testid="review-action-error">{{ message }}</rs-note>
+      }
+
+      <div class="columns">
+        <section class="card" aria-labelledby="review-request">
+          <h2 class="card-title" id="review-request">Solicitud</h2>
+          <dl class="facts">
+            <div class="fact">
+              <dt>Comentario</dt>
+              <dd data-testid="review-comment">{{ r.request.comment }}</dd>
+            </div>
+            <div class="fact">
+              <dt>Qué pasará</dt>
+              <dd data-testid="review-impact">{{ willHappen() }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="card" aria-labelledby="review-audit">
+          <h2 class="card-title" id="review-audit">Auditoría</h2>
+          <ol class="history">
+            @for (h of audit(); track $index) {
+              <li class="history-item">
+                <span class="history-label">{{ h.label }}</span>
+                <span class="muted">{{ h.when }}</span>
+              </li>
+            }
+            <li class="history-item">
+              <span class="history-label">Pendiente: aprobación de Gerencia</span>
+            </li>
+          </ol>
+        </section>
+      </div>
+
+      <rs-field
+        label="Respuesta (opcional al aprobar, obligatoria al rechazar)"
+        forId="review-reply"
+        [error]="replyMissing() ? 'Escribe la respuesta para el cajero antes de rechazar.' : ''"
+      >
+        <input
+          #replyBox
+          rsInput
+          id="review-reply"
+          type="text"
+          autocomplete="off"
+          placeholder="Escribe una respuesta para quien pidió la anulación"
+          [attr.maxlength]="replyMax"
+          [value]="reply()"
+          (input)="setReply(replyBox.value)"
+        />
+      </rs-field>
+
+      <div class="actions">
+        <button rsButton variant="ghost" type="button" data-testid="review-reject" [disabled]="deciding() !== null" [loading]="deciding() === 'reject'" (click)="reject()">
+          Rechazar
+        </button>
+        <button rsButton variant="primary" type="button" data-testid="review-approve" [disabled]="!canApprove()" (click)="askApprove()">
+          {{ approveLabel() }}
+        </button>
+      </div>
+
+      <rs-modal variant="confirmation" heading="¿Aprobar la anulación?" closeLabel="Cerrar" [open]="confirmOpen()" (closed)="confirmOpen.set(false)">
+        <p>{{ willHappen() }}</p>
+        <div slot="footer" class="dialog-actions">
+          <button rsButton variant="secondary" type="button" [disabled]="deciding() !== null" (click)="confirmOpen.set(false)">Volver</button>
+          <button rsButton variant="primary" type="button" data-testid="review-approve-confirm" [loading]="deciding() === 'approve'" (click)="approve()">
+            Aprobar anulación
+          </button>
+        </div>
+      </rs-modal>
+    }
+  }
+}
