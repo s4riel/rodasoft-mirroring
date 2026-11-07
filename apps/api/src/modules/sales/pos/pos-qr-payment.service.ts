@@ -20,14 +20,10 @@ import type { AppClsStore } from '../../../common/cls';
 import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
-import {
-  PAYMENT_PROVIDERS,
-  PaymentProviderError,
-  type PaymentProvider,
-  type PaymentProviderRegistry,
-} from '../payments/payment-provider';
+import { PAYMENT_PROVIDERS, type PaymentProvider, type PaymentProviderRegistry } from '../payments/payment-provider';
 import type { ConfirmPosQrDto, StartPosQrDto } from './pos-payment.dto';
 import { PosPaymentService } from './pos-payment.service';
+import { callProvider, logPaymentChange } from './pos-provider-payment';
 import { posErrors } from './pos.errors';
 
 type QrRow = Prisma.PosCheckoutPaymentGetPayload<object>;
@@ -163,6 +159,12 @@ export class PosQrPaymentService {
     if (amount.cmp(Decimal.zero(MONEY_SCALE)) <= 0 || amount.cmp(total) > 0) throw posErrors.qrAmountInvalid(total.toString());
     if (amount.cmp(total) < 0 && !(await this.settings.get('sales.allowMixedPayment', tx))) throw posErrors.mixedPaymentDisabled();
 
+    // a card payment of this cart (waiting or paid) blocks the QR: a sale is paid by one provider method at a time (HU-VEN-10)
+    const card = await tx.posCheckoutPayment.findFirst({
+      where: { checkoutId: cartId, method: 'CARD', status: { in: ['PENDING', 'CONFIRMED'] } },
+    });
+    if (card) throw card.status === 'CONFIRMED' ? posErrors.paymentAlreadyConfirmed() : posErrors.paymentAlreadyPending();
+
     // a QR that is still waiting blocks a second one; one past its deadline is dropped first
     const open = await tx.posCheckoutPayment.findFirst({
       where: { checkoutId: cartId, method: 'QR', status: { in: ['PENDING', 'CONFIRMED'] } },
@@ -227,35 +229,12 @@ export class PosQrPaymentService {
    * Calls the provider for this payment. The mock keeps its payments in memory, so after a restart it does not know a
    * payment the database still has: the same charge (same key, same reference) is opened again and the call repeated.
    */
-  private async withProvider<T>(row: QrRow, call: (provider: PaymentProvider, ref: string) => Promise<T>): Promise<T> {
-    const provider = this.providers.QR;
-    const ref = row.providerRef ?? '';
-    try {
-      return await call(provider, ref);
-    } catch (err) {
-      if (!(err instanceof PaymentProviderError) || err.code !== 'PAYMENT_NOT_FOUND') throw err;
-      const charge = await provider.charge({
-        amount: Decimal.of(row.amount.toFixed(2)),
-        method: 'QR',
-        idempotencyKey: row.idempotencyKey,
-        companyId: this.companyId(),
-      });
-      return call(provider, charge.providerRef);
-    }
+  private withProvider<T>(row: QrRow, call: (provider: PaymentProvider, ref: string) => Promise<T>): Promise<T> {
+    return callProvider(this.providers, this.companyId(), row, call);
   }
 
-  private async log(
-    tx: TenantTransaction,
-    action: string,
-    id: string,
-    from: PaymentStatus,
-    to: PaymentStatus,
-    outcome?: PosQrOutcome,
-  ) {
-    await this.audit.log(
-      { action, entity: 'PosCheckoutPayment', entityId: id, before: { status: from }, after: { status: to, ...(outcome ? { outcome } : {}) } },
-      tx as unknown as Prisma.TransactionClient,
-    );
+  private log(tx: TenantTransaction, action: string, id: string, from: PaymentStatus, to: PaymentStatus, outcome?: PosQrOutcome) {
+    return logPaymentChange(this.audit, tx, action, id, from, to, outcome ? { outcome } : {});
   }
 
   private view(row: QrRow): PosQrPayment {

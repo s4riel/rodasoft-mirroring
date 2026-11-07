@@ -75,11 +75,11 @@ describe('PosPaymentDialog', () => {
     expect(confirm().disabled).toBe(true);
   });
 
-  it('draws the six payment methods with cash, QR and Mixto enabled', async () => {
+  it('draws the six payment methods with cash, QR, card and Mixto enabled', async () => {
     const { root } = await render();
     const chips = Array.from(root().querySelectorAll('.methods rs-filter-chip'));
     expect(chips.map((c) => c.textContent?.trim())).toEqual(['Efectivo', 'QR', 'Tarjeta', 'Transferencia', 'Crédito', 'Mixto']);
-    expect(chips.map((c) => c.getAttribute('data-disabled'))).toEqual([null, null, 'true', 'true', 'true', null]);
+    expect(chips.map((c) => c.getAttribute('data-disabled'))).toEqual([null, null, null, 'true', 'true', null]);
   });
 
   it('"Exacto" receives the total with no change and confirms it', async () => {

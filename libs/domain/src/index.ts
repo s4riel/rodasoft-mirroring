@@ -21,6 +21,7 @@ export * from './lib/sales-pricing';
 export * from './lib/sales-numbering';
 export * from './lib/cash-shift';
 export * from './lib/pos-cart';
+export * from './lib/card-payment';
 export * from './lib/cash-payment';
 export * from './lib/mixed-payment';
 export * from './lib/qr-payment';

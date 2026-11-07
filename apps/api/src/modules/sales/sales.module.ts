@@ -10,6 +10,7 @@ import { PosCatalogService } from './pos/pos-catalog.service';
 import { PosCheckoutService } from './pos/pos-checkout.service';
 import { PosEquivalentsService } from './pos/pos-equivalents.service';
 import { PosPaymentService } from './pos/pos-payment.service';
+import { PosCardPaymentService } from './pos/pos-card-payment.service';
 import { PosQrPaymentService } from './pos/pos-qr-payment.service';
 import { PosProductSheetService } from './pos/pos-product-sheet.service';
 import { SaleReceiptController } from './sales/sale-receipt.controller';
@@ -34,6 +35,7 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
     PosCheckoutService,
     PosPaymentService,
     PosQrPaymentService,
+    PosCardPaymentService,
     SaleReceiptService,
     PosEquivalentsService,
     PosProductSheetService,

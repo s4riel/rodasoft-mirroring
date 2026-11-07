@@ -465,7 +465,7 @@ describe('POS QR payment (integration, real Postgres)', () => {
     it('still refuses the methods that have no story yet', async () => {
       const p = await product(10);
       const { total } = await pay([[p.id, 1]]);
-      const card = svc().payment.complete({ payments: [{ method: 'CARD' }], expectedTotal: total, idempotencyKey: key() });
+      const card = svc().payment.complete({ payments: [{ method: 'TRANSFER' }], expectedTotal: total, idempotencyKey: key() });
       expect(await codeOf(card)).toBe('PAYMENT_METHOD_NOT_AVAILABLE');
     });
   });

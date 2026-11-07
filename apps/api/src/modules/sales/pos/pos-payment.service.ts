@@ -34,7 +34,7 @@ import { StockMovementService } from '../../inventory/stock-movement.service';
 import { cashErrors } from '../cash/cash.errors';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { nextDocumentNumber } from '../document-sequence';
-import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from '../payments/payment-provider';
+import { PAYMENT_PROVIDERS, type PaymentProviderRegistry, type ProviderPaymentMethod } from '../payments/payment-provider';
 import type { CompletePosCheckoutDto } from './pos-payment.dto';
 import { PosCheckoutService } from './pos-checkout.service';
 import { invoiceDataOf } from './pos-invoice-data';
@@ -57,19 +57,21 @@ type TenantDb = TenantTransaction | PrismaService['tenant'];
 const MY_CART_STATUSES: PosCheckoutStatus[] = ['OPEN', 'PAYING'];
 
 /** One line of what the customer paid with, as `complete` reads it from the request. */
-type Tender = { method: 'CASH'; received: string } | { method: 'QR'; paymentId: string };
+type Tender = { method: 'CASH'; received: string } | { method: 'QR'; paymentId: string } | { method: 'CARD'; paymentId: string };
 
-/** A confirmed QR payment of this cart, found and checked. */
-type QrLine = { amount: Decimal; providerRef: string; paymentId: string };
+/** A confirmed QR or card payment of this cart, found and checked. `reference` is the card's authorization code. */
+type ProviderLine = { amount: Decimal; providerRef: string; paymentId: string; reference: string | null };
 
 /**
  * The payments once checked against the total (HU-VEN-07, 08 and 09): the cash line with what it must cover (`due`) and what
  * the customer handed over; the QR line with its provider reference; and the whole sale's received amount and change.
  */
 interface Settlement {
-  method: 'CASH' | 'QR' | 'MIXED';
+  method: 'CASH' | 'QR' | 'CARD' | 'MIXED';
   cash: { received: Decimal; due: Decimal } | null;
-  qr: QrLine | null;
+  qr: ProviderLine | null;
+  /** A card is always the only payment of the sale (HU-VEN-10). */
+  card: ProviderLine | null;
   /** Everything the customer handed over, change included. */
   received: Decimal;
   change: Decimal;
@@ -150,6 +152,7 @@ export class PosPaymentService {
         total: totals.total.toString(),
         suggestedAmounts: suggestCashAmounts(totals.total).map((amount) => amount.toString()),
         allowMixed: await this.settings.get('sales.allowMixedPayment', tx),
+        cardEnabled: await this.settings.get('sales.cardPaymentEnabled', tx),
       };
       return { kind: 'paying', response } as const;
     });
@@ -165,7 +168,7 @@ export class PosPaymentService {
       const status = await this.lockStatus(tx, mine.id);
       if (status !== 'PAYING') throw posErrors.checkoutNotPaying();
       const next = this.next(status, 'back');
-      await this.dropQrPayments(tx, mine.id);
+      await this.dropProviderPayments(tx, mine.id, ['QR', 'CARD']);
       await tx.posCheckout.update({ where: { id: mine.id }, data: { status: next } });
       await this.audit.log(
         {
@@ -214,20 +217,22 @@ export class PosPaymentService {
     }
   }
 
-  /** The request lines as tenders: cash and QR only, one line per method. */
+  /** The request lines as tenders: cash and QR (alone or mixed), or a card alone; one line per method. */
   private parseTenders(payments: CompletePosCheckoutDto['payments']): Tender[] {
     const tenders: Tender[] = [];
     for (const payment of payments) {
-      if (payment.method !== 'CASH' && payment.method !== 'QR') throw posErrors.paymentMethodNotAvailable();
+      if (payment.method !== 'CASH' && payment.method !== 'QR' && payment.method !== 'CARD') throw posErrors.paymentMethodNotAvailable();
       if (tenders.some((tender) => tender.method === payment.method)) throw posErrors.paymentDuplicateMethod();
       if (payment.method === 'CASH') {
         if (typeof payment.received !== 'string') throw posErrors.invalidPayment('received');
         tenders.push({ method: 'CASH', received: payment.received });
       } else {
         if (typeof payment.paymentId !== 'string') throw posErrors.invalidPayment('paymentId');
-        tenders.push({ method: 'QR', paymentId: payment.paymentId });
+        tenders.push({ method: payment.method, paymentId: payment.paymentId });
       }
     }
+    // a card does not mix with another method (HU-VEN-10)
+    if (tenders.length > 1 && tenders.some((tender) => tender.method === 'CARD')) throw posErrors.paymentMethodNotAvailable();
     return tenders;
   }
 
@@ -262,10 +267,15 @@ export class PosPaymentService {
 
       const cashTender = tenders.find((tender) => tender.method === 'CASH');
       const qrTender = tenders.find((tender) => tender.method === 'QR');
-      // cash alone cannot pay a cart the customer already paid by QR (a stale client or a second tab); a QR still waiting is dropped
-      if (cashTender && !qrTender) await this.dropQrPayments(tx, cart.id);
-      const qr = qrTender ? await this.loadQr(tx, cart.id, qrTender.paymentId, dto.idempotencyKey) : null;
-      const settled = await this.settle(tx, totals.total, cashTender?.received ?? null, qr);
+      const cardTender = tenders.find((tender) => tender.method === 'CARD');
+      // a payment of another provider method that is still waiting is dropped, and one already paid blocks the sale: the
+      // customer paid it (a stale client or a second tab), so the cashier cannot take the money again another way
+      if (cashTender && !qrTender) await this.dropProviderPayments(tx, cart.id, ['QR', 'CARD']);
+      else if (qrTender) await this.dropProviderPayments(tx, cart.id, ['CARD']);
+      else if (cardTender) await this.dropProviderPayments(tx, cart.id, ['QR']);
+      const qr = qrTender ? await this.loadProviderPayment(tx, cart.id, 'QR', qrTender.paymentId, dto.idempotencyKey) : null;
+      const card = cardTender ? await this.loadProviderPayment(tx, cart.id, 'CARD', cardTender.paymentId, dto.idempotencyKey) : null;
+      const settled = card ? this.settleCard(totals.total, card) : await this.settle(tx, totals.total, cashTender?.received ?? null, qr);
 
       const companyId = this.companyId();
       const userId = this.userId();
@@ -344,6 +354,20 @@ export class PosPaymentService {
           },
         });
       }
+      if (settled.card) {
+        // the card payment row already exists and is CONFIRMED; the money goes to the bank, so the register gets nothing
+        await tx.salePayment.create({
+          data: {
+            companyId,
+            saleId: sale.id,
+            method: 'CARD',
+            amount: settled.card.amount.toString(),
+            change: '0.00',
+            reference: settled.card.reference ?? settled.card.providerRef,
+            providerStatus: 'CONFIRMED',
+          },
+        });
+      }
       if (settled.qr) {
         // the QR payment row already exists and is CONFIRMED; the money goes to the provider, so the register gets nothing
         await tx.salePayment.create({
@@ -384,6 +408,7 @@ export class PosPaymentService {
             payments: [
               ...(settled.cash ? [{ method: 'CASH', amount: settled.cash.due.toString() }] : []),
               ...(settled.qr ? [{ method: 'QR', amount: settled.qr.amount.toString() }] : []),
+              ...(settled.card ? [{ method: 'CARD', amount: settled.card.amount.toString() }] : []),
             ],
             total: totals.total.toString(),
             received: settled.received.toString(),
@@ -435,7 +460,7 @@ export class PosPaymentService {
     tx: TenantTransaction,
     total: Decimal,
     cashText: string | null,
-    qr: QrLine | null,
+    qr: ProviderLine | null,
   ): Promise<Settlement> {
     if (cashText === null && qr) {
       // the QR charged another amount than the total: a part of a mix that nothing completes, or a total that moved
@@ -443,7 +468,7 @@ export class PosPaymentService {
       if (qr.amount.cmp(total) > 0) throw posErrors.totalChanged(qr.amount.toString(), total.toString());
       const cover = paymentsCover(total, [{ method: 'QR', amount: total }]);
       if (!cover.ok) throw posErrors.paymentNotCovered(total.toString());
-      return { method: 'QR', cash: null, qr, received: total, change: cover.change };
+      return { method: 'QR', cash: null, qr, card: null, received: total, change: cover.change };
     }
     if (cashText !== null && !qr) return this.settleCash(total, cashText);
     if (cashText === null || !qr) throw posErrors.paymentMethodNotAvailable();
@@ -470,6 +495,7 @@ export class PosPaymentService {
       method: 'MIXED',
       cash: { received: parsed.value, due: mix.cashDue },
       qr,
+      card: null,
       received: total.add(mix.change),
       change: mix.change,
     };
@@ -484,45 +510,71 @@ export class PosPaymentService {
     }
     const cover = paymentsCover(total, [{ method: 'CASH', amount: tendered.received }]);
     if (!cover.ok) throw posErrors.insufficientCash(total.toString());
-    return { method: 'CASH', cash: { received: tendered.received, due: total }, qr: null, received: tendered.received, change: cover.change };
+    return { method: 'CASH', cash: { received: tendered.received, due: total }, qr: null, card: null, received: tendered.received, change: cover.change };
   }
 
   /**
-   * QR (HU-VEN-08): the payment must be this checkout's, carry the key the sale completes with and be `CONFIRMED`. The cart row
-   * is already locked, and confirm and cancel take that lock first, so the status cannot move meanwhile. Its amount is the
-   * whole total, or a part when it is one line of a mixed payment (`settle` decides).
+   * A QR (HU-VEN-08) or card (HU-VEN-10) payment: it must be this checkout's, carry the key the sale completes with and be
+   * `CONFIRMED`. The cart row is already locked, and confirm and cancel take that lock first, so the status cannot move
+   * meanwhile. A QR's amount is the whole total, or a part when it is one line of a mixed payment (`settle` decides); a card's
+   * is always the whole total (`settleCard` decides).
    */
-  private async loadQr(tx: TenantTransaction, cartId: string, paymentId: string, key: string): Promise<QrLine> {
-    const row = await tx.posCheckoutPayment.findFirst({ where: { id: paymentId, checkoutId: cartId, method: 'QR' } });
+  private async loadProviderPayment(
+    tx: TenantTransaction,
+    cartId: string,
+    method: ProviderPaymentMethod,
+    paymentId: string,
+    key: string,
+  ): Promise<ProviderLine> {
+    const row = await tx.posCheckoutPayment.findFirst({ where: { id: paymentId, checkoutId: cartId, method } });
     if (!row) throw posErrors.paymentNotFound();
     if (row.idempotencyKey !== key) throw posErrors.idempotencyKeyReused();
-    if (!canCompleteWithPayments([{ method: 'QR', status: row.status }])) throw posErrors.paymentNotConfirmed(row.status);
-    return { amount: Decimal.of(row.amount.toFixed(2)), providerRef: row.providerRef ?? row.id, paymentId: row.id };
+    if (!canCompleteWithPayments([{ method, status: row.status }])) throw posErrors.paymentNotConfirmed(row.status);
+    return {
+      amount: Decimal.of(row.amount.toFixed(2)),
+      providerRef: row.providerRef ?? row.id,
+      paymentId: row.id,
+      reference: row.reference,
+    };
+  }
+
+  /** Card (HU-VEN-10): it charged the whole total, nothing less (the rest would need another method) and nothing more. */
+  private settleCard(total: Decimal, card: ProviderLine): Settlement {
+    if (card.amount.cmp(total) < 0) throw posErrors.paymentNotCovered(total.toString());
+    if (card.amount.cmp(total) > 0) throw posErrors.totalChanged(card.amount.toString(), total.toString());
+    const cover = paymentsCover(total, [{ method: 'CARD', amount: total }]);
+    if (!cover.ok) throw posErrors.paymentNotCovered(total.toString());
+    return { method: 'CARD', cash: null, qr: null, card, received: total, change: cover.change };
   }
 
   /**
-   * Going back to the cart drops the QR the cart still waits for. A QR that was already confirmed cannot be dropped: the
-   * customer paid, so the cashier finishes the sale (a refund is a return, HU-VEN-21).
+   * Drops the payments of the given provider methods the cart still waits for (going back to the cart, or paying another way).
+   * One that was already confirmed cannot be dropped: the customer paid, so the cashier finishes the sale (a refund is a
+   * return, HU-VEN-21). A card still waiting for the terminal is never dropped here either: the terminal may have charged the
+   * customer already, so the cashier reports the outcome or cancels it on purpose (`PosCardPaymentService.cancel`) first. A QR
+   * is different: it has a deadline, so dropping it is safe.
    */
-  private async dropQrPayments(tx: TenantTransaction, cartId: string): Promise<void> {
-    const qrs = await tx.posCheckoutPayment.findMany({
-      where: { checkoutId: cartId, method: 'QR', status: { in: ['PENDING', 'CONFIRMED'] } },
+  private async dropProviderPayments(tx: TenantTransaction, cartId: string, methods: ProviderPaymentMethod[]): Promise<void> {
+    const rows = await tx.posCheckoutPayment.findMany({
+      where: { checkoutId: cartId, method: { in: methods }, status: { in: ['PENDING', 'CONFIRMED'] } },
     });
-    if (qrs.some((qr) => qr.status === 'CONFIRMED')) throw posErrors.paymentAlreadyConfirmed();
-    for (const qr of qrs) {
-      const next = paymentMachine.next(qr.status, 'cancel');
+    if (rows.some((row) => row.status === 'CONFIRMED')) throw posErrors.paymentAlreadyConfirmed();
+    if (rows.some((row) => row.method === 'CARD' && row.status === 'PENDING')) throw posErrors.cardAwaitingOutcome();
+    for (const row of rows) {
+      const method = row.method as ProviderPaymentMethod;
+      const next = paymentMachine.next(row.status, 'cancel');
       try {
-        if (qr.providerRef) await this.providers.QR.cancel(qr.providerRef);
+        if (row.providerRef) await this.providers[method].cancel(row.providerRef);
       } catch {
         // the provider no longer knows the payment (or already dropped it): the row is what counts
       }
-      await tx.posCheckoutPayment.update({ where: { id: qr.id }, data: { status: next } });
+      await tx.posCheckoutPayment.update({ where: { id: row.id }, data: { status: next } });
       await this.audit.log(
         {
-          action: 'sales.payment.qr-cancel',
+          action: `sales.payment.${method.toLowerCase()}-cancel`,
           entity: 'PosCheckoutPayment',
-          entityId: qr.id,
-          before: { status: qr.status },
+          entityId: row.id,
+          before: { status: row.status },
           after: { status: next, reason: 'back-to-cart' },
         },
         tx as unknown as Prisma.TransactionClient,
@@ -563,7 +615,7 @@ export class PosPaymentService {
     if (checkout.cashierId !== this.userId()) throw posErrors.checkoutNotFound();
     // a confirmed QR carries the key before its sale exists: this is the first `complete` with it, not a retry
     if (!checkout.sale) {
-      if (payment.method === 'QR') return null;
+      if (payment.method === 'QR' || payment.method === 'CARD') return null;
       throw posErrors.checkoutNotFound();
     }
     const sale = checkout.sale;

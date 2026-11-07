@@ -1,6 +1,7 @@
 /**
  * Mixed payment (HU-VEN-09, decision #7): one sale paid with several methods. Today only cash and QR can be combined; the
- * rules below do not depend on the method, so card joins the mix by adding it to `MIXABLE_METHODS`. Money is always `Decimal`.
+ * rules below do not depend on the method, so another method joins the mix by adding it to `MIXABLE_METHODS`. Card (HU-VEN-10) is
+ * a method on its own for now and is not in the list. Money is always `Decimal`.
  */
 import { paymentsCover } from './cash-payment';
 import { Decimal, MONEY_SCALE } from './money';

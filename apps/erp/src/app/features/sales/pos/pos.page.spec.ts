@@ -15,6 +15,7 @@ import type {
   PosEquivalentsResponse,
   PosProductResult,
   PosProductSheet,
+  PosCardPayment,
   PosQrPayment,
 } from '@rodasoft/domain';
 import { ContextStore } from '../../../core/context.store';
@@ -651,6 +652,7 @@ describe('PosPage', () => {
     const BACK = '/api/v1/sales/pos/checkout/back';
     const COMPLETE = '/api/v1/sales/pos/checkout/complete';
     const QR = '/api/v1/sales/pos/checkout/payments/qr';
+    const CARD = '/api/v1/sales/pos/checkout/payments/card';
     const total = (h: RouterTestingHarness) => root(h).querySelector('[data-testid=pos-total]')!.textContent!.trim();
     const byId = (h: RouterTestingHarness, id: string) => root(h).querySelector<HTMLElement>(`[data-testid=${id}]`);
     const payDialog = (h: RouterTestingHarness) => root(h).querySelector<HTMLElement>('rs-pos-payment-dialog');
@@ -675,7 +677,7 @@ describe('PosPage', () => {
     async function startPayment(h: RouterTestingHarness) {
       button(h, 'Cobrar')!.click();
       await settle(h);
-      http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: ['1150.00', '1200.00', '1500.00'], allowMixed: true });
+      http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: ['1150.00', '1200.00', '1500.00'], allowMixed: true, cardEnabled: true });
       await settle(h);
     }
 
@@ -892,6 +894,7 @@ describe('PosPage', () => {
       const paying: PosCheckoutView = { ...cart([line()], '490.00'), status: 'PAYING' };
       const h = await open(undefined, shift, undefined, paying);
       http.expectOne(QR).flush({ payment: null });
+      http.expectOne(CARD).flush({ payment: null });
       http.expectOne(BACK).flush({ checkout: cart([line()], '490.00') });
       await settle(h);
       expect(total(h)).toBe('Bs 490,00');
@@ -1020,6 +1023,7 @@ describe('PosPage', () => {
         const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
         const h = await open(undefined, shift, undefined, paying);
         http.expectOne(QR).flush({ payment: qrPayment() });
+        http.expectOne(CARD).flush({ payment: null });
         await settle(h);
         expect(byId(h, 'qr-waiting')).not.toBeNull();
         expect(byId(h, 'qr-amount')!.textContent).toBe('Bs 1.111,00');
@@ -1029,12 +1033,142 @@ describe('PosPage', () => {
         const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
         const h = await open(undefined, shift, undefined, paying);
         http.expectOne(QR).flush({ payment: qrPayment('CONFIRMED') });
+        http.expectOne(CARD).flush({ payment: null });
         await settle(h);
         const complete = http.expectOne(COMPLETE);
         expect(complete.request.body).toMatchObject({ payments: [{ method: 'QR', paymentId: 'q1' }], idempotencyKey: 'qr-key-0001' });
         complete.flush({ sale });
         await settle(h);
         expect(text(h)).toContain('V-000125');
+      });
+    });
+
+    describe('card payment (VP-12, HU-VEN-10)', () => {
+      const cardPayment = (over: Partial<PosCardPayment> = {}): PosCardPayment => ({
+        paymentId: 'c1',
+        idempotencyKey: 'card-key-0001',
+        amount: '1111.00',
+        status: 'PENDING',
+        attempt: 1,
+        authorizationCode: null,
+        declineReason: null,
+        ...over,
+      });
+      const chip = (h: RouterTestingHarness, label: string) =>
+        Array.from(root(h).querySelectorAll('.methods rs-filter-chip'))
+          .find((c) => c.textContent?.trim() === label)!
+          .querySelector('button')!;
+
+      /** Payment open, card chosen and the server's pending attempt on screen. */
+      async function withCard(h: RouterTestingHarness) {
+        await startPayment(h);
+        chip(h, 'Tarjeta').click();
+        await settle(h);
+        const start = http.expectOne(CARD);
+        expect(start.request.method).toBe('POST');
+        expect(start.request.body).toMatchObject({ expectedTotal: '1111.00' });
+        start.flush({ payment: cardPayment() });
+        await settle(h);
+      }
+
+      it('"Aprobado" with the code completes the sale with the card, under the attempt’s own key', async () => {
+        const h = await withCart();
+        await withCard(h);
+        expect(byId(h, 'card-waiting')).not.toBeNull();
+        byId(h, 'card-approved')!.click();
+        await settle(h);
+        const code = byId(h, 'card-code') as HTMLInputElement;
+        code.value = 'A1B2C3';
+        code.dispatchEvent(new Event('input'));
+        await settle(h);
+        byId(h, 'card-approve-confirm')!.click();
+        await settle(h);
+        const confirm = http.expectOne('/api/v1/sales/pos/checkout/payments/card/c1/confirm');
+        expect(confirm.request.body).toEqual({ outcome: 'APPROVED', authorizationCode: 'A1B2C3' });
+        confirm.flush({ payment: cardPayment({ status: 'CONFIRMED', authorizationCode: 'A1B2C3' }) });
+        await settle(h);
+        const complete = http.expectOne(COMPLETE);
+        expect(complete.request.body).toMatchObject({ payments: [{ method: 'CARD', paymentId: 'c1' }], idempotencyKey: 'card-key-0001' });
+        complete.flush({ sale });
+        await settle(h);
+        expect(text(h)).toContain('V-000125');
+      });
+
+      it('a decline shows why and offers to retry, change the method or go back to the sale', async () => {
+        const h = await withCart();
+        await withCard(h);
+        byId(h, 'card-declined')!.click();
+        await settle(h);
+        root(h).querySelector<HTMLInputElement>('rs-pos-card-panel rs-radio input')!.click();
+        await settle(h);
+        byId(h, 'card-decline-confirm')!.click();
+        await settle(h);
+        http
+          .expectOne('/api/v1/sales/pos/checkout/payments/card/c1/confirm')
+          .flush({ payment: cardPayment({ status: 'DECLINED', declineReason: 'INSUFFICIENT_FUNDS' }) });
+        await settle(h);
+        expect(text(h)).toContain('Tarjeta rechazada');
+        expect(byId(h, 'card-decline-reason')!.textContent).toBe('Fondos insuficientes');
+        // Figma VP-12: "Reintentar cobro" in the footer, and the other methods stay available as chips
+        expect(byId(h, 'card-new')).not.toBeNull();
+        expect(chip(h, 'Efectivo').disabled).toBe(false);
+        // "Cancelar" returns the cart to OPEN
+        payDialog(h)!.querySelector<HTMLButtonElement>('[data-cancel]')!.click();
+        await settle(h);
+        http.expectOne(BACK).flush({ checkout: cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00') });
+        await settle(h);
+        expect(dialog(h)).toBeNull();
+      });
+
+      it('the cashier changes to cash after a decline with the cash chip', async () => {
+        const h = await withCart();
+        await withCard(h);
+        byId(h, 'card-declined')!.click();
+        await settle(h);
+        root(h).querySelector<HTMLInputElement>('rs-pos-card-panel rs-radio input')!.click();
+        await settle(h);
+        byId(h, 'card-decline-confirm')!.click();
+        await settle(h);
+        http
+          .expectOne('/api/v1/sales/pos/checkout/payments/card/c1/confirm')
+          .flush({ payment: cardPayment({ status: 'DECLINED', declineReason: 'CARD_DECLINED' }) });
+        await settle(h);
+        chip(h, 'Efectivo').click();
+        await settle(h);
+        expect(root(h).querySelector('rs-numpad')).not.toBeNull();
+        expect(byId(h, 'card-new')).toBeNull();
+      });
+
+      it('a refresh with an approved card completes the sale with it', async () => {
+        const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
+        const h = await open(undefined, shift, undefined, paying);
+        http.expectOne(QR).flush({ payment: null });
+        http.expectOne(CARD).flush({ payment: cardPayment({ status: 'CONFIRMED', authorizationCode: 'A1B2C3' }) });
+        await settle(h);
+        const complete = http.expectOne(COMPLETE);
+        expect(complete.request.body).toMatchObject({ payments: [{ method: 'CARD', paymentId: 'c1' }], idempotencyKey: 'card-key-0001' });
+        complete.flush({ sale });
+        await settle(h);
+        expect(text(h)).toContain('V-000125');
+      });
+
+      it('a refresh with a declined card reopens the screen on the decline', async () => {
+        const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
+        const h = await open(undefined, shift, undefined, paying);
+        http.expectOne(QR).flush({ payment: null });
+        http.expectOne(CARD).flush({ payment: cardPayment({ status: 'DECLINED', declineReason: 'CARD_DECLINED', attempt: 2 }) });
+        await settle(h);
+        expect(text(h)).toContain('Tarjeta rechazada');
+        expect(byId(h, 'card-decline-reason')!.textContent).toBe('Tarjeta rechazada');
+      });
+
+      it('the Tarjeta chip is disabled when the company turned card off', async () => {
+        const h = await withCart();
+        button(h, 'Cobrar')!.click();
+        await settle(h);
+        http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: [], allowMixed: true, cardEnabled: false });
+        await settle(h);
+        expect(chip(h, 'Tarjeta').disabled).toBe(true);
       });
     });
 
@@ -1104,6 +1238,7 @@ describe('PosPage', () => {
         const paying: PosCheckoutView = { ...cart([line({ unitPrice: '555.50', quantity: 2, lineTotal: '1111.00' })], '1111.00'), status: 'PAYING' };
         const h = await open(undefined, shift, undefined, paying);
         http.expectOne(QR).flush({ payment: part('CONFIRMED'), total: '1111.00', allowMixed: true });
+        http.expectOne(CARD).flush({ payment: null });
         await settle(h);
         http.expectNone(COMPLETE);
         expect(byId(h, 'pay-total')!.textContent).toBe('Bs 1.111,00');

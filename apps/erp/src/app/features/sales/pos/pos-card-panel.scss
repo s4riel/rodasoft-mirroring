@@ -1,0 +1,54 @@
+:host {
+  display: block;
+}
+
+/* Same column as the QR block (VP-04b): centred, gap 12, no box; the note, the form and the actions follow */
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.caption,
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  text-align: center;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+}
+
+.amount {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--display-h3-size);
+  line-height: var(--display-h3-line-height);
+  font-weight: var(--display-h3-weight);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.reasons {
+  align-self: center;
+}
+
+.mono {
+  font-family: var(--font-family-mono);
+  text-transform: uppercase;
+}
+
+rs-note,
+rs-field {
+  align-self: stretch;
+}
