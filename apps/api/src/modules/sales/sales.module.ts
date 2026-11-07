@@ -15,6 +15,9 @@ import { PosQrPaymentService } from './pos/pos-qr-payment.service';
 import { PosProductSheetService } from './pos/pos-product-sheet.service';
 import { SaleReceiptController } from './sales/sale-receipt.controller';
 import { SaleReceiptService } from './sales/sale-receipt.service';
+import { SaleVisibilityService } from './sales/sale-visibility.service';
+import { SalesHistoryController } from './sales/sales-history.controller';
+import { SalesHistoryService } from './sales/sales-history.service';
 import { MockPaymentProvider } from './payments/mock-payment.provider';
 import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/payment-provider';
 
@@ -26,7 +29,7 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
 @Module({
   // the POS reads the inventory's equivalences (HU-VEN-03) and product sheet (HU-VEN-04)
   imports: [InventoryModule],
-  controllers: [CashController, CustomersController, PosController, SaleReceiptController],
+  controllers: [CashController, CustomersController, PosController, SaleReceiptController, SalesHistoryController],
   providers: [
     CashRegistersService,
     CashShiftsService,
@@ -37,6 +40,8 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
     PosQrPaymentService,
     PosCardPaymentService,
     SaleReceiptService,
+    SaleVisibilityService,
+    SalesHistoryService,
     PosEquivalentsService,
     PosProductSheetService,
     MockPaymentProvider,

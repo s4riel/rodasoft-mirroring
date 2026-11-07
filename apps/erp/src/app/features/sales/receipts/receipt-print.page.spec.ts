@@ -31,12 +31,15 @@ describe('ReceiptPrintPage', () => {
   let http: HttpTestingController;
   let print: jest.SpyInstance;
 
-  async function render() {
+  async function render(query: Record<string, string> = {}) {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ saleId: 's1' }) } } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap({ saleId: 's1' }), queryParamMap: convertToParamMap(query) } },
+        },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -135,6 +138,35 @@ describe('ReceiptPrintPage', () => {
     await settle(fixture);
     expect(el(fixture).querySelector('[role=alert]')?.textContent).toContain('No pudimos cargar el comprobante');
     expect(el(fixture).textContent).toContain('La venta no existe.');
+    expect(print).not.toHaveBeenCalled();
+  });
+
+  it('a reprint records itself first and then prints the ticket with the REIMPRESIÓN line', async () => {
+    const fixture = await render({ reprint: '1' });
+    http.expectOne(RECEIPT_URL).flush(receipt());
+    // the ticket is not drawn until the server has recorded the reprint
+    expect(el(fixture).querySelector('rs-receipt')).toBeNull();
+    http.expectOne({ method: 'POST', url: '/api/v1/sales/sales/s1/receipt/reprint' }).flush({ printedAt: '2026-10-15T15:30:00.000Z' });
+    await settle(fixture);
+    expect(el(fixture).textContent).toContain('REIMPRESIÓN · 15/10/2026 11:30');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(print).toHaveBeenCalled();
+  });
+
+  it('a plain print does not record a reprint', async () => {
+    const fixture = await render();
+    http.expectOne(RECEIPT_URL).flush(receipt());
+    await settle(fixture);
+    expect(el(fixture).textContent).not.toContain('REIMPRESIÓN');
+    http.expectNone('/api/v1/sales/sales/s1/receipt/reprint');
+  });
+
+  it('does not print when the reprint cannot be recorded', async () => {
+    const fixture = await render({ reprint: '1' });
+    http.expectOne(RECEIPT_URL).flush(receipt());
+    http.expectOne({ method: 'POST', url: '/api/v1/sales/sales/s1/receipt/reprint' }).flush({ code: 'SALE_NOT_FOUND', message: 'x' }, { status: 404, statusText: 'Not Found' });
+    await settle(fixture);
+    expect(el(fixture).querySelector('[role=alert]')).not.toBeNull();
     expect(print).not.toHaveBeenCalled();
   });
 });

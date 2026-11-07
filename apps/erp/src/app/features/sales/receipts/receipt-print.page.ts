@@ -6,6 +6,7 @@ import { buildReceiptLines, Decimal, formatReceiptDate, type SaleReceipt } from 
 import { ButtonComponent, EmptyStateIllustratedComponent, ReceiptComponent, SkeletonComponent, type ReceiptItem, type ReceiptRow } from '@rodasoft/ui';
 import { problemOf } from '../../../core/api-error';
 import { documentText } from '../customers/customer-format';
+import { SalesHistoryApi } from '../history/sales-history-api.service';
 import { PosApi } from '../pos/pos-api.service';
 
 type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
@@ -33,6 +34,7 @@ const PAGE_RULES = {
 export class ReceiptPrintPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PosApi);
+  private readonly history = inject(SalesHistoryApi);
   private readonly document = inject(DOCUMENT);
   private readonly renderer = inject(Renderer2);
   private readonly destroyRef = inject(DestroyRef);
@@ -40,12 +42,17 @@ export class ReceiptPrintPage implements OnInit {
   protected readonly state = signal<LoadState>('loading');
   protected readonly receipt = signal<SaleReceipt | null>(null);
   protected readonly errorText = signal('');
+  /** ISO instant of the reprint (`?reprint=1`); the ticket says so in its header. */
+  private readonly reprintedAt = signal<string | null>(null);
 
   protected readonly paper = computed(() => (this.receipt()?.format === 'LETTER' ? 'letter' : 'ticket-80mm'));
 
   protected readonly headerLines = computed(() => {
     const receipt = this.receipt();
-    return receipt ? [receipt.company.legalName, `NIT ${receipt.company.nit}`, receipt.branch.name] : [];
+    if (!receipt) return [];
+    const lines = [receipt.company.legalName, `NIT ${receipt.company.nit}`, receipt.branch.name];
+    const reprintedAt = this.reprintedAt();
+    return reprintedAt ? [...lines, `REIMPRESIÓN · ${formatReceiptDate(reprintedAt)}`] : lines;
   });
 
   protected readonly metaRows = computed<ReceiptRow[]>(() => {
@@ -97,18 +104,39 @@ export class ReceiptPrintPage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (receipt) => {
-          this.receipt.set(receipt);
-          this.state.set('ready');
-          this.addPageRule(receipt);
-          // the receipt is drawn before the print dialog opens
-          setTimeout(() => this.print());
+          if (this.route.snapshot.queryParamMap.get('reprint') === '1') this.recordReprint(receipt);
+          else this.show(receipt);
         },
-        error: (err: unknown) => {
-          const problem = problemOf(err);
-          this.errorText.set(problem.message);
-          this.state.set(problem.status === 403 ? 'forbidden' : 'error');
-        },
+        error: (err: unknown) => this.fail(err),
       });
+  }
+
+  /** A reprint is recorded first: the ticket carries the instant the server kept, and the sale's history shows it. */
+  private recordReprint(receipt: SaleReceipt) {
+    this.history
+      .reprint(receipt.saleId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ printedAt }) => {
+          this.reprintedAt.set(printedAt);
+          this.show(receipt);
+        },
+        error: (err: unknown) => this.fail(err),
+      });
+  }
+
+  private show(receipt: SaleReceipt) {
+    this.receipt.set(receipt);
+    this.state.set('ready');
+    this.addPageRule(receipt);
+    // the receipt is drawn before the print dialog opens
+    setTimeout(() => this.print());
+  }
+
+  private fail(err: unknown) {
+    const problem = problemOf(err);
+    this.errorText.set(problem.message);
+    this.state.set(problem.status === 403 ? 'forbidden' : 'error');
   }
 
   protected print() {

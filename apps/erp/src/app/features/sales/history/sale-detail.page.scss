@@ -1,0 +1,110 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.card-title {
+  margin: 0;
+  font-size: var(--body-lg-size);
+  color: var(--text-primary);
+}
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--body-md-size);
+  color: var(--text-primary);
+}
+.email {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+.line {
+  margin: 0;
+  font-size: var(--body-md-size);
+  color: var(--text-primary);
+}
+.muted {
+  margin: 0;
+  font-size: var(--body-md-size);
+  color: var(--text-muted);
+}
+.plain,
+.history {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.payment {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--body-md-size);
+  color: var(--text-primary);
+}
+.value {
+  font-family: var(--font-mono);
+}
+.amounts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.amount {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-6);
+  font-size: var(--body-md-size);
+  color: var(--text-muted);
+  dd {
+    min-width: 8rem;
+    margin: 0;
+    text-align: end;
+    font-family: var(--font-mono);
+  }
+  dt {
+    margin: 0;
+  }
+}
+.history-item {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-4);
+  border-inline-start: var(--stroke-focus) solid var(--border-default);
+}
+.history-label {
+  font-size: var(--body-md-size);
+  color: var(--text-primary);
+}

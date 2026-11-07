@@ -4,7 +4,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { ToastService } from '@rodasoft/ui';
+import { RS_PERMISSIONS, ToastService } from '@rodasoft/ui';
 import { ContextStore } from '../../core/context.store';
 import { SalesLayoutPage } from './sales-layout.page';
 import { SALES_ROUTES } from './sales.routes';
@@ -26,6 +26,8 @@ describe('sales section', () => {
         // the POS and Caja tabs are real screens now: they call the API when opened
         provideHttpClient(),
         provideHttpClientTesting(),
+        // Ventas realizadas is a real screen now, and its `*rsCan` buttons read the permissions
+        { provide: RS_PERMISSIONS, useValue: signal(new Set(granted)) },
         { provide: ToastService, useValue: { warning, toasts: () => [], dismiss: jest.fn() } },
         {
           provide: ContextStore,
@@ -81,6 +83,13 @@ describe('sales section', () => {
     const h = await RouterTestingHarness.create();
     await h.navigateByUrl('/sales');
     expect(TestBed.inject(Router).url).toBe('/sales/quotes');
+  });
+
+  it('a role with only the permission to see every sale still reaches Ventas realizadas', async () => {
+    setup(['sales.history.view-all']);
+    const h = await RouterTestingHarness.create();
+    await h.navigateByUrl('/sales');
+    expect(TestBed.inject(Router).url).toBe('/sales/history');
   });
 
   it('sends a user without any sales permission home, from /sales and from a tab', async () => {

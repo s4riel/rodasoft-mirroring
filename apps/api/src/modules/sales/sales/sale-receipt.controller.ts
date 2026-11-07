@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, ValidationError, ValidationPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { SaleReceipt, SendReceiptEmailResponse } from '@rodasoft/domain';
-import { RequirePermissions } from '../../access/require-permissions.decorator';
+import type { ReprintReceiptResponse, SaleReceipt, SendReceiptEmailResponse } from '@rodasoft/domain';
+import { RequireAnyPermission } from '../../access/require-permissions.decorator';
 import { SendReceiptEmailDto } from '../pos/pos-payment.dto';
 import { posErrors } from '../pos/pos.errors';
 import { SaleReceiptService } from './sale-receipt.service';
@@ -24,13 +24,19 @@ const saleIdPipe = new ParseUUIDPipe({ exceptionFactory: () => posErrors.saleNot
 @ApiTags('sales')
 @ApiBearerAuth()
 @Controller('sales/sales')
-@RequirePermissions('sales.pos.use')
+// the receipt is also reached from the sales history, so view-all alone is enough
+@RequireAnyPermission('sales.pos.use', 'sales.history.view-all')
 export class SaleReceiptController {
   constructor(private readonly receipts: SaleReceiptService) {}
 
   @Get(':id/receipt')
   receipt(@Param('id', saleIdPipe) id: string): Promise<SaleReceipt> {
     return this.receipts.receipt(id);
+  }
+
+  @Post(':id/receipt/reprint')
+  reprint(@Param('id', saleIdPipe) id: string): Promise<ReprintReceiptResponse> {
+    return this.receipts.reprint(id);
   }
 
   @Post(':id/receipt/email')

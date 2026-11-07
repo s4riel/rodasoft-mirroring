@@ -25,6 +25,8 @@ import { PosQrPaymentService } from './pos-qr-payment.service';
 import { MockPaymentProvider } from '../payments/mock-payment.provider';
 import type { PaymentProviderRegistry } from '../payments/payment-provider';
 import { SaleReceiptService } from '../sales/sale-receipt.service';
+import { SaleVisibilityService } from '../sales/sale-visibility.service';
+import { SalesHistoryService } from '../sales/sales-history.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
 
 export interface Caller {
@@ -44,8 +46,12 @@ export function createPosFixture(prefix: string) {
   /** One mock adapter for the whole run, like the module: its in-memory state outlives a request. */
   const mock = new MockPaymentProvider();
   const providers: PaymentProviderRegistry = { QR: mock, CARD: mock };
-  /** Every test caller has `sales.pos.use`; the permission guard itself is covered by the access module. */
-  const membership = { permissions: async () => new Set(['sales.pos.use']), operableBranchIds: async () => null } as never;
+  /** Extra permissions per membership id (the sales history reads `sales.history.view-all`). */
+  const extraPermissions = new Map<string, string[]>();
+  const membership = {
+    permissions: async (id: string) => new Set(['sales.pos.use', ...(extraPermissions.get(id) ?? [])]),
+    operableBranchIds: async () => null,
+  } as never;
 
   const state = {
     run,
@@ -86,6 +92,7 @@ export function createPosFixture(prefix: string) {
     const audit = new AuditService(prisma, cls);
     const customers = new CustomersService(prisma, cls, audit);
     const outbox = new OutboxService(prisma, cls);
+    const visibility = new SaleVisibilityService(cls, membership);
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     return {
@@ -95,7 +102,8 @@ export function createPosFixture(prefix: string) {
       payment,
       qr: new PosQrPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
       card: new PosCardPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
-      receipts: new SaleReceiptService(prisma, cls, settings, outbox, audit),
+      receipts: new SaleReceiptService(prisma, cls, settings, outbox, audit, visibility),
+      history: new SalesHistoryService(prisma, visibility, settings),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
       sheet: new PosProductSheetService(
         prisma,
@@ -294,7 +302,12 @@ export function createPosFixture(prefix: string) {
     await base.$disconnect();
   }
 
-  return { state, as, providers, mock, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, setup, teardown };
+  /** Gives a caller extra permissions (the fixture's callers only hold `sales.pos.use`). */
+  function grant(caller: Caller, ...permissions: string[]) {
+    extraPermissions.set(caller.membershipId, permissions);
+  }
+
+  return { state, as, providers, mock, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, newMember, grant, setup, teardown };
 }
 
 /** The error code of a rejected call, or null when it succeeds. */

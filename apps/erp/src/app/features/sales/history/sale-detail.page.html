@@ -1,0 +1,126 @@
+<rs-page-header
+  [title]="detail() ? 'Venta ' + detail()!.number : 'Detalle de venta'"
+  type="detail"
+  [breadcrumbs]="breadcrumbs()"
+  breadcrumbLabel="Ruta de navegación"
+>
+  @if (detail()) {
+    <div rsActions class="header-actions">
+      <button rsButton variant="secondary" type="button" [attr.aria-expanded]="emailOpen()" (click)="toggleEmail()">
+        <rs-icon name="mail" [size]="16" /> Enviar por correo
+      </button>
+      <button rsButton variant="primary" type="button" data-testid="sale-reprint" (click)="reprint()">
+        <rs-icon name="document" [size]="16" /> Reimprimir
+      </button>
+    </div>
+  }
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la venta">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver esta venta"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la venta" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver a ventas</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      <div class="meta">
+        @if (pill(); as p) {
+          <rs-status-pill [status]="p.status" [icon]="p.icon ?? null">{{ p.label }}</rs-status-pill>
+        }
+        <span class="meta-item"><rs-icon name="calendar" [size]="16" /> {{ createdText() }}</span>
+        <span class="meta-item"><rs-icon name="branch" [size]="16" /> {{ d.branch.name }}</span>
+        <span class="meta-item"><rs-icon name="user" [size]="16" /> Cajero: {{ d.cashier.name }}</span>
+      </div>
+
+      @if (emailOpen()) {
+        <div class="card email" id="sale-email-row">
+          <rs-field label="Enviar el comprobante a" forId="sale-detail-email">
+            <input
+              #emailInput
+              rsInput
+              id="sale-detail-email"
+              type="email"
+              autocomplete="off"
+              placeholder="cliente@correo.com"
+              [value]="email()"
+              (input)="email.set(emailInput.value)"
+            />
+          </rs-field>
+          <button rsButton variant="primary" type="button" [disabled]="!canSend()" [loading]="emailSending()" (click)="submitEmail()">Enviar</button>
+        </div>
+      }
+
+      <section class="card" aria-labelledby="sale-customer">
+        <h2 class="card-title" id="sale-customer">Cliente</h2>
+        <p class="line">{{ d.customer.name }}</p>
+        <p class="muted">{{ customerDocument() }}</p>
+      </section>
+
+      <section class="card" aria-labelledby="sale-lines">
+        <h2 class="card-title" id="sale-lines">Productos</h2>
+        <rs-doc-table size="md" tableLabel="Productos de la venta" [columns]="lineColumns" [rows]="lineRows()" [totals]="lineTotals()" />
+        <dl class="amounts">
+          @for (row of adjustments(); track row.label) {
+            <div class="amount"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>
+          }
+        </dl>
+      </section>
+
+      <section class="card" aria-labelledby="sale-payments">
+        <h2 class="card-title" id="sale-payments">Pago</h2>
+        <ul class="plain">
+          @for (p of payments(); track $index) {
+            <li class="payment">
+              <span>{{ p.method }}@if (p.reference) { <span class="muted"> · {{ p.reference }}</span> }</span>
+              <span class="value">{{ p.amount }}@if (p.change) { <span class="muted"> · cambio {{ p.change }}</span> }</span>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="card" aria-labelledby="sale-invoice">
+        <h2 class="card-title" id="sale-invoice">Factura</h2>
+        @if (invoicePending()) {
+          <rs-note type="info" title="Pendiente de emisión SIAT">La factura se emitirá cuando el módulo de facturación esté activo.</rs-note>
+        } @else {
+          <p class="line">{{ invoiceText() }}</p>
+        }
+      </section>
+
+      <section class="card" aria-labelledby="sale-history">
+        <h2 class="card-title" id="sale-history">Historial</h2>
+        <ol class="history">
+          @for (h of history(); track $index) {
+            <li class="history-item">
+              <span class="history-label">{{ h.label }}</span>
+              <span class="muted">{{ h.at }}@if (h.by) { · {{ h.by }} }</span>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />
