@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
+  Decimal,
+  dispatchableQuantity,
   InvalidTransitionError,
+  isInvoicedStatus,
   effectiveQuoteStatus,
   isQuoteConvertible,
   laPazToday,
+  orderTimeline,
+  pendingQuantity,
   quoteMachine,
   releasableQuantity,
   SALES_DOCUMENT_PAGE_SIZE_DEFAULT,
@@ -20,6 +25,7 @@ import { AuditService } from '../../../common/audit/audit.service';
 import type { AppClsStore } from '../../../common/cls';
 import { OutboxService } from '../../../common/outbox/outbox.service';
 import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
+import { SettingsService } from '../../../common/settings/settings.service';
 import { MembershipService } from '../../access/membership.service';
 import { StockReservationService } from '../../inventory/stock-reservation.service';
 import { nextDocumentNumber } from '../document-sequence';
@@ -27,6 +33,20 @@ import { quoteErrors } from '../quotes/quotes.errors';
 
 const day = (date: Date): string => date.toISOString().slice(0, 10);
 const asTx = (tx: TenantTransaction) => tx as unknown as Prisma.TransactionClient;
+
+type DispatchWithInvoice = {
+  items: { orderItemId: string; quantity: number }[];
+  sale: { total: { toFixed(digits: number): string }; invoice: { status: string } | null } | null;
+};
+
+/** What the live invoices cover: a cancelled or rejected invoice leaves its pieces dispatched but not invoiced. */
+function invoicedFigures(dispatches: readonly DispatchWithInvoice[]): { invoicedTotal: Decimal; invoicedByItem: Map<string, number> } {
+  const invoiced = dispatches.filter((d) => d.sale && isInvoicedStatus(d.sale.invoice?.status));
+  const invoicedTotal = invoiced.reduce((acc, d) => acc.add(Decimal.of(d.sale?.total.toFixed(2) ?? '0')), Decimal.zero());
+  const invoicedByItem = new Map<string, number>();
+  for (const d of invoiced) for (const i of d.items) invoicedByItem.set(i.orderItemId, (invoicedByItem.get(i.orderItemId) ?? 0) + i.quantity);
+  return { invoicedTotal, invoicedByItem };
+}
 
 /**
  * Orders (HU-VEN-19): a quote becomes an order that holds its stock. Converting locks the quote row, so two calls on the same
@@ -43,6 +63,7 @@ export class SalesOrdersService {
     private readonly outbox: OutboxService,
     private readonly membership: MembershipService,
     private readonly reservations: StockReservationService,
+    private readonly settings: SettingsService,
   ) {}
 
   /** `DRAFT | SENT → ACCEPTED` on the quote and a new `PED-000012` in `OPEN` with every line reserved in the warehouse. */
@@ -250,20 +271,35 @@ export class SalesOrdersService {
         branch: { select: { name: true } },
         warehouse: { select: { name: true } },
         items: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { sku: true, manufacturerCode: true, name: true } } } },
+        dispatches: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          include: { items: { select: { orderItemId: true, quantity: true } }, sale: { select: { number: true, total: true, invoice: { select: { status: true } } } } },
+        },
       },
     });
     if (!order) throw quoteErrors.salesOrderNotFound();
-    const creator = await this.prisma.user.findUnique({ where: { id: order.createdById }, select: { name: true } });
+    const userIds = [...new Set([order.createdById, ...order.dispatches.map((d) => d.createdById)])];
+    const [users, partialDispatchAllowed, roundingMode, company] = await Promise.all([
+      this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }),
+      this.settings.get('sales.allowPartialDispatch'),
+      this.settings.get('sales.roundingMode'),
+      this.prisma.company.findUniqueOrThrow({ where: { id: order.companyId }, select: { tradeName: true } }),
+    ]);
+    const userName = new Map(users.map((u) => [u.id, u.name]));
+    const { invoicedTotal, invoicedByItem } = invoicedFigures(order.dispatches);
+    const dispatchedAt = order.dispatches[0]?.createdAt.toISOString() ?? null;
+    const completedAt = order.status === 'DISPATCHED' ? (order.dispatches.at(-1)?.createdAt.toISOString() ?? null) : null;
     return {
       id: order.id,
       number: order.number,
       status: order.status,
       customer: order.customer,
       quote: order.quote,
+      company: company.tradeName,
       branchName: order.branch.name,
       warehouseName: order.warehouse.name,
       createdAt: order.createdAt.toISOString(),
-      createdByName: creator?.name ?? null,
+      createdByName: userName.get(order.createdById) ?? null,
       cancelledAt: order.cancelledAt?.toISOString() ?? null,
       subtotal: order.subtotal.toFixed(2),
       discountAmount: order.discountAmount.toFixed(2),
@@ -280,8 +316,25 @@ export class SalesOrdersService {
         lineTotal: item.lineTotal.toFixed(2),
         reservedQuantity: item.reservedQuantity,
         dispatchedQuantity: item.dispatchedQuantity,
+        invoicedQuantity: invoicedByItem.get(item.id) ?? 0,
+        pendingQuantity: pendingQuantity(item),
       })),
       cancellable: salesOrderMachine.can(order.status, 'cancel'),
+      dispatches: order.dispatches.map((d) => ({
+        id: d.id,
+        number: d.number,
+        createdAt: d.createdAt.toISOString(),
+        createdByName: userName.get(d.createdById) ?? null,
+        pieces: d.items.reduce((acc, i) => acc + i.quantity, 0),
+        total: d.sale?.total.toFixed(2) ?? '0.00',
+        saleId: d.saleId,
+        saleNumber: d.sale?.number ?? null,
+      })),
+      invoicedTotal: invoicedTotal.toString(),
+      timeline: orderTimeline({ status: order.status, createdAt: order.createdAt.toISOString(), dispatchedAt, completedAt }),
+      dispatchable: salesOrderMachine.can(order.status, 'dispatchPartial') && order.items.some((item) => dispatchableQuantity(item) > 0),
+      partialDispatchAllowed,
+      roundingMode,
     };
   }
 

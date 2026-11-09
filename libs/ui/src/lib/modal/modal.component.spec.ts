@@ -11,6 +11,7 @@ import { ModalComponent } from './modal.component';
       heading="Anular factura"
       variant="form"
       [size]="size()"
+      [closeOnEscape]="escapeCloses()"
       (closed)="closedCount = closedCount + 1"
     >
       <input id="field" />
@@ -21,6 +22,7 @@ import { ModalComponent } from './modal.component';
 class HostComponent {
   readonly open = signal(false);
   readonly size = signal<'default' | 'wide'>('default');
+  readonly escapeCloses = signal(true);
   closedCount = 0;
 }
 
@@ -62,6 +64,17 @@ describe('ModalComponent', () => {
     const fixture = await openModal();
     await fixture.whenStable();
     expect(document.activeElement?.id).toBe('field');
+  });
+
+  it('no cierra con ESC cuando closeOnEscape es false', async () => {
+    const fixture = await openModal();
+    fixture.componentInstance.escapeCloses.set(false);
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.open()).toBe(true);
+    expect(fixture.componentInstance.closedCount).toBe(0);
   });
 
   it('cierra con ESC y emite closed', async () => {

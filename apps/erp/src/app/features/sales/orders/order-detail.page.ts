@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ORDER_CANCEL_REASON_MAX, type SalesOrderDetail } from '@rodasoft/domain';
+import { dispatchableQuantity, ORDER_CANCEL_REASON_MAX, type SalesOrderDetail } from '@rodasoft/domain';
 import {
   ButtonComponent,
   CanDirective,
@@ -8,11 +8,13 @@ import {
   DocTableComponent,
   EmptyStateIllustratedComponent,
   FieldComponent,
+  KpiCardComponent,
   ModalComponent,
   NoteComponent,
   PageHeaderComponent,
   SkeletonComponent,
   StatusPillComponent,
+  StatusTimelineComponent,
   TextareaDirective,
   ToastOutletComponent,
   ToastService,
@@ -20,21 +22,36 @@ import {
 import { problemOf } from '../../../core/api-error';
 import { formatBs, formatDateTime } from '../cash/cash-format';
 import { isZero, ORDER_STATUS_PILLS } from '../quotes/quote-format';
+import { DispatchOrderDialog } from './dispatch-order.dialog';
+import { lineStatus, piecesLabel, toOrderTimelineSteps } from './order-format';
 import { OrdersApi } from './orders-api.service';
 
-type LoadState = 'loading' | 'ready' | 'error';
+type LoadState = 'loading' | 'ready' | 'forbidden' | 'error';
 
 const COLUMNS: DocTableColumn[] = [
   { key: 'code', label: 'Código', type: 'text', width: '10rem' },
   { key: 'name', label: 'Producto', type: 'text' },
-  { key: 'quantity', label: 'Cantidad', type: 'number', width: '7rem' },
-  { key: 'reserved', label: 'Reservado', type: 'number', width: '7rem' },
-  { key: 'dispatched', label: 'Despachado', type: 'number', width: '7rem' },
-  { key: 'price', label: 'Precio', type: 'number', width: '8rem' },
+  { key: 'quantity', label: 'Pedido', type: 'number', width: '6rem' },
+  { key: 'reserved', label: 'Reservado', type: 'number', width: '6rem' },
+  { key: 'dispatched', label: 'Despachado', type: 'number', width: '6rem' },
+  { key: 'invoiced', label: 'Facturado', type: 'number', width: '6rem' },
+  { key: 'state', label: 'Estado', type: 'status', width: '9rem' },
   { key: 'total', label: 'Importe', type: 'number', width: '8rem' },
 ];
 
-/** An order: its reserved lines, the quote it came from, and cancelling it to release the stock. */
+const DISPATCH_COLUMNS: DocTableColumn[] = [
+  { key: 'number', label: 'Despacho', type: 'text', width: '9rem' },
+  { key: 'date', label: 'Fecha', type: 'text', width: '10rem' },
+  { key: 'by', label: 'Por', type: 'text' },
+  { key: 'pieces', label: 'Piezas', type: 'number', width: '6rem' },
+  { key: 'sale', label: 'Venta facturada', type: 'text', width: '10rem' },
+  { key: 'total', label: 'Importe', type: 'number', width: '8rem' },
+];
+
+/**
+ * An order: its reserved lines, the quote it came from, its dispatches (HU-VEN-20, VP-19: dispatch and invoice in parts,
+ * print the dispatch order) and cancelling it to release the stock.
+ */
 @Component({
   selector: 'rs-order-detail-page',
   imports: [
@@ -42,13 +59,16 @@ const COLUMNS: DocTableColumn[] = [
     CanDirective,
     DocTableComponent,
     EmptyStateIllustratedComponent,
+    DispatchOrderDialog,
     FieldComponent,
+    KpiCardComponent,
     ModalComponent,
     NoteComponent,
     PageHeaderComponent,
     RouterLink,
     SkeletonComponent,
     StatusPillComponent,
+    StatusTimelineComponent,
     TextareaDirective,
     ToastOutletComponent,
   ],
@@ -62,6 +82,7 @@ export class OrderDetailPage {
   private readonly toast = inject(ToastService);
 
   protected readonly columns = COLUMNS;
+  protected readonly dispatchColumns = DISPATCH_COLUMNS;
   protected readonly reasonMax = ORDER_CANCEL_REASON_MAX;
   protected readonly state = signal<LoadState>('loading');
   protected readonly errorMessage = signal('');
@@ -71,6 +92,7 @@ export class OrderDetailPage {
   protected readonly reason = signal('');
   protected readonly cancelling = signal(false);
   protected readonly reasonMissing = signal(false);
+  protected readonly dispatchOpen = signal(false);
 
   protected readonly breadcrumbs = computed(() => [
     { label: 'Inicio', link: '/' },
@@ -89,11 +111,44 @@ export class OrderDetailPage {
         quantity: line.quantity,
         reserved: line.reservedQuantity,
         dispatched: line.dispatchedQuantity,
-        price: formatBs(line.unitPrice),
+        invoiced: line.invoicedQuantity,
+        state: lineStatus(line),
         total: formatBs(line.lineTotal),
       },
     })),
   );
+  protected readonly dispatchRows = computed(() =>
+    (this.detail()?.dispatches ?? []).map((dispatch) => ({
+      id: dispatch.id,
+      label: dispatch.number,
+      cells: {
+        number: dispatch.number,
+        date: formatDateTime(dispatch.createdAt),
+        by: dispatch.createdByName ?? '—',
+        pieces: dispatch.pieces,
+        sale: dispatch.saleNumber ?? '—',
+        total: formatBs(dispatch.total),
+      },
+    })),
+  );
+  /** "Minera Demo Ltda. · desde COT-0045 · Huayna Kapac": who it is for, the quote it came from and where the stock is held. */
+  protected readonly subtitle = computed(() => {
+    const d = this.detail();
+    if (!d) return '';
+    return [d.customer.name, d.quote ? `desde ${d.quote.number}` : null, d.warehouseName].filter(Boolean).join(' · ');
+  });
+  protected readonly timeline = computed(() => toOrderTimelineSteps(this.detail()?.timeline ?? []));
+  /** Pieces held for the order now, out of what was ordered ("19 de 22 piezas"). */
+  protected readonly heldText = computed(() => {
+    const lines = this.detail()?.lines ?? [];
+    const held = lines.reduce((sum, line) => sum + dispatchableQuantity(line), 0);
+    const ordered = lines.reduce((sum, line) => sum + line.quantity, 0);
+    return `${held} de ${ordered} piezas`;
+  });
+  protected readonly dispatchedText = computed(() =>
+    piecesLabel((this.detail()?.lines ?? []).reduce((sum, line) => sum + line.dispatchedQuantity, 0)),
+  );
+  protected readonly printPath = computed(() => `/sales/orders/${this.detail()?.id ?? ''}/print`);
   protected readonly hasDiscount = computed(() => !!this.detail() && !isZero(this.detail()!.discountAmount));
   protected readonly hasRounding = computed(() => !!this.detail() && !isZero(this.detail()!.roundingAmount));
   protected readonly formatBs = formatBs;
@@ -111,10 +166,20 @@ export class OrderDetailPage {
         this.state.set('ready');
       },
       error: (err) => {
-        this.errorMessage.set(problemOf(err).message);
-        this.state.set('error');
+        const problem = problemOf(err);
+        this.errorMessage.set(problem.message);
+        this.state.set(problem.status === 403 ? 'forbidden' : 'error');
       },
     });
+  }
+
+  protected onDispatched(updated: SalesOrderDetail) {
+    this.detail.set(updated);
+    this.toast.success(
+      updated.status === 'DISPATCHED'
+        ? `Pedido ${updated.number} despachado y facturado por completo.`
+        : `Despacho registrado. Lo pendiente queda en el pedido ${updated.number}.`,
+    );
   }
 
   protected openCancel() {

@@ -117,6 +117,7 @@ export class SalesHistoryService {
         customer: { select: { email: true } },
         warehouse: { select: { name: true } },
         shift: { select: { register: { select: { name: true } } } },
+        dispatch: { select: { order: { select: { id: true, number: true } } } },
       },
     });
     if (!sale || !sale.invoice) throw posErrors.saleNotFound();
@@ -125,7 +126,7 @@ export class SalesHistoryService {
       this.prisma.user.findUnique({ where: { id: sale.createdById }, select: { name: true } }),
       this.history(sale.companyId, sale.id),
       this.settings.get('sales.receiptFormat'),
-      this.cancellations.stateOf({ id: sale.id, status: sale.status as SaleStatus, createdAt: sale.createdAt, warehouse: sale.warehouse, shift: sale.shift }),
+      this.cancellations.stateOf({ id: sale.id, status: sale.status as SaleStatus, createdAt: sale.createdAt, warehouse: sale.warehouse, shift: sale.shift, origin: sale.origin }),
     ]);
 
     return {
@@ -135,6 +136,7 @@ export class SalesHistoryService {
       status: sale.status as SaleStatus,
       branch: { name: sale.branch.name },
       cashier: { name: cashier?.name ?? '' },
+      order: sale.dispatch?.order ?? null,
       customer: {
         name: sale.invoice.customerTaxName,
         documentType: sale.invoice.customerDocumentType,

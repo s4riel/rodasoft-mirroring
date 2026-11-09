@@ -92,6 +92,32 @@ export class StockReservationService {
     }
   }
 
+  /**
+   * A dispatch takes reserved units out: `reserved` drops by the dispatched quantity, and the caller writes the `SALE` movement
+   * of the same units through `StockMovementService` in the same transaction, so the available stock (`quantity − reserved`)
+   * does not move for anyone else. Refuses to take more than is reserved, so `reserved` never goes below zero.
+   */
+  async consume(tx: TenantTransaction, warehouseId: string, lines: readonly ReservationLine[]): Promise<void> {
+    const companyId = this.companyId();
+    for (const { productId, quantity } of mergeSorted(lines)) {
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new BadRequestException({ code: 'INVALID_QUANTITY', message: 'A dispatch needs whole quantities of at least 1' });
+      }
+      await this.lockProduct(tx, productId, companyId);
+      const updated = await tx.$executeRaw`
+        UPDATE stock_levels SET reserved = reserved - ${quantity}, updated_at = now()
+        WHERE product_id = ${productId}::uuid AND warehouse_id = ${warehouseId}::uuid AND company_id = ${companyId}::uuid
+          AND reserved >= ${quantity}`;
+      if (updated === 0) {
+        throw new ConflictException({
+          code: 'RESERVATION_SHORT',
+          message: 'The warehouse holds fewer reserved units than the dispatch needs',
+          details: { productId, requested: quantity },
+        });
+      }
+    }
+  }
+
   private async lockProduct(tx: TenantTransaction, productId: string, companyId: string): Promise<void> {
     await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
   }

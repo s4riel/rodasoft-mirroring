@@ -65,6 +65,12 @@
         }
         <span class="meta-item"><rs-icon name="calendar" [size]="16" /> {{ createdText() }}</span>
         <span class="meta-item"><rs-icon name="branch" [size]="16" /> {{ d.branch.name }}</span>
+        @if (d.order; as order) {
+          <span class="meta-item" data-testid="sale-order">
+            <rs-icon name="document" [size]="16" /> Pedido
+            <a class="meta-link" [routerLink]="['/sales/orders', order.id]">{{ order.number }}</a>
+          </span>
+        }
         <span class="meta-item"><rs-icon name="user" [size]="16" /> Cajero: {{ d.cashier.name }}</span>
       </div>
 

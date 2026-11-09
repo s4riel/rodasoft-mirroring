@@ -5,6 +5,7 @@ import { CashRegistersService } from './cash/cash-registers.service';
 import { CashShiftsService } from './cash/cash-shifts.service';
 import { CustomersController } from './customers/customers.controller';
 import { CustomersService } from './customers/customers.service';
+import { SalesOrderDispatchService } from './orders/sales-order-dispatch.service';
 import { SalesOrdersController } from './orders/sales-orders.controller';
 import { SalesOrdersService } from './orders/sales-orders.service';
 import { QuoteLifecycleService } from './quotes/quote-lifecycle.service';
@@ -45,6 +46,7 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
     QuotesService,
     QuoteLifecycleService,
     SalesOrdersService,
+    SalesOrderDispatchService,
     PosCheckoutService,
     PosPaymentService,
     PosQrPaymentService,

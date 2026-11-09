@@ -1,7 +1,7 @@
 /**
  * Integration test of `StockReservationService` (HU-VEN-19) against the real Postgres: all-or-nothing reserve, release that
  * never goes below zero (twice, and with more than reserved), invalid quantities, an inactive warehouse, and that
- * `quantity` and the kardex never change.
+ * `quantity` and the kardex never change. `consume` (HU-VEN-20) takes reserved units out for a dispatch and never goes below zero.
  */
 import { codeOf, createPosFixture } from '../sales/pos/pos.int-fixture';
 import { StockReservationService } from './stock-reservation.service';
@@ -74,5 +74,42 @@ describe('StockReservationService (integration, real Postgres)', () => {
     await fx.tenantTransaction((tx) => other.release(tx as never, state.centralId, [{ productId: p.id, quantity: 1 }]));
     fx.useCompany(state.companyId);
     expect(await level(p.id)).toMatchObject({ reserved: 0 });
+  });
+
+  describe('consume (HU-VEN-20)', () => {
+    it('takes reserved units out and leaves quantity alone: the movement is the caller’s', async () => {
+      const p = await fx.newProduct({ stock: { [state.centralId]: 10 } });
+      const movements = await state.base.stockMovement.count({ where: { productId: p.id } });
+      await run((tx) => service().reserve(tx, state.centralId, [{ productId: p.id, quantity: 5 }]));
+      await run((tx) => service().consume(tx, state.centralId, [{ productId: p.id, quantity: 3 }]));
+      expect(await level(p.id)).toMatchObject({ quantity: 10, reserved: 2 });
+      expect(await state.base.stockMovement.count({ where: { productId: p.id } })).toBe(movements);
+    });
+
+    it('refuses to take more than is reserved and changes nothing', async () => {
+      const a = await fx.newProduct({ stock: { [state.centralId]: 10 } });
+      const b = await fx.newProduct({ stock: { [state.centralId]: 10 } });
+      await run((tx) =>
+        service().reserve(tx, state.centralId, [
+          { productId: a.id, quantity: 4 },
+          { productId: b.id, quantity: 1 },
+        ]),
+      );
+      const attempt = run((tx) =>
+        service().consume(tx, state.centralId, [
+          { productId: a.id, quantity: 2 },
+          { productId: b.id, quantity: 2 },
+        ]),
+      );
+      expect(await codeOf(attempt)).toBe('RESERVATION_SHORT');
+      expect(await level(a.id)).toMatchObject({ reserved: 4 });
+      expect(await level(b.id)).toMatchObject({ reserved: 1 });
+    });
+
+    it('refuses units that were never reserved (no level) and invalid quantities', async () => {
+      const p = await fx.newProduct({ stock: { [state.centralId]: 3 } });
+      expect(await codeOf(run((tx) => service().consume(tx, state.centralId, [{ productId: p.id, quantity: 1 }])))).toBe('RESERVATION_SHORT');
+      expect(await codeOf(run((tx) => service().consume(tx, state.centralId, [{ productId: p.id, quantity: 0 }])))).toBe('INVALID_QUANTITY');
+    });
   });
 });

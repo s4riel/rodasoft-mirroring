@@ -306,9 +306,9 @@ describe('POS QR payment (integration, real Postgres)', () => {
         (await state.base.posCheckoutPayment.findUniqueOrThrow({ where: { id: payment.paymentId } })).providerRef,
       );
       expect(stored.invoice).toMatchObject({ status: 'PENDING', customerTaxName: 'S/N' });
-      expect(stored.checkout.status).toBe('COMPLETED');
+      expect(stored.checkout?.status).toBe('COMPLETED');
       // the QR row is the only payment of the checkout: completing does not add a second one
-      expect(stored.checkout.payments).toHaveLength(1);
+      expect(stored.checkout?.payments).toHaveLength(1);
 
       expect(await stockOf(p.id)).toBe(8);
       expect(await state.base.stockMovement.count({ where: { productId: p.id, type: 'SALE', refId: sale.saleId } })).toBe(1);

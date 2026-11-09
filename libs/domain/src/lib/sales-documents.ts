@@ -1,6 +1,7 @@
 import type { CustomerDiscountType, RoundingMode } from './sales-pricing';
 import { availableQuantity } from './pos-cart';
 import type { QuoteSendLogEntry, QuoteTimelineStep } from './quote-tracking';
+import type { DispatchSummary, OrderTimelineStep } from './sales-order-dispatch';
 import type { QuoteStatus, SalesOrderStatus } from './state-machine';
 
 /**
@@ -238,6 +239,10 @@ export interface SalesOrderLineDetail {
   lineTotal: string;
   reservedQuantity: number;
   dispatchedQuantity: number;
+  /** Units covered by a live invoice (not cancelled or rejected); equals `dispatchedQuantity` until an invoice falls (HU-VEN-20). */
+  invoicedQuantity: number;
+  /** Units ordered that have not left yet: the balance that stays pending on the order. */
+  pendingQuantity: number;
 }
 
 export interface SalesOrderDetail {
@@ -246,6 +251,8 @@ export interface SalesOrderDetail {
   status: SalesOrderStatus;
   customer: { id: string; name: string; documentNumber: string | null };
   quote: { id: string; number: string } | null;
+  /** The company name for the header of the printed dispatch order. */
+  company: string;
   branchName: string;
   warehouseName: string;
   createdAt: string;
@@ -257,6 +264,16 @@ export interface SalesOrderDetail {
   total: string;
   lines: SalesOrderLineDetail[];
   cancellable: boolean;
+  /** HU-VEN-20: the dispatches made so far, oldest first, and the amount they invoiced. */
+  dispatches: DispatchSummary[];
+  invoicedTotal: string;
+  timeline: OrderTimelineStep[];
+  /** True while the order is `OPEN` or `PARTIALLY_DISPATCHED` and has reserved units left to dispatch. */
+  dispatchable: boolean;
+  /** Setting `sales.allowPartialDispatch` (decision #14): off, a dispatch must give everything that is pending. */
+  partialDispatchAllowed: boolean;
+  /** Setting `sales.roundingMode`: the dispatch dialog previews the total of a part with it, like the server does. */
+  roundingMode: RoundingMode;
 }
 
 export interface CancelSalesOrderInput {

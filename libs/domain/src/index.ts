@@ -29,4 +29,5 @@ export * from './lib/sale-receipt';
 export * from './lib/sale-history';
 export * from './lib/sale-cancellation';
 export * from './lib/sales-documents';
+export * from './lib/sales-order-dispatch';
 export * from './lib/quote-tracking';

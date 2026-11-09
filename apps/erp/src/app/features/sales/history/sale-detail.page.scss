@@ -47,6 +47,15 @@
   align-items: center;
   gap: var(--space-6);
 }
+.meta-link {
+  color: var(--text-primary);
+  font-weight: var(--body-md-strong-weight);
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: var(--focus-offset);
+  }
+}
+
 .meta-item {
   display: inline-flex;
   align-items: center;
