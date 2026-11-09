@@ -37,6 +37,7 @@ export const PERMISSIONS = {
   'sales.history.view-all': 'Ver todas las ventas realizadas',
   'sales.cash-register.open': 'Abrir y cerrar caja',
   'sales.cash-register.review': 'Revisar diferencias de caja',
+  'sales.cash-expenses.approve': 'Aprobar egresos de caja',
   'sales.quotes.manage': 'Gestionar cotizaciones',
   'sales.orders.manage': 'Gestionar pedidos',
   'sales.discounts.apply': 'Aplicar descuentos dentro del límite del rol',

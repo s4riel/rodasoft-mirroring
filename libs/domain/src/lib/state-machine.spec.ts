@@ -1,5 +1,6 @@
 import {
   approvalRequestMachine,
+  cashMovementMachine,
   cashShiftMachine,
   InvalidTransitionError,
   invoiceMachine,
@@ -174,5 +175,17 @@ describe('saleReturnMachine', () => {
     expect(saleReturnMachine.next('PENDING_APPROVAL', 'reject')).toBe('REJECTED');
     expect(() => saleReturnMachine.next('APPROVED', 'reject')).toThrow(InvalidTransitionError);
     expect(() => saleReturnMachine.next('REJECTED', 'approve')).toThrow(InvalidTransitionError);
+  });
+});
+
+describe('cashMovementMachine (HU-VEN-22)', () => {
+  it('lets a pending expense be decided or withdrawn once', () => {
+    expect(cashMovementMachine.next('PENDING', 'approve')).toBe('POSTED');
+    expect(cashMovementMachine.next('PENDING', 'reject')).toBe('REJECTED');
+    expect(cashMovementMachine.next('PENDING', 'withdraw')).toBe('WITHDRAWN');
+    for (const status of ['POSTED', 'REJECTED', 'WITHDRAWN'] as const) {
+      expect(cashMovementMachine.events(status)).toEqual([]);
+      expect(() => cashMovementMachine.next(status, 'approve')).toThrow(InvalidTransitionError);
+    }
   });
 });

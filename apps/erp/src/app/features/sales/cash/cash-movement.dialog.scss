@@ -1,0 +1,53 @@
+.body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.types {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.mono {
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+}
+
+.receipt {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.receipt-label {
+  color: var(--text-primary);
+  font-size: var(--label-md-size);
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.error {
+  margin: 0;
+  color: var(--status-danger);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

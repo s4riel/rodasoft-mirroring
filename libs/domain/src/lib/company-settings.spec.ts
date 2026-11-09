@@ -25,6 +25,7 @@ describe('settingOrDefault', () => {
     expect(settingOrDefault('sales.allowPartialDispatch', undefined)).toBe(true);
     expect(settingOrDefault('sales.cancellationWindowDays', undefined)).toBeNull();
     expect(settingOrDefault('sales.cashExpenseApprovalLimit', undefined)).toBeNull();
+    expect(settingOrDefault('sales.cashDifferenceTolerance', undefined)).toBe('0.00');
     expect(settingOrDefault('sales.returnApprovalLimit', undefined)).toBeNull();
     expect(settingOrDefault('sales.returnWindowDays', undefined)).toBeNull();
     expect(settingOrDefault('sales.nitVerification', undefined)).toBe('FORMAT');
@@ -62,6 +63,8 @@ describe('settingOrDefault', () => {
   it('keeps the cash expense limit as a money string', () => {
     expect(settingOrDefault('sales.cashExpenseApprovalLimit', '500.00')).toBe('500.00');
     expect(settingOrDefault('sales.cashExpenseApprovalLimit', 500)).toBeNull();
+    expect(settingOrDefault('sales.cashDifferenceTolerance', '2.50')).toBe('2.50');
+    expect(settingOrDefault('sales.cashDifferenceTolerance', 2)).toBe('0.00');
     expect(settingOrDefault('sales.returnApprovalLimit', '100.00')).toBe('100.00');
     expect(settingOrDefault('sales.returnApprovalLimit', 100)).toBeNull();
     expect(settingOrDefault('sales.returnWindowDays', 15)).toBe(15);

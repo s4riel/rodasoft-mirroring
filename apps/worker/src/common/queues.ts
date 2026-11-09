@@ -19,6 +19,12 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'sales.quote-email': QUEUE.mail,
   'sales.cash-shift.opened': QUEUE.accounting,
   'sales.cash-shift.float-mismatch': QUEUE.accounting,
+  // HU-VEN-22 and 23: no consumer yet either; Accounting reviews differences and Management approves expenses in HU-VEN-24 and 29
+  'sales.cash-shift.closed': QUEUE.accounting,
+  'sales.cash-shift.difference': QUEUE.accounting,
+  'sales.cash-movement.created': QUEUE.accounting,
+  'sales.cash-expense.requested': QUEUE.accounting,
+  'sales.cash-expense.decided': QUEUE.accounting,
   // until the approvals inbox (HU-VEN-29) has its own consumer, like the cash shift events
   'sales.cancellation.requested': QUEUE.accounting,
   'sales.cancellation.withdrawn': QUEUE.accounting,

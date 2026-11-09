@@ -1,4 +1,16 @@
-<rs-page-header title="Caja" description="Tu turno de caja." [breadcrumbs]="breadcrumbs" breadcrumbLabel="Ruta de navegación" />
+<rs-page-header [title]="title()" [description]="description()" [breadcrumbs]="breadcrumbs" breadcrumbLabel="Ruta de navegación">
+  @if (state() === 'ready') {
+    <div rsActions class="header-actions">
+      <button *rsCan="'sales.cash-register.open'" rsButton variant="secondary" type="button" data-testid="cash-add-income" (click)="openDialog('INCOME')">
+        Registrar ingreso
+      </button>
+      <button *rsCan="'sales.cash-register.open'" rsButton variant="secondary" type="button" data-testid="cash-add-expense" (click)="openDialog('EXPENSE')">
+        Registrar egreso
+      </button>
+      <a *rsCan="'sales.cash-register.open'" rsButton variant="primary" routerLink="/sales/cash-register/close" data-testid="cash-close">Cerrar caja</a>
+    </div>
+  }
+</rs-page-header>
 
 @switch (state()) {
   @case ('forbidden') {
@@ -20,36 +32,67 @@
   }
   @case ('ready') {
     @if (shift(); as s) {
-      <section class="card" aria-labelledby="cash-shift-title">
-        <h2 id="cash-shift-title" class="card-title">Turno abierto</h2>
-        <dl class="details">
-          <div>
-            <dt>Caja</dt>
-            <dd>{{ s.register.name }} · {{ s.branch.name }}</dd>
-          </div>
-          <div>
-            <dt>Abierto por</dt>
-            <dd>{{ s.openedBy.name }}</dd>
-          </div>
-          <div>
-            <dt>Abierto el</dt>
-            <dd>{{ formatDateTime(s.openedAt) }}</dd>
-          </div>
-          <div>
-            <dt>Efectivo inicial</dt>
-            <dd>{{ formatBs(s.openingFloat) }}</dd>
-          </div>
-        </dl>
-        <div>
-          <a rsButton variant="brand" routerLink="/sales/pos">Ir al punto de venta</a>
-        </div>
+      <section class="kpis" aria-label="Resumen del turno">
+        <rs-kpi-card label="Efectivo esperado en caja" [value]="formatBs(s.cash.expected)" />
+        <rs-kpi-card label="Ventas del turno" [value]="formatBs(s.sales.total)" [note]="salesNote()" />
+        <rs-kpi-card label="Ingresos" [value]="formatBs(s.cash.income)" />
+        <rs-kpi-card label="Egresos" [value]="formatBs(s.cash.expenses)" />
       </section>
+
+      @if (s.pendingExpenses > 0) {
+        <rs-note type="warning" title="Egresos esperando aprobación" data-testid="cash-pending-note">
+          {{ pendingText() }} No podrás cerrar la caja hasta que se decida o lo retires.
+        </rs-note>
+      }
+      @if (actionError(); as message) {
+        <rs-note type="danger" title="No pudimos completar la acción" role="alert" data-testid="cash-action-error">{{ message }}</rs-note>
+      }
+
+      <section class="card" aria-labelledby="cash-movements-title">
+        <h2 id="cash-movements-title" class="card-title">Movimientos de efectivo</h2>
+        <rs-doc-table size="md" tableLabel="Movimientos de efectivo" emptyLabel="Aún no hay movimientos en este turno" [columns]="movementColumns" [rows]="movementRows()">
+          <ng-template rsDocCell="actions" let-row>
+            @if (menuOf(row.id); as items) {
+              @if (items.length > 0) {
+                <rs-row-action label="Acciones del movimiento" [items]="items" (selected)="onMenu(row.id, $event)" />
+              }
+            }
+          </ng-template>
+        </rs-doc-table>
+      </section>
+
+      <div class="columns">
+        <section class="card" aria-labelledby="cash-methods-title">
+          <h2 id="cash-methods-title" class="card-title">Por forma de pago</h2>
+          <rs-doc-table size="md" tableLabel="Ventas por forma de pago" emptyLabel="Aún no hay ventas en este turno" [columns]="methodColumns" [rows]="methodRows()" [totals]="methodTotals()" />
+        </section>
+
+        <section class="card" aria-labelledby="cash-calc-title">
+          <h2 id="cash-calc-title" class="card-title">Cálculo del efectivo</h2>
+          <div class="calc">
+            <rs-data-field label="Efectivo inicial" layout="inline" [showIcon]="false">{{ formatBs(s.cash.openingFloat) }}</rs-data-field>
+            <rs-data-field label="Ventas en efectivo" layout="inline" [showIcon]="false">{{ formatBs(s.cash.cashSales) }}</rs-data-field>
+            <rs-data-field label="Ingresos" layout="inline" [showIcon]="false">{{ formatBs(s.cash.income) }}</rs-data-field>
+            <rs-data-field label="Egresos" layout="inline" [showIcon]="false">− {{ formatBs(s.cash.expenses) }}</rs-data-field>
+            @if (hasRefunds()) {
+              <rs-data-field label="Devoluciones y anulaciones" layout="inline" [showIcon]="false" data-testid="cash-refunds">
+                − {{ formatBs(s.cash.refunds) }}
+              </rs-data-field>
+            }
+            <rs-data-field label="Efectivo esperado" layout="inline" [showIcon]="false" type="mono">{{ formatBs(s.cash.expected) }}</rs-data-field>
+          </div>
+        </section>
+      </div>
     }
   }
   @default {
-    <section class="card" role="status" aria-busy="true" aria-label="Cargando tu turno">
-      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
-      <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando tu turno">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
     </section>
   }
 }
+
+<rs-cash-movement-dialog [(open)]="dialogOpen" [shift]="shift()" [initialType]="dialogType()" (registered)="onRegistered()" />
+<rs-toast-outlet closeLabel="Cerrar" />

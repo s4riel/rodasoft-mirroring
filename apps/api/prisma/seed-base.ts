@@ -105,7 +105,8 @@ export async function seedCompany(prisma: PrismaClient, c: SeedCompany): Promise
 
   // Company settings with their defaults (HU-INV-06). Thresholds without a value are not stored: the code reads the default.
   // The sales settings with a value are seeded too (HU-VEN-00); `sales.cancellationWindowDays` and
-  // `sales.cashExpenseApprovalLimit` default to null (no limit), so they have no row either.
+  // `sales.cashExpenseApprovalLimit` default to null (no limit), so they have no row either. The cash difference tolerance
+  // (decision #17, HU-VEN-23) is "0.00": any difference goes to Accounting.
   for (const key of [
     'inventory.skuPrefix',
     'inventory.allowNegativeStock',
@@ -119,6 +120,7 @@ export async function seedCompany(prisma: PrismaClient, c: SeedCompany): Promise
     'sales.receiptFormat',
     'sales.qrConfirmTimeoutSeconds',
     'sales.cardPaymentEnabled',
+    'sales.cashDifferenceTolerance',
   ] as const) {
     await prisma.companySetting.upsert({
       where: { companyId_key: { companyId: company.id, key } },

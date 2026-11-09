@@ -40,6 +40,8 @@ export interface CompanySettings {
   'sales.cancellationWindowDays': number | null;
   /** Cash expenses above this value need approval (decision #16). Null = never asks. */
   'sales.cashExpenseApprovalLimit': string | null;
+  /** A cash difference beyond this amount (either way) needs Accounting review (decision #17, HU-VEN-23). `"0.00"`: any difference does. */
+  'sales.cashDifferenceTolerance': string;
   /** Returns above this value need approval (decision #15, HU-VEN-21). Null = never asks. */
   'sales.returnApprovalLimit': string | null;
   /** Days after a sale in which it can still be returned (decision #15). Null = no limit. */
@@ -70,6 +72,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.allowPartialDispatch': true,
   'sales.cancellationWindowDays': null,
   'sales.cashExpenseApprovalLimit': null,
+  'sales.cashDifferenceTolerance': '0.00',
   'sales.returnApprovalLimit': null,
   'sales.returnWindowDays': null,
   'sales.nitVerification': 'FORMAT',
@@ -82,6 +85,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
 const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>([
   'adjustments.approvalThresholdValue',
   'sales.cashExpenseApprovalLimit',
+  'sales.cashDifferenceTolerance',
   'sales.returnApprovalLimit',
 ]);
 

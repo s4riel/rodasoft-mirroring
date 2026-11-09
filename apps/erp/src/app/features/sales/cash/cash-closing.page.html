@@ -1,0 +1,146 @@
+<rs-page-header title="Cierre y arqueo de caja" type="form" [description]="description()" [breadcrumbs]="breadcrumbs" breadcrumbLabel="Ruta de navegación" />
+
+@switch (state()) {
+  @case ('forbidden') {
+    <section class="state" aria-live="polite">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para cerrar la caja"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar tu turno" description="Revisa tu conexión e inténtalo de nuevo.">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('blocked') {
+    <section class="state" role="status" data-testid="cash-closing-blocked">
+      <rs-empty-state-illustrated
+        illustration="no-results"
+        heading="Tienes egresos esperando aprobación"
+        description="No puedes cerrar la caja hasta que Gerencia los decida o los retires desde la pantalla de caja."
+      >
+        <button rsButton variant="primary" type="button" (click)="cancel()">Volver a la caja</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('ready') {
+    @if (shift(); as s) {
+      <form id="cash-closing-form" class="form" (submit)="$event.preventDefault()" novalidate>
+        <section class="card" aria-labelledby="cash-count-title">
+          <h2 id="cash-count-title" class="card-title">Arqueo de efectivo</h2>
+          <rs-doc-table size="md" tableLabel="Arqueo de efectivo" [columns]="countColumns" [rows]="countRows()" [totals]="countTotals()">
+            <ng-template rsDocCell="quantity" let-row>
+              <rs-qty-stepper
+                [label]="'Cantidad de ' + row.label"
+                [decrementLabel]="'Quitar uno: ' + row.label"
+                [incrementLabel]="'Agregar uno: ' + row.label"
+                [min]="0"
+                [max]="countMax"
+                [value]="quantityOf(row.id)"
+                (valueChange)="setQuantity(row.id, $event)"
+              />
+            </ng-template>
+          </rs-doc-table>
+        </section>
+
+        <section class="card" aria-labelledby="cash-compare-title">
+          <h2 id="cash-compare-title" class="card-title">Sistema vs. contado</h2>
+          <rs-doc-table size="md" tableLabel="Sistema contra contado" [columns]="compareColumns" [rows]="compareRows()">
+            <ng-template rsDocCell="declared" let-row>
+              @if (methodOf(row.id); as method) {
+                <input
+                  #declaredBox
+                  rsInput
+                  rsNumeric="decimal"
+                  class="mono declared"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  [id]="inputId(method)"
+                  [attr.aria-label]="'Monto contado en ' + methodLabel(method)"
+                  [invalid]="!!declaredMessage()"
+                  [value]="declared()[method]"
+                  (input)="setDeclared(method, declaredBox.value)"
+                />
+              } @else {
+                <span class="mono">{{ row.cells['declared'] }}</span>
+              }
+            </ng-template>
+          </rs-doc-table>
+          @if (declaredMessage(); as message) {
+            <p class="error" role="alert">{{ message }}</p>
+          }
+        </section>
+
+        @if (needsReview()) {
+          <rs-note type="warning" title="Hay una diferencia" data-testid="cash-closing-warning">
+            {{ warningText() }} · Explica la diferencia: el cierre queda pendiente de revisión de Contabilidad.
+          </rs-note>
+          <rs-field label="Justificación" forId="cash-closing-comment" required [error]="commentMessage()">
+            <textarea
+              #commentBox
+              rsTextarea
+              id="cash-closing-comment"
+              rows="3"
+              placeholder="Explica por qué el conteo no coincide con el sistema"
+              [attr.maxlength]="commentMax"
+              [value]="comment()"
+              (input)="comment.set(commentBox.value)"
+            ></textarea>
+          </rs-field>
+        }
+
+        <section class="card" aria-labelledby="cash-float-title">
+          <h2 id="cash-float-title" class="card-title">Efectivo que queda en caja</h2>
+          <rs-field
+            label="Efectivo que queda en caja (Bs)"
+            forId="cash-closing-float"
+            hint="Será el efectivo inicial sugerido del próximo turno. El resto sale de la caja."
+            [error]="floatMessage()"
+          >
+            <rs-input-group [invalid]="!!floatMessage()">
+              <rs-icon rsInputLeading name="currency" [size]="16" />
+              <input
+                #floatBox
+                rsInput
+                rsNumeric="decimal"
+                id="cash-closing-float"
+                class="mono"
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="0,00"
+                [invalid]="!!floatMessage()"
+                [value]="closingFloat()"
+                (input)="closingFloat.set(floatBox.value)"
+              />
+            </rs-input-group>
+          </rs-field>
+        </section>
+
+        @if (submitError(); as error) {
+          <rs-note type="danger" title="No se pudo cerrar la caja" role="alert" data-testid="cash-closing-error">{{ error }}</rs-note>
+        }
+
+        <div class="actions">
+          <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+          <button rsButton variant="secondary" type="button" data-testid="cash-closing-recount" [disabled]="saving()" (click)="recount()">Recontar</button>
+          <button rsButton variant="primary" type="submit" data-testid="cash-closing-submit" [disabled]="saving()" [loading]="saving()" (click)="$event.preventDefault(); submit()">{{ submitLabel() }}</button>
+        </div>
+      </form>
+    }
+  }
+  @default {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el cierre de caja">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

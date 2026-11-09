@@ -45,6 +45,12 @@ const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
     children: [
       { path: '', pathMatch: 'full', loadComponent: () => import('./cash/cash-register.page').then((m) => m.CashRegisterPage) },
       { path: 'open', title: 'Apertura de caja · ERP', loadComponent: () => import('./cash/cash-opening.page').then((m) => m.CashOpeningPage) },
+      { path: 'close', title: 'Cierre de caja · ERP', loadComponent: () => import('./cash/cash-closing.page').then((m) => m.CashClosingPage) },
+      {
+        path: 'movements/:id',
+        title: 'Egreso de caja · ERP',
+        loadComponent: () => import('./cash/cash-expense-review.page').then((m) => m.CashExpenseReviewPage),
+      },
     ],
   },
 };

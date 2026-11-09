@@ -18,6 +18,21 @@ describe('detectUploadType', () => {
   });
 });
 
+describe('checkUpload of a cash receipt (HU-VEN-22)', () => {
+  it('accepts a photo or a PDF', () => {
+    expect(checkUpload('cash-receipt', jpeg)).toEqual({ type: 'jpeg' });
+    expect(checkUpload('cash-receipt', png)).toEqual({ type: 'png' });
+    expect(checkUpload('cash-receipt', pdf)).toEqual({ type: 'pdf' });
+  });
+
+  it('refuses another file type and anything over 5 MB', () => {
+    expect(checkUpload('cash-receipt', Uint8Array.from(Buffer.from('MZ\x90\x00')))).toEqual({ rejection: 'UNSUPPORTED_FILE_TYPE' });
+    const big = new Uint8Array(UPLOAD_LIMITS['cash-receipt'].maxBytes + 1);
+    big.set(pdf);
+    expect(checkUpload('cash-receipt', big)).toEqual({ rejection: 'FILE_TOO_LARGE' });
+  });
+});
+
 describe('checkUpload', () => {
   it('accepts an image as a photo and a PDF as a datasheet', () => {
     expect(checkUpload('photo', jpeg)).toEqual({ type: 'jpeg' });
