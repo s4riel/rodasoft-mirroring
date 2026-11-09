@@ -1,0 +1,115 @@
+<rs-page-header title="Egreso de caja" type="detail" [breadcrumbs]="breadcrumbs" breadcrumbLabel="Ruta de navegación" />
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el egreso">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver este egreso"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('gone') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-results" heading="Este egreso ya no existe" description="Vuelve a la caja para ver los movimientos.">
+        <button rsButton variant="primary" type="button" (click)="back()">Volver a la caja</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el egreso" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver a la caja</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (movement(); as m) {
+      <div class="meta">
+        @if (pill(); as p) {
+          <rs-status-pill [status]="p.status">{{ p.label }}</rs-status-pill>
+        }
+        <span class="muted" data-testid="expense-subtitle">{{ m.by.name }} · {{ m.shift.register.name }} · {{ when() }}</span>
+      </div>
+
+      <section class="kpis" aria-label="Resumen del egreso">
+        <rs-kpi-card label="Monto" [value]="amount()" />
+        <rs-kpi-card label="Concepto" [value]="concept()" />
+      </section>
+
+      @if (m.approval?.decidedBy) {
+        <rs-note [type]="m.status === 'POSTED' ? 'info' : 'warning'" [title]="decisionText()" data-testid="expense-decision">
+          {{ m.approval?.comment || 'Sin comentario.' }}
+        </rs-note>
+      }
+      @if (actionError(); as message) {
+        <rs-note type="danger" title="No pudimos registrar la decisión" role="alert" data-testid="expense-action-error">{{ message }}</rs-note>
+      }
+
+      <section class="card" aria-labelledby="expense-details">
+        <h2 class="card-title" id="expense-details">Detalle del egreso</h2>
+        <div class="facts">
+          <rs-data-field label="Registró" [showIcon]="false">{{ m.by.name }}</rs-data-field>
+          <rs-data-field label="Hora" [showIcon]="false">{{ when() }}</rs-data-field>
+          <rs-data-field label="Detalle" [showIcon]="false" [type]="m.detail ? 'text' : 'empty'">{{ m.detail }}</rs-data-field>
+          <rs-data-field label="Comprobante" [showIcon]="false" [type]="m.hasReceipt ? 'text' : 'empty'">
+            <button rsButton variant="secondary" size="sm" type="button" data-testid="expense-receipt" (click)="openReceipt()">Ver comprobante</button>
+          </rs-data-field>
+        </div>
+      </section>
+
+      @if (m.canDecide) {
+        <section *rsCan="'sales.cash-expenses.approve'" class="card" aria-labelledby="expense-approval" data-testid="expense-approval">
+          <h2 class="card-title" id="expense-approval">Solicitud de egreso de caja</h2>
+          <rs-field
+            label="Respuesta (opcional al aprobar, obligatoria al rechazar)"
+            forId="expense-reply"
+            [error]="replyMissing() ? 'Escribe la respuesta para el cajero antes de rechazar.' : ''"
+          >
+            <textarea
+              #replyBox
+              rsTextarea
+              id="expense-reply"
+              rows="3"
+              placeholder="Escribe una respuesta para quien pidió el egreso"
+              [attr.maxlength]="replyMax"
+              [value]="reply()"
+              (input)="setReply(replyBox.value)"
+            ></textarea>
+          </rs-field>
+          <div class="actions">
+            <button rsButton variant="ghost" type="button" data-testid="expense-reject" [disabled]="deciding() !== null" [loading]="deciding() === 'reject'" (click)="reject()">
+              Rechazar
+            </button>
+            <button rsButton variant="primary" type="button" data-testid="expense-approve" [disabled]="deciding() !== null" [loading]="deciding() === 'approve'" (click)="approve()">
+              Aprobar egreso
+            </button>
+          </div>
+        </section>
+      }
+      @if (m.canWithdraw) {
+        <div class="actions">
+          <button rsButton variant="secondary" type="button" data-testid="expense-withdraw" [disabled]="deciding() !== null" [loading]="deciding() === 'withdraw'" (click)="withdraw()">
+            Retirar solicitud
+          </button>
+        </div>
+      }
+
+      <div class="actions">
+        <a rsButton variant="secondary" routerLink="/sales/cash-register" data-testid="expense-back">Volver a la caja</a>
+      </div>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -5,6 +5,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { normalizePair } from '@rodasoft/domain';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../../../common/audit/audit.service';
 import { OutboxService } from '../../../common/outbox/outbox.service';
@@ -14,6 +17,10 @@ import { SettingsService } from '../../../common/settings/settings.service';
 import { EquivalencesService } from '../../inventory/equivalences.service';
 import { ProductsService } from '../../inventory/products.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
+import { StorageService } from '../../../common/storage/storage.service';
+import { CashClosingService } from '../cash/cash-closing.service';
+import { CashMovementsService } from '../cash/cash-movements.service';
+import { CashShiftSummaryService } from '../cash/cash-shift-summary.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { CustomersService } from '../customers/customers.service';
 import { PosCatalogService } from './pos-catalog.service';
@@ -51,6 +58,9 @@ export function createPosFixture(prefix: string) {
   const base = new TestPrisma();
   const prisma = base as unknown as PrismaService;
   const settings = new SettingsService(prisma);
+  /** Receipts of the cash movements go to a folder of their own, removed on teardown. */
+  const storageDir = mkdtempSync(join(tmpdir(), 'rodasoft-receipts-'));
+  const storage = new StorageService({ get: (key: string) => (key === 'STORAGE_LOCAL_DIR' ? storageDir : 'local') } as never);
   /** One mock adapter for the whole run, like the module: its in-memory state outlives a request. */
   const mock = new MockPaymentProvider();
   const providers: PaymentProviderRegistry = { QR: mock, CARD: mock };
@@ -109,7 +119,11 @@ export function createPosFixture(prefix: string) {
     const returnQueries = new SaleReturnsQueryService(prisma, cls, settings, scopedMembership);
     const quotes = new QuotesService(prisma, cls, settings, audit, membership, customers);
     const orders = new SalesOrdersService(prisma, cls, audit, outbox, scopedMembership, reservations, settings);
+    const cashSummary = new CashShiftSummaryService(prisma, cls, settings, membership, storage);
     return {
+      cashSummary,
+      cashMovements: new CashMovementsService(prisma, cls, audit, outbox, settings, membership, storage, cashSummary),
+      cashClosing: new CashClosingService(prisma, cls, audit, outbox, settings),
       customers,
       quotes,
       quoteLifecycle: new QuoteLifecycleService(prisma, cls, settings, audit, outbox, quotes),
@@ -327,6 +341,22 @@ export function createPosFixture(prefix: string) {
     await base.branch.deleteMany({ where: { companyId: { in: companies } } });
     await base.company.deleteMany({ where: { id: { in: companies } } });
     await base.$disconnect();
+    rmSync(storageDir, { recursive: true, force: true });
+  }
+
+  /** A new cashier with a register and an open shift of their own (a shift that a test can close without touching the others). */
+  async function newShift(label: string, openingFloat = '100.00'): Promise<{ caller: Caller; shiftId: string; registerId: string }> {
+    seq += 1;
+    // the label is unique per shift, so a table-driven test can open one for each case
+    const caller = await newMember(`${label}-${seq}`, state.companyId);
+    const pos = await base.siatPointOfSale.create({ data: { companyId: state.companyId, branchId: state.branchId, code: 100 + seq, name: `POS ${seq}` } });
+    const register = await base.cashRegister.create({
+      data: { companyId: state.companyId, branchId: state.branchId, pointOfSaleId: pos.id, warehouseId: state.centralId, name: `Caja ${seq}` },
+    });
+    const shift = await base.cashShift.create({
+      data: { companyId: state.companyId, registerId: register.id, openingFloat, openedById: caller.userId },
+    });
+    return { caller, shiftId: shift.id, registerId: register.id };
   }
 
   /** Gives a caller extra permissions (the fixture's callers only hold `sales.pos.use`). */
@@ -341,7 +371,7 @@ export function createPosFixture(prefix: string) {
   /** Runs `fn` in a transaction of the current company, like `prisma.tenant.$transaction`. */
   const tenantTransaction = <T>(fn: (tx: never) => Promise<T>): Promise<T> => prisma.tenant.$transaction((tx) => fn(tx as never));
 
-  return { state, settingsService, tenantTransaction, stockService, as, providers, mock, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, newMember, grant, setup, teardown };
+  return { state, settingsService, tenantTransaction, stockService, as, providers, mock, useCompany, newProduct, link, setRequireApproval, newBranch, setAllowNegativeStock, newMember, newShift, grant, setup, teardown, storageDir };
 }
 
 /** The error code of a rejected call, or null when it succeeds. */

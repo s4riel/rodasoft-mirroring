@@ -138,6 +138,20 @@ export const cashShiftMachine = createMachine<CashShiftStatus, CashShiftEvent>({
 });
 
 /**
+ * A manual cash movement (HU-VEN-22). Only an expense above `sales.cashExpenseApprovalLimit` is ever `PENDING`; the rest are
+ * created `POSTED`. A pending one does not count in the expected cash until Management approves it; the requester can withdraw it.
+ */
+export type CashMovementStatus = 'PENDING' | 'POSTED' | 'REJECTED' | 'WITHDRAWN';
+export type CashMovementEvent = 'approve' | 'reject' | 'withdraw';
+
+export const cashMovementMachine = createMachine<CashMovementStatus, CashMovementEvent>({
+  PENDING: { approve: 'POSTED', reject: 'REJECTED', withdraw: 'WITHDRAWN' },
+  POSTED: {},
+  REJECTED: {},
+  WITHDRAWN: {},
+});
+
+/**
  * The server-side cart. Completing it creates the sale in the same transaction. A checkout can leave PAYING for OPEN
  * (the cashier goes back to the cart) and can be put on hold or abandoned before it is paid.
  */

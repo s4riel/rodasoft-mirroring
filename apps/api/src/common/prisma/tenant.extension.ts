@@ -35,6 +35,7 @@ export const TENANT_MODELS = new Set<Prisma.ModelName>([
   'CashShift',
   'CashMovement',
   'CashCount',
+  'CashShiftMethodTotal',
   'PosCheckout',
   'PosCheckoutItem',
   'PosCheckoutPayment',

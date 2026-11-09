@@ -52,6 +52,9 @@ describe('sales schema (integration, real Postgres)', () => {
       const where = { companyId: f.companyId };
       await base.posCheckoutItem.deleteMany({ where });
       await base.posCheckout.deleteMany({ where });
+      await base.cashMovement.deleteMany({ where });
+      await base.cashCount.deleteMany({ where });
+      await base.cashShiftMethodTotal.deleteMany({ where });
       await base.cashShift.deleteMany({ where });
       await base.cashRegister.deleteMany({ where });
       await base.customer.deleteMany({ where });
@@ -74,6 +77,68 @@ describe('sales schema (integration, real Postgres)', () => {
       await expect(openShift(a)).resolves.toBeDefined();
       // another company's register is independent
       await expect(openShift(b)).resolves.toBeDefined();
+    });
+  });
+
+  describe('cash movements and closing (HU-VEN-22, HU-VEN-23)', () => {
+    let shiftId: string;
+
+    beforeAll(async () => {
+      shiftId = (await base.cashShift.findFirstOrThrow({ where: { companyId: b.companyId } })).id;
+    });
+
+    afterAll(async () => {
+      await base.cashMovement.deleteMany({ where: { companyId: b.companyId } });
+      await base.cashCount.deleteMany({ where: { companyId: b.companyId } });
+    });
+
+    const movement = (over: { amount?: string; idempotencyKey?: string | null } = {}) =>
+      base.cashMovement.create({
+        data: { companyId: b.companyId, shiftId, type: 'INCOME', amount: over.amount ?? '10.00', userId: randomUUID(), idempotencyKey: over.idempotencyKey ?? null },
+      });
+
+    it('stores a movement as POSTED by default, so the movements written before stay in the expected cash', async () => {
+      expect((await movement()).status).toBe('POSTED');
+    });
+
+    it('refuses a movement with an amount of zero or less', async () => {
+      await expect(movement({ amount: '0.00' })).rejects.toThrow();
+      await expect(movement({ amount: '-5.00' })).rejects.toThrow();
+    });
+
+    it('keeps the idempotency key unique per company and allows many movements without one', async () => {
+      await movement({ idempotencyKey: `key-${run}` });
+      await expect(movement({ idempotencyKey: `key-${run}` })).rejects.toThrow();
+      await expect(Promise.all([movement(), movement()])).resolves.toHaveLength(2);
+    });
+
+    it('refuses a negative closing float or counted amount', async () => {
+      await expect(base.cashShift.update({ where: { id: shiftId }, data: { closingFloat: '-1.00' } })).rejects.toThrow();
+      await expect(base.cashShift.update({ where: { id: shiftId }, data: { countedAmount: '-1.00' } })).rejects.toThrow();
+    });
+
+    it('refuses a count with a denomination of zero or a negative quantity, and a repeated denomination', async () => {
+      const count = (denomination: string, quantity: number) => base.cashCount.create({ data: { companyId: b.companyId, shiftId, denomination, quantity } });
+      await expect(count('0.00', 1)).rejects.toThrow();
+      await expect(count('50.00', -1)).rejects.toThrow();
+      await count('50.00', 2);
+      await expect(count('50.00', 1)).rejects.toThrow();
+    });
+
+    it('refuses a negative declared amount and a second total for one method', async () => {
+      const total = (method: 'QR' | 'CARD', declaredAmount: string) =>
+        base.cashShiftMethodTotal.create({ data: { companyId: b.companyId, shiftId, method, systemAmount: '0.00', declaredAmount, differenceAmount: '0.00' } });
+      await expect(total('QR', '-1.00')).rejects.toThrow();
+      await total('QR', '10.00');
+      await expect(total('QR', '5.00')).rejects.toThrow();
+    });
+
+    it('is isolated by company through prisma.tenant', async () => {
+      current = a.companyId;
+      expect(await base.tenant.cashShiftMethodTotal.count({ where: { shiftId } })).toBe(0);
+      current = b.companyId;
+      expect(await base.tenant.cashShiftMethodTotal.count({ where: { shiftId } })).toBe(1);
+      current = null;
     });
   });
 

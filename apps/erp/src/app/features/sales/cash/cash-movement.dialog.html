@@ -1,0 +1,108 @@
+<rs-modal variant="form" size="medium" closeLabel="Cerrar" heading="Registrar movimiento de efectivo" [(open)]="open">
+  <form id="cash-movement-form" class="body" (submit)="$event.preventDefault()" novalidate>
+    <p class="subtitle" data-testid="cash-movement-subtitle">{{ subtitle() }}</p>
+
+    <div class="types" role="group" aria-label="Tipo de movimiento">
+      <rs-filter-chip #incomeChip size="l" label="Ingreso" [selected]="type() === 'INCOME'" (selectedChange)="pickType('INCOME', incomeChip)" />
+      <rs-filter-chip #expenseChip size="l" label="Egreso" [selected]="type() === 'EXPENSE'" (selectedChange)="pickType('EXPENSE', expenseChip)" />
+    </div>
+
+    <rs-field label="Monto (Bs)" forId="cash-movement-amount" required [error]="amountMessage()">
+      <rs-input-group [invalid]="!!amountMessage()">
+        <rs-icon rsInputLeading name="currency" [size]="16" />
+        <input
+          #amountBox
+          rsInput
+          rsNumeric="decimal"
+          id="cash-movement-amount"
+          class="mono"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="0,00"
+          [invalid]="!!amountMessage()"
+          [value]="amount()"
+          (input)="amount.set(amountBox.value)"
+        />
+      </rs-input-group>
+    </rs-field>
+
+    <rs-field label="Concepto" forId="cash-movement-concept" required [error]="conceptMessage()">
+      <rs-select
+        inputId="cash-movement-concept"
+        placeholder="Selecciona un concepto"
+        [options]="conceptOptions()"
+        [invalid]="!!conceptMessage()"
+        [value]="concept()"
+        (valueChange)="concept.set($any($event))"
+      />
+    </rs-field>
+
+    <rs-field
+      [label]="concept() === 'OTHER' ? 'Detalle' : 'Detalle (opcional)'"
+      forId="cash-movement-detail"
+      [required]="concept() === 'OTHER'"
+      [error]="detailMessage()"
+    >
+      <input
+        #detailBox
+        rsInput
+        id="cash-movement-detail"
+        autocomplete="off"
+        placeholder="Describe el movimiento"
+        [attr.maxlength]="detailMax * 2"
+        [invalid]="!!detailMessage()"
+        [value]="detail()"
+        (input)="detail.set(detailBox.value)"
+      />
+    </rs-field>
+
+    <div class="receipt">
+      <span class="receipt-label">Comprobante</span>
+      @if (receipt(); as file) {
+        <rs-file-item [name]="file.name" [detail]="fileDetail(file)" status="done" removeLabel="Quitar comprobante" (removed)="removeReceipt()" />
+      } @else {
+        <rs-file-dropzone
+          title="Arrastra la foto o el PDF del recibo"
+          formats="JPG, PNG, WebP o PDF"
+          formatsLabel="Formatos"
+          limit="Hasta 5 MB"
+          buttonLabel="Elegir archivo"
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          [invalid]="!!receiptError()"
+          (filesSelected)="pickReceipt($event)"
+        />
+      }
+      <p class="hint">Opcional. Foto o PDF del recibo.</p>
+      @if (receiptError(); as message) {
+        <p class="error" role="alert" data-testid="cash-movement-receipt-error">{{ message }}</p>
+      }
+    </div>
+
+    @if (exceedsCash()) {
+      <rs-note type="warning" title="El egreso supera el efectivo de la caja" data-testid="cash-movement-exceeds">
+        La caja tiene {{ expectedText() }}. Revisa el monto antes de registrar.
+      </rs-note>
+    }
+    @if (approvalNote(); as note) {
+      <rs-note type="info" data-testid="cash-movement-approval-note">{{ note }}</rs-note>
+    }
+    @if (submitError(); as error) {
+      <rs-note type="danger" title="No se pudo registrar el movimiento" role="alert" data-testid="cash-movement-error">{{ error }}</rs-note>
+    }
+  </form>
+  <div slot="footer" class="actions">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button
+      rsButton
+      variant="primary"
+      type="submit"
+      form="cash-movement-form"
+      data-testid="cash-movement-submit"
+      [disabled]="saving()"
+      [loading]="saving()"
+      (click)="$event.preventDefault(); submit()"
+    >
+      {{ submitLabel() }}
+    </button>
+  </div>
+</rs-modal>

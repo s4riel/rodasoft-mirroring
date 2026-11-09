@@ -1,12 +1,14 @@
 /** Rules of the product uploads (HU-INV-06): photos and datasheets, checked by their content, not their declared type. */
 
-export type UploadKind = 'photo' | 'datasheet';
+/** `cash-receipt`: the optional receipt of a cash movement (HU-VEN-22), a photo or a PDF. */
+export type UploadKind = 'photo' | 'datasheet' | 'cash-receipt';
 
 export type UploadType = 'jpeg' | 'png' | 'webp' | 'pdf';
 
 export const UPLOAD_LIMITS: Readonly<Record<UploadKind, { maxBytes: number; types: readonly UploadType[] }>> = {
   photo: { maxBytes: 5 * 1024 * 1024, types: ['jpeg', 'png', 'webp'] },
   datasheet: { maxBytes: 10 * 1024 * 1024, types: ['pdf'] },
+  'cash-receipt': { maxBytes: 5 * 1024 * 1024, types: ['jpeg', 'png', 'webp', 'pdf'] },
 };
 
 export const UPLOAD_CONTENT_TYPE: Readonly<Record<UploadType, string>> = {

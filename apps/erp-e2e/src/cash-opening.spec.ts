@@ -4,8 +4,8 @@ import { login } from './support/auth';
 
 /**
  * HU-VEN-01 · open the cash register. Needs the demo data from `pnpm db:seed` (a register per branch and the
- * administrator). A shift cannot be closed from the app yet (HU-VEN-23), so the test closes the administrator's open
- * shifts straight in the database before and after the run: it starts from "no open shift" every time.
+ * administrator). The test closes the administrator's open shifts straight in the database before and after the run, so it
+ * starts from "no open shift" every time (closing from the app is covered by cash-register.spec.ts, HU-VEN-23).
  */
 
 const EMAIL = process.env['SEED_ADMIN_EMAIL'] ?? 'admin@rodalaser.local';
@@ -57,8 +57,8 @@ test('the cashier finds the POS closed, opens the register with the float and se
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Venta actual' })).toBeVisible();
 
-  // the Caja tab now shows the shift instead of the opening form
+  // the Caja tab now shows the shift (HU-VEN-22) instead of the opening form
   await page.goto('/sales/cash-register');
-  await expect(page.getByRole('heading', { name: 'Turno abierto' })).toBeVisible();
-  await expect(page.getByText('Bs 500,00')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /turno abierto/i, level: 1 })).toBeVisible();
+  await expect(page.getByText('Bs 500,00').first()).toBeVisible();
 });

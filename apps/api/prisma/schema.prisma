@@ -93,6 +93,7 @@ model Company {
   cashShifts           CashShift[]
   cashMovements        CashMovement[]
   cashCounts           CashCount[]
+  cashShiftMethodTotals CashShiftMethodTotal[]
   posCheckouts         PosCheckout[]
   posCheckoutItems     PosCheckoutItem[]
   posCheckoutPayments  PosCheckoutPayment[]
@@ -890,6 +891,16 @@ enum CashMovementType {
   REFUND
 }
 
+/// A manual cash movement is posted at once, unless it is an expense above `sales.cashExpenseApprovalLimit` (HU-VEN-22): that
+/// waits as PENDING for Management and does not count in the expected cash until it is POSTED. Same values as `CashMovementStatus`
+/// in libs/domain.
+enum CashMovementStatus {
+  PENDING
+  POSTED
+  REJECTED
+  WITHDRAWN
+}
+
 enum PosCheckoutStatus {
   OPEN
   PAYING
@@ -949,6 +960,7 @@ enum ApprovalType {
   CANCELLATION
   CASH_DIFFERENCE
   RETURN
+  CASH_EXPENSE
 }
 
 enum ApprovalStatus {
@@ -1066,6 +1078,8 @@ model CashShift {
   differenceAmount Decimal?        @map("difference_amount") @db.Decimal(14, 2)
   /// Cash left in the register when the shift closed (filled by HU-VEN-23); the next opening compares its float with it.
   closingFloat     Decimal?        @map("closing_float") @db.Decimal(14, 2)
+  /// What the cashier wrote to justify a difference at closing (HU-VEN-23); `reviewNote` is the reviewer's (HU-VEN-24).
+  closingComment   String?         @map("closing_comment")
   reviewedById     String?         @map("reviewed_by_id") @db.Uuid
   reviewedAt       DateTime?       @map("reviewed_at") @db.Timestamptz(3)
   reviewNote       String?         @map("review_note")
@@ -1074,6 +1088,7 @@ model CashShift {
   register  CashRegister   @relation(fields: [registerId], references: [id])
   movements CashMovement[]
   counts    CashCount[]
+  methodTotals CashShiftMethodTotal[]
   checkouts PosCheckout[]
   sales     Sale[]
 
@@ -1083,23 +1098,34 @@ model CashShift {
 }
 
 /// Manual income/expense with a reason; sale payments also post here (`refType` "SALE", `refId` the sale).
+/// The migration adds CHECK `amount > 0`.
 model CashMovement {
-  id        String           @id @default(uuid(7)) @db.Uuid
-  companyId String           @map("company_id") @db.Uuid
-  shiftId   String           @map("shift_id") @db.Uuid
-  type      CashMovementType
+  id             String             @id @default(uuid(7)) @db.Uuid
+  companyId      String             @map("company_id") @db.Uuid
+  shiftId        String             @map("shift_id") @db.Uuid
+  type           CashMovementType
   /// always positive: the type says whether the money comes in (INCOME, SALE_PAYMENT) or goes out (EXPENSE, REFUND)
-  amount    Decimal          @db.Decimal(14, 2)
-  reason    String?
-  refType   String?          @map("ref_type")
-  refId     String?          @map("ref_id") @db.Uuid
-  userId    String           @map("user_id") @db.Uuid
-  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  amount         Decimal            @db.Decimal(14, 2)
+  /// the free "Detalle" the cashier wrote (required for the concept OTHER)
+  reason         String?
+  /// code from `CASH_MOVEMENT_CONCEPTS` in libs/domain; null for the movements the system writes (sales, refunds)
+  concept        String?
+  /// only an expense above the approval limit is ever not POSTED (HU-VEN-22)
+  status         CashMovementStatus @default(POSTED)
+  /// storage key of the optional receipt photo or PDF
+  receiptKey     String?            @map("receipt_key")
+  idempotencyKey String?            @map("idempotency_key")
+  refType        String?            @map("ref_type")
+  refId          String?            @map("ref_id") @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company Company   @relation(fields: [companyId], references: [id])
   shift   CashShift @relation(fields: [shiftId], references: [id])
 
+  @@unique([companyId, idempotencyKey])
   @@index([companyId, shiftId, createdAt])
+  @@index([companyId, shiftId, status])
   @@map("cash_movements")
 }
 
@@ -1117,6 +1143,25 @@ model CashCount {
   @@unique([shiftId, denomination])
   @@index([companyId])
   @@map("cash_counts")
+}
+
+/// What the system says and what the cashier declared for each payment method of a closed shift (HU-VEN-23). Cash is declared
+/// through the count; QR, card and transfer are typed. The migration adds CHECK `declared_amount >= 0`.
+model CashShiftMethodTotal {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  companyId        String        @map("company_id") @db.Uuid
+  shiftId          String        @map("shift_id") @db.Uuid
+  method           PaymentMethod
+  systemAmount     Decimal       @map("system_amount") @db.Decimal(14, 2)
+  declaredAmount   Decimal       @map("declared_amount") @db.Decimal(14, 2)
+  differenceAmount Decimal       @map("difference_amount") @db.Decimal(14, 2)
+
+  company Company   @relation(fields: [companyId], references: [id])
+  shift   CashShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, method])
+  @@index([companyId])
+  @@map("cash_shift_method_totals")
 }
 
 /// Server-side cart before the sale exists (backs QR payments awaiting confirmation, cart recovery and held sales).

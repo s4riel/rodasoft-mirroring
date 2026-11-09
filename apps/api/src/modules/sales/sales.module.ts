@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
+import { StorageService } from '../../common/storage/storage.service';
 import { InventoryModule } from '../inventory/inventory.module';
-import { CashController } from './cash/cash.controller';
+import { CashController, CashMovementsController } from './cash/cash.controller';
+import { CashClosingService } from './cash/cash-closing.service';
+import { CashMovementsService } from './cash/cash-movements.service';
+import { CashShiftSummaryService } from './cash/cash-shift-summary.service';
 import { CashRegistersService } from './cash/cash-registers.service';
 import { CashShiftsService } from './cash/cash-shifts.service';
 import { CustomersController } from './customers/customers.controller';
@@ -35,15 +39,19 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
 /**
  * Sales and POS. HU-VEN-00 laid the foundations (payment providers); HU-VEN-01 adds the cash register opening
  * (`cash/`); HU-VEN-02 the POS search and cart (`pos/`); HU-VEN-03 the equivalents of an out-of-stock product; HU-VEN-04 the product sheet inside the POS; HU-VEN-05 and 37 the customers (`customers/`) and the customer of the cart. The next stories add their controllers and services here, split into sub-folders (`pos`, `quotes`,
- * `orders`, `pricing`, `approvals`) as the module grows.
+ * `orders`, `pricing`, `approvals`) as the module grows. HU-VEN-22 and 23 add the cash movements, the shift summary and the closing (`cash/`).
  */
 @Module({
   // the POS reads the inventory's equivalences (HU-VEN-03) and product sheet (HU-VEN-04)
   imports: [InventoryModule],
-  controllers: [CashController, CustomersController, PosController, QuotesController, SalesOrdersController, SaleCancellationController, SaleReturnsController, SaleReceiptController, SalesHistoryController],
+  controllers: [CashController, CashMovementsController, CustomersController, PosController, QuotesController, SalesOrdersController, SaleCancellationController, SaleReturnsController, SaleReceiptController, SalesHistoryController],
   providers: [
     CashRegistersService,
     CashShiftsService,
+    CashShiftSummaryService,
+    CashMovementsService,
+    CashClosingService,
+    StorageService,
     CustomersService,
     PosCatalogService,
     QuotesService,
