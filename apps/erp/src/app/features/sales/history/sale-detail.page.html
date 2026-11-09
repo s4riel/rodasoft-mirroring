@@ -14,6 +14,11 @@
           Solicitar anulación
         </button>
       }
+      @if (canReturn()) {
+        <button *rsCan="'sales.returns.manage'" rsButton variant="secondary" type="button" data-testid="sale-return" (click)="registerReturn()">
+          Registrar devolución
+        </button>
+      }
       @if (pending()) {
         <button *rsCan="'sales.cancellations.approve'" rsButton variant="secondary" type="button" data-testid="sale-cancel-review" (click)="reviewRequest()">
           Ver solicitud (Gerencia)
@@ -140,6 +145,20 @@
           }
         </ul>
       </section>
+
+      @if (returns().length > 0) {
+        <section class="card" aria-labelledby="sale-returns" data-testid="sale-returns">
+          <h2 class="card-title" id="sale-returns">Devoluciones</h2>
+          <ul class="plain">
+            @for (r of returns(); track r.id) {
+              <li class="payment">
+                <span><a [routerLink]="['/sales/returns', r.id]">{{ r.number }}</a><span class="muted"> · {{ r.status }} · {{ r.when }}</span></span>
+                <span class="value">{{ r.total }}</span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
 
       <section class="card" aria-labelledby="sale-invoice">
         <h2 class="card-title" id="sale-invoice">Factura</h2>

@@ -1,0 +1,164 @@
+<rs-page-header
+  title="Nueva devolución"
+  description="Elige la venta, qué piezas vuelven y cómo se reembolsa."
+  type="detail"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+<section class="card" aria-labelledby="return-sale-title">
+  <h2 class="card-title" id="return-sale-title">Venta original</h2>
+  <div class="lookup">
+    <rs-field label="Venta o factura" forId="return-sale">
+      <input
+        #saleBox
+        rsInput
+        id="return-sale"
+        type="text"
+        autocomplete="off"
+        placeholder="V-000231 o NIT del cliente"
+        [value]="query()"
+        (input)="setQuery(saleBox.value)"
+        (keydown.enter)="search()"
+      />
+    </rs-field>
+    <button rsButton variant="secondary" type="button" data-testid="return-search" [loading]="lookup() === 'loading'" (click)="search()">Buscar venta</button>
+  </div>
+
+  @switch (lookup()) {
+    @case ('notFound') {
+      <rs-note type="warning" title="No encontramos esa venta" data-testid="return-not-found">
+        Revisa el número de la venta o el NIT del cliente e inténtalo de nuevo.
+      </rs-note>
+    }
+    @case ('error') {
+      <rs-note type="danger" title="No pudimos buscar la venta" data-testid="return-lookup-error">{{ lookupError() }}</rs-note>
+    }
+    @case ('loading') {
+      <div role="status" aria-busy="true" aria-label="Buscando la venta"><rs-skeleton shape="rect" width="100%" height="var(--space-12)" /></div>
+    }
+    @case ('found') {
+      <p class="muted" data-testid="return-sale-caption">{{ sale()!.saleNumber }} · {{ customerText() }}</p>
+    }
+  }
+</section>
+
+@if (sale(); as s) {
+  <section class="card" aria-labelledby="return-reason-title">
+    <h2 class="card-title" id="return-reason-title">Motivo</h2>
+    <rs-select placeholder="Elige el motivo" ariaLabel="Motivo de la devolución" [options]="reasonOptions" [value]="reason()" (valueChange)="reason.set($any($event))" />
+  </section>
+
+  <section class="card" aria-labelledby="return-lines-title">
+    <h2 class="card-title" id="return-lines-title">¿Qué vuelve?</h2>
+    <table class="lines">
+      <caption class="sr-only">Productos de la venta</caption>
+      <thead>
+        <tr>
+          <th scope="col">Producto</th>
+          <th scope="col" class="num">Vendido</th>
+          <th scope="col">Cantidad a devolver</th>
+          <th scope="col">Destino</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of lines(); track line.saleItemId) {
+          <tr>
+            <td>
+              <span class="product">{{ line.productName }}</span>
+              <span class="muted">{{ line.sku }}</span>
+            </td>
+            <td class="num">{{ line.sold }}@if (line.returned > 0) { <span class="muted"> · ya devueltas {{ line.returned }}</span> }</td>
+            <td>
+              @if (line.returnable > 0) {
+                <rs-qty-stepper
+                  [min]="0"
+                  [max]="line.returnable"
+                  [value]="choiceOf(line).quantity"
+                  [label]="'Cantidad a devolver de ' + line.productName"
+                  decrementLabel="Menos"
+                  incrementLabel="Más"
+                  (valueChange)="setQuantity(line, $event)"
+                />
+              } @else {
+                <span class="muted">Ya devuelto</span>
+              }
+            </td>
+            <td>
+              @if (choiceOf(line).quantity > 0) {
+                <div class="chips" role="group" [attr.aria-label]="'Destino de ' + line.productName">
+                  <rs-filter-chip
+                    [showMedia]="false"
+                    [label]="conditionLabels.RESTOCK"
+                    [selected]="choiceOf(line).condition === 'RESTOCK'"
+                    (selectedChange)="setCondition(line, 'RESTOCK', $event)"
+                  />
+                  <rs-filter-chip
+                    [showMedia]="false"
+                    [label]="conditionLabels.SCRAP"
+                    [selected]="choiceOf(line).condition === 'SCRAP'"
+                    (selectedChange)="setCondition(line, 'SCRAP', $event)"
+                  />
+                </div>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card" aria-labelledby="return-refund-title">
+    <h2 class="card-title" id="return-refund-title">Reembolso</h2>
+    <p class="amount" data-testid="return-amount">
+      <span class="muted">A devolver</span> <strong>{{ amount() }}</strong>
+    </p>
+    <div class="chips" role="group" aria-label="Forma de reembolso">
+      @for (m of refundMethods; track m) {
+        <rs-filter-chip
+          [showMedia]="false"
+          [label]="refundLabels[m]"
+          [selected]="method() === m"
+          [disabled]="methodDisabled(m)"
+          (selectedChange)="setMethod(m, $event)"
+        />
+      }
+    </div>
+    @if (method() === 'TRANSFER') {
+      <rs-field label="Referencia de la transferencia" forId="return-reference" [error]="referenceMissing() ? 'Escribe la referencia de la transferencia.' : ''">
+        <input
+          #referenceBox
+          rsInput
+          id="return-reference"
+          type="text"
+          autocomplete="off"
+          [attr.maxlength]="referenceMax"
+          [value]="reference()"
+          (input)="reference.set(referenceBox.value)"
+        />
+      </rs-field>
+    }
+    @if (!s.hasCustomer) {
+      <p class="muted">El saldo a favor necesita una venta con cliente identificado.</p>
+    }
+  </section>
+
+  <rs-note type="info" title="Nota de crédito y débito" data-testid="return-note-info">
+    Se emite una nota de crédito y débito por {{ amount() }} sobre {{ invoiceText() }}.
+  </rs-note>
+  @if (needsApproval()) {
+    <rs-note type="warning" title="Necesita aprobación" data-testid="return-needs-approval">
+      El monto supera el límite de devoluciones: Gerencia debe aprobarla antes de devolver el dinero y las piezas.
+    </rs-note>
+  }
+  @if (submitError(); as message) {
+    <rs-note type="danger" title="No pudimos registrar la devolución" data-testid="return-submit-error">{{ message }}</rs-note>
+  }
+
+  <div class="actions">
+    <button rsButton variant="ghost" type="button" data-testid="return-cancel" [disabled]="submitting()" (click)="cancel()">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="return-submit" [disabled]="!canSubmit()" [loading]="submitting()" (click)="submit()">
+      {{ submitLabel() }}
+    </button>
+  </div>
+}

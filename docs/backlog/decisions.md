@@ -38,7 +38,7 @@ Same rule: parameterize in the per-company settings table with the default below
 | 12 | Default quote validity | VEN-18 | 7 days (`sales.quoteValidityDays`) |
 | 13 | Sell with stock from another branch (reserve + transfer) | VEN-19, 32 | No: reservation only against the order's branch |
 | 14 | Partial dispatch and invoicing | VEN-20 | Allowed (`sales.allowPartialDispatch`) |
-| 15 | Return deadline, approval limit, refund methods | VEN-21 | No deadline; no approval limit; refund in cash or credit note |
+| 15 | Return deadline, approval limit, refund methods | VEN-21 | No deadline (`sales.returnWindowDays`); no approval limit (`sales.returnApprovalLimit`, permission `sales.returns.approve` decides above it); refund in cash, store credit or transfer (as in Figma) |
 | 16 | Cash expense limit without approval | VEN-22 | No limit configured = never asks |
 | 17 | Policy for cash differences | VEN-24 | Any difference needs Accounting review (`sales.cash-register.review`) |
 | 18 | Who can change prices | VEN-26 | Permission `sales.prices.edit` (Management) |

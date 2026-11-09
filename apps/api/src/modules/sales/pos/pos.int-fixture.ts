@@ -27,6 +27,8 @@ import type { PaymentProviderRegistry } from '../payments/payment-provider';
 import { SaleCancellationService } from '../sales/sale-cancellation.service';
 import { SaleReceiptService } from '../sales/sale-receipt.service';
 import { SaleVisibilityService } from '../sales/sale-visibility.service';
+import { SaleReturnsService } from '../returns/sale-returns.service';
+import { SaleReturnsQueryService } from '../returns/sale-returns-query.service';
 import { SalesHistoryService } from '../sales/sales-history.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
 import { SalesOrderDispatchService } from '../orders/sales-order-dispatch.service';
@@ -104,6 +106,7 @@ export function createPosFixture(prefix: string) {
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     const reservations = new StockReservationService(cls, settings);
+    const returnQueries = new SaleReturnsQueryService(prisma, cls, settings, scopedMembership);
     const quotes = new QuotesService(prisma, cls, settings, audit, membership, customers);
     const orders = new SalesOrdersService(prisma, cls, audit, outbox, scopedMembership, reservations, settings);
     return {
@@ -119,7 +122,9 @@ export function createPosFixture(prefix: string) {
       card: new PosCardPaymentService(prisma, cls, shifts, settings, audit, payment, providers),
       receipts: new SaleReceiptService(prisma, cls, settings, outbox, audit, visibility),
       cancellations,
-      history: new SalesHistoryService(prisma, visibility, settings, cancellations),
+      returnQueries,
+      returns: new SaleReturnsService(prisma, cls, audit, outbox, settings, scopedMembership, new StockMovementService(cls, settings), shifts, returnQueries),
+      history: new SalesHistoryService(prisma, visibility, settings, cancellations, returnQueries),
       equivalents: new PosEquivalentsService(prisma, shifts, new EquivalencesService(prisma, cls, audit, settings)),
       sheet: new PosProductSheetService(
         prisma,
@@ -293,6 +298,8 @@ export function createPosFixture(prefix: string) {
     await base.dispatch.deleteMany({ where: { companyId: { in: companies } } });
     await base.salesOrder.deleteMany({ where: { companyId: { in: companies } } });
     await base.quote.deleteMany({ where: { companyId: { in: companies } } });
+    await base.creditNote.deleteMany({ where: { companyId: { in: companies } } });
+    await base.saleReturn.deleteMany({ where: { companyId: { in: companies } } });
     await base.approvalRequest.deleteMany({ where: { companyId: { in: companies } } });
     await base.invoice.deleteMany({ where: { companyId: { in: companies } } });
     await base.sale.deleteMany({ where: { companyId: { in: companies } } });

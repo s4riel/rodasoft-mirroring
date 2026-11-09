@@ -214,3 +214,16 @@ export const salesOrderMachine = createMachine<SalesOrderStatus, SalesOrderEvent
   DISPATCHED: {},
   CANCELLED: {},
 });
+
+/**
+ * A return of a sale (HU-VEN-21). One under the approval limit is created `APPROVED` and does everything at once; one above
+ * it waits as `PENDING_APPROVAL` until Management approves or rejects it.
+ */
+export type SaleReturnStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+export type SaleReturnEvent = 'approve' | 'reject';
+
+export const saleReturnMachine = createMachine<SaleReturnStatus, SaleReturnEvent>({
+  PENDING_APPROVAL: { approve: 'APPROVED', reject: 'REJECTED' },
+  APPROVED: {},
+  REJECTED: {},
+});

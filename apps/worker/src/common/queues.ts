@@ -24,6 +24,10 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'sales.cancellation.withdrawn': QUEUE.accounting,
   'sales.cancellation.approved': QUEUE.accounting,
   'sales.cancellation.rejected': QUEUE.accounting,
+  // the SIAT consumer of `sales.return.completed` (HU-FAC) issues the credit and debit note; until then accounting just logs it
+  'sales.return.requested': QUEUE.accounting,
+  'sales.return.completed': QUEUE.accounting,
+  'sales.return.rejected': QUEUE.accounting,
   'entry.generate': QUEUE.accounting,
   'inventory.product-created': QUEUE.inventory,
   'inventory.product-updated': QUEUE.inventory,

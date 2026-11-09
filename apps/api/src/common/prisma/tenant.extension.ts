@@ -50,6 +50,7 @@ export const TENANT_MODELS = new Set<Prisma.ModelName>([
   'DispatchItem',
   'SaleReturn',
   'SaleReturnItem',
+  'CreditNote',
   'PriceChange',
   'ApprovalRequest',
   'DocumentSequence',

@@ -1,0 +1,152 @@
+<rs-page-header [title]="title()" type="detail" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación" />
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la devolución">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver esta devolución"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('gone') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-results" heading="Esta devolución ya no existe" description="Vuelve a la lista para ver las devoluciones.">
+        <button rsButton variant="primary" type="button" (click)="backToList()">Volver a devoluciones</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la devolución" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="backToList()">Volver a devoluciones</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      <div class="meta">
+        @if (pill(); as p) {
+          <rs-status-pill [status]="p.status" [icon]="p.icon ?? null">{{ p.label }}</rs-status-pill>
+        }
+        <span class="muted" data-testid="return-subtitle">{{ subtitle() }}</span>
+      </div>
+
+      <rs-status-timeline [steps]="steps()" label="Estados de la devolución" />
+
+      <section class="kpis" aria-label="Resumen de la devolución">
+        <rs-kpi-card label="Monto" [value]="amount()" />
+        <rs-kpi-card label="Piezas" [value]="'' + d.pieces" />
+        <rs-kpi-card label="Nota de crédito y débito" [value]="noteText()" />
+        <rs-kpi-card label="Reembolso" [value]="refund()" />
+      </section>
+
+      @if (d.decision; as decision) {
+        <rs-note [type]="decision.status === 'APPROVED' ? 'info' : 'warning'" [title]="decisionText()" data-testid="return-decision">
+          {{ decision.comment || 'Sin comentario.' }}
+        </rs-note>
+      }
+      @if (actionError(); as message) {
+        <rs-note type="danger" title="No pudimos registrar la decisión" data-testid="return-action-error">{{ message }}</rs-note>
+      }
+
+      <div class="columns">
+        <section class="card" aria-labelledby="return-products">
+          <h2 class="card-title" id="return-products">Productos devueltos</h2>
+          <ul class="products">
+            @for (item of items(); track item.key) {
+              <li class="product" data-testid="return-item">
+                <span class="product-name">{{ item.name }}</span>
+                <span class="muted">{{ item.sku }} · {{ item.quantity }} {{ item.quantity === 1 ? 'pieza' : 'piezas' }} · {{ item.destination }}</span>
+                <span class="product-amount">{{ item.amount }}</span>
+              </li>
+            }
+          </ul>
+          <dl class="facts">
+            <div class="fact">
+              <dt>Motivo</dt>
+              <dd>{{ reasonText() }}</dd>
+            </div>
+            @if (d.comment) {
+              <div class="fact">
+                <dt>Comentario</dt>
+                <dd>{{ d.comment }}</dd>
+              </div>
+            }
+            @if (d.refundReference) {
+              <div class="fact">
+                <dt>Referencia</dt>
+                <dd>{{ d.refundReference }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+
+        <section class="card" aria-labelledby="return-audit">
+          <h2 class="card-title" id="return-audit">Auditoría</h2>
+          <ol class="history">
+            @for (h of audit(); track $index) {
+              <li class="history-item">
+                <span class="history-label">{{ h.label }}</span>
+                <span class="muted">{{ h.when }}</span>
+              </li>
+            }
+            @if (d.status === 'PENDING_APPROVAL') {
+              <li class="history-item">
+                <span class="history-label">Pendiente: aprobación de Gerencia</span>
+              </li>
+            }
+          </ol>
+        </section>
+      </div>
+
+      @if (canDecide()) {
+        <section *rsCan="'sales.returns.approve'" class="card" aria-labelledby="return-approval" data-testid="return-approval">
+          <h2 class="card-title" id="return-approval">Aprobación de Gerencia</h2>
+          @if (d.approval?.comment; as asked) {
+            <p class="muted">Comentario de {{ d.approval?.requestedBy }}: {{ asked }}</p>
+          }
+          <rs-field
+            label="Respuesta (opcional al aprobar, obligatoria al rechazar)"
+            forId="return-reply"
+            [error]="replyMissing() ? 'Escribe la respuesta para el cajero antes de rechazar.' : ''"
+          >
+            <textarea
+              #replyBox
+              rsTextarea
+              id="return-reply"
+              rows="3"
+              placeholder="Escribe una respuesta para quien pidió la devolución"
+              [attr.maxlength]="replyMax"
+              [value]="reply()"
+              (input)="setReply(replyBox.value)"
+            ></textarea>
+          </rs-field>
+          <div class="actions">
+            <button rsButton variant="ghost" type="button" data-testid="return-reject" [disabled]="deciding() !== null" [loading]="deciding() === 'reject'" (click)="reject()">
+              Rechazar
+            </button>
+            <button rsButton variant="primary" type="button" data-testid="return-approve" [disabled]="deciding() !== null" [loading]="deciding() === 'approve'" (click)="approve()">
+              Aprobar devolución
+            </button>
+          </div>
+        </section>
+      }
+
+      <div class="actions">
+        <a rsButton variant="secondary" routerLink="/sales/returns" data-testid="return-back">Volver a devoluciones</a>
+        <a rsButton variant="secondary" [routerLink]="['/sales/history', d.saleId]" data-testid="return-sale-link">Ver venta original</a>
+      </div>
+    }
+  }
+}

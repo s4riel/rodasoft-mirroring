@@ -40,6 +40,10 @@ export interface CompanySettings {
   'sales.cancellationWindowDays': number | null;
   /** Cash expenses above this value need approval (decision #16). Null = never asks. */
   'sales.cashExpenseApprovalLimit': string | null;
+  /** Returns above this value need approval (decision #15, HU-VEN-21). Null = never asks. */
+  'sales.returnApprovalLimit': string | null;
+  /** Days after a sale in which it can still be returned (decision #15). Null = no limit. */
+  'sales.returnWindowDays': number | null;
   /** How the NIT is verified before invoicing (HU-VEN-05). `SIAT` waits for the invoicing epic; until then only the format is checked. */
   'sales.nitVerification': NitVerificationMode;
   /** Paper the sale receipt prints on (decision #9, HU-VEN-11). */
@@ -66,6 +70,8 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.allowPartialDispatch': true,
   'sales.cancellationWindowDays': null,
   'sales.cashExpenseApprovalLimit': null,
+  'sales.returnApprovalLimit': null,
+  'sales.returnWindowDays': null,
   'sales.nitVerification': 'FORMAT',
   'sales.receiptFormat': 'TICKET_80MM',
   'sales.qrConfirmTimeoutSeconds': 300,
@@ -76,6 +82,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
 const MONEY_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>([
   'adjustments.approvalThresholdValue',
   'sales.cashExpenseApprovalLimit',
+  'sales.returnApprovalLimit',
 ]);
 
 /** Settings whose value is one of a closed list. */
@@ -86,7 +93,7 @@ const ENUM_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>>
 };
 
 /** Settings that are a positive whole number or null (null = no limit); their default is null, so the type is not inferable from it. */
-const NULLABLE_INTEGER_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>(['sales.cancellationWindowDays']);
+const NULLABLE_INTEGER_SETTING_KEYS: ReadonlySet<CompanySettingKey> = new Set<CompanySettingKey>(['sales.cancellationWindowDays', 'sales.returnWindowDays']);
 
 const isPositiveInteger = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0;
 

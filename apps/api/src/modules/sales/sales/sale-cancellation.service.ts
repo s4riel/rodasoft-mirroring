@@ -35,6 +35,7 @@ import { SettingsService } from '../../../common/settings/settings.service';
 import { MembershipService } from '../../access/membership.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { posErrors } from '../pos/pos.errors';
+import { returnErrors } from '../returns/sale-returns.errors';
 import { cancellationErrors } from './sale-cancellation.errors';
 import { SaleVisibilityService } from './sale-visibility.service';
 
@@ -106,6 +107,9 @@ export class SaleCancellationService {
       const locked = await this.lockSale(tx, saleId, companyId);
       const { origin } = await tx.sale.findFirstOrThrow({ where: { id: saleId }, select: { origin: true } });
       if (origin === 'ORDER') throw cancellationErrors.fromOrder();
+      // the sale is locked: a return cannot be registered meanwhile, so the stock is never returned twice (HU-VEN-21)
+      const returns = await tx.saleReturn.count({ where: { saleId, status: { not: 'REJECTED' } } });
+      if (returns > 0) throw returnErrors.hasReturns();
       let next: SaleStatus;
       try {
         next = saleMachine.next(locked.status, 'requestCancellation');

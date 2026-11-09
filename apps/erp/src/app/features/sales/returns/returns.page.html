@@ -1,0 +1,98 @@
+<rs-page-header
+  title="Devoluciones"
+  description="Registra devoluciones de ventas y emite la nota de crédito y débito."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button *rsCan="'sales.returns.manage'" rsButton variant="primary" type="button" data-testid="returns-new" (click)="newReturn()">
+      <rs-icon name="plus" [size]="16" /> Nueva devolución
+    </button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver las devoluciones"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <section class="kpis" aria-label="Resumen de devoluciones">
+    <rs-kpi-card label="Este mes" [value]="kpis().month" />
+    <rs-kpi-card label="Monto devuelto" [value]="kpis().amount" />
+    <rs-kpi-card label="Por aprobar" [value]="kpis().pending" />
+    <rs-kpi-card label="A merma" [value]="kpis().scrap" />
+  </section>
+
+  <div class="filters">
+    <rs-select placeholder="Estado" ariaLabel="Estado" [options]="statusOptions" [value]="filters().status" (valueChange)="setStatus($event)" />
+  </div>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando devoluciones">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="30%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="14%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las devoluciones" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-invoices"
+            [showAction]="false"
+            heading="Aún no hay devoluciones"
+            description="Una devolución nace de una venta: busca la venta y elige qué piezas vuelven."
+          >
+          </rs-empty-state-illustrated>
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="No encontramos devoluciones" description="Prueba con otro estado.">
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Devoluciones" [columns]="columns" [rows]="rows()" [totals]="totals()">
+          <ng-template rsDocCell="number" let-row>
+            @if (itemOf(row.id); as item) {
+              <a class="number" [routerLink]="['/sales/returns', item.id]">{{ item.number }}</a>
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeText() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />
