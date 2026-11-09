@@ -3,12 +3,8 @@
   type="detail"
   [breadcrumbs]="breadcrumbs()"
   breadcrumbLabel="Ruta de navegación"
+  [subtitle]="subtitle()"
 >
-  @if (detail()?.cancellable) {
-    <div rsActions class="header-actions">
-      <button *rsCan="'sales.orders.manage'" rsButton variant="danger" type="button" data-testid="order-cancel" (click)="openCancel()">Anular pedido</button>
-    </div>
-  }
 </rs-page-header>
 
 @switch (state()) {
@@ -16,6 +12,16 @@
     <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el pedido">
       <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
       <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver este pedido"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
     </section>
   }
   @case ('error') {
@@ -27,9 +33,18 @@
   }
   @default {
     @if (detail(); as d) {
-      @if (d.status === 'OPEN') {
+      @if (d.status === 'OPEN' || d.status === 'PARTIALLY_DISPATCHED') {
         <rs-note type="info">El stock de este pedido está reservado en {{ d.warehouseName }}: nadie más puede venderlo.</rs-note>
       }
+      <section class="card">
+        <rs-status-timeline [steps]="timeline()" label="Avance del pedido" />
+      </section>
+      <section class="kpis" aria-label="Resumen del pedido">
+        <rs-kpi-card label="Total" [value]="formatBs(d.total)" />
+        <rs-kpi-card label="Reservado" [value]="heldText()" />
+        <rs-kpi-card label="Despachado" [value]="dispatchedText()" />
+        <rs-kpi-card label="Facturado" [value]="formatBs(d.invoicedTotal)" />
+      </section>
       <section class="card">
         <div class="head">
           @if (pill(); as p) {
@@ -48,6 +63,7 @@
             }
           </dl>
         </div>
+        <h2 class="section-title">Ítems del pedido</h2>
         <rs-doc-table size="md" tableLabel="Productos del pedido" [columns]="columns" [rows]="rows()" />
         <dl class="totals">
           <div><dt>Subtotal</dt><dd>{{ formatBs(d.subtotal) }}</dd></div>
@@ -60,6 +76,31 @@
           <div class="grand"><dt>Total</dt><dd>{{ formatBs(d.total) }}</dd></div>
         </dl>
       </section>
+      @if (d.dispatches.length > 0) {
+        <section class="card" aria-label="Despachos del pedido">
+          <rs-doc-table size="md" tableLabel="Despachos del pedido" [columns]="dispatchColumns" [rows]="dispatchRows()" />
+        </section>
+      }
+      @if (d.partialDispatchAllowed && d.dispatchable) {
+        <rs-note type="info" title="Se puede despachar y facturar por partes">
+          Cada despacho genera su factura en el SIAT por lo entregado. La reserva se libera si se cancela el pedido.
+        </rs-note>
+      }
+      @if (d.cancellable || d.dispatchable) {
+        <div class="footer-actions">
+          @if (d.cancellable) {
+            <button *rsCan="'sales.orders.manage'" rsButton variant="ghost" type="button" data-testid="order-cancel" (click)="openCancel()">Cancelar pedido</button>
+          }
+          @if (d.dispatchable) {
+            <a *rsCan="'sales.orders.manage'" rsButton variant="secondary" [href]="printPath()" target="_blank" rel="noopener" data-testid="order-print">
+              Imprimir orden de despacho
+            </a>
+            <button *rsCan="'sales.orders.manage'" rsButton variant="primary" type="button" data-testid="order-dispatch" (click)="dispatchOpen.set(true)">
+              Despachar y facturar
+            </button>
+          }
+        </div>
+      }
     }
   }
 }
@@ -82,5 +123,9 @@
     <button rsButton variant="danger" type="button" data-testid="order-cancel-confirm" [loading]="cancelling()" (click)="cancel()">Anular pedido</button>
   </div>
 </rs-modal>
+
+@if (detail(); as d) {
+  <rs-dispatch-order-dialog [(open)]="dispatchOpen" [order]="d" (dispatched)="onDispatched($event)" />
+}
 
 <rs-toast-outlet closeLabel="Cerrar" />

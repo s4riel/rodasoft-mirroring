@@ -69,10 +69,31 @@
   .grand {
     padding-top: var(--space-3);
     border-top: var(--stroke-default) solid var(--border-default);
-    font-weight: 700;
+    font-weight: var(--body-md-strong-weight);
   }
 }
 .shortfalls {
   margin: var(--space-2) 0 0;
   padding-left: var(--space-5);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); /* four cards on a desktop row, wrapping on narrow screens */
+  gap: var(--space-4);
+}
+
+.section-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--body-lg-size);
+  font-weight: var(--body-md-strong-weight);
+}
+
+.footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }

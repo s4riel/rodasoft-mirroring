@@ -225,7 +225,7 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
       expect(stored.payments[0]).toMatchObject({ method: 'CASH' });
       expect(stored.payments[0].amount.toFixed(2)).toBe('851.00');
       expect(stored.payments[0].change.toFixed(2)).toBe('149.00');
-      expect(stored.checkout.status).toBe('COMPLETED');
+      expect(stored.checkout?.status).toBe('COMPLETED');
       expect(stored.invoice).toMatchObject({
         status: 'PENDING',
         customerTaxName: 'S/N',
@@ -257,7 +257,7 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
       expect(cash.amount.toFixed(2)).toBe('851.00');
 
       const checkoutPayment = await state.base.posCheckoutPayment.findFirstOrThrow({
-        where: { checkoutId: stored.checkoutId },
+        where: { checkoutId: stored.checkoutId as string },
       });
       expect(checkoutPayment).toMatchObject({ method: 'CASH', status: 'CONFIRMED' });
       expect(checkoutPayment.change.toFixed(2)).toBe('149.00');

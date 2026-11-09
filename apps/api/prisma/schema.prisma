@@ -903,6 +903,12 @@ enum SaleStatus {
   CANCELLED
 }
 
+/// Where a sale comes from: the POS (paid at a register) or the dispatch of an order (HU-VEN-20, invoiced without a payment).
+enum SaleOrigin {
+  POS
+  ORDER
+}
+
 enum PaymentMethod {
   CASH
   QR
@@ -1189,11 +1195,13 @@ model Sale {
   companyId      String               @map("company_id") @db.Uuid
   /// `V-000231`, row-locked counter per company (`document_sequences`)
   number         String
-  checkoutId     String               @unique @map("checkout_id") @db.Uuid
+  origin         SaleOrigin           @default(POS)
+  /// null for a sale born from an order dispatch; the check `sales_pos_origin_ck` keeps both set for POS sales
+  checkoutId     String?              @unique @map("checkout_id") @db.Uuid
   customerId     String?              @map("customer_id") @db.Uuid
   branchId       String               @map("branch_id") @db.Uuid
   warehouseId    String               @map("warehouse_id") @db.Uuid
-  shiftId        String               @map("shift_id") @db.Uuid
+  shiftId        String?              @map("shift_id") @db.Uuid
   status         SaleStatus           @default(COMPLETED)
   subtotal       Decimal              @db.Decimal(14, 2)
   discountType   CustomerDiscountType @default(NONE) @map("discount_type")
@@ -1206,16 +1214,16 @@ model Sale {
   updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company    Company       @relation(fields: [companyId], references: [id])
-  checkout   PosCheckout   @relation(fields: [checkoutId], references: [id])
+  checkout   PosCheckout?  @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
   customer   Customer?     @relation(fields: [customerId], references: [id])
   branch     Branch        @relation(fields: [branchId], references: [id])
   warehouse  Warehouse     @relation(fields: [warehouseId], references: [id])
-  shift      CashShift     @relation(fields: [shiftId], references: [id])
+  shift      CashShift?    @relation(fields: [shiftId], references: [id], onDelete: Restrict)
   items      SaleItem[]
   payments   SalePayment[]
   invoice    Invoice?
   returns    SaleReturn[]
-  dispatches Dispatch[]
+  dispatch   Dispatch?
 
   @@unique([companyId, number])
   @@index([companyId, status, createdAt(sort: Desc)])
@@ -1403,7 +1411,9 @@ model Dispatch {
   /// `DSP-000012`
   number      String
   /// the sale that invoiced this dispatch, once it is invoiced
-  saleId      String?  @map("sale_id") @db.Uuid
+  saleId      String?  @unique @map("sale_id") @db.Uuid
+  /// the `Idempotency-Key` of the request, so a repeated request returns this dispatch instead of making another
+  idempotencyKey String? @map("idempotency_key")
   createdById String   @map("created_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -1413,6 +1423,7 @@ model Dispatch {
   items   DispatchItem[]
 
   @@unique([companyId, number])
+  @@unique([companyId, idempotencyKey])
   @@index([companyId, orderId])
   @@map("dispatches")
 }
@@ -1429,6 +1440,7 @@ model DispatchItem {
   orderItem SalesOrderItem @relation(fields: [orderItemId], references: [id])
 
   @@index([companyId, dispatchId])
+  @@index([companyId, orderItemId])
   @@map("dispatch_items")
 }
 

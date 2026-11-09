@@ -2,7 +2,7 @@ import { isDevMode } from '@angular/core';
 import { Route } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guard';
 import { requiresSalesTab } from './features/sales/sales-permission.guard';
-import { POS_TAB, QUOTES_TAB } from './features/sales/sales-tabs';
+import { ORDERS_TAB, POS_TAB, QUOTES_TAB } from './features/sales/sales-tabs';
 import { ShellComponent } from './layout/shell.component';
 
 const t = (s: string) => `${s} · ERP`;
@@ -49,6 +49,13 @@ export const routes: Route[] = [
     title: t('Cotización'),
     canActivate: [authGuard, requiresSalesTab(QUOTES_TAB)],
     loadComponent: () => import('./features/sales/quotes/quote-print.page').then((m) => m.QuotePrintPage),
+  },
+  {
+    // HU-VEN-20 · the dispatch order of an order ("Imprimir orden de despacho") opens in its own tab, outside the shell
+    path: 'sales/orders/:id/print',
+    title: t('Orden de despacho'),
+    canActivate: [authGuard, requiresSalesTab(ORDERS_TAB)],
+    loadComponent: () => import('./features/sales/orders/order-print.page').then((m) => m.OrderPrintPage),
   },
   {
     // HU-VEN-11 · the printable receipt of a sale opens in its own tab, outside the shell: only the receipt is on the page

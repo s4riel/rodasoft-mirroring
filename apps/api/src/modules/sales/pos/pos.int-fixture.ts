@@ -29,6 +29,7 @@ import { SaleReceiptService } from '../sales/sale-receipt.service';
 import { SaleVisibilityService } from '../sales/sale-visibility.service';
 import { SalesHistoryService } from '../sales/sales-history.service';
 import { PosProductSheetService } from './pos-product-sheet.service';
+import { SalesOrderDispatchService } from '../orders/sales-order-dispatch.service';
 import { SalesOrdersService } from '../orders/sales-orders.service';
 import { QuoteLifecycleService } from '../quotes/quote-lifecycle.service';
 import { QuotesService } from '../quotes/quotes.service';
@@ -104,11 +105,13 @@ export function createPosFixture(prefix: string) {
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     const reservations = new StockReservationService(cls, settings);
     const quotes = new QuotesService(prisma, cls, settings, audit, membership, customers);
+    const orders = new SalesOrdersService(prisma, cls, audit, outbox, scopedMembership, reservations, settings);
     return {
       customers,
       quotes,
       quoteLifecycle: new QuoteLifecycleService(prisma, cls, settings, audit, outbox, quotes),
-      orders: new SalesOrdersService(prisma, cls, audit, outbox, scopedMembership, reservations),
+      orders,
+      dispatches: new SalesOrderDispatchService(prisma, cls, audit, outbox, settings, scopedMembership, reservations, new StockMovementService(cls, settings), orders),
       catalog: new PosCatalogService(prisma, shifts, settings),
       checkout,
       payment,
@@ -287,6 +290,7 @@ export function createPosFixture(prefix: string) {
       await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
       await tx.stockMovement.deleteMany({ where: { companyId: { in: companies } } });
     });
+    await base.dispatch.deleteMany({ where: { companyId: { in: companies } } });
     await base.salesOrder.deleteMany({ where: { companyId: { in: companies } } });
     await base.quote.deleteMany({ where: { companyId: { in: companies } } });
     await base.approvalRequest.deleteMany({ where: { companyId: { in: companies } } });

@@ -79,6 +79,8 @@ export interface SaleDetail {
   status: SaleStatus;
   branch: { name: string };
   cashier: { name: string };
+  /** The order the sale invoices a dispatch of (HU-VEN-20); null for a POS sale. */
+  order: { id: string; number: string } | null;
   customer: { name: string; documentType: number; documentNumber: string; email: string | null };
   lines: SaleReceiptLine[];
   subtotal: string;

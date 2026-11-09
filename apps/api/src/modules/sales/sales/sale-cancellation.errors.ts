@@ -11,6 +11,11 @@ export const cancellationErrors = {
     }),
   notCancellable: (status: string) =>
     new ConflictException({ code: 'SALE_NOT_CANCELLABLE', message: 'This sale can no longer be cancelled', details: { status } }),
+  fromOrder: () =>
+    new ConflictException({
+      code: 'SALE_FROM_ORDER_NOT_CANCELLABLE',
+      message: 'A sale invoiced from an order dispatch cannot be cancelled here',
+    }),
   alreadyPending: () =>
     new ConflictException({ code: 'CANCELLATION_ALREADY_PENDING', message: 'This sale already has a cancellation request waiting for a decision' }),
   windowExpired: (endedAt: string) =>

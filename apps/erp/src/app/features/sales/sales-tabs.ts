@@ -35,5 +35,6 @@ export const SALES_TABS: readonly SalesTab[] = [
 /** The point of sale tab; its screen is full screen, routed outside the shell (`app.routes.ts`). */
 export const POS_TAB: SalesTab = SALES_TABS.find((tab) => tab.key === 'pos') as SalesTab;
 export const QUOTES_TAB: SalesTab = SALES_TABS.find((tab) => tab.key === 'quotes') as SalesTab;
+export const ORDERS_TAB: SalesTab = SALES_TABS.find((tab) => tab.key === 'orders') as SalesTab;
 
 export const canSeeSalesTab = (tab: SalesTab, can: (permission: string) => boolean): boolean => tab.permissions.some(can);

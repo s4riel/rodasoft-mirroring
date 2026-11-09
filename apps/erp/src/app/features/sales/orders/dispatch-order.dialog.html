@@ -1,0 +1,50 @@
+<rs-modal [(open)]="open" variant="form" size="large" [closeOnBackdrop]="!saving()" [closeOnEscape]="!saving()" heading="Despachar y facturar" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">{{ order().number }} · elige cuánto se entrega hoy</p>
+
+    <ul class="lines" aria-label="Piezas que se despachan hoy">
+      @for (pick of picks(); track pick.line.id) {
+        <li class="line" [attr.data-testid]="'dispatch-line-' + pick.line.id">
+          <div class="info">
+            <span class="name">{{ pick.line.code }} · {{ pick.line.name }}</span>
+            <span class="caption">{{ dispatchableOf(pick.line) }} {{ dispatchableOf(pick.line) === 1 ? 'reservada' : 'reservadas' }}</span>
+          </div>
+          <rs-qty-stepper
+            [value]="pick.quantity"
+            [min]="0"
+            [max]="dispatchableOf(pick.line)"
+            [disabled]="locked()"
+            [label]="'Piezas de ' + pick.line.code + ' que se despachan'"
+            decrementLabel="Quitar una pieza"
+            incrementLabel="Agregar una pieza"
+            (valueChange)="choose(pick.line, $event)"
+          />
+        </li>
+      }
+    </ul>
+
+    <div class="summary">
+      <span>Se factura ahora ({{ piecesText() }})</span>
+      <strong class="total" data-testid="dispatch-total">{{ totalText() }}</strong>
+    </div>
+
+    @if (locked()) {
+      <rs-note type="info" title="Esta empresa despacha el pedido completo">Se entrega todo lo que está pendiente en un solo despacho.</rs-note>
+    } @else if (remaining() > 0 && pieces() > 0) {
+      <rs-note type="info" [title]="remaining() === 1 ? 'La pieza faltante queda en el pedido' : 'Las ' + remainingText() + ' faltantes quedan en el pedido'" data-testid="dispatch-remaining">
+        Se despacharán y facturarán en otro despacho.
+      </rs-note>
+    }
+
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos despachar el pedido">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="dispatch-send" [disabled]="!canSend()" [loading]="saving()" (click)="send()">
+      Despachar y emitir factura
+    </button>
+  </div>
+</rs-modal>

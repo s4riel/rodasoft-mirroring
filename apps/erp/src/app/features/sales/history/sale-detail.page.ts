@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Decimal, type SaleDetail } from '@rodasoft/domain';
 import {
   ButtonComponent,
@@ -57,6 +57,7 @@ const LINE_COLUMNS: DocTableColumn[] = [
     ModalComponent,
     NoteComponent,
     PageHeaderComponent,
+    RouterLink,
     SaleCancellationDialog,
     SkeletonComponent,
     StatusPillComponent,

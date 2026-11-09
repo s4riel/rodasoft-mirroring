@@ -1,5 +1,5 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type SaleOrigin } from '@prisma/client';
 import {
   approvalRequestMachine,
   cancellationImpact,
@@ -44,7 +44,10 @@ export interface CancellationSale {
   status: SaleStatus;
   createdAt: Date;
   warehouse: { name: string };
-  shift: { register: { name: string } };
+  /** null for a sale born from an order dispatch (HU-VEN-20): it was not sold at a register */
+  shift: { register: { name: string } } | null;
+  /** A sale born from an order dispatch is not cancelled here: the order balance would not follow (HU-VEN-20). */
+  origin: SaleOrigin;
 }
 
 /** What deciding a cancellation reads of a sale: its lines, payments and invoice, and where it was sold. */
@@ -101,6 +104,8 @@ export class SaleCancellationService {
 
     return this.prisma.tenant.$transaction(async (tx) => {
       const locked = await this.lockSale(tx, saleId, companyId);
+      const { origin } = await tx.sale.findFirstOrThrow({ where: { id: saleId }, select: { origin: true } });
+      if (origin === 'ORDER') throw cancellationErrors.fromOrder();
       let next: SaleStatus;
       try {
         next = saleMachine.next(locked.status, 'requestCancellation');
@@ -187,7 +192,9 @@ export class SaleCancellationService {
     if (!pending) throw cancellationErrors.notPending();
 
     const [openShift, audit] = await Promise.all([
-      this.prisma.tenant.cashShift.findFirst({ where: { registerId: sale.shift.registerId, status: 'OPEN' }, select: { id: true } }),
+      sale.shift
+        ? this.prisma.tenant.cashShift.findFirst({ where: { registerId: sale.shift.registerId, status: 'OPEN' }, select: { id: true } })
+        : Promise.resolve(null),
       this.prisma.auditLog.findMany({
         where: { companyId: sale.companyId, entity: 'Sale', entityId: saleId },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -214,7 +221,7 @@ export class SaleCancellationService {
       impact: {
         ...impactOf(sale),
         warehouseName: sale.warehouse.name,
-        registerName: sale.shift.register.name,
+        registerName: sale.shift?.register.name ?? '',
         shiftOpen: openShift !== null,
       },
       audit: audit.map((row) => ({ action: row.action, at: row.createdAt.toISOString(), userName: row.userId ? (names.get(row.userId) ?? null) : null })),
@@ -240,7 +247,9 @@ export class SaleCancellationService {
       // the refund leaves the register of the sale, in a shift that is still open: a closed shift has its totals frozen
       const refund = Decimal.of(impact.cashRefund);
       const refundShiftId =
-        refund.cmp(Decimal.zero()) > 0 ? await this.lockRefundShift(tx, companyId, sale.shift.registerId, sale.shift.register.name) : null;
+        refund.cmp(Decimal.zero()) > 0 && sale.shift
+          ? await this.lockRefundShift(tx, companyId, sale.shift.registerId, sale.shift.register.name)
+          : null;
 
       const { locked, pending } = await this.lockPendingCancellation(tx, saleId, companyId);
 
@@ -343,7 +352,7 @@ export class SaleCancellationService {
     const lastDecision = sale.status === 'CANCELLATION_PENDING' ? null : await this.lastDecisionOf(sale.id);
 
     return {
-      canRequest: isCancellableStatus(sale.status) && isWithinCancellationWindow(new Date(), sale.createdAt, days),
+      canRequest: sale.origin === 'POS' && isCancellableStatus(sale.status) && isWithinCancellationWindow(new Date(), sale.createdAt, days),
       windowEndsAt: windowEndsAt?.toISOString() ?? null,
       lastDecision,
       pending: row
@@ -356,7 +365,7 @@ export class SaleCancellationService {
             canWithdraw: row.requestedById === this.cls.get('userId') || granted.has('sales.cancellations.approve'),
           }
         : null,
-      impact: { warehouseName: sale.warehouse.name, registerName: sale.shift.register.name },
+      impact: { warehouseName: sale.warehouse.name, registerName: sale.shift?.register.name ?? '' },
     };
   }
 

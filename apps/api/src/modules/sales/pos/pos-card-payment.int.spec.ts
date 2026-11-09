@@ -333,8 +333,8 @@ describe('POS card payment (integration, real Postgres)', () => {
       expect(stored.payments).toHaveLength(1);
       expect(stored.payments[0]).toMatchObject({ method: 'CARD', providerStatus: 'CONFIRMED', reference: 'A1B2C3' });
       expect(stored.payments[0].amount.toFixed(2)).toBe('490.00');
-      expect(stored.checkout.status).toBe('COMPLETED');
-      expect(stored.checkout.payments).toHaveLength(1);
+      expect(stored.checkout?.status).toBe('COMPLETED');
+      expect(stored.checkout?.payments).toHaveLength(1);
 
       expect(await stockOf(p.id)).toBe(8);
       expect(await state.base.stockMovement.count({ where: { productId: p.id, type: 'SALE', refId: sale.saleId } })).toBe(1);

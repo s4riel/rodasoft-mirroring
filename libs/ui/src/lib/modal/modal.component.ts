@@ -64,6 +64,8 @@ export class ModalComponent {
   readonly label = input<string>('');
   readonly closeLabel = input<string>('Close');
   readonly closeOnBackdrop = input(true);
+  /** ESC closes the modal; turn it off while an action is in flight so the request is not left without its dialog. */
+  readonly closeOnEscape = input(true);
   /** Emits after the modal closes (ESC, backdrop, close button or `open` set to false). */
   readonly closed = output<void>();
 
@@ -94,7 +96,7 @@ export class ModalComponent {
     if (event.key === 'Escape') {
       event.stopPropagation();
       event.preventDefault();
-      this.close();
+      if (this.closeOnEscape()) this.close();
       return;
     }
     if (event.key !== 'Tab') {

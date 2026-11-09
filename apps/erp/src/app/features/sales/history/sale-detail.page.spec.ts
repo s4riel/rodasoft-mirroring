@@ -16,6 +16,7 @@ const detail = (over: Partial<SaleDetail> = {}): SaleDetail => ({
   status: 'COMPLETED',
   branch: { name: 'Sucursal central' },
   cashier: { name: 'Alberto Andia' },
+  order: null,
   customer: { name: 'Industrias Demo S.A.', documentType: 5, documentNumber: '1023456029', email: 'ventas@demo.bo' },
   lines: [{ code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00' }],
   subtotal: '490.00',

@@ -1,0 +1,29 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  padding: var(--space-6) var(--space-4);
+  background: var(--bg-page);
+}
+
+.state {
+  max-width: 30rem; /* a short message column */
+  margin: 0 auto;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+/* on paper only the receipt: no toolbar, no page background */
+@media print {
+  :host {
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+  }
+  .toolbar {
+    display: none;
+  }
+}
