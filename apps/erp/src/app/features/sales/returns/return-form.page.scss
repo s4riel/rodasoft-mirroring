@@ -1,0 +1,78 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.card-title {
+  margin: 0;
+  font-size: var(--body-lg-size);
+  color: var(--text-primary);
+}
+.lookup {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+.muted {
+  font-size: var(--body-md-size);
+  color: var(--text-secondary);
+}
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--body-md-size);
+  color: var(--text-primary);
+}
+.lines th {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+.lines td {
+  padding: var(--space-3);
+  vertical-align: middle;
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+.num {
+  text-align: end;
+}
+.product {
+  display: block;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.amount {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--body-lg-size);
+  color: var(--text-primary);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

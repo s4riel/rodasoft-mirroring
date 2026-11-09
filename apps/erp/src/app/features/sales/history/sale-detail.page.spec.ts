@@ -32,6 +32,8 @@ const detail = (over: Partial<SaleDetail> = {}): SaleDetail => ({
   ],
   cancellation: { canRequest: true, windowEndsAt: null, pending: null, lastDecision: null, impact: { warehouseName: 'Huayna Kapac', registerName: 'Caja 1' } },
   receiptFormat: 'TICKET_80MM',
+  returns: [],
+  returnable: true,
   ...over,
 });
 
@@ -370,6 +372,38 @@ describe('SaleDetailPage', () => {
       );
       await settle(f);
       expect(testId(f, 'sale-cancel-decision')).toBeNull();
+    });
+  });
+  describe('returns (HU-VEN-21)', () => {
+    const tid = (f: Fixture, id: string) => el(f).querySelector<HTMLElement>(`[data-testid="${id}"]`);
+
+    it('offers "Registrar devolución" with the permission when something can still come back', async () => {
+      const f = await render({ permissions: ['sales.pos.use', 'sales.returns.manage'] });
+      http.expectOne(URL).flush(detail());
+      await settle(f);
+      expect(tid(f, 'sale-return')).not.toBeNull();
+    });
+
+    it('hides it without the permission or when nothing can come back', async () => {
+      const denied = await render();
+      http.expectOne(URL).flush(detail());
+      await settle(denied);
+      expect(tid(denied, 'sale-return')).toBeNull();
+      TestBed.resetTestingModule();
+      const done = await render({ permissions: ['sales.pos.use', 'sales.returns.manage'] });
+      http.expectOne(URL).flush(detail({ returnable: false }));
+      await settle(done);
+      expect(tid(done, 'sale-return')).toBeNull();
+    });
+
+    it('lists the returns and no longer offers the cancellation', async () => {
+      const f = await render();
+      http
+        .expectOne(URL)
+        .flush(detail({ returns: [{ id: 'r1', number: 'DEV-000001', status: 'APPROVED', total: '100.00', createdAt: '2026-10-15T10:00:00.000Z' }] }));
+      await settle(f);
+      expect(tid(f, 'sale-returns')?.textContent).toContain('DEV-000001');
+      expect(tid(f, 'sale-cancel-request')).toBeNull();
     });
   });
 });

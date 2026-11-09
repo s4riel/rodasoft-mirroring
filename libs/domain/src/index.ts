@@ -30,4 +30,5 @@ export * from './lib/sale-history';
 export * from './lib/sale-cancellation';
 export * from './lib/sales-documents';
 export * from './lib/sales-order-dispatch';
+export * from './lib/sale-return';
 export * from './lib/quote-tracking';

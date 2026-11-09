@@ -24,6 +24,7 @@ import {
 } from '@rodasoft/ui';
 import { problemOf } from '../../../core/api-error';
 import { formatBs, formatDateTime } from '../cash/cash-format';
+import { returnStatusPill } from '../returns/returns-format';
 import { documentText } from '../customers/customer-format';
 import { PosApi } from '../pos/pos-api.service';
 import { SaleCancellationDialog } from './sale-cancellation.dialog';
@@ -91,7 +92,19 @@ export class SaleDetailPage implements OnInit {
   protected readonly withdrawOpen = signal(false);
   protected readonly withdrawing = signal(false);
   /** The sale can be asked to be cancelled (the button also needs the permission). */
-  protected readonly canRequestCancellation = computed(() => this.detail()?.cancellation.canRequest ?? false);
+  protected readonly canRequestCancellation = computed(() => (this.detail()?.cancellation.canRequest ?? false) && !this.hasReturns());
+  /** A sale with a return that is not rejected cannot be cancelled any more (HU-VEN-21). */
+  private readonly hasReturns = computed(() => (this.detail()?.returns ?? []).some((r) => r.status !== 'REJECTED'));
+  protected readonly canReturn = computed(() => this.detail()?.returnable ?? false);
+  protected readonly returns = computed(() =>
+    (this.detail()?.returns ?? []).map((r) => ({
+      id: r.id,
+      number: r.number,
+      total: formatBs(r.total),
+      status: returnStatusPill({ status: r.status, creditNoteStatus: null }).label,
+      when: formatDateTime(r.createdAt),
+    })),
+  );
   /** The request waiting for Management, as the banner of VP-15 says it. */
   protected readonly pending = computed(() => {
     const p = this.detail()?.cancellation.pending;
@@ -247,6 +260,12 @@ export class SaleDetailPage implements OnInit {
         this.toast.danger(problemOf(err).message);
       },
     });
+  }
+
+  /** Opens the return form with this sale preselected (VP-10). */
+  protected registerReturn() {
+    const number = this.detail()?.number;
+    if (number) void this.router.navigate(['/sales/returns/new'], { queryParams: { sale: number } });
   }
 
   /** Opens the page where Management decides the request (VP-15c). */

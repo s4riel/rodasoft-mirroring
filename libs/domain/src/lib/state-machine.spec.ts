@@ -7,6 +7,7 @@ import {
   productStatusMachine,
   quoteMachine,
   saleMachine,
+  saleReturnMachine,
   salesOrderMachine,
   stockAdjustmentMachine,
   transferMachine,
@@ -164,5 +165,14 @@ describe('sales state machines (HU-VEN-00)', () => {
     expect(salesOrderMachine.next('PARTIALLY_DISPATCHED', 'cancel')).toBe('CANCELLED');
     expect(() => salesOrderMachine.next('DISPATCHED', 'cancel')).toThrow(InvalidTransitionError);
     expect(() => salesOrderMachine.next('CANCELLED', 'dispatchAll')).toThrow(InvalidTransitionError);
+  });
+});
+
+describe('saleReturnMachine', () => {
+  it('decides a pending return once', () => {
+    expect(saleReturnMachine.next('PENDING_APPROVAL', 'approve')).toBe('APPROVED');
+    expect(saleReturnMachine.next('PENDING_APPROVAL', 'reject')).toBe('REJECTED');
+    expect(() => saleReturnMachine.next('APPROVED', 'reject')).toThrow(InvalidTransitionError);
+    expect(() => saleReturnMachine.next('REJECTED', 'approve')).toThrow(InvalidTransitionError);
   });
 });

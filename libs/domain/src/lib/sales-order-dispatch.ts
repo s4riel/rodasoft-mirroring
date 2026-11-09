@@ -139,6 +139,11 @@ export interface DispatchTotalsInput {
 
 const zero = () => Decimal.zero(MONEY_SCALE);
 
+/** `amount × part ÷ whole` to the cent (0 when there is no whole): how a discount or a refund is shared out among lines. */
+export function proRata(amount: Decimal, part: Decimal, whole: Decimal): Decimal {
+  return whole.isZero() ? zero() : amount.mul(part, MONEY_SCALE + 2).div(whole, MONEY_SCALE);
+}
+
 /**
  * The amounts of the sale a dispatch makes. The customer discount of the order is shared out in proportion to what the
  * dispatch carries, and the total is rounded with the company's rounding mode as at the POS. The dispatch that completes the
@@ -164,9 +169,7 @@ export function dispatchTotals(input: DispatchTotalsInput): DispatchAmounts {
     };
   }
   const subtotal = input.lines.reduce((acc, line) => acc.add(lineTotal(line.unitPrice, line.quantity)), zero());
-  const discountAmount = order.subtotal.isZero()
-    ? zero()
-    : order.discountAmount.mul(subtotal, MONEY_SCALE + 2).div(order.subtotal, MONEY_SCALE);
+  const discountAmount = proRata(order.discountAmount, subtotal, order.subtotal);
   const rounded = roundSaleTotal(subtotal.sub(discountAmount), input.roundingMode);
   return { subtotal, discountAmount, roundingAmount: rounded.roundingAmount, total: rounded.total };
 }

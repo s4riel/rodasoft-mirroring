@@ -33,6 +33,13 @@ const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
       { path: ':id', title: 'Pedido · ERP', loadComponent: () => import('./orders/order-detail.page').then((m) => m.OrderDetailPage) },
     ],
   },
+  returns: {
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./returns/returns.page').then((m) => m.ReturnsPage) },
+      { path: 'new', title: 'Nueva devolución · ERP', loadComponent: () => import('./returns/return-form.page').then((m) => m.ReturnFormPage) },
+      { path: ':id', title: 'Devolución · ERP', loadComponent: () => import('./returns/return-detail.page').then((m) => m.ReturnDetailPage) },
+    ],
+  },
   customers: { loadComponent: () => import('./customers/customers.page').then((m) => m.CustomersPage) },
   'cash-register': {
     children: [

@@ -5,6 +5,7 @@
 import type { ReceiptFormat } from './company-settings';
 import type { SaleCancellationState } from './sale-cancellation';
 import type { PaymentMethod, SaleReceiptLine } from './sale-receipt';
+import type { SaleReturnRef } from './sale-return';
 import type { CustomerDiscountType } from './sales-pricing';
 import type { SaleStatus } from './state-machine';
 
@@ -94,6 +95,10 @@ export interface SaleDetail {
   /** The cancellation request of the sale and whether another may be asked (HU-VEN-14). */
   cancellation: SaleCancellationState;
   receiptFormat: ReceiptFormat;
+  /** The returns of the sale, newest first (HU-VEN-21). */
+  returns: SaleReturnRef[];
+  /** Whether some unit can still come back: the sale is completed and not fully returned. */
+  returnable: boolean;
 }
 
 /** `POST /sales/sales/:id/receipt/reprint`. */

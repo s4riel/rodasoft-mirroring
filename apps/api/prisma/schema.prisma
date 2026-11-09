@@ -108,6 +108,7 @@ model Company {
   dispatchItems        DispatchItem[]
   saleReturns          SaleReturn[]
   saleReturnItems      SaleReturnItem[]
+  creditNotes          CreditNote[]
   priceChanges         PriceChange[]
   approvalRequests     ApprovalRequest[]
   documentSequences    DocumentSequence[]
@@ -975,7 +976,22 @@ enum SalesOrderStatus {
 
 enum RefundMethod {
   CASH
-  CREDIT_NOTE
+  /// credit kept for the customer; only recorded until a customer balance exists (HU-CON-03)
+  STORE_CREDIT
+  TRANSFER
+}
+
+enum SaleReturnStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum ReturnItemCondition {
+  /// the piece goes back to the stock of the sale's warehouse
+  RESTOCK
+  /// the piece is scrap: no stock movement
+  SCRAP
 }
 
 /// Minimal customer (HU-CRM-01 extends it). `documentType` holds the `IdentityDocumentType` code of nit.ts. The discount
@@ -1289,8 +1305,9 @@ model Invoice {
   createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company Company @relation(fields: [companyId], references: [id])
-  sale    Sale    @relation(fields: [saleId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  sale        Sale         @relation(fields: [saleId], references: [id])
+  creditNotes CreditNote[]
 
   @@index([companyId, status])
   @@map("invoices")
@@ -1444,41 +1461,86 @@ model DispatchItem {
   @@map("dispatch_items")
 }
 
+/// A return of part of a sale (HU-VEN-21). Under the approval limit it is born `APPROVED` and does everything at once; above it
+/// it waits as `PENDING_APPROVAL` with an `ApprovalRequest` of type RETURN. The migration adds the CHECKs `total >= 0`.
 model SaleReturn {
-  id                  String       @id @default(uuid(7)) @db.Uuid
-  companyId           String       @map("company_id") @db.Uuid
-  saleId              String       @map("sale_id") @db.Uuid
+  id              String           @id @default(uuid(7)) @db.Uuid
+  companyId       String           @map("company_id") @db.Uuid
+  saleId          String           @map("sale_id") @db.Uuid
   /// `DEV-000012`
-  number              String
-  refundMethod        RefundMethod @map("refund_method")
-  total               Decimal      @db.Decimal(14, 2)
-  /// the credit note record, when the refund is a credit note (HU-FAC issues it)
-  creditNoteInvoiceId String?      @map("credit_note_invoice_id") @db.Uuid
-  createdById         String       @map("created_by_id") @db.Uuid
-  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  number          String
+  status          SaleReturnStatus @default(APPROVED)
+  /// a `RETURN_REASONS` code
+  reason          String
+  comment         String?
+  refundMethod    RefundMethod     @map("refund_method")
+  /// the transfer reference, required for TRANSFER
+  refundReference String?          @map("refund_reference")
+  total           Decimal          @db.Decimal(14, 2)
+  /// the register of the requesting cashier: a cash refund approved later leaves from its open shift
+  registerId      String?          @map("register_id") @db.Uuid
+  /// the shift that paid the cash refund
+  shiftId         String?          @map("shift_id") @db.Uuid
+  idempotencyKey  String?          @map("idempotency_key")
+  createdById     String           @map("created_by_id") @db.Uuid
+  approvedAt      DateTime?        @map("approved_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  company Company          @relation(fields: [companyId], references: [id])
-  sale    Sale             @relation(fields: [saleId], references: [id])
-  items   SaleReturnItem[]
+  company    Company          @relation(fields: [companyId], references: [id])
+  sale       Sale             @relation(fields: [saleId], references: [id])
+  items      SaleReturnItem[]
+  creditNote CreditNote?
 
   @@unique([companyId, number])
+  @@unique([companyId, idempotencyKey])
   @@index([companyId, saleId])
+  @@index([companyId, status, createdAt(sort: Desc)])
   @@map("sale_returns")
 }
 
+/// The migration adds the CHECKs `quantity > 0` and `refund_amount >= 0`.
 model SaleReturnItem {
-  id         String @id @default(uuid(7)) @db.Uuid
-  companyId  String @map("company_id") @db.Uuid
-  returnId   String @map("return_id") @db.Uuid
-  saleItemId String @map("sale_item_id") @db.Uuid
-  quantity   Int
+  id           String              @id @default(uuid(7)) @db.Uuid
+  companyId    String              @map("company_id") @db.Uuid
+  returnId     String              @map("return_id") @db.Uuid
+  saleItemId   String              @map("sale_item_id") @db.Uuid
+  quantity     Int
+  condition    ReturnItemCondition
+  /// what the customer gets back for these pieces
+  refundAmount Decimal             @map("refund_amount") @db.Decimal(14, 2)
 
   company  Company    @relation(fields: [companyId], references: [id])
   return   SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
   saleItem SaleItem   @relation(fields: [saleItemId], references: [id])
 
   @@index([companyId, returnId])
+  @@index([companyId, saleItemId])
   @@map("sale_return_items")
+}
+
+/// Credit and debit note of an approved return, linked to the original invoice. Minimal record in status PENDING; the SIAT epic
+/// (HU-FAC) issues it. `number` stays null until then.
+model CreditNote {
+  id                     String        @id @default(uuid(7)) @db.Uuid
+  companyId              String        @map("company_id") @db.Uuid
+  returnId               String        @unique @map("return_id") @db.Uuid
+  invoiceId              String        @map("invoice_id") @db.Uuid
+  number                 Int?
+  status                 InvoiceStatus @default(PENDING)
+  total                  Decimal       @db.Decimal(14, 2)
+  customerTaxName        String        @map("customer_tax_name")
+  customerDocumentType   Int           @map("customer_document_type")
+  customerDocumentNumber String        @map("customer_document_number")
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company    @relation(fields: [companyId], references: [id])
+  return  SaleReturn @relation(fields: [returnId], references: [id])
+  invoice Invoice    @relation(fields: [invoiceId], references: [id])
+
+  @@index([companyId, status])
+  @@index([companyId, invoiceId])
+  @@map("credit_notes")
 }
 
 /// Append-only audit of single and bulk price edits (`batchId` groups a bulk update).

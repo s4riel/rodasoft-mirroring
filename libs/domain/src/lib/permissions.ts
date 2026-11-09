@@ -44,6 +44,7 @@ export const PERMISSIONS = {
   'sales.cancellations.request': 'Solicitar anulación de una venta',
   'sales.cancellations.approve': 'Aprobar anulaciones',
   'sales.returns.manage': 'Registrar devoluciones',
+  'sales.returns.approve': 'Aprobar devoluciones',
   'sales.prices.edit': 'Editar precios',
   'sales.customers.manage': 'Gestionar clientes del POS, su descuento y su crédito',
 

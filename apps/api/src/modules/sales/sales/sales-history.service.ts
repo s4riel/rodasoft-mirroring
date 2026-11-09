@@ -16,6 +16,7 @@ import { SettingsService } from '../../../common/settings/settings.service';
 import { dayStart, nextDayStart } from '../../inventory/business-days';
 import { posErrors } from '../pos/pos.errors';
 import type { ListSalesQueryDto } from './sales-history.dto';
+import { SaleReturnsQueryService } from '../returns/sale-returns-query.service';
 import { SaleCancellationService } from './sale-cancellation.service';
 import { SaleVisibilityService } from './sale-visibility.service';
 
@@ -33,6 +34,7 @@ export class SalesHistoryService {
     private readonly visibility: SaleVisibilityService,
     private readonly settings: SettingsService,
     private readonly cancellations: SaleCancellationService,
+    private readonly returnQueries: SaleReturnsQueryService,
   ) {}
 
   async list(query: ListSalesQueryDto): Promise<SaleListResponse> {
@@ -122,11 +124,12 @@ export class SalesHistoryService {
     });
     if (!sale || !sale.invoice) throw posErrors.saleNotFound();
 
-    const [cashier, history, receiptFormat, cancellation] = await Promise.all([
+    const [cashier, history, receiptFormat, cancellation, returns] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: sale.createdById }, select: { name: true } }),
       this.history(sale.companyId, sale.id),
       this.settings.get('sales.receiptFormat'),
       this.cancellations.stateOf({ id: sale.id, status: sale.status as SaleStatus, createdAt: sale.createdAt, warehouse: sale.warehouse, shift: sale.shift, origin: sale.origin }),
+      this.returnQueries.refsOfSale(sale.id),
     ]);
 
     return {
@@ -165,6 +168,8 @@ export class SalesHistoryService {
       history,
       cancellation,
       receiptFormat,
+      returns,
+      returnable: sale.status === 'COMPLETED' && (await this.returnQueries.hasReturnable(sale)),
     };
   }
 
