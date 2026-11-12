@@ -1,6 +1,15 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import type { EditPriceInput, PriceDetail, PriceListQuery, PriceListResponse } from '@rodasoft/domain';
+import type {
+  BulkPriceApplyInput,
+  BulkPriceInput,
+  BulkPricePreview,
+  BulkPriceResult,
+  EditPriceInput,
+  PriceDetail,
+  PriceListQuery,
+  PriceListResponse,
+} from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
@@ -24,5 +33,15 @@ export class PricesApi {
   /** VP-11b · Changes the price. `expectedPrice` is the one the dialog showed: a different stored price is refused. */
   edit(productId: string, body: EditPriceInput): Observable<PriceDetail> {
     return this.http.patch<PriceDetail>(`/api/v1/sales/prices/${productId}`, body);
+  }
+
+  /** VP-11c · What a bulk update would do, page by page, with the hash `bulkApply` asks for. Writes nothing. */
+  bulkPreview(body: BulkPriceInput): Observable<BulkPricePreview> {
+    return this.http.post<BulkPricePreview>('/api/v1/sales/prices/bulk/preview', body);
+  }
+
+  /** VP-11c · Applies the update that was previewed; a hash that no longer matches is refused (`BULK_PREVIEW_STALE`). */
+  bulkApply(body: BulkPriceApplyInput): Observable<BulkPriceResult> {
+    return this.http.post<BulkPriceResult>('/api/v1/sales/prices/bulk/apply', body);
   }
 }

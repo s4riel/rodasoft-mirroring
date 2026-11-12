@@ -17,6 +17,7 @@ export type OutboxType =
   | 'sales.cash-shift.difference'
   | 'sales.cash-shift.reviewed'
   | 'sales.price.changed'
+  | 'sales.prices.bulk-changed'
   | 'sales.cash-movement.created'
   | 'sales.cash-expense.requested'
   | 'sales.cash-expense.decided'

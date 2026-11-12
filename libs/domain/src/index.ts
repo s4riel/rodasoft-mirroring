@@ -34,3 +34,4 @@ export * from './lib/sale-return';
 export * from './lib/quote-tracking';
 export * from './lib/cash-register';
 export * from './lib/pricing';
+export * from './lib/approvals';

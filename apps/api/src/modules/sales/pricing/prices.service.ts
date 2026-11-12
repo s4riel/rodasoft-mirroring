@@ -25,13 +25,11 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { MembershipService } from '../../access/membership.service';
 import { productSearchWhere } from '../../inventory/product-search-where';
 import { recordPriceChange } from '../../../common/prices/price-change.recorder';
+import { brandCategoryFilters, LISTED } from './price-filter';
 import { priceErrors } from './prices.errors';
 
 /** Changes the price dialog lists under the current price. */
 const DETAIL_CHANGES = 10;
-
-/** A draft of the creation wizard is not a product yet: it has no place in the price list. */
-const LISTED: Prisma.ProductWhereInput = { status: { not: 'DRAFT' } };
 
 type ChangeRow = {
   id: string;
@@ -68,9 +66,7 @@ export class PricesService {
     const [branch, canViewCosts] = await Promise.all([this.resolveBranch(query.branchId), this.canViewCosts()]);
     const filters: Prisma.ProductWhereInput[] = [LISTED];
     if (query.q) filters.push(productSearchWhere(query.q).matching);
-    if (query.brandId) filters.push({ brandId: query.brandId });
-    // a category filter also matches the products of its subcategories
-    if (query.categoryId) filters.push({ OR: [{ categoryId: query.categoryId }, { category: { parentId: query.categoryId } }] });
+    filters.push(...brandCategoryFilters(query));
     if (query.priced === 'with') filters.push({ salePrice: { gt: 0 } });
     if (query.priced === 'without') filters.push({ salePrice: { equals: 0 } });
     const where: Prisma.ProductWhereInput = { AND: filters };

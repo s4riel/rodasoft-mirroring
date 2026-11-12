@@ -25,10 +25,12 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   // HU-VEN-24 and 26: no consumer yet; accounting just logs them
   'sales.cash-shift.reviewed': QUEUE.accounting,
   'sales.price.changed': QUEUE.accounting,
+  // HU-VEN-27: one event per bulk update, not one per product; no consumer yet
+  'sales.prices.bulk-changed': QUEUE.accounting,
   'sales.cash-movement.created': QUEUE.accounting,
   'sales.cash-expense.requested': QUEUE.accounting,
   'sales.cash-expense.decided': QUEUE.accounting,
-  // until the approvals inbox (HU-VEN-29) has its own consumer, like the cash shift events
+  // no consumer yet: the approvals inbox (HU-VEN-29) reads the approval_requests table, it consumes no event
   'sales.cancellation.requested': QUEUE.accounting,
   'sales.cancellation.withdrawn': QUEUE.accounting,
   'sales.cancellation.approved': QUEUE.accounting,

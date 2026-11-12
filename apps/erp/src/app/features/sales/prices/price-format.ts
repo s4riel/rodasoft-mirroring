@@ -1,4 +1,4 @@
-import { Decimal, type PriceChangeEntry, type PricedFilter, type PriceListRow } from '@rodasoft/domain';
+import { Decimal, type BulkPriceDirection, type PriceChangeEntry, type PricedFilter, type PriceListRow, type RoundingMode } from '@rodasoft/domain';
 
 const TIME_ZONE = 'America/La_Paz';
 const dateOnly = new Intl.DateTimeFormat('es-BO', { timeZone: TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -26,9 +26,10 @@ export function formatSignedAmount(amount: string): string {
   return value.isNegative() ? `− ${value.neg().format()}` : `+ ${value.format()}`;
 }
 
-/** Who a change is attributed to: the user, or "lista importada" for a price that came from the Excel import. */
+/** Who a change is attributed to: the user, or "lista importada" / "actualización masiva" for a price that came from there. */
 export function changeAuthor(change: Pick<PriceChangeEntry, 'source' | 'by'>): string {
   if (change.source === 'IMPORT') return 'lista importada';
+  if (change.source === 'BULK') return 'actualización masiva';
   return change.by?.name || 'usuario eliminado';
 }
 
@@ -58,3 +59,41 @@ export const PRICED_OPTIONS: { value: PricedFilter; label: string }[] = [
 ];
 
 export const parsePriced = (raw: string | null): PricedFilter | null => (raw === 'with' || raw === 'without' ? raw : null);
+
+// ── Bulk update (HU-VEN-27, VP-11c) ──
+
+export const BULK_PAGE_SIZE = 20;
+
+export const BULK_DIRECTIONS: { value: BulkPriceDirection; label: string }[] = [
+  { value: 'INCREASE', label: 'Aumentar %' },
+  { value: 'DECREASE', label: 'Rebajar %' },
+];
+
+export const BULK_ROUNDINGS: { value: RoundingMode; label: string }[] = [
+  { value: 'NONE', label: 'Sin redondeo' },
+  { value: 'HALF_BOLIVIANO', label: 'A Bs 0,50' },
+  { value: 'INTEGER', label: 'A Bs 1' },
+];
+
+/** What the "Nuevo" column says for a product that is not going to change. */
+export function bulkSkipLabel(status: 'UNCHANGED' | 'INVALID'): string {
+  return status === 'INVALID' ? 'Sin precio' : 'Sin cambio';
+}
+
+/** `142 productos coinciden con el filtro`. */
+export function matchCountText(count: number): string {
+  return count === 1 ? '1 producto coincide con el filtro' : `${count} productos coinciden con el filtro`;
+}
+
+/** The label of the apply button. */
+export function applyLabel(count: number): string {
+  return count === 1 ? 'Aplicar a 1 producto' : `Aplicar a ${count} productos`;
+}
+
+/** The sentence under "Vista previa" about the products that will not change. */
+export function skippedText(unchanged: number, invalid: number): string {
+  const parts: string[] = [];
+  if (unchanged > 0) parts.push(`${unchanged} con el mismo precio tras el ajuste`);
+  if (invalid > 0) parts.push(`${invalid} sin precio`);
+  return parts.length ? `No se modifican: ${parts.join(' y ')}.` : '';
+}

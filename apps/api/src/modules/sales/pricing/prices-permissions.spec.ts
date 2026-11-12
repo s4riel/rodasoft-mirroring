@@ -11,7 +11,7 @@ describe('Prices controller permissions', () => {
     expect(reflector.get(REQUIRED_ANY_PERMISSIONS, PricesController)).toBeUndefined();
   });
 
-  it.each(['list', 'detail', 'edit'] as const)('does not loosen it on %s', (handler) => {
+  it.each(['list', 'detail', 'edit', 'bulkPreview', 'bulkApply'] as const)('does not loosen it on %s', (handler) => {
     expect(reflector.get(REQUIRED_PERMISSIONS, PricesController.prototype[handler])).toBeUndefined();
     expect(reflector.get(REQUIRED_ANY_PERMISSIONS, PricesController.prototype[handler])).toBeUndefined();
   });

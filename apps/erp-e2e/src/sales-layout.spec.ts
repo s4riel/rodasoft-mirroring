@@ -51,3 +51,16 @@ test('the cashier does not see Precios or Aprobaciones, and cannot open them by 
   await page.goto('/sales/prices');
   await expect(page).not.toHaveURL(/\/sales\/prices$/);
 });
+
+test('who can only approve returns sees Aprobaciones (HU-VEN-29) but not Precios', async ({ page }) => {
+  await page.route('**/api/v1/context', async (route) => {
+    const response = await route.fetch({ url: route.request().url().replace('rodalaser.localhost', 'localhost') });
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, permissions: ['sales.pos.use', 'sales.returns.approve'] } });
+  });
+  await login(page);
+  await page.goto('/sales');
+  const nav = page.getByRole('navigation', { name: 'Secciones de ventas' });
+  await expect(nav.getByRole('link', { name: /Aprobaciones/ })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Precios' })).toHaveCount(0);
+});

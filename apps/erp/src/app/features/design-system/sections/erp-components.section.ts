@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import {
   BearingDiagramComponent,
+  ButtonComponent,
   CategoryCardComponent,
+  RequestCardComponent,
   IconComponent,
   BranchStockLabels,
   BranchStockRow,
@@ -27,7 +29,9 @@ import {
   imports: [
     BearingDiagramComponent,
     BranchStockTableComponent,
+    ButtonComponent,
     CategoryCardComponent,
+    RequestCardComponent,
     DataFieldComponent,
     DocTableCellDirective,
     DocTableComponent,
@@ -125,6 +129,25 @@ import {
         <rs-pos-customer type="identified" name="Minera Demo Ltda." detail="NIT 1023456027 · compras@minerademo.bo" actionLabel="Cambiar" />
       </div>
 
+      <h3>RequestCard · Tone = Neutral | Negative, with and without actions (VP-25 draws it as plain frames: estimated)</h3>
+      <div class="request-cards">
+        <rs-request-card
+          kicker="Devolución"
+          title="DEV-000012 · V-000231"
+          description="Ana Cajera · Falla de fábrica · Minera Demo Ltda."
+          detail="El cliente trajo el rodamiento roto"
+          amount="− Bs 200,00"
+          tone="negative"
+        >
+          <button slot="actions" rsButton variant="ghost" type="button">Rechazar</button>
+          <button slot="actions" rsButton variant="primary" type="button">Aprobar</button>
+        </rs-request-card>
+        <rs-request-card kicker="Diferencia de caja" title="T-0142 · Caja 1" description="Ana Cajera · Cierre con diferencia" amount="− Bs 20,00" tone="negative">
+          <button slot="actions" rsButton variant="secondary" type="button">Ver detalle</button>
+        </rs-request-card>
+        <rs-request-card kicker="Anulación" title="V-000231" description="Ana Cajera · Error de datos del cliente" />
+      </div>
+
       <h3>Numpad · Type = Amount | Qty (Qty estimated: Figma only draws Amount)</h3>
       <div class="row">
         <rs-numpad type="amount" label="Monto recibido" prefix="Bs " value="1200,5" backspaceLabel="Borrar" decimalLabel="Coma decimal" />
@@ -158,6 +181,7 @@ import {
     .row > rs-data-field[data-layout="inline"] { width: 440px; }
     .pos-list { max-width: 760px; border: var(--stroke-default) solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; }
     .pos-cart { width: 420px; }
+    .request-cards { display: grid; gap: var(--space-3); max-width: 720px; }
   `,
 })
 export class ErpComponentsSection {

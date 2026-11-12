@@ -1,0 +1,18 @@
+<div class="info">
+  @if (kicker()) {
+    <span class="kicker">{{ kicker() }}</span>
+  }
+  <span class="title">{{ title() }}</span>
+  @if (description()) {
+    <span class="description">{{ description() }}</span>
+  }
+  @if (detail()) {
+    <span class="detail">{{ detail() }}</span>
+  }
+</div>
+@if (amount()) {
+  <span class="amount">{{ amount() }}</span>
+}
+<div class="actions">
+  <ng-content select="[slot=actions]" />
+</div>

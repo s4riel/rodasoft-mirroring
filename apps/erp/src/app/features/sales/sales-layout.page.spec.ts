@@ -6,6 +6,7 @@ import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { RS_PERMISSIONS, ToastService } from '@rodasoft/ui';
 import { ContextStore } from '../../core/context.store';
+import { ApprovalsCountStore } from './approvals/approvals-count.store';
 import { SalesLayoutPage } from './sales-layout.page';
 import { SALES_ROUTES } from './sales.routes';
 
@@ -14,6 +15,7 @@ class StubPage {}
 
 const CASHIER = ['sales.pos.use', 'sales.cash-register.open', 'sales.quotes.manage', 'sales.orders.manage', 'sales.cancellations.request', 'sales.returns.manage'];
 const ALL = [...CASHIER, 'sales.customers.manage', 'sales.prices.edit', 'sales.cancellations.approve', 'sales.cash-register.review'];
+const APPROVE_PERMISSIONS = ['sales.cancellations.approve', 'sales.cash-register.review', 'sales.returns.approve', 'sales.cash-expenses.approve'];
 
 describe('sales section', () => {
   const warning = jest.fn();
@@ -67,8 +69,8 @@ describe('sales section', () => {
     expect(hasTab(h, '/sales/approvals')).toBe(false);
   });
 
-  it('shows Aprobaciones with either approval permission', async () => {
-    for (const permission of ['sales.cancellations.approve', 'sales.cash-register.review']) {
+  it('shows Aprobaciones with any of the four approval permissions (HU-VEN-29)', async () => {
+    for (const permission of APPROVE_PERMISSIONS) {
       TestBed.resetTestingModule();
       setup([permission, 'sales.pos.use']);
       const h = await RouterTestingHarness.create();
@@ -76,6 +78,36 @@ describe('sales section', () => {
       h.detectChanges();
       expect(hasTab(h, '/sales/approvals')).toBe(true);
     }
+  });
+
+  it('badges Aprobaciones with the requests that wait, and with nothing when none does (HU-VEN-29)', async () => {
+    setup(['sales.returns.approve', 'sales.pos.use']);
+    const h = await RouterTestingHarness.create();
+    await h.navigateByUrl('/sales/history', SalesLayoutPage);
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/sales/approvals/summary').flush({ pending: 3 });
+    h.detectChanges();
+    const badge = (h.routeNativeElement as HTMLElement).querySelector('rs-sub-nav a[href="/sales/approvals"] .badge');
+    expect(badge?.textContent?.trim()).toBe('3');
+
+    TestBed.inject(ApprovalsCountStore).set(0);
+    h.detectChanges();
+    expect((h.routeNativeElement as HTMLElement).querySelector('rs-sub-nav a[href="/sales/approvals"] .badge')).toBeNull();
+  });
+
+  it('does not ask for the count of Aprobaciones from who cannot decide anything', async () => {
+    setup(CASHIER);
+    const h = await RouterTestingHarness.create();
+    await h.navigateByUrl('/sales/history', SalesLayoutPage);
+    TestBed.inject(HttpTestingController).expectNone('/api/v1/sales/approvals/summary');
+  });
+
+  it('opens Aprobaciones on the inbox (HU-VEN-29)', async () => {
+    setup(['sales.cash-expenses.approve']);
+    const h = await RouterTestingHarness.create();
+    await h.navigateByUrl('/sales/approvals');
+    h.detectChanges();
+    expect((h.routeNativeElement as HTMLElement).querySelector('rs-approvals-inbox-page')).not.toBeNull();
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/sales/approvals');
   });
 
   it('shows Caja to who only reviews cash differences, and opens it on the shift history (HU-VEN-24, HU-VEN-25)', async () => {

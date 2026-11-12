@@ -1,0 +1,202 @@
+<rs-page-header
+  title="Actualización masiva de precios"
+  description="Ajusta muchos precios a la vez con vista previa antes de aplicar."
+  type="form"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+<section class="card" aria-labelledby="bulk-filter-title">
+  <h2 class="card-title" id="bulk-filter-title">1. Qué productos</h2>
+  <div class="fields">
+    <rs-field label="Marca" forId="bulk-brand">
+      <rs-select
+        inputId="bulk-brand"
+        placeholder="Todas las marcas"
+        ariaLabel="Marca"
+        data-testid="bulk-brand"
+        [options]="brandOptions()"
+        [value]="brandId()"
+        (valueChange)="setBrand($event)"
+      />
+    </rs-field>
+    <rs-field label="Categoría" forId="bulk-category">
+      <rs-select
+        inputId="bulk-category"
+        placeholder="Todas las categorías"
+        ariaLabel="Categoría"
+        data-testid="bulk-category"
+        [options]="categoryOptions()"
+        [value]="categoryId()"
+        (valueChange)="setCategory($event)"
+      />
+    </rs-field>
+  </div>
+  @if (catalogError(); as message) {
+    <rs-note type="danger" title="No pudimos cargar las marcas y categorías" role="alert">{{ message }}</rs-note>
+  } @else if (hasFilter()) {
+    <p class="match" role="status" data-testid="bulk-match">{{ matchText() }}</p>
+  } @else {
+    <p class="muted">Elige una marca, una categoría o ambas. Nunca se cambian todos los productos a la vez.</p>
+  }
+</section>
+
+<section class="card" aria-labelledby="bulk-adjust-title">
+  <h2 class="card-title" id="bulk-adjust-title">2. Cómo ajustar</h2>
+  <div class="group" role="group" aria-labelledby="bulk-direction-label">
+    <span class="group-label" id="bulk-direction-label">Tipo de ajuste</span>
+    <div class="chips">
+      @for (option of directions; track option.value) {
+        <rs-filter-chip
+          [label]="option.label"
+          [showMedia]="false"
+          [selected]="direction() === option.value"
+          [attr.data-testid]="'bulk-direction-' + option.value"
+          (selectedChange)="pickDirection(option.value, $event)"
+        />
+      }
+    </div>
+  </div>
+  <div class="group" role="group" aria-labelledby="bulk-rounding-label">
+    <span class="group-label" id="bulk-rounding-label">Redondeo (entero o Bs 0,50)</span>
+    <div class="chips">
+      @for (option of roundings; track option.value) {
+        <rs-filter-chip
+          [label]="option.label"
+          [showMedia]="false"
+          [selected]="rounding() === option.value"
+          [attr.data-testid]="'bulk-rounding-' + option.value"
+          (selectedChange)="pickRounding(option.value, $event)"
+        />
+      }
+    </div>
+  </div>
+  <rs-field class="percent" label="Porcentaje" forId="bulk-percent" required [error]="percentError()">
+    <rs-input-group [invalid]="!!percentError()">
+      <input
+        #percentBox
+        rsInput
+        rsNumeric="decimal"
+        id="bulk-percent"
+        class="mono"
+        inputmode="decimal"
+        autocomplete="off"
+        placeholder="0,00"
+        data-testid="bulk-percent"
+        [invalid]="!!percentError()"
+        [value]="percent()"
+        (input)="setPercent(percentBox.value)"
+      />
+    </rs-input-group>
+  </rs-field>
+</section>
+
+<section class="card" aria-labelledby="bulk-preview-title">
+  <h2 class="card-title" id="bulk-preview-title" data-testid="bulk-preview-title">{{ previewTitle() }}</h2>
+
+  @switch (state()) {
+    @case ('idle') {
+      <p class="muted" data-testid="bulk-idle">Elige una marca o categoría y escribe el porcentaje para ver cómo quedarían los precios.</p>
+    }
+    @case ('loading') {
+      <div class="skeleton" role="status" aria-busy="true" aria-label="Calculando la vista previa">
+        @for (i of skeletonRows; track i) {
+          <rs-skeleton shape="rect" width="100%" height="var(--space-8)" />
+        }
+      </div>
+    }
+    @case ('forbidden') {
+      <section class="state">
+        <rs-empty-state-illustrated
+          illustration="no-access"
+          heading="No tienes permiso para cambiar precios"
+          description="Pide acceso al administrador de tu empresa."
+          [showAction]="false"
+        />
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos calcular la vista previa" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (noMatch()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="Ningún producto coincide"
+            description="Prueba con otra marca o categoría."
+            [showAction]="false"
+          />
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Vista previa de los nuevos precios" [columns]="columns" [rows]="rows()">
+          <div slot="footer" class="footer">
+            <span class="range">{{ counts().matched }} {{ counts().matched === 1 ? 'producto' : 'productos' }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="page()"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+        @if (skipped(); as text) {
+          <rs-note type="info" data-testid="bulk-skipped">{{ text }}</rs-note>
+        }
+      }
+    }
+  }
+</section>
+
+@if (requiresApproval()) {
+  <rs-note type="warning" title="Este cambio requiere aprobación" data-testid="bulk-approval-note">
+    Tu empresa exige aprobación para los cambios masivos de precio y esa aprobación todavía no está disponible, por eso no puedes aplicarlo.
+  </rs-note>
+} @else {
+  <rs-note type="warning" [title]="warningTitle()" data-testid="bulk-warning-note">
+    Los precios cambian en cuanto confirmas, también en el punto de venta. Se guarda el precio anterior en el historial de cada producto. Los precios nuevos se redondean según la opción elegida.
+  </rs-note>
+}
+
+<div class="actions">
+  <button rsButton variant="ghost" type="button" (click)="cancel()">Cancelar</button>
+  <button rsButton variant="primary" type="button" data-testid="bulk-apply" [disabled]="!canApply()" (click)="askConfirmation()">
+    {{ applyText() }}
+  </button>
+</div>
+
+<rs-modal variant="confirmation" heading="¿Aplicar el cambio de precios?" closeLabel="Cerrar" [open]="confirmOpen()" (closed)="closeConfirmation()">
+  <div class="confirm">
+    <p data-testid="bulk-confirm-text">
+      Se cambiará el precio de {{ counts().toChange }} {{ counts().toChange === 1 ? 'producto' : 'productos' }}. Queda en el historial de cada uno.
+    </p>
+    <rs-field label="Motivo (opcional)" forId="bulk-reason">
+      <textarea
+        #reasonBox
+        rsTextarea
+        id="bulk-reason"
+        rows="2"
+        placeholder="Por ejemplo: nueva lista del proveedor"
+        [attr.maxlength]="reasonMax"
+        [value]="reason()"
+        (input)="reason.set(reasonBox.value)"
+      ></textarea>
+    </rs-field>
+    @if (applyError(); as message) {
+      <rs-note type="danger" title="No se pudo aplicar el cambio" role="alert" data-testid="bulk-apply-error">{{ message }}</rs-note>
+    }
+  </div>
+  <div slot="footer" class="confirm-actions">
+    <button rsButton variant="secondary" type="button" [disabled]="applying()" (click)="closeConfirmation()">Volver</button>
+    <button rsButton variant="primary" type="button" data-testid="bulk-confirm" [loading]="applying()" (click)="apply()">Aplicar cambio</button>
+  </div>
+</rs-modal>
+
+<rs-toast-outlet closeLabel="Cerrar" />

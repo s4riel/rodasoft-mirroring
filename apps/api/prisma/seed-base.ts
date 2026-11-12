@@ -120,6 +120,7 @@ export async function seedCompany(prisma: PrismaClient, c: SeedCompany): Promise
     'sales.receiptFormat',
     'sales.qrConfirmTimeoutSeconds',
     'sales.cardPaymentEnabled',
+    'sales.bulkPriceRequiresApproval',
     'sales.cashDifferenceTolerance',
   ] as const) {
     await prisma.companySetting.upsert({

@@ -20,6 +20,18 @@ describe('ERP routes', () => {
     expect(guarded.every((t) => t.canActivate?.length === 1)).toBe(true);
   });
 
+  it('builds the prices tab with its bulk update and the approvals tab with the inbox (HU-VEN-27, HU-VEN-29)', async () => {
+    const sales = routes.find((r) => r.path === '' && r.children)?.children?.find((c) => c.path === 'sales');
+    const children = (await (sales?.loadChildren as () => Promise<Route[]>)()) as Route[];
+    const tabs = children[0].children ?? [];
+    const prices = tabs.find((t) => t.path === 'prices');
+    expect(prices?.children?.map((c) => c.path)).toEqual(['', 'bulk']);
+    const approvals = tabs.find((t) => t.path === 'approvals');
+    // a real screen, not the placeholder of the other tabs
+    expect(approvals?.loadComponent).toBeDefined();
+    expect(String(approvals?.loadComponent)).toContain('approvals-inbox.page');
+  });
+
   it('routes the full-screen POS next to the shell, behind the session and its tab permission', () => {
     const pos = routes.find((r) => r.path === 'sales/pos');
     expect(pos?.loadComponent).toBeDefined();

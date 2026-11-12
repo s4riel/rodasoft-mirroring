@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query, ValidationError, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, ValidationError, ValidationPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { PriceDetail, PriceListResponse } from '@rodasoft/domain';
+import type { BulkPricePreview, BulkPriceResult, PriceDetail, PriceListResponse } from '@rodasoft/domain';
 import { RequirePermissions } from '../../access/require-permissions.decorator';
-import { EditPriceDto, ListPricesQueryDto } from './prices.dto';
+import { PriceBulkService } from './price-bulk.service';
+import { BulkPriceApplyDto, BulkPriceDto, EditPriceDto, ListPricesQueryDto } from './prices.dto';
 import { priceErrors } from './prices.errors';
 import { PricesService } from './prices.service';
 
@@ -27,11 +28,28 @@ const productIdPipe = new ParseUUIDPipe({ exceptionFactory: () => priceErrors.pr
 @Controller('sales/prices')
 @RequirePermissions('sales.prices.edit')
 export class PricesController {
-  constructor(private readonly prices: PricesService) {}
+  constructor(
+    private readonly prices: PricesService,
+    private readonly bulk: PriceBulkService,
+  ) {}
 
   @Get()
   list(@Query(filterPipe) query: ListPricesQueryDto): Promise<PriceListResponse> {
     return this.prices.list(query);
+  }
+
+  /** VP-11c · what the bulk update would do, page by page. Writes nothing. */
+  @Post('bulk/preview')
+  @HttpCode(200)
+  bulkPreview(@Body(bodyPipe) body: BulkPriceDto): Promise<BulkPricePreview> {
+    return this.bulk.preview(body);
+  }
+
+  /** VP-11c · applies the update the user previewed (HU-VEN-27). */
+  @Post('bulk/apply')
+  @HttpCode(200)
+  bulkApply(@Body(bodyPipe) body: BulkPriceApplyDto): Promise<BulkPriceResult> {
+    return this.bulk.apply(body);
   }
 
   @Get(':productId')
