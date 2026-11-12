@@ -1,0 +1,50 @@
+/* Figma "Arrastrar ítem": 14 × 30 grip, six dots; the size is geometry of the frame and has no token */
+:host {
+  display: inline-flex;
+  flex: none;
+}
+
+.handle {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  touch-action: none; /* the pointer drags the line, the browser must not scroll instead */
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.handle:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-2);
+}
+.handle:active {
+  cursor: grabbing;
+  color: var(--text-primary);
+  background: var(--bg-surface-2);
+}
+.handle:focus-visible {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+}
+.handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .handle {
+    transition: none;
+  }
+}

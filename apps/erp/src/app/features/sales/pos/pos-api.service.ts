@@ -93,6 +93,11 @@ export class PosApi {
     return this.http.patch<PosCheckoutResponse>(`${BASE}/checkout/items/${id}`, { quantity });
   }
 
+  /** HU-VEN-33: every line of the cart in the order the cashier wants. */
+  reorderItems(itemIds: string[]): Observable<PosCheckoutResponse> {
+    return this.http.put<PosCheckoutResponse>(`${BASE}/checkout/items/order`, { itemIds });
+  }
+
   removeItem(id: string): Observable<PosCheckoutResponse> {
     return this.http.delete<PosCheckoutResponse>(`${BASE}/checkout/items/${id}`);
   }

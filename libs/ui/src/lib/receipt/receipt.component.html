@@ -18,6 +18,9 @@
   @for (item of items(); track $index) {
     <li class="item">
       <span class="description">{{ item.description }}</span>
+      @if (item.note) {
+        <span class="note">{{ item.note }}</span>
+      }
       <span class="detail">{{ item.detail }}</span>
       <span class="total">{{ item.total }}</span>
     </li>

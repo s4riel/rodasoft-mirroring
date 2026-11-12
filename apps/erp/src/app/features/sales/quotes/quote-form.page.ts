@@ -1,17 +1,18 @@
+import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import type { CustomerSummary, QuoteEditorContext, QuoteProductResult } from '@rodasoft/domain';
+import { moveLine, salesLineSpecText, type CustomerSummary, type QuoteEditorContext, type QuoteProductResult } from '@rodasoft/domain';
 import {
   ButtonComponent,
-  DocTableCellDirective,
-  DocTableColumn,
-  DocTableComponent,
+  DragHandleComponent,
+  EmptyStateComponent,
   FieldComponent,
+  IconComponent,
   InputDirective,
   EmptyStateIllustratedComponent,
   NoteComponent,
   PageHeaderComponent,
-  QtyStepperComponent,
+  PosCartLineComponent,
   SelectComponent,
   SkeletonComponent,
   ToastOutletComponent,
@@ -24,29 +25,28 @@ import { editorTotals, formatDay, isZero, stockHint, type EditorLine } from './q
 import { QuotesApi } from './quotes-api.service';
 
 const SEARCH_DELAY_MS = 300;
-const COLUMNS: DocTableColumn[] = [
-  { key: 'code', label: 'Código', type: 'text', width: '10rem' },
-  { key: 'name', label: 'Producto', type: 'text' },
-  { key: 'stock', label: 'Stock', type: 'custom', width: '9rem' },
-  { key: 'price', label: 'Precio', type: 'number', width: '8rem' },
-  { key: 'quantity', label: 'Cantidad', type: 'custom', width: '10rem' },
-  { key: 'total', label: 'Importe', type: 'number', width: '8rem' },
-  { key: 'remove', label: '', type: 'custom', align: 'end', width: '6rem' },
-];
 
-/** VP-08 · New quote: customer, product search with the branch stock, quantities, validity and the totals preview. */
+/**
+ * VP-08 · New quote: customer, product search with the branch stock, the items as a list the salesperson reorders by dragging
+ * the handle of a line (or ↑/↓ on it, HU-VEN-33; the order is the one the quote, the order and the invoice keep), validity and
+ * the totals preview. Each item shows its measures and "Sin existencia" when there is no stock (HU-VEN-36).
+ */
 @Component({
   selector: 'rs-quote-form-page',
   imports: [
     ButtonComponent,
-    DocTableCellDirective,
-    DocTableComponent,
+    CdkDrag,
+    CdkDragHandle,
+    CdkDropList,
+    DragHandleComponent,
+    EmptyStateComponent,
     EmptyStateIllustratedComponent,
+    IconComponent,
     FieldComponent,
     InputDirective,
     NoteComponent,
     PageHeaderComponent,
-    QtyStepperComponent,
+    PosCartLineComponent,
     SelectComponent,
     SkeletonComponent,
     ToastOutletComponent,
@@ -67,7 +67,6 @@ export class QuoteFormPage {
     { label: 'Cotizaciones', link: '/sales/quotes' },
     { label: 'Nueva cotización' },
   ];
-  protected readonly columns = COLUMNS;
 
   protected readonly context = signal<QuoteEditorContext | null>(null);
   protected readonly loadFailed = signal('');
@@ -92,21 +91,6 @@ export class QuoteFormPage {
     const discount = this.customer()?.discount ?? null;
     return editorTotals(this.lines(), discount, this.context()?.roundingMode ?? 'NONE');
   });
-  protected readonly rows = computed(() =>
-    this.lines().map((line) => ({
-      id: line.productId,
-      label: line.code,
-      cells: {
-        code: line.code,
-        name: line.name,
-        stock: null,
-        price: formatBs(line.unitPrice),
-        quantity: null,
-        total: formatBs(editorTotals([line], null, 'NONE').total),
-        remove: null,
-      },
-    })),
-  );
   protected readonly hasDiscount = computed(() => !isZero(this.totals().discount));
   protected readonly hasRounding = computed(() => !isZero(this.totals().rounding));
   protected readonly customerError = computed(() => this.submitted() && !this.customer());
@@ -223,6 +207,7 @@ export class QuoteFormPage {
           unitPrice: product.salePrice,
           quantity: 1,
           available: product.available,
+          spec: product.spec,
         },
       ];
     });
@@ -253,12 +238,31 @@ export class QuoteFormPage {
     this.lines.update((lines) => lines.filter((l) => l.productId !== productId));
   }
 
-  protected lineOf(rowId: string): EditorLine | null {
-    return this.lines().find((l) => l.productId === rowId) ?? null;
+  /**
+   * The second text of a line (Figma VP-08): "Bs 245,00 c/u · 25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sin existencia".
+   * The stock is only said when it falls short; the line cuts the text with an ellipsis and shows all of it as a tooltip.
+   */
+  protected lineDetail(line: EditorLine): string {
+    const hint = stockHint(line.available, line.quantity);
+    return [`${formatBs(line.unitPrice)} c/u`, salesLineSpecText(line.spec), hint.short ? hint.text : ''].filter(Boolean).join(' · ');
   }
 
-  protected hintOf(line: EditorLine) {
-    return stockHint(line.available, line.quantity);
+  protected lineTotalText(line: EditorLine): string {
+    return formatBs(editorTotals([line], null, 'NONE').total);
+  }
+
+  /** A drop of the CDK list: the dragged line goes to its new place. */
+  protected drop(event: CdkDragDrop<EditorLine[]>) {
+    this.moveTo(event.previousIndex, event.currentIndex);
+  }
+
+  /** Moves the line at `from` to `to`; the order of the list is the order the quote is saved with. */
+  protected moveTo(from: number, to: number) {
+    const lines = this.lines();
+    const ids = moveLine(lines.map((line) => line.productId), from, to);
+    if (ids.every((id, index) => id === lines[index].productId)) return;
+    const byId = new Map(lines.map((line) => [line.productId, line]));
+    this.lines.set(ids.map((id) => byId.get(id) as EditorLine));
   }
 
   protected stockText(product: QuoteProductResult): string {

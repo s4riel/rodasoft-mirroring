@@ -4,6 +4,7 @@
  */
 import { validateOpeningFloat } from './cash-shift';
 import { Decimal, MONEY_SCALE } from './money';
+import type { PosCreditInfo } from './credit-sale';
 import type { PaymentMethod } from './sale-receipt';
 
 export type CashTenderedError = 'INVALID_AMOUNT' | 'INSUFFICIENT_CASH' | 'AMOUNT_TOO_LARGE';
@@ -79,6 +80,8 @@ export interface PosPayResponse {
   allowMixed: boolean;
   /** The company setting `sales.cardPaymentEnabled` (HU-VEN-10): whether the screen offers "Tarjeta". */
   cardEnabled: boolean;
+  /** Whether the cart's customer can buy on credit and which terms to offer (HU-VEN-34). */
+  credit: PosCreditInfo;
 }
 
 /** One line whose price changed since the cashier added it; the cart was updated to the new price. */
@@ -107,8 +110,14 @@ export interface PosCardPaymentInput {
   paymentId: string;
 }
 
-/** Cash, QR (alone or mixed) and card (alone); transfer and credit arrive with HU-VEN-34. */
-export type PosPaymentInput = PosCashPaymentInput | PosQrPaymentInput | PosCardPaymentInput;
+/** The whole sale on credit (HU-VEN-34): always alone, with the term in days. */
+export interface PosCreditPaymentInput {
+  method: 'CREDIT';
+  termDays: number;
+}
+
+/** Cash, QR (alone or mixed), card (alone) and credit (alone); transfer is not available yet. */
+export type PosPaymentInput = PosCashPaymentInput | PosQrPaymentInput | PosCardPaymentInput | PosCreditPaymentInput;
 
 export interface CompletePosCheckoutInput {
   payments: PosPaymentInput[];
@@ -130,6 +139,8 @@ export interface CompletedSale {
   /** Status of the invoice record; `PENDING` until the SIAT epic issues it. */
   invoiceStatus: 'PENDING';
   customerEmail: string | null;
+  /** A credit sale (HU-VEN-34): the day the balance falls due, `YYYY-MM-DD`; `null` otherwise. */
+  dueDate: string | null;
 }
 
 export interface CompletePosCheckoutResponse {

@@ -29,9 +29,11 @@
 
 .unit,
 .discount {
+  overflow: hidden; /* the quote editor writes the measures and "Sin existencia" here: long text is cut with an ellipsis */
   font-size: var(--body-sm-size);
   line-height: var(--body-sm-line-height);
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .unit {
   color: var(--text-muted);

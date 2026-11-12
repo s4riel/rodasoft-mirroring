@@ -257,3 +257,72 @@ test('the cashier splits the payment between QR and cash and completes one sale 
   await done.getByTestId('sale-new').click();
   await expect(done).toHaveCount(0);
 });
+
+/**
+ * HU-VEN-35 · rounding shown "redondeado": with `sales.roundingMode` on `INTEGER`, a product priced with cents makes the totals
+ * show a "Redondeo" row, the total is a whole number and the cash sale is charged exactly that total. The setting is put back
+ * afterwards. It opens the register itself when it is closed, like the QR test.
+ */
+test('with the rounding on, the totals show the rounding and the sale is charged the rounded total', async ({ page }) => {
+  const branch = await prisma.branch.findFirstOrThrow({ where: { name: BRANCH }, select: { companyId: true } });
+  const key = { companyId_key: { companyId: branch.companyId, key: 'sales.roundingMode' } };
+  const previous = await prisma.companySetting.findUnique({ where: key });
+
+  // a product priced with cents, so the rounding has something to do
+  const priced = await prisma.stockLevel.findMany({
+    where: { warehouseId, product: { status: 'ACTIVE' } },
+    select: { quantity: true, reserved: true, product: { select: { manufacturerCode: true, salePrice: true } } },
+    orderBy: { product: { manufacturerCode: 'asc' } },
+  });
+  const withCents = priced.find((l) => l.quantity - l.reserved >= 1 && !l.product.salePrice.mod(1).isZero());
+  test.skip(!withCents, 'The seed has no product priced with cents in the register warehouse');
+  const roundedCode = withCents!.product.manufacturerCode;
+
+  await prisma.companySetting.upsert({
+    where: key,
+    create: { companyId: branch.companyId, key: 'sales.roundingMode', value: 'INTEGER' },
+    update: { value: 'INTEGER' },
+  });
+  try {
+    await login(page);
+    await page.goto('/sales/pos');
+    const closed = page.getByRole('dialog', { name: 'Caja cerrada' });
+    await expect(closed.or(page.getByRole('searchbox', { name: 'Buscar producto' }))).toBeVisible();
+    if (await closed.isVisible()) {
+      await page.goto('/sales/cash-register/open');
+      await page.locator('#cash-register').click();
+      await page.locator('li[role="option"]').filter({ hasText: BRANCH }).first().click();
+      await page.locator('#cash-float').fill('500,00');
+      await page.getByRole('button', { name: 'Abrir caja' }).click();
+      await expect(page).toHaveURL(/\/sales\/pos$/);
+    }
+
+    await page.keyboard.press('F2');
+    const search = page.getByRole('searchbox', { name: 'Buscar producto' });
+    await search.fill(roundedCode);
+    await expect(page.locator('rs-pos-result-row').first()).toContainText(roundedCode);
+    await Promise.all([page.waitForResponse((r) => r.url().includes('/checkout/items') && r.request().method() === 'POST'), search.press('Enter')]);
+    const sale = page.getByRole('complementary', { name: 'Venta actual' });
+    await expect(sale.locator('rs-pos-cart-line')).toHaveCount(1);
+
+    // the row says it is the rounding, and the total is a whole number of bolivianos
+    await expect(sale.getByTestId('pos-adjustment-label')).toHaveText('Redondeo');
+    const total = (await sale.getByTestId('pos-total').textContent())?.trim() ?? '';
+    expect(total).toMatch(/^Bs [\d.]+,00$/);
+
+    // the server charges exactly that total
+    await page.keyboard.press('F9');
+    const payment = page.getByRole('dialog', { name: 'Cobrar venta' });
+    await expect(payment).toBeVisible();
+    await expect(payment.getByTestId('pay-total')).toHaveText(total);
+    await payment.locator('.quick rs-filter-chip').first().click();
+    await page.keyboard.press('Enter');
+    const done = page.getByRole('dialog', { name: 'Venta completada' });
+    await expect(done).toBeVisible();
+    await expect(done.getByTestId('sale-total')).toHaveText(total);
+    await done.getByTestId('sale-new').click();
+  } finally {
+    if (previous) await prisma.companySetting.update({ where: key, data: { value: previous.value as never } });
+    else await prisma.companySetting.deleteMany({ where: { companyId: branch.companyId, key: 'sales.roundingMode' } });
+  }
+});

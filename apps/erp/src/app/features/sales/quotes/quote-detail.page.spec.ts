@@ -25,7 +25,7 @@ const quote = (over: Partial<QuoteDetail> = {}): QuoteDetail => ({
   discountAmount: '0.00',
   roundingAmount: '0.00',
   total: '200.00',
-  lines: [{ id: 'l1', productId: 'p1', sku: 'S1', code: 'ABC-1', name: 'Rodamiento', quantity: 2, unitPrice: '100.00', lineTotal: '200.00', available: 5 }],
+  lines: [{ id: 'l1', productId: 'p1', sku: 'S1', code: 'ABC-1', name: 'Rodamiento', quantity: 2, unitPrice: '100.00', lineTotal: '200.00', available: 5, spec: { measures: { innerDiameter: '25', outerDiameter: '52', width: '15' }, category: 'Rodamientos', subcategory: 'Rígidos de bolas', details: ['Sello: 2RS'] } }],
   order: null,
   convertible: true,
   customerEmail: 'ana@demo.test',
@@ -80,6 +80,13 @@ describe('QuoteDetailPage', () => {
     expect(text(h)).toContain('COT-000001');
     expect(text(h)).toContain('ABC-1');
     expect(h.routeNativeElement?.querySelector('[data-testid="quote-convert"]')).not.toBeNull();
+  });
+
+  it('shows the measures and the type under the product of each line (HU-VEN-36)', async () => {
+    const h = await open(quote());
+    const spec = h.routeNativeElement?.querySelector('.line-spec');
+    expect(spec?.textContent?.trim()).toBe('25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sello: 2RS');
+    expect(spec?.getAttribute('title')).toBe('25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sello: 2RS');
   });
 
   it('hides the convert action without permission or when not convertible', async () => {

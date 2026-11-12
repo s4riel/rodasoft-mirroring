@@ -1,5 +1,12 @@
-import type { QuoteDetail } from '@rodasoft/domain';
+import type { QuoteDetail, SalesLineSpec } from '@rodasoft/domain';
 import { isOutOfStock, quoteDocument, quoteShareDocument, quoteUnits, toTimelineSteps, whatsappUrl } from './quote-tracking-format';
+
+const spec: SalesLineSpec = {
+  measures: { innerDiameter: '25', outerDiameter: '52', width: '15' },
+  category: 'Rodamientos',
+  subcategory: 'Rígidos de bolas',
+  details: ['Sello: 2RS', 'Material: Acero', 'Jaula: Metal'],
+};
 
 const quote = {
   number: 'COT-000046',
@@ -12,7 +19,7 @@ const quote = {
   roundingAmount: '0.00',
   total: '2850.00',
   lines: [
-    { id: 'l1', productId: 'p1', sku: 'S1', code: '6205-2RS', name: 'Rodamiento', quantity: 12, unitPrice: '245.00', lineTotal: '2940.00', available: 24 },
+    { id: 'l1', productId: 'p1', sku: 'S1', code: '6205-2RS', name: 'Rodamiento', quantity: 12, unitPrice: '245.00', lineTotal: '2940.00', available: 24, spec },
     { id: 'l2', productId: 'p2', sku: 'S2', code: '30208', name: 'Cónico', quantity: 4, unitPrice: '525.00', lineTotal: '2100.00', available: 0 },
   ],
 } as unknown as QuoteDetail;
@@ -44,6 +51,21 @@ describe('quote tracking format', () => {
     expect(doc.items[0]).toMatchObject({ description: '6205-2RS · Rodamiento', detail: '12 × Bs 245,00' });
     expect(doc.totalRows.map((r) => r.label)).toEqual(['Subtotal', 'Descuento', 'Total']);
     expect(doc.totalRows.at(-1)).toMatchObject({ label: 'Total', strong: true });
+  });
+
+  it('puts the measures and type under each line of the customer’s copy (HU-VEN-36)', () => {
+    const doc = quoteDocument(quote);
+    expect(doc.items[0].note).toBe('25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sello: 2RS · Material: Acero');
+    // a product without measures or type has no note
+    expect(doc.items[1].note).toBeUndefined();
+  });
+
+  it('closes the customer’s copy with the unit of the measures and the codes without stock', () => {
+    expect(quoteDocument(quote).footerLines).toEqual([
+      'Precios en Bs. Medidas en mm. 30208 sin existencia. Sujetos a disponibilidad de stock al confirmar.',
+    ]);
+    const inStock = { ...quote, lines: [quote.lines[0]] } as QuoteDetail;
+    expect(quoteDocument(inStock).footerLines).toEqual(['Precios en Bs. Medidas en mm. Sujetos a disponibilidad de stock al confirmar.']);
   });
 
   it('never puts the customer’s NIT in what is shared', () => {

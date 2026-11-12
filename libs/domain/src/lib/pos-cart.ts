@@ -38,6 +38,8 @@ export interface CartTotalsOptions {
 export interface CartTotals {
   subtotal: Decimal;
   discount: Decimal;
+  /** The rounding of `sales.roundingMode` alone, signed (HU-VEN-35): `total` minus subtotal and discount; zero with `NONE`. */
+  rounding: Decimal;
   /** After the customer discount and the rounding of `sales.roundingMode`. */
   total: Decimal;
 }
@@ -47,7 +49,29 @@ export function cartTotals(lines: readonly CartTotalsLine[], options: CartTotals
   const subtotal = lines.reduce((acc, l) => acc.add(lineTotal(l.unitPrice, l.quantity)), Decimal.zero(MONEY_SCALE));
   const discount = options.discount ?? { type: 'NONE' as const, value: '0' };
   const { discountAmount, totalAfterDiscount } = applyCustomerDiscount(subtotal, discount.type, discount.value);
-  return { subtotal, discount: discountAmount, total: roundSaleTotal(totalAfterDiscount, options.roundingMode).total };
+  const rounded = roundSaleTotal(totalAfterDiscount, options.roundingMode);
+  return { subtotal, discount: discountAmount, rounding: rounded.roundingAmount, total: rounded.total };
+}
+
+/**
+ * Moves the line at `from` to position `to` (HU-VEN-33). Returns a new list; the same list when nothing moves or an index is
+ * out of range, so the screen can tell that the drop changed nothing.
+ */
+export function moveLine<T>(ids: readonly T[], from: number, to: number): T[] {
+  const inRange = (i: number) => Number.isInteger(i) && i >= 0 && i < ids.length;
+  if (!inRange(from) || !inRange(to) || from === to) return [...ids];
+  const next = [...ids];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+/** Whether two id lists hold exactly the same ids, once each (order aside): the reorder must name every line of the cart. */
+export function isSameLineSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const left = new Set(a);
+  if (left.size !== a.length || new Set(b).size !== b.length) return false;
+  return b.every((id) => left.has(id));
 }
 
 /** Same thresholds as the inventory lists (`stockAvailability`), named for the POS. */
@@ -133,11 +157,18 @@ export interface PosCheckoutView {
   pricing: { roundingMode: RoundingMode; discount: { type: CustomerDiscountType; value: string } | null };
   subtotal: string;
   discount: string;
+  /** Signed rounding of the total (HU-VEN-35); the screen shows it as "redondeado" when it is not zero. */
+  rounding: string;
   total: string;
 }
 
 export interface PosCheckoutResponse {
   checkout: PosCheckoutView | null;
+}
+
+/** `PUT /sales/pos/checkout/items/order` (HU-VEN-33): every line of the cart, in the order the cashier wants. */
+export interface ReorderPosCheckoutItemsInput {
+  itemIds: string[];
 }
 
 export interface AddPosCheckoutItemInput {

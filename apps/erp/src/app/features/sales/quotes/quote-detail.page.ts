@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import type { QuoteDetail, QuoteEditorContext, ReservationShortfall } from '@rodasoft/domain';
+import { salesLineSpecText, type QuoteDetail, type QuoteEditorContext, type ReservationShortfall, type SalesLineSpec } from '@rodasoft/domain';
 import {
   ButtonComponent,
   CanDirective,
+  DocTableCellDirective,
   DocTableColumn,
   DocTableComponent,
   EmptyStateIllustratedComponent,
@@ -31,7 +32,7 @@ type LoadState = 'loading' | 'ready' | 'forbidden' | 'error';
 
 const COLUMNS: DocTableColumn[] = [
   { key: 'code', label: 'Código', type: 'text', width: '10rem' },
-  { key: 'name', label: 'Producto', type: 'text' },
+  { key: 'name', label: 'Producto', type: 'custom' },
   { key: 'quantity', label: 'Cantidad', type: 'number', width: '7rem' },
   { key: 'price', label: 'Precio', type: 'number', width: '8rem' },
   { key: 'total', label: 'Importe', type: 'number', width: '8rem' },
@@ -44,6 +45,7 @@ const COLUMNS: DocTableColumn[] = [
   imports: [
     ButtonComponent,
     CanDirective,
+    DocTableCellDirective,
     DocTableComponent,
     EmptyStateIllustratedComponent,
     FieldComponent,
@@ -129,6 +131,12 @@ export class QuoteDetailPage {
   protected readonly hasDiscount = computed(() => !!this.detail() && !isZero(this.detail()!.discountAmount));
   protected readonly hasRounding = computed(() => !!this.detail() && !isZero(this.detail()!.roundingAmount));
   protected readonly formatBs = formatBs;
+  protected readonly specText = (line: { spec: SalesLineSpec }) => salesLineSpecText(line.spec);
+
+  /** The line of a table row (the name cell shows its measures and type). */
+  protected lineOf(rowId: string) {
+    return this.detail()?.lines.find((l) => l.id === rowId) ?? null;
+  }
   protected readonly formatDay = formatDay;
   protected readonly formatDateTime = formatDateTime;
 

@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, input, output, signal, untracked, viewChild } from '@angular/core';
-import { Decimal, formatReceiptDate, type CompletedSale } from '@rodasoft/domain';
+import { Decimal, formatDay, formatReceiptDate, type CompletedSale } from '@rodasoft/domain';
 import { ButtonComponent, FieldComponent, InputDirective, ModalComponent, NoteComponent } from '@rodasoft/ui';
 
 const money = (value: string) => Decimal.of(value).format();
 
 /**
  * VP-16a · Venta completada (HU-VEN-11). Shows the sale that was just saved with what the customer paid, received and got
- * back, and the receipt options: print the ticket, share it by WhatsApp or send it by e-mail. Until the SIAT epic issues the
+ * back (or, on credit, the balance and its due date), and the receipt options: print the ticket, share it by WhatsApp or send it by e-mail. Until the SIAT epic issues the
  * invoice it says so (the invoice record is `PENDING`). Enter, Esc and the close button all start a new sale. The page does the
  * work of each button; this dialog only collects the e-mail address.
  */
@@ -46,6 +46,12 @@ export class PosSaleCompletedDialog {
   protected readonly totalText = computed(() => money(this.sale()?.total ?? '0'));
   protected readonly receivedText = computed(() => money(this.sale()?.received ?? '0'));
   protected readonly changeText = computed(() => money(this.sale()?.change ?? '0'));
+  /** A credit sale (HU-VEN-34): nothing was received; the balance falls due on `dueDate`. */
+  protected readonly isCredit = computed(() => !!this.sale()?.dueDate);
+  protected readonly dueText = computed(() => {
+    const due = this.sale()?.dueDate;
+    return due ? formatDay(due) : '';
+  });
   protected readonly canSend = computed(() => this.email().trim() !== '' && !this.emailSending());
 
   constructor() {

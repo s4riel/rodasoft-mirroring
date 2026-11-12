@@ -1,5 +1,5 @@
 import { Decimal } from './money';
-import { brandInitials, cartTotals, lineTotal, maxSellable, stockStatus } from './pos-cart';
+import { brandInitials, cartTotals, isSameLineSet, lineTotal, maxSellable, moveLine, stockStatus } from './pos-cart';
 
 describe('lineTotal', () => {
   it('multiplies the unit price by the quantity, exactly', () => {
@@ -98,5 +98,63 @@ describe('brandInitials', () => {
     expect(brandInitials('SKF')).toBe('SK');
     expect(brandInitials('Fersa')).toBe('FE');
     expect(brandInitials('A-1 Bearings')).toBe('A1');
+  });
+});
+
+describe('cartTotals · rounding (HU-VEN-35)', () => {
+  const lines = [{ unitPrice: '10.30', quantity: 1 }];
+
+  it('is zero with NONE', () => {
+    expect(cartTotals(lines, { roundingMode: 'NONE' }).rounding.toString()).toBe('0.00');
+  });
+
+  it('is the signed difference to the rounded total, without a discount', () => {
+    const half = cartTotals(lines, { roundingMode: 'HALF_BOLIVIANO' });
+    expect(half.total.toString()).toBe('10.50');
+    expect(half.rounding.toString()).toBe('0.20');
+    const integer = cartTotals(lines, { roundingMode: 'INTEGER' });
+    expect(integer.total.toString()).toBe('10.00');
+    expect(integer.rounding.toString()).toBe('-0.30');
+  });
+
+  it('keeps subtotal − discount + rounding = total with a discount', () => {
+    const t = cartTotals([{ unitPrice: '100.00', quantity: 1 }], {
+      roundingMode: 'HALF_BOLIVIANO',
+      discount: { type: 'PERCENT', value: '3.33' },
+    });
+    expect(t.discount.toString()).toBe('3.33');
+    expect(t.rounding.toString()).toBe('-0.17');
+    expect(t.subtotal.sub(t.discount).add(t.rounding).toString()).toBe(t.total.toString());
+  });
+});
+
+describe('moveLine', () => {
+  it('moves a line to a new position', () => {
+    expect(moveLine(['a', 'b', 'c', 'd'], 2, 0)).toEqual(['c', 'a', 'b', 'd']);
+    expect(moveLine(['a', 'b', 'c', 'd'], 0, 3)).toEqual(['b', 'c', 'd', 'a']);
+  });
+
+  it('returns an equal copy when nothing moves or an index is out of range', () => {
+    const ids = ['a', 'b', 'c'];
+    for (const [from, to] of [[1, 1], [-1, 0], [0, 5], [1.5, 0]]) {
+      const result = moveLine(ids, from, to);
+      expect(result).toEqual(ids);
+      expect(result).not.toBe(ids);
+    }
+  });
+});
+
+describe('isSameLineSet', () => {
+  it('accepts the same ids in any order', () => {
+    expect(isSameLineSet(['a', 'b', 'c'], ['c', 'a', 'b'])).toBe(true);
+    expect(isSameLineSet([], [])).toBe(true);
+  });
+
+  it('refuses a missing, extra, foreign or repeated id', () => {
+    expect(isSameLineSet(['a', 'b'], ['a'])).toBe(false);
+    expect(isSameLineSet(['a'], ['a', 'b'])).toBe(false);
+    expect(isSameLineSet(['a', 'b'], ['a', 'x'])).toBe(false);
+    expect(isSameLineSet(['a', 'b'], ['a', 'a'])).toBe(false);
+    expect(isSameLineSet(['a', 'a'], ['a', 'a'])).toBe(false);
   });
 });

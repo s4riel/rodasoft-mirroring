@@ -1,5 +1,6 @@
 import {
   Decimal,
+  salesLineSpecText,
   type QuoteDetail,
   type QuoteSendChannel,
   type QuoteShareDocument,
@@ -84,14 +85,24 @@ export function quoteDocument(quote: QuoteDetail): {
       { label: 'Válida hasta', value: formatDay(quote.validUntil) },
       { label: 'Cliente', value: quote.customer.name },
     ],
-    items: quote.lines.map((l) => ({
-      description: `${l.code} · ${l.name}`,
-      detail: `${l.quantity} × ${formatBs(l.unitPrice)}`,
-      total: formatBs(l.lineTotal),
-    })),
+    items: quote.lines.map((l) => {
+      const note = salesLineSpecText(l.spec);
+      return {
+        description: `${l.code} · ${l.name}`,
+        detail: `${l.quantity} × ${formatBs(l.unitPrice)}`,
+        total: formatBs(l.lineTotal),
+        ...(note ? { note } : {}),
+      };
+    }),
     totalRows,
-    footerLines: ['Precios en Bs. Sujetos a disponibilidad de stock al confirmar.'],
+    footerLines: [quoteFootnote(quote)],
   };
+}
+
+/** "Precios en Bs. Medidas en mm. 6205-2RS sin existencia. Sujetos a…": the footnote of the customer's copy (HU-VEN-36). */
+export function quoteFootnote(quote: QuoteDetail): string {
+  const short = quote.lines.filter((l) => isOutOfStock(l.available, l.quantity)).map((l) => l.code);
+  return `Precios en Bs. Medidas en mm.${short.length > 0 ? ` ${short.join(', ')} sin existencia.` : ''} Sujetos a disponibilidad de stock al confirmar.`;
 }
 
 /** The `wa.me` link that opens WhatsApp with the message written (no server integration yet). */

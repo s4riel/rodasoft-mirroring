@@ -11,6 +11,17 @@ export const posErrors = {
     new ConflictException({ code: 'INSUFFICIENT_STOCK', message: 'Not enough stock in the register warehouse', details: { available } }),
   itemNotFound: () => new NotFoundException({ code: 'CHECKOUT_ITEM_NOT_FOUND', message: 'Cart line not found' }),
   notEditable: () => new ConflictException({ code: 'CHECKOUT_NOT_EDITABLE', message: 'The cart can no longer be edited' }),
+  orderMismatch: () =>
+    new ConflictException({ code: 'CHECKOUT_ORDER_MISMATCH', message: 'The new order must list exactly the lines of the cart' }),
+  // --- credit sale (HU-VEN-34) ---
+  creditCustomerRequired: () =>
+    new ConflictException({ code: 'CREDIT_CUSTOMER_REQUIRED', message: 'A credit sale needs an identified customer' }),
+  creditNotEnabled: () =>
+    new ConflictException({ code: 'CREDIT_NOT_ENABLED', message: 'The customer does not have credit enabled' }),
+  creditNitRequired: () =>
+    new ConflictException({ code: 'CREDIT_NIT_REQUIRED', message: 'A credit sale needs a customer identified by NIT' }),
+  creditTermInvalid: () =>
+    new BadRequestException({ code: 'CREDIT_TERM_INVALID', message: 'The credit term must be a whole number of days from 1 to 365' }),
   // --- payment and completing the sale (HU-VEN-07, HU-VEN-11) ---
   invalidTransition: (from: string, event: string) =>
     new ConflictException({ code: 'INVALID_TRANSITION', message: `Transition not allowed: "${event}" from "${from}"`, details: { from, event } }),

@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type { AddPosCheckoutItemInput, PosProductSearchQuery, UpdatePosCheckoutItemInput } from '@rodasoft/domain';
+import type { AddPosCheckoutItemInput, PosProductSearchQuery, ReorderPosCheckoutItemsInput, UpdatePosCheckoutItemInput } from '@rodasoft/domain';
 import { Transform } from 'class-transformer';
-import { IsDefined, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsDefined, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class PosProductSearchQueryDto implements PosProductSearchQuery {
   @ApiPropertyOptional({ description: 'Code, SKU, name, brand or measurement ("25x52x15")' })
@@ -31,4 +31,13 @@ export class UpdatePosCheckoutItemDto implements UpdatePosCheckoutItemInput {
   @ApiProperty({ example: 2 })
   @IsDefined()
   quantity!: number;
+}
+
+/** HU-VEN-33: every line of the cart in the order the cashier wants; the service checks it names exactly the cart's lines. */
+export class ReorderPosCheckoutItemsDto implements ReorderPosCheckoutItemsInput {
+  @ApiProperty({ type: [String], description: 'Ids of all the cart lines, in the new order' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUID('all', { each: true })
+  itemIds!: string[];
 }

@@ -85,7 +85,16 @@
             }
           </dl>
         </div>
-        <rs-doc-table size="md" tableLabel="Productos de la cotización" [columns]="columns" [rows]="rows()" />
+        <rs-doc-table size="md" tableLabel="Productos de la cotización" [columns]="columns" [rows]="rows()">
+          <ng-template rsDocCell="name" let-row>
+            @if (lineOf(row.id); as line) {
+              <span class="line-name">{{ line.name }}</span>
+              @if (specText(line); as spec) {
+                <span class="line-spec" [title]="spec">{{ spec }}</span>
+              }
+            }
+          </ng-template>
+        </rs-doc-table>
         <dl class="totals">
           <div><dt>Subtotal</dt><dd>{{ formatBs(d.subtotal) }}</dd></div>
           @if (hasDiscount()) {

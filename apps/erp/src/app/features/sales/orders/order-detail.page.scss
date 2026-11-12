@@ -1,3 +1,5 @@
+@use '../shared/line-spec';
+
 :host {
   display: grid;
   gap: var(--space-6);
@@ -97,3 +99,4 @@
   justify-content: flex-end;
   gap: var(--space-3);
 }
+

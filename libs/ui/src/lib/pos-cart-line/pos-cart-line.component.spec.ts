@@ -36,6 +36,12 @@ describe('PosCartLineComponent', () => {
     return { fixture, host: fixture.componentInstance, el, button };
   }
 
+  it('carries the full second text as its title, since the line cuts it with an ellipsis (HU-VEN-36)', async () => {
+    const { el } = await render();
+    const unit = el().querySelector('.unit') as HTMLElement;
+    expect(unit.getAttribute('title')).toBe('Bs 245,00 c/u');
+  });
+
   it('shows the product, unit price, quantity and line total', async () => {
     const { el } = await render();
     expect(el().querySelector('.title')?.textContent).toBe('6205-2RS · SKF');

@@ -147,7 +147,7 @@
           }
         </div>
 
-        <p class="shortcuts">F2 Buscar · F4 Cliente · F9 Cobrar · Enter Agregar · Espacio Ficha · Esc Limpiar</p>
+        <p class="shortcuts" data-testid="pos-shortcuts">F2 Buscar · F4 Cliente · F9 Cobrar · Enter Agregar · Espacio Ficha · Esc Limpiar · <span aria-hidden="true">⠿</span> Arrastrar para reordenar</p>
       </section>
 
       <aside class="sale" aria-labelledby="pos-sale-title">
@@ -185,9 +185,23 @@
                   <rs-icon slot="icon" name="cart" [size]="24" />
                 </rs-empty-state>
               } @else {
-                <ul class="line-list" aria-label="Productos de la venta">
-                  @for (line of lines(); track line.id) {
-                    <li>
+                <ul
+                  class="line-list"
+                  cdkDropList
+                  cdkDropListLockAxis="y"
+                  [cdkDropListDisabled]="reorderDisabled()"
+                  (cdkDropListDropped)="drop($event)"
+                  aria-label="Productos de la venta"
+                >
+                  @for (line of lines(); track line.id; let i = $index) {
+                    <li class="line" cdkDrag cdkDragLockAxis="y" cdkDragPreviewContainer="parent">
+                      <rs-drag-handle
+                        cdkDragHandle
+                        [label]="'Arrastrar ' + line.code"
+                        [disabled]="reorderDisabled()"
+                        (moveUp)="moveTo(i, i - 1)"
+                        (moveDown)="moveTo(i, i + 1)"
+                      />
                       <rs-pos-cart-line
                         [title]="line.code + ' · ' + line.brandName"
                         [unitPrice]="lineUnit(line)"
@@ -214,10 +228,10 @@
             <dt>Subtotal</dt>
             <dd class="amount" data-testid="pos-subtotal">{{ subtotalText() }}</dd>
           </div>
-          @if (discountText(); as discount) {
+          @if (adjustment(); as adjustment) {
             <div class="totals-row">
-              <dt>Descuento</dt>
-              <dd class="amount">{{ discount }}</dd>
+              <dt data-testid="pos-adjustment-label">{{ adjustment.label }}</dt>
+              <dd class="amount" data-testid="pos-adjustment">{{ adjustment.text }}</dd>
             </div>
           }
           <div class="totals-row total">
@@ -287,7 +301,10 @@
   [allowMixed]="payAllowMixed()"
   [cardEnabled]="payCardEnabled()"
   [resumeCard]="resumeCard()"
+  [credit]="payCredit()"
+  [customerName]="customerName()"
   (confirm)="confirmPayment($event)"
+  (creditConfirmed)="confirmCreditPayment($event)"
   (mixedConfirmed)="confirmMixedPayment($event)"
   (qrConfirmed)="confirmQrPayment($event)"
   (cardConfirmed)="confirmCardPayment($event)"

@@ -7,18 +7,29 @@
         <dt>Total</dt>
         <dd data-testid="sale-total">{{ totalText() }}</dd>
       </div>
-      <div class="card">
-        <dt>Recibido</dt>
-        <dd data-testid="sale-received">{{ receivedText() }}</dd>
-      </div>
-      <div class="card">
-        <dt>Cambio</dt>
-        <dd data-testid="sale-change">{{ changeText() }}</dd>
-      </div>
+      @if (isCredit()) {
+        <div class="card">
+          <dt>Saldo a crédito</dt>
+          <dd data-testid="sale-credit">{{ totalText() }}</dd>
+        </div>
+        <div class="card">
+          <dt>Vence el</dt>
+          <dd data-testid="sale-due">{{ dueText() }}</dd>
+        </div>
+      } @else {
+        <div class="card">
+          <dt>Recibido</dt>
+          <dd data-testid="sale-received">{{ receivedText() }}</dd>
+        </div>
+        <div class="card">
+          <dt>Cambio</dt>
+          <dd data-testid="sale-change">{{ changeText() }}</dd>
+        </div>
+      }
     </dl>
 
     <rs-note type="info" title="Factura pendiente de emisión">
-      El SIAT la emitirá cuando esté disponible. Stock descontado y cobro registrado{{ registerName() ? ' en ' + registerName() : '' }}.
+      El SIAT la emitirá cuando esté disponible. Stock descontado y {{ isCredit() ? 'saldo a crédito registrado' : 'cobro registrado' }}{{ !isCredit() && registerName() ? ' en ' + registerName() : '' }}.
     </rs-note>
 
     <div class="share">

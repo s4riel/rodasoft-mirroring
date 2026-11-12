@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, Renderer2, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { buildReceiptLines, Decimal, formatReceiptDate, type SaleReceipt } from '@rodasoft/domain';
+import { buildReceiptLines, creditDueText, Decimal, formatReceiptDate, type SaleReceipt } from '@rodasoft/domain';
 import { ButtonComponent, EmptyStateIllustratedComponent, ReceiptComponent, SkeletonComponent, type ReceiptItem, type ReceiptRow } from '@rodasoft/ui';
 import { problemOf } from '../../../core/api-error';
 import { documentText } from '../customers/customer-format';
@@ -82,6 +82,10 @@ export class ReceiptPrintPage implements OnInit {
       const kept = cash.reduce((acc, p) => acc.add(Decimal.of(p.amount)), Decimal.zero());
       const change = cash.reduce((acc, p) => acc.add(Decimal.of(p.change)), Decimal.zero());
       rows.push({ label: 'Efectivo recibido', value: kept.add(change).format() }, { label: 'Cambio', value: change.format() });
+    }
+    // a credit sale collects nothing now: the ticket says when the balance falls due (HU-VEN-34)
+    for (const credit of r.payments.filter((p) => p.method === 'CREDIT' && p.dueDate)) {
+      rows.push({ label: creditDueText(credit.dueDate as string), value: money(credit.amount) });
     }
     return rows;
   });

@@ -11,17 +11,17 @@ Story text is translated to English; UI strings quoted in "…" stay in Spanish.
 - `VP-xx` screens are the Figma frames (ERP file `JYULL6jvXiwNP8UVvEF7tl`, page 09 Prototype · Sales). UI texts come from there, in Spanish.
 - Invoicing is **not** part of this epic. A completed sale creates an `Invoice` record in status `PENDING` (the first state of `invoiceMachine`, "not yet sent to SIAT") through the outbox; the SIAT epic (HU-FAC) issues it for real later.
 - **Discounts are per customer** (decided 3 Nov 2026): the customer record holds a discount as a percent or a fixed Bs amount per sale, and the POS, quotes and orders apply it automatically. There are no manual discounts at the POS and no discount approvals, so HU-VEN-06, 28 and 31 are retired and HU-VEN-35 keeps only rounding.
-- Every story below is **Pending** (nothing built yet).
+- Every story below is **Pending** except the ones marked **Developed**.
 
 ## Status summary (3 Nov 2026)
 
 | Status | Stories |
 | ------ | ------- |
-| Designed, ready to plan (31) | 00, 01–05, 07–27, 29, 33, 34, 35, 36 |
+| Designed, ready to plan (28) | 00, 01–05, 07–27, 29 |
 | Needs a frame or a form from existing parts (1) | 37 |
 | Waiting for design (2) | 30, 32 |
 | Retired (3) | 06, 28, 31 |
-| Developed (0) | — |
+| Developed (4) | 33, 34, 35, 36 (12 Nov 2026, branch `feat/hu-ven-33-34-35-36`; see "As built" in `docs/sales/design-notes.md`) |
 
 ## Build order
 
@@ -547,7 +547,7 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 
 ### HU-VEN-33 · Point of sale
 
-- **Status:** Pending
+- **Status:** Developed (12 Nov 2026)
 - **Block:** B · POS core
 - **Role:** Cashier · **Priority:** Should · **Delivery:** Wave 2
 - **Screens:** VP-03, VP-04
@@ -562,7 +562,7 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 
 ### HU-VEN-34 · Point of sale
 
-- **Status:** Pending
+- **Status:** Developed (12 Nov 2026). The balance is stored on the `CREDIT` payment and readable at `GET /sales/customers/:id/credit-balance`; collecting it waits for HU-CON-03
 - **Block:** C · Other payments
 - **Role:** Cashier · **Priority:** Should · **Delivery:** Wave 2
 - **Screens:** VP-04d
@@ -579,7 +579,7 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 
 ### HU-VEN-35 · Point of sale
 
-- **Status:** Pending
+- **Status:** Developed (12 Nov 2026). Decision #54 stays open: `sales.roundingMode` is `NONE` until the client answers
 - **Block:** E · Prices and approvals
 - **Role:** Cashier · **Priority:** Must · **Delivery:** Wave 2
 - **Screens:** VP-03, VP-11c
@@ -596,7 +596,7 @@ Related stories in other epics: HU-REP-07 (sales reports, designed) after block 
 
 ### HU-VEN-36 · Quotes and orders
 
-- **Status:** Pending
+- **Status:** Developed (12 Nov 2026)
 - **Block:** G · Quotes and orders
 - **Role:** Salesperson · **Priority:** Must · **Delivery:** Wave 2
 - **Screens:** VP-08, VP-08b, VP-17, VP-18, VP-19, VP-02

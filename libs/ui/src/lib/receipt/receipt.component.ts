@@ -16,6 +16,8 @@ export interface ReceiptItem {
   description: string;
   detail: string;
   total: string;
+  /** An optional line under the description, for example the measures of a product (HU-VEN-36). */
+  note?: string;
 }
 
 /**

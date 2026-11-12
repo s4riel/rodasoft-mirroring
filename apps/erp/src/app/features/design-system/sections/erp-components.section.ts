@@ -13,6 +13,7 @@ import {
   DocTableColumn,
   DocTableComponent,
   DocTableRow,
+  DragHandleComponent,
   KpiCardComponent,
   NumpadComponent,
   PosCartLineComponent,
@@ -23,7 +24,7 @@ import {
   StockFlagComponent,
 } from '@rodasoft/ui';
 
-/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02). PosCustomer (HU-VEN-05). Numpad and Receipt (HU-VEN-07, 11). QrCode (HU-VEN-08). */
+/** Showcase "ERP components": KpiCard, StockFlag and DataField (HU-INV-03). BranchStockTable. PosResultRow and PosCartLine (HU-VEN-02), DragHandle (HU-VEN-33). PosCustomer (HU-VEN-05). Numpad and Receipt (HU-VEN-07, 11). QrCode (HU-VEN-08). */
 @Component({
   selector: 'rs-erp-components-section',
   imports: [
@@ -35,6 +36,7 @@ import {
     DataFieldComponent,
     DocTableCellDirective,
     DocTableComponent,
+    DragHandleComponent,
     IconComponent,
     KpiCardComponent,
     NumpadComponent,
@@ -123,6 +125,16 @@ import {
         <rs-pos-cart-line title="6306-2RS · NSK" unitPrice="Bs 380,00 c/u" [quantity]="1" [max]="3" total="Bs 361,00" discountLabel="−5 % · −Bs 19,00" removeLabel="Quitar 6306-2RS" quantityLabel="Cantidad" decrementLabel="Restar uno" incrementLabel="Sumar uno" />
       </div>
 
+      <h3>DragHandle ("Arrastrar ítem" 372:22949: estimated, Figma draws it outside PosCartLine) · default, disabled, and beside a cart line (HU-VEN-33)</h3>
+      <div class="pos-cart">
+        <rs-drag-handle label="Arrastrar 6205-2RS" />
+        <rs-drag-handle label="Arrastrar 6205-2RS (desactivado)" disabled />
+      </div>
+      <div class="pos-cart drag-line">
+        <rs-drag-handle label="Arrastrar 6205-2RS" />
+        <rs-pos-cart-line title="6205-2RS · SKF" unitPrice="Bs 245,00 c/u · 25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sello: 2RS · Sin existencia" [quantity]="2" [max]="24" total="Bs 490,00" removeLabel="Quitar 6205-2RS" quantityLabel="Cantidad" decrementLabel="Restar uno" incrementLabel="Sumar uno" />
+      </div>
+
       <h3>PosCustomer · Type = Final | Identified</h3>
       <div class="pos-cart">
         <rs-pos-customer type="final" name="Consumidor final" detail="Sin NIT · factura a S/N" actionLabel="Agregar NIT" />
@@ -181,6 +193,8 @@ import {
     .row > rs-data-field[data-layout="inline"] { width: 440px; }
     .pos-list { max-width: 760px; border: var(--stroke-default) solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; }
     .pos-cart { width: 420px; }
+    .drag-line { display: flex; align-items: center; gap: var(--space-2); }
+    .drag-line rs-pos-cart-line { flex: 1 1 0; min-width: 0; }
     .request-cards { display: grid; gap: var(--space-3); max-width: 720px; }
   `,
 })

@@ -1,0 +1,60 @@
+<div class="panel">
+  <section class="terms">
+    <p class="section">Plazo de pago</p>
+    <div class="chips" role="group" aria-label="Plazo de pago">
+      @for (days of info().termOptions; track days) {
+        <rs-filter-chip #chip [selected]="choice() === days" [disabled]="busy()" (selectedChange)="pick(days, $event, chip)" [label]="days + ' días'" />
+      }
+      <rs-filter-chip #other [selected]="choice() === 'other'" [disabled]="busy()" (selectedChange)="pick('other', $event, other)" label="Otro" />
+    </div>
+
+    @if (choice() === 'other') {
+      <rs-field label="Días de plazo" forId="credit-days" [error]="otherError()">
+        <rs-input-group [invalid]="!!otherError()">
+          <input
+            rsInput
+            rsNumeric="integer"
+            id="credit-days"
+            class="mono"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="45"
+            data-autofocus
+            [value]="otherText()"
+            [disabled]="busy()"
+            (input)="onOther($event)"
+          />
+        </rs-input-group>
+      </rs-field>
+    }
+
+    <dl class="card" aria-live="polite">
+      <div class="row">
+        <dt>Vence el</dt>
+        <dd data-testid="credit-due">{{ dueText() }}</dd>
+      </div>
+      <div class="row">
+        <dt>Saldo a crédito</dt>
+        <dd class="balance" data-testid="credit-balance">{{ balanceText() }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="customer">
+    <dl class="card">
+      <div class="row">
+        <dt>Cliente</dt>
+        <dd class="text" data-testid="credit-customer">{{ customerName() }}</dd>
+      </div>
+      <div class="row">
+        <dt>Crédito</dt>
+        <dd class="text">Habilitado en su ficha</dd>
+      </div>
+      <div class="row">
+        <dt>Límite de monto</dt>
+        <dd class="text limit">Sin límite</dd>
+      </div>
+      <p class="note">El crédito es una marca en la ficha del cliente. Al cobrar, el saldo pasa a Cuentas por cobrar.</p>
+    </dl>
+  </section>
+</div>

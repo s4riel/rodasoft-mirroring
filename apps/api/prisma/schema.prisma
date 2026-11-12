@@ -1329,7 +1329,8 @@ model SalePayment {
   change         Decimal        @default(0) @db.Decimal(14, 2)
   reference      String?
   providerStatus PaymentStatus? @map("provider_status")
-  /// credit payments only: the unpaid amount waits for accounts receivable until this date
+  /// credit payments only: the unpaid amount waits for accounts receivable until this date. A CHECK in the database
+  /// (`sale_payments_credit_due_date_check`, raw SQL) keeps it set exactly when the method is CREDIT.
   dueDate        DateTime?      @map("due_date") @db.Date
 
   company Company @relation(fields: [companyId], references: [id])

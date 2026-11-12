@@ -83,3 +83,20 @@ describe('settingOrDefault', () => {
     expect(settingOrDefault('inventory.skuPrefix', 7)).toBe('RL-');
   });
 });
+
+describe('sales.creditTermDays (decision #53)', () => {
+  it('defaults to 5, 15 and 30 days', () => {
+    expect(settingOrDefault('sales.creditTermDays', undefined)).toEqual([5, 15, 30]);
+    expect(COMPANY_SETTING_DEFAULTS['sales.creditTermDays']).toEqual([5, 15, 30]);
+  });
+
+  it('keeps a stored list of positive whole numbers, sorted and without repeats', () => {
+    expect(settingOrDefault('sales.creditTermDays', [45, 10, 10, 30])).toEqual([10, 30, 45]);
+  });
+
+  it('falls back to the default for anything else', () => {
+    for (const bad of [[], [0, 5], [5, -1], [5, 1.5], ['5'], 'abc', 30, {}]) {
+      expect(settingOrDefault('sales.creditTermDays', bad)).toEqual([5, 15, 30]);
+    }
+  });
+});

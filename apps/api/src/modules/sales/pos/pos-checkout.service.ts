@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import {
   availableQuantity,
   cartTotals,
+  isSameLineSet,
   lineTotal,
   maxSellable,
   type CurrentCashShift,
@@ -16,7 +17,7 @@ import { PrismaService, type TenantTransaction } from '../../../common/prisma/pr
 import { SettingsService } from '../../../common/settings/settings.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { CustomersService, toCustomerSummary } from '../customers/customers.service';
-import type { AddPosCheckoutItemDto, UpdatePosCheckoutItemDto } from './pos.dto';
+import type { AddPosCheckoutItemDto, ReorderPosCheckoutItemsDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { assertQuantity, posErrors } from './pos.errors';
 import { invoiceDataOf } from './pos-invoice-data';
 
@@ -152,6 +153,27 @@ export class PosCheckoutService {
     });
   }
 
+  /**
+   * Rewrites `sort_order` 0…n−1 following `itemIds` (HU-VEN-33). The ids must be exactly the cart's lines. It runs under the
+   * cart row lock like every other edit, so a concurrent add cannot leave two lines with the same position or lose a line:
+   * the add waits, then takes the next position after the reorder.
+   */
+  async reorderItems(dto: ReorderPosCheckoutItemsDto): Promise<PosCheckoutResponse> {
+    const shift = await this.shifts.requireOpenShift();
+    const cart = await this.prisma.tenant.posCheckout.findFirst({
+      where: { cashierId: this.userId(), status: { in: ['OPEN', 'PAYING'] } },
+      select: { id: true },
+    });
+    if (!cart) throw posErrors.checkoutNotFound();
+    return this.prisma.tenant.$transaction(async (tx) => {
+      await this.lockEditable(tx, cart.id);
+      const current = await tx.posCheckoutItem.findMany({ where: { checkoutId: cart.id }, select: { id: true } });
+      if (!isSameLineSet(current.map((line) => line.id), dto.itemIds)) throw posErrors.orderMismatch();
+      for (const [index, id] of dto.itemIds.entries()) await tx.posCheckoutItem.update({ where: { id }, data: { sortOrder: index } });
+      return this.load(tx, cart.id, shift);
+    });
+  }
+
   /** Removes one of my lines. An empty cart stays `OPEN`. */
   async removeItem(itemId: string): Promise<PosCheckoutResponse> {
     const shift = await this.shifts.requireOpenShift();
@@ -263,6 +285,7 @@ export class PosCheckoutService {
       pricing,
       subtotal: totals.subtotal.toString(),
       discount: totals.discount.toString(),
+      rounding: totals.rounding.toString(),
       total: totals.total.toString(),
     };
   }

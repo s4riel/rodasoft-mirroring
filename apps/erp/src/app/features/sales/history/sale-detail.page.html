@@ -126,7 +126,16 @@
 
       <section class="card" aria-labelledby="sale-lines">
         <h2 class="card-title" id="sale-lines">Productos</h2>
-        <rs-doc-table size="md" tableLabel="Productos de la venta" [columns]="lineColumns" [rows]="lineRows()" [totals]="lineTotals()" />
+        <rs-doc-table size="md" tableLabel="Productos de la venta" [columns]="lineColumns" [rows]="lineRows()" [totals]="lineTotals()">
+          <ng-template rsDocCell="name" let-row>
+            @if (lineOf(row.id); as line) {
+              <span class="line-name">{{ line.name }}</span>
+              @if (specText(line); as spec) {
+                <span class="line-spec" [title]="spec">{{ spec }}</span>
+              }
+            }
+          </ng-template>
+        </rs-doc-table>
         <dl class="amounts">
           @for (row of adjustments(); track row.label) {
             <div class="amount"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>

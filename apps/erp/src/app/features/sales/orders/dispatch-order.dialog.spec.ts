@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import type { SalesOrderDetail, SalesOrderLineDetail } from '@rodasoft/domain';
+import { EMPTY_SALES_LINE_SPEC, type SalesOrderDetail, type SalesOrderLineDetail } from '@rodasoft/domain';
 import { DispatchOrderDialog } from './dispatch-order.dialog';
 
 const line = (id: string, code: string, quantity: number, unitPrice: string, over: Partial<SalesOrderLineDetail> = {}): SalesOrderLineDetail => ({
@@ -17,6 +17,7 @@ const line = (id: string, code: string, quantity: number, unitPrice: string, ove
   dispatchedQuantity: 0,
   invoicedQuantity: 0,
   pendingQuantity: quantity,
+  spec: EMPTY_SALES_LINE_SPEC,
   ...over,
 });
 

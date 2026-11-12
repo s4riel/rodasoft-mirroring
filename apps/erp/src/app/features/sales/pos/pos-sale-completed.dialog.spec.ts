@@ -12,6 +12,7 @@ const sale: CompletedSale = {
   customerName: 'S/N',
   invoiceStatus: 'PENDING',
   customerEmail: null,
+  dueDate: null,
 };
 
 describe('PosSaleCompletedDialog', () => {
@@ -32,6 +33,26 @@ describe('PosSaleCompletedDialog', () => {
     expect(root.textContent).toContain('V-000125');
     expect(button(root, 'Ver venta')).toBeTruthy();
     expect(button(root, 'Nueva venta')).toBeTruthy();
+  });
+
+  it('shows what was received and the change of a sale paid now', () => {
+    const root = render().nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid=sale-received]')?.textContent).toBe('Bs 500,00');
+    expect(root.querySelector('[data-testid=sale-change]')?.textContent).toBe('Bs 10,00');
+    expect(root.querySelector('[data-testid=sale-credit]')).toBeNull();
+  });
+
+  it('shows the balance and the due date instead of received and change on a credit sale (HU-VEN-34)', () => {
+    const fixture = TestBed.createComponent(PosSaleCompletedDialog);
+    fixture.componentRef.setInput('open', true);
+    fixture.componentRef.setInput('sale', { ...sale, received: '0.00', change: '0.00', dueDate: '2026-11-21' });
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid=sale-credit]')?.textContent).toBe('Bs 490,00');
+    expect(root.querySelector('[data-testid=sale-due]')?.textContent).toBe('21/11/2026');
+    expect(root.querySelector('[data-testid=sale-received]')).toBeNull();
+    expect(root.querySelector('[data-testid=sale-change]')).toBeNull();
+    expect(root.textContent).toContain('saldo a crédito registrado');
   });
 
   it('Ver venta emits viewSale and does not start a new sale', () => {

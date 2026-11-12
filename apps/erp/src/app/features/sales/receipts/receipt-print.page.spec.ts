@@ -15,13 +15,13 @@ const receipt = (over: Partial<SaleReceipt> = {}): SaleReceipt => ({
   branch: { name: 'Sucursal central' },
   cashier: { name: 'Alberto Andia' },
   customer: { name: 'S/N', documentType: 5, documentNumber: '0', complement: null, email: null },
-  lines: [{ code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00' }],
+  lines: [{ code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00', spec: { measures: { innerDiameter: '25', outerDiameter: '52', width: '15' }, category: 'Rodamientos', subcategory: 'Rígidos de bolas', details: ['Sello: 2RS'] } }],
   subtotal: '490.00',
   discountType: 'NONE',
   discountAmount: '0.00',
   roundingAmount: '0.00',
   total: '490.00',
-  payments: [{ method: 'CASH', amount: '490.00', change: '10.00' }],
+  payments: [{ method: 'CASH', amount: '490.00', change: '10.00', dueDate: null }],
   invoiceStatus: 'PENDING',
   format: 'TICKET_80MM',
   ...over,
@@ -81,6 +81,15 @@ describe('ReceiptPrintPage', () => {
     expect(text).toContain('Bs 10,00');
     expect(text).toContain('Factura pendiente de emisión');
     expect(text).not.toContain('Descuento');
+  });
+
+  it('writes the due date of a credit sale and no cash received (HU-VEN-34)', async () => {
+    const fixture = await render();
+    http.expectOne(RECEIPT_URL).flush(receipt({ payments: [{ method: 'CREDIT', amount: '490.00', change: '0.00', dueDate: '2026-11-21' }] }));
+    await settle(fixture);
+    const text = el(fixture).textContent ?? '';
+    expect(text).toContain('Crédito · vence 21/11/2026');
+    expect(text).not.toContain('Efectivo recibido');
   });
 
   it('shows the discount and the rounding only when there are some', async () => {

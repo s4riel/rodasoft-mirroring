@@ -5,7 +5,8 @@ import { QtyStepperComponent } from '../qty-stepper/qty-stepper.component';
 /**
  * Figma: PosCartLine (Design System `80:4553`, State=Default|Discount). One line of the POS cart: product, unit price,
  * quantity (`rs-qty-stepper`), line total and the trash button. A non-empty `discountLabel` is State=Discount. The drag
- * handle of VP-03 arrives with HU-VEN-33. Every text comes from the app.
+ * handle of VP-03 is `rs-drag-handle`, which Figma draws outside this component ("Línea con arrastre"): the screen places it
+ * at the line's left. The second text is cut with an ellipsis and carries the full text as its title. Every text comes from the app.
  *   <rs-pos-cart-line title="6205-2RS · SKF" unitPrice="Bs 245,00 c/u" [(quantity)]="qty" [max]="24" total="Bs 490,00"
  *     removeLabel="Quitar 6205-2RS" (remove)="remove(line)" />
  */

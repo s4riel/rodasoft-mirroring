@@ -168,9 +168,111 @@ describe('POS checkout (integration, real Postgres)', () => {
       });
       expect(checkout?.subtotal).toBe('245.30');
       expect(checkout?.total).toBe('245.00');
+      // the rounding alone, signed, so the screen can show it as "redondeado" (HU-VEN-35)
+      expect(checkout?.rounding).toBe('-0.30');
     } finally {
       await state.base.companySetting.deleteMany({ where: { companyId: state.companyId, key: 'sales.roundingMode' } });
     }
+  });
+
+  describe('reorder (HU-VEN-33)', () => {
+    /** A cart with three lines, in the order they were added. */
+    async function threeLines() {
+      await cashier().addItem({ productId: bearing, quantity: 1 });
+      await cashier().addItem({ productId: cheap, quantity: 1 });
+      const { checkout } = await cashier().addItem({ productId: inactiveFree(), quantity: 1 });
+      return checkout!.lines.map((line) => line.id);
+    }
+    let third: string;
+    const inactiveFree = () => third;
+
+    beforeAll(async () => {
+      third = (await fx.newProduct({ price: '10.00', stock: { [state.centralId]: 50 } })).id;
+    });
+
+    it('rewrites sort_order 0…n−1 and the cart is read back in the new order', async () => {
+      const [a, b, c] = await threeLines();
+      const { checkout } = await cashier().reorderItems({ itemIds: [c, a, b] });
+      expect(checkout?.lines.map((line) => line.id)).toEqual([c, a, b]);
+      expect(checkout?.lines.map((line) => line.sortOrder)).toEqual([0, 1, 2]);
+      expect((await cashier().current()).checkout?.lines.map((line) => line.id)).toEqual([c, a, b]);
+      // totals do not depend on the order
+      expect(checkout?.subtotal).toBe('255.10');
+    });
+
+    it('a product added afterwards goes to the end', async () => {
+      const [a, b, c] = await threeLines();
+      await cashier().reorderItems({ itemIds: [c, b, a] });
+      const extra = (await fx.newProduct({ price: '1.00', stock: { [state.centralId]: 5 } })).id;
+      const { checkout } = await cashier().addItem({ productId: extra, quantity: 1 });
+      expect(checkout?.lines.map((line) => line.id).slice(0, 3)).toEqual([c, b, a]);
+      expect(checkout?.lines.at(-1)?.productId).toBe(extra);
+    });
+
+    it('refuses a missing, extra, foreign or repeated id with CHECKOUT_ORDER_MISMATCH and changes nothing', async () => {
+      const [a, b, c] = await threeLines();
+      const foreign = fx.as(state.second).checkout;
+      const { checkout: other } = await foreign.addItem({ productId: bearing, quantity: 1 });
+      const foreignId = other!.lines[0].id;
+      for (const itemIds of [[a, b], [a, b, c, foreignId], [a, b, foreignId], [a, a, b], [], [a, b, c, c]]) {
+        expect(await codeOf(cashier().reorderItems({ itemIds }))).toBe('CHECKOUT_ORDER_MISMATCH');
+      }
+      expect((await cashier().current()).checkout?.lines.map((line) => line.id)).toEqual([a, b, c]);
+      // the other cashier's cart was not touched
+      expect((await foreign.current()).checkout?.lines.map((line) => line.id)).toEqual([foreignId]);
+    });
+
+    it('does not move another cashier’s lines even when their ids are named', async () => {
+      const [a, b, c] = await threeLines();
+      const foreign = fx.as(state.second).checkout;
+      const { checkout: other } = await foreign.addItem({ productId: bearing, quantity: 1 });
+      expect(await codeOf(foreign.reorderItems({ itemIds: [a, b, c] }))).toBe('CHECKOUT_ORDER_MISMATCH');
+      expect((await foreign.current()).checkout?.lines.map((line) => line.id)).toEqual([other!.lines[0].id]);
+    });
+
+    it('is refused while the cart is being paid', async () => {
+      const [a, b, c] = await threeLines();
+      await fx.as(state.cashier).payment.pay();
+      expect(await codeOf(cashier().reorderItems({ itemIds: [c, b, a] }))).toBe('CHECKOUT_NOT_EDITABLE');
+      await fx.as(state.cashier).payment.back();
+      expect((await cashier().current()).checkout?.lines.map((line) => line.id)).toEqual([a, b, c]);
+    });
+
+    it('a reorder concurrent with sending the cart to payment leaves a consistent cart', async () => {
+      const [a, b, c] = await threeLines();
+      const [reordered, paid] = await Promise.allSettled([
+        cashier().reorderItems({ itemIds: [c, b, a] }),
+        fx.as(state.cashier).payment.pay(),
+      ]);
+      expect(paid.status).toBe('fulfilled');
+      const lines = (await cashier().current()).checkout!.lines;
+      expect(lines.map((line) => line.id).sort()).toEqual([a, b, c].sort());
+      expect(new Set(lines.map((line) => line.sortOrder)).size).toBe(3);
+      // either the reorder ran first and was kept, or the cart was already being paid and the reorder was refused
+      if (reordered.status === 'fulfilled') expect(lines.map((line) => line.id)).toEqual([c, b, a]);
+      else expect((reordered.reason as { getResponse: () => { code: string } }).getResponse().code).toBe('CHECKOUT_NOT_EDITABLE');
+    });
+
+    it('has no cart to reorder before the first add', async () => {
+      expect(await codeOf(cashier().reorderItems({ itemIds: [] }))).toBe('CHECKOUT_NOT_FOUND');
+    });
+
+    it('a reorder concurrent with an add keeps the sort orders unique and loses no line', async () => {
+      const [a, b, c] = await threeLines();
+      const extra = (await fx.newProduct({ price: '1.00', stock: { [state.centralId]: 5 } })).id;
+      const [reordered, added] = await Promise.allSettled([
+        cashier().reorderItems({ itemIds: [c, b, a] }),
+        cashier().addItem({ productId: extra, quantity: 1 }),
+      ]);
+      expect(added.status).toBe('fulfilled');
+      const lines = (await cashier().current()).checkout!.lines;
+      // the four lines exist once each, and the positions are all different
+      expect(lines).toHaveLength(4);
+      expect(new Set(lines.map((line) => line.sortOrder)).size).toBe(4);
+      // either the reorder ran first (and was valid) or the add ran first (and the three-id list no longer matches)
+      if (reordered.status === 'fulfilled') expect(lines.slice(0, 3).map((line) => line.id)).toEqual([c, b, a]);
+      else expect((reordered.reason as { getResponse: () => { code: string } }).getResponse().code).toBe('CHECKOUT_ORDER_MISMATCH');
+    });
   });
 
   it('refuses without an open cash shift', async () => {

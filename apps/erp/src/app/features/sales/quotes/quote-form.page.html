@@ -67,7 +67,7 @@
       </section>
 
       <section class="card">
-        <h2 class="card-title">Productos</h2>
+        <h2 class="card-title">Buscar productos</h2>
         <div class="row">
           <rs-field label="Almacén para el stock" forId="quote-warehouse">
             <rs-select inputId="quote-warehouse" [options]="warehouseOptions()" [value]="warehouseId()" (valueChange)="setWarehouse($event)" />
@@ -109,29 +109,47 @@
         @if (linesError()) {
           <p class="error" role="alert">Agrega al menos un producto.</p>
         }
-        @if (lines().length > 0) {
-          <rs-doc-table size="md" tableLabel="Productos de la cotización" [columns]="columns" [rows]="rows()">
-            <ng-template rsDocCell="stock" let-row>
-              @if (lineOf(row.id); as line) {
-                <span [class.short]="hintOf(line).short">{{ hintOf(line).text }}</span>
-              }
-            </ng-template>
-            <ng-template rsDocCell="quantity" let-row>
-              @if (lineOf(row.id); as line) {
-                <rs-qty-stepper
-                  [value]="line.quantity"
-                  [min]="1"
-                  [label]="'Cantidad de ' + line.code"
+      </section>
+
+      <section class="card">
+        <h2 class="card-title" data-testid="quote-lines-title">Ítems de la cotización ({{ lines().length }})</h2>
+        @if (lines().length === 0) {
+          <rs-empty-state heading="Aún no hay ítems" description="Busca un producto arriba y agrégalo con Enter o con un clic.">
+            <rs-icon slot="icon" name="cart" [size]="24" />
+          </rs-empty-state>
+        } @else {
+          <p class="muted hint"><span aria-hidden="true">⠿</span> Arrastra una línea para reordenarla: la cotización, el pedido y la factura siguen este orden.</p>
+          <ul
+            class="line-list"
+            cdkDropList
+            cdkDropListLockAxis="y"
+            (cdkDropListDropped)="drop($event)"
+            aria-label="Productos de la cotización"
+            data-testid="quote-lines"
+          >
+            @for (line of lines(); track line.productId; let i = $index) {
+              <li class="line" cdkDrag cdkDragLockAxis="y" cdkDragPreviewContainer="parent">
+                <rs-drag-handle
+                  cdkDragHandle
+                  [label]="'Arrastrar ' + line.code"
+                  (moveUp)="moveTo(i, i - 1)"
+                  (moveDown)="moveTo(i, i + 1)"
+                />
+                <rs-pos-cart-line
+                  [title]="line.code + ' · ' + line.brandName"
+                  [unitPrice]="lineDetail(line)"
+                  [quantity]="line.quantity"
+                  (quantityChange)="setQuantity(line.productId, $event)"
+                  [total]="lineTotalText(line)"
+                  [removeLabel]="'Quitar ' + line.code"
+                  [quantityLabel]="'Cantidad de ' + line.code"
                   decrementLabel="Menos"
                   incrementLabel="Más"
-                  (valueChange)="setQuantity(line.productId, $event)"
+                  (remove)="remove(line.productId)"
                 />
-              }
-            </ng-template>
-            <ng-template rsDocCell="remove" let-row>
-              <button rsButton variant="ghost" size="sm" type="button" (click)="remove(row.id)">Quitar</button>
-            </ng-template>
-          </rs-doc-table>
+              </li>
+            }
+          </ul>
         }
       </section>
     </div>

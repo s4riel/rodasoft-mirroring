@@ -448,4 +448,32 @@ describe('Order dispatch (integration, real Postgres)', () => {
       expect(await level(p.id)).toMatchObject({ quantity: 3, reserved: 2 });
     });
   });
+  describe('line order and measures (HU-VEN-33, HU-VEN-36)', () => {
+    it('keeps the order of the quote lines in the order, the dispatch and its sale, and shows the measures of each line', async () => {
+      const a = await fx.newProduct({ code: 'LO-A', price: '10.00', stock: { [state.centralId]: 10 }, dimensions: { innerDiameter: '10.000', outerDiameter: '30.000', width: '9.000' } });
+      const b = await fx.newProduct({ code: 'LO-B', price: '20.00', stock: { [state.centralId]: 10 } });
+      const c = await fx.newProduct({ code: 'LO-C', price: '30.00', stock: { [state.centralId]: 10 } });
+      const customer = await newCustomer();
+      const quote = await fx.as(state.cashier).quotes.create({
+        customerId: customer.id,
+        lines: [
+          { productId: c.id, quantity: 1 },
+          { productId: a.id, quantity: 1 },
+          { productId: b.id, quantity: 1 },
+        ],
+      });
+      const codes = ['LO-C', 'LO-A', 'LO-B'];
+      expect((await fx.as(state.cashier).quotes.detail(quote.id)).lines.map((l) => l.code)).toEqual(codes);
+
+      const order = await orders().convert(quote.id, { warehouseId: state.centralId });
+      expect(order.lines.map((l) => l.code)).toEqual(codes);
+      expect(order.lines[1].spec).toMatchObject({ measures: { innerDiameter: '10', outerDiameter: '30', width: '9' }, category: 'Rodamientos' });
+      expect(order.lines[0].spec.measures).toBeNull();
+
+      const after = await dispatches().dispatch(order.id, give(order, [1, 1, 1]), randomUUID());
+      const detail = await fx.as(state.cashier).history.detail(after.dispatches[0].saleId as string);
+      expect(detail.lines.map((l) => l.code)).toEqual(codes);
+      expect(detail.lines[1].spec.measures).toMatchObject({ innerDiameter: '10', outerDiameter: '30', width: '9' });
+    });
+  });
 });

@@ -1,3 +1,5 @@
+@use '../shared/line-spec';
+
 :host {
   display: grid;
   gap: var(--space-6);
@@ -126,3 +128,4 @@
   font-size: var(--body-md-size);
   color: var(--text-primary);
 }
+

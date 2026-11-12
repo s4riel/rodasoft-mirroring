@@ -58,6 +58,8 @@ export interface SaleDetailPayment {
   amount: string;
   change: string;
   reference: string | null;
+  /** Credit only (HU-VEN-34): the day the balance falls due, `YYYY-MM-DD`. */
+  dueDate: string | null;
 }
 
 /** One entry of a sale's history, read from the audit log. */

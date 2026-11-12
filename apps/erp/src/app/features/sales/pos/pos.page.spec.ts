@@ -4,19 +4,23 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import type {
-  CashRegisterOption,
-  CurrentCashShift,
-  CustomerSummary,
-  PosCheckoutLine,
-  CompletedSale,
-  PosCheckoutView,
-  PosEquivalentItem,
-  PosEquivalentsResponse,
-  PosProductResult,
-  PosProductSheet,
-  PosCardPayment,
-  PosQrPayment,
+import {
+  creditDueDate,
+  formatDay,
+  formatDayShort,
+  laPazToday,
+  type CashRegisterOption,
+  type CurrentCashShift,
+  type CustomerSummary,
+  type PosCheckoutLine,
+  type CompletedSale,
+  type PosCheckoutView,
+  type PosEquivalentItem,
+  type PosEquivalentsResponse,
+  type PosProductResult,
+  type PosProductSheet,
+  type PosCardPayment,
+  type PosQrPayment,
 } from '@rodasoft/domain';
 import { ContextStore } from '../../../core/context.store';
 import { POS_SEARCH_DEBOUNCE_MS, PosPage } from './pos.page';
@@ -145,6 +149,7 @@ const cart = (lines: PosCheckoutLine[], subtotal: string, total = subtotal): Pos
   pricing: { roundingMode: 'NONE', discount: null },
   subtotal,
   discount: '0.00',
+  rounding: '0.00',
   total,
 });
 
@@ -434,6 +439,110 @@ describe('PosPage', () => {
       expect(text(h)).toContain('Busca un producto');
     });
 
+    describe('reorder and rounding (VP-03, HU-VEN-33, HU-VEN-35)', () => {
+      const ORDER = `${ITEMS}/order`;
+      const three = () => [
+        line({ id: 'l1', productId: 'p1', code: '6205-2RS', sortOrder: 0 }),
+        line({ id: 'l2', productId: 'p2', code: '6206-2RS', sortOrder: 1, unitPrice: '100.00', quantity: 1, lineTotal: '100.00' }),
+        line({ id: 'l3', productId: 'p3', code: '6207-2RS', sortOrder: 2, unitPrice: '50.00', quantity: 1, lineTotal: '50.00' }),
+      ];
+      const withThree = () => open(undefined, shift, undefined, cart(three(), '640.00'));
+      const handles = (h: RouterTestingHarness) => Array.from(root(h).querySelectorAll<HTMLButtonElement>('rs-drag-handle button'));
+      const codes = (h: RouterTestingHarness) => Array.from(root(h).querySelectorAll('rs-pos-cart-line .title')).map((t) => t.textContent?.trim());
+      const arrow = (button: HTMLElement, key: string) => button.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      const inOrder = (ids: string[]) => ids.map((id, index) => ({ ...three().find((l) => l.id === id)!, sortOrder: index }));
+
+      it('draws a drag handle with its name on every line and the reorder notice in the shortcuts', async () => {
+        const h = await withThree();
+        expect(handles(h).map((b) => b.getAttribute('aria-label'))).toEqual(['Arrastrar 6205-2RS', 'Arrastrar 6206-2RS', 'Arrastrar 6207-2RS']);
+        expect(root(h).querySelector('[data-testid=pos-shortcuts]')!.textContent).toContain('Arrastrar para reordenar');
+      });
+
+      it('moves a line with the arrow keys at once and tells the server the new order', async () => {
+        const h = await withThree();
+        arrow(handles(h)[2], 'ArrowUp');
+        await settle(h);
+        expect(codes(h)).toEqual(['6205-2RS · SKF', '6207-2RS · SKF', '6206-2RS · SKF']);
+        const req = http.expectOne(ORDER);
+        expect(req.request.method).toBe('PUT');
+        expect(req.request.body).toEqual({ itemIds: ['l1', 'l3', 'l2'] });
+        req.flush({ checkout: cart(inOrder(['l1', 'l3', 'l2']), '640.00') });
+        await settle(h);
+        expect(codes(h)).toEqual(['6205-2RS · SKF', '6207-2RS · SKF', '6206-2RS · SKF']);
+      });
+
+      it('does nothing when the first line goes up or the last one goes down', async () => {
+        const h = await withThree();
+        arrow(handles(h)[0], 'ArrowUp');
+        arrow(handles(h)[2], 'ArrowDown');
+        await settle(h);
+        http.expectNone(ORDER);
+        expect(codes(h)).toEqual(['6205-2RS · SKF', '6206-2RS · SKF', '6207-2RS · SKF']);
+      });
+
+      it('puts the order back and reads the cart again when the server refuses', async () => {
+        const h = await withThree();
+        arrow(handles(h)[1], 'ArrowDown');
+        await settle(h);
+        expect(codes(h)[2]).toBe('6206-2RS · SKF');
+        http.expectOne(ORDER).flush({ code: 'CHECKOUT_ORDER_MISMATCH', message: 'mismatch' }, { status: 409, statusText: 'Conflict' });
+        await settle(h);
+        http.expectOne(CHECKOUT).flush({ checkout: cart(three(), '640.00') });
+        await settle(h);
+        expect(codes(h)).toEqual(['6205-2RS · SKF', '6206-2RS · SKF', '6207-2RS · SKF']);
+      });
+
+      it('locks the handles while the payment is open', async () => {
+        const h = await withThree();
+        expect(handles(h).every((b) => !b.disabled)).toBe(true);
+        button(h, 'Cobrar')!.click();
+        await settle(h);
+        http.expectOne('/api/v1/sales/pos/checkout/pay').flush({ total: '640.00', suggestedAmounts: [], allowMixed: true, cardEnabled: true });
+        await settle(h);
+        expect(handles(h).every((b) => b.disabled)).toBe(true);
+        arrow(handles(h)[1], 'ArrowDown');
+        http.expectNone(ORDER);
+      });
+
+      const adjustment = (h: RouterTestingHarness) => ({
+        label: root(h).querySelector('[data-testid=pos-adjustment-label]')?.textContent?.trim() ?? null,
+        amount: root(h).querySelector('[data-testid=pos-adjustment]')?.textContent?.trim() ?? null,
+      });
+      const rounded = (pricing: PosCheckoutView['pricing'], unitPrice: string) =>
+        open(undefined, shift, undefined, {
+          ...cart([line({ quantity: 1, unitPrice, lineTotal: unitPrice })], unitPrice),
+          pricing,
+        });
+
+      it('shows "Redondeo" alone when the rounding changes the total and there is no discount', async () => {
+        const half = await rounded({ roundingMode: 'HALF_BOLIVIANO', discount: null }, '245.30');
+        expect(adjustment(half)).toEqual({ label: 'Redondeo', amount: '+Bs 0,20' });
+        expect(total(half)).toBe('Bs 245,50');
+        TestBed.resetTestingModule();
+        const integer = await rounded({ roundingMode: 'INTEGER', discount: null }, '245.30');
+        expect(adjustment(integer)).toEqual({ label: 'Redondeo', amount: '−Bs 0,30' });
+        expect(total(integer)).toBe('Bs 245,00');
+      });
+
+      it('shows "Descuento (redondeado)" with the discount and the rounding together, so subtotal − row = total', async () => {
+        const h = await rounded({ roundingMode: 'HALF_BOLIVIANO', discount: { type: 'PERCENT', value: '3.33' } }, '100.00');
+        expect(adjustment(h)).toEqual({ label: 'Descuento (redondeado)', amount: '−Bs 3,50' });
+        expect(total(h)).toBe('Bs 96,50');
+        expect(root(h).querySelector('[data-testid=pos-subtotal]')!.textContent!.trim()).toBe('Bs 100,00');
+      });
+
+      it('keeps the plain "Descuento" when nothing is rounded, and shows no row without discount or rounding', async () => {
+        const plain = await rounded({ roundingMode: 'NONE', discount: { type: 'PERCENT', value: '10.00' } }, '100.00');
+        expect(adjustment(plain)).toEqual({ label: 'Descuento', amount: '−Bs 10,00' });
+        TestBed.resetTestingModule();
+        const none = await rounded({ roundingMode: 'NONE', discount: null }, '100.00');
+        expect(adjustment(none)).toEqual({ label: null, amount: null });
+        TestBed.resetTestingModule();
+        const exact = await rounded({ roundingMode: 'HALF_BOLIVIANO', discount: null }, '100.50');
+        expect(adjustment(exact)).toEqual({ label: null, amount: null });
+      });
+    });
+
     describe('equivalents of an out-of-stock product (VP-03b, HU-VEN-03)', () => {
       const out = (over: Partial<PosProductResult> = {}) =>
         product({ id: 'p3', code: '6208-2RS', available: 0, stockStatus: 'out', maxQuantity: 0, ...over });
@@ -669,6 +778,7 @@ describe('PosPage', () => {
       customerName: 'S/N',
       invoiceStatus: 'PENDING',
       customerEmail: null,
+      dueDate: null,
     };
 
     /** A cart of Bs 1.111,00 with the shift open. */
@@ -900,6 +1010,107 @@ describe('PosPage', () => {
       await settle(h);
       expect(total(h)).toBe('Bs 490,00');
       expect(dialog(h)).toBeNull();
+    });
+
+    describe('credit (VP-04d, HU-VEN-34)', () => {
+      const offered = { available: true, reason: null, termOptions: [5, 15, 30] };
+      const methodChip = (h: RouterTestingHarness, label: string) =>
+        Array.from(payDialog(h)!.querySelectorAll<HTMLElement>('.methods rs-filter-chip')).find((c) => c.getAttribute('label') === label)!;
+      const chipButton = (h: RouterTestingHarness, label: string) => methodChip(h, label).querySelector('button') as HTMLButtonElement;
+      const termChip = (h: RouterTestingHarness, label: string) =>
+        Array.from(payDialog(h)!.querySelectorAll<HTMLButtonElement>('rs-pos-credit-panel rs-filter-chip button')).find((b) => b.textContent?.trim() === label)!;
+      const confirm = (h: RouterTestingHarness) => byId(h, 'credit-confirm') as HTMLButtonElement;
+
+      async function startWithCredit(h: RouterTestingHarness, credit: unknown) {
+        button(h, 'Cobrar')!.click();
+        await settle(h);
+        http.expectOne(PAY).flush({ total: '1111.00', suggestedAmounts: [], allowMixed: true, cardEnabled: true, credit });
+        await settle(h);
+      }
+
+      it('disables the chip with the reason when the customer cannot buy on credit', async () => {
+        const h = await withCart();
+        await startWithCredit(h, { available: false, reason: 'CUSTOMER_REQUIRED', termOptions: [5, 15, 30] });
+        expect(chipButton(h, 'Crédito').disabled).toBe(true);
+        expect(methodChip(h, 'Crédito').getAttribute('title')).toBe('Elige un cliente con NIT y crédito habilitado');
+      });
+
+      it('names the flag when only the flag is missing', async () => {
+        const h = await withCart();
+        await startWithCredit(h, { available: false, reason: 'CREDIT_NOT_ENABLED', termOptions: [5, 15, 30] });
+        expect(methodChip(h, 'Crédito').getAttribute('title')).toBe('El cliente no tiene crédito habilitado');
+      });
+
+      it('opens the panel with the terms of the company and "Otro", and waits for a term before confirming', async () => {
+        const h = await withCart();
+        await startWithCredit(h, offered);
+        chipButton(h, 'Crédito').click();
+        await settle(h);
+        const terms = Array.from(payDialog(h)!.querySelectorAll('rs-pos-credit-panel .chips rs-filter-chip')).map((c) => c.textContent?.trim());
+        expect(terms).toEqual(['5 días', '15 días', '30 días', 'Otro']);
+        expect(payDialog(h)!.textContent).toContain('Sin límite');
+        expect(payDialog(h)!.textContent).toContain('Habilitado en su ficha');
+        expect(byId(h, 'credit-balance')!.textContent).toBe('Bs 1.111,00');
+        expect(byId(h, 'credit-due')!.textContent).toBe('—');
+        expect(confirm(h).disabled).toBe(true);
+      });
+
+      it('shows the due date of the term and completes the sale on credit with it', async () => {
+        const h = await withCart();
+        await startWithCredit(h, offered);
+        chipButton(h, 'Crédito').click();
+        await settle(h);
+        termChip(h, '30 días').click();
+        await settle(h);
+        const due = creditDueDate(laPazToday(new Date()), 30);
+        expect(byId(h, 'credit-due')!.textContent).toBe(formatDayShort(due));
+        expect(confirm(h).disabled).toBe(false);
+
+        confirm(h).click();
+        await settle(h);
+        const req = http.expectOne(COMPLETE);
+        expect(req.request.body).toMatchObject({ payments: [{ method: 'CREDIT', termDays: 30 }], expectedTotal: '1111.00' });
+        req.flush({ sale: { ...sale, received: '0.00', change: '0.00', dueDate: due } });
+        await settle(h);
+        expect(byId(h, 'sale-credit')!.textContent).toBe('Bs 1.111,00');
+        expect(byId(h, 'sale-due')!.textContent).toBe(formatDay(due));
+        expect(byId(h, 'sale-received')).toBeNull();
+      });
+
+      it('takes another term in days with "Otro", and refuses one outside 1 to 365', async () => {
+        const h = await withCart();
+        await startWithCredit(h, offered);
+        chipButton(h, 'Crédito').click();
+        await settle(h);
+        termChip(h, 'Otro').click();
+        await settle(h);
+        const days = payDialog(h)!.querySelector<HTMLInputElement>('#credit-days')!;
+        const type = async (value: string) => {
+          days.value = value;
+          days.dispatchEvent(new Event('input'));
+          await settle(h);
+        };
+        await type('400');
+        expect(payDialog(h)!.textContent).toContain('Escribe de 1 a 365 días.');
+        expect(confirm(h).disabled).toBe(true);
+        await type('45');
+        expect(byId(h, 'credit-due')!.textContent).toBe(formatDayShort(creditDueDate(laPazToday(new Date()), 45)));
+        expect(confirm(h).disabled).toBe(false);
+        confirm(h).click();
+        await settle(h);
+        expect(http.expectOne(COMPLETE).request.body.payments).toEqual([{ method: 'CREDIT', termDays: 45 }]);
+      });
+
+      it('lets the cashier go back to cash from the credit panel', async () => {
+        const h = await withCart();
+        await startWithCredit(h, offered);
+        chipButton(h, 'Crédito').click();
+        await settle(h);
+        chipButton(h, 'Efectivo').click();
+        await settle(h);
+        expect(byId(h, 'pay-confirm')).not.toBeNull();
+        expect(payDialog(h)!.querySelector('rs-pos-credit-panel')).toBeNull();
+      });
     });
 
     describe('QR payment (VP-04b, HU-VEN-08)', () => {

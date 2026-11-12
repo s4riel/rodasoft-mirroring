@@ -72,7 +72,7 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
     it('moves the cart to PAYING and answers the total with the quick amounts', async () => {
       const p = await product(10);
       const response = await pay([[p.id, 2]]);
-      expect(response).toEqual({ total: '490.00', suggestedAmounts: ['500.00'], allowMixed: true, cardEnabled: true });
+      expect(response).toEqual({ total: '490.00', suggestedAmounts: ['500.00'], allowMixed: true, cardEnabled: true, credit: { available: false, reason: 'CUSTOMER_REQUIRED', termOptions: [5, 15, 30] } });
       const stored = await state.base.posCheckout.findFirstOrThrow({ where: { companyId: state.companyId } });
       expect(stored.status).toBe('PAYING');
       const audit = await state.base.auditLog.findFirstOrThrow({
@@ -457,6 +457,41 @@ describe('POS payment and sale completion (integration, real Postgres)', () => {
       expect(await state.base.sale.count({ where: { companyId: state.companyId } })).toBe(1);
       expect(await stockOf(p.id)).toBe(8);
       expect(await state.base.posCheckoutPayment.count({ where: { companyId: state.companyId } })).toBe(1);
+    });
+
+    it('keeps the order the cashier gave the lines in the sale, its detail and its receipt (HU-VEN-33)', async () => {
+      const first = await fx.newProduct({ code: `ORD-A-${key().slice(0, 6)}`, price: '10.00', stock: { [state.centralId]: 5 } });
+      const second = await fx.newProduct({ code: `ORD-B-${key().slice(0, 6)}`, price: '20.00', stock: { [state.centralId]: 5 } });
+      const third = await fx.newProduct({ code: `ORD-C-${key().slice(0, 6)}`, price: '30.00', stock: { [state.centralId]: 5 } });
+      for (const p of [first, second, third]) await svc().checkout.addItem({ productId: p.id, quantity: 1 });
+      const lines = (await svc().checkout.current()).checkout!.lines;
+      const byProduct = new Map(lines.map((l) => [l.productId, l.id]));
+      await svc().checkout.reorderItems({ itemIds: [third.id, first.id, second.id].map((id) => byProduct.get(id)!) });
+      const { total } = await svc().payment.pay();
+      const { sale } = await complete('100', total);
+
+      const items = await state.base.saleItem.findMany({ where: { saleId: sale.saleId }, orderBy: { sortOrder: 'asc' } });
+      expect(items.map((i) => i.productId)).toEqual([third.id, first.id, second.id]);
+      expect(items.map((i) => i.sortOrder)).toEqual([0, 1, 2]);
+      const expectedCodes = [third.manufacturerCode, first.manufacturerCode, second.manufacturerCode];
+      expect((await svc().history.detail(sale.saleId)).lines.map((l) => l.code)).toEqual(expectedCodes);
+      expect((await svc().receipts.receipt(sale.saleId)).lines.map((l) => l.code)).toEqual(expectedCodes);
+    });
+
+    it('returns the measures and type of each line in the sale detail and the receipt (HU-VEN-36)', async () => {
+      const p = await fx.newProduct({
+        price: '50.00',
+        stock: { [state.centralId]: 5 },
+        dimensions: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.000' },
+        attributes: { seal: '2RS' },
+      });
+      const { total } = await pay([[p.id, 1]]);
+      const { sale } = await complete('100', total);
+      const expected = { measures: { innerDiameter: '25', outerDiameter: '52', width: '15' }, category: 'Rodamientos', subcategory: null };
+      for (const lines of [(await svc().history.detail(sale.saleId)).lines, (await svc().receipts.receipt(sale.saleId)).lines]) {
+        expect(lines[0].spec).toMatchObject(expected);
+        expect(Array.isArray(lines[0].spec.details)).toBe(true);
+      }
     });
 
     it('two concurrent completes of the same cart and key give one sale', async () => {
