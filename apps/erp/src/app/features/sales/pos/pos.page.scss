@@ -1,3 +1,5 @@
+@use '../shared/line-drag';
+
 /* Figma VP-03: full screen (no shell), page background, padding 24, products column + 460 px sale panel, gap 24 */
 :host {
   display: block;
@@ -147,6 +149,7 @@
   list-style: none;
 }
 
+
 /* Figma "Totales": label left, amount right, gap 8 */
 .totals {
   display: flex;
@@ -276,3 +279,4 @@
   gap: var(--space-3);
   width: 100%;
 }
+

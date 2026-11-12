@@ -15,6 +15,7 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { dayStart, nextDayStart } from '../../inventory/business-days';
 import { posErrors } from '../pos/pos.errors';
+import { LINE_SPEC_PRODUCT_SELECT, lineSpecsOf } from '../sales-line-spec';
 import type { ListSalesQueryDto } from './sales-history.dto';
 import { SaleReturnsQueryService } from '../returns/sale-returns-query.service';
 import { SaleCancellationService } from './sale-cancellation.service';
@@ -111,7 +112,7 @@ export class SalesHistoryService {
       include: {
         items: {
           orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-          include: { product: { select: { manufacturerCode: true, name: true } } },
+          include: { product: { select: { manufacturerCode: true, name: true, ...LINE_SPEC_PRODUCT_SELECT } } },
         },
         payments: { orderBy: { id: 'asc' } },
         invoice: true,
@@ -124,12 +125,13 @@ export class SalesHistoryService {
     });
     if (!sale || !sale.invoice) throw posErrors.saleNotFound();
 
-    const [cashier, history, receiptFormat, cancellation, returns] = await Promise.all([
+    const [cashier, history, receiptFormat, cancellation, returns, specs] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: sale.createdById }, select: { name: true } }),
       this.history(sale.companyId, sale.id),
       this.settings.get('sales.receiptFormat'),
       this.cancellations.stateOf({ id: sale.id, status: sale.status as SaleStatus, createdAt: sale.createdAt, warehouse: sale.warehouse, shift: sale.shift, origin: sale.origin }),
       this.returnQueries.refsOfSale(sale.id),
+      lineSpecsOf(this.prisma.tenant, sale.items.map((item) => item.product)),
     ]);
 
     return {
@@ -152,6 +154,7 @@ export class SalesHistoryService {
         quantity: item.quantity,
         unitPrice: item.unitPrice.toFixed(2),
         lineTotal: item.lineTotal.toFixed(2),
+        spec: specs.get(item.productId)!,
       })),
       subtotal: sale.subtotal.toFixed(2),
       discountType: sale.discountType,
@@ -163,6 +166,7 @@ export class SalesHistoryService {
         amount: p.amount.toFixed(2),
         change: p.change.toFixed(2),
         reference: p.reference,
+        dueDate: p.dueDate ? p.dueDate.toISOString().slice(0, 10) : null,
       })),
       invoice: { status: sale.invoice.status, number: sale.invoice.number },
       history,

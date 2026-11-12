@@ -58,7 +58,15 @@ describe('Cash shift summary (integration, real Postgres)', () => {
         subtotal: total,
         total,
         createdById: shift.caller.userId,
-        payments: { create: payments.map((p) => ({ companyId: state.companyId, method: p.method, amount: p.amount })) },
+        payments: {
+          create: payments.map((p) => ({
+            companyId: state.companyId,
+            method: p.method,
+            amount: p.amount,
+            // a credit payment always carries its due date (check constraint, HU-VEN-34)
+            dueDate: p.method === 'CREDIT' ? new Date('2026-12-01T00:00:00Z') : null,
+          })),
+        },
       },
     });
     for (const payment of payments.filter((p) => p.method === 'CASH')) {

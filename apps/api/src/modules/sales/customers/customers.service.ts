@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
+  creditBalance,
   customerDiscountInputValid,
+  laPazToday,
   normalizeNit,
   validateInvoiceDocument,
+  type CustomerCreditBalance,
   type CustomerListQuery,
   type CustomerListResponse,
   type CustomerSearchResponse,
   type CustomerSummary,
+  type SaleStatus,
   type SaveCustomerInput,
   type UpdateCustomerInput,
 } from '@rodasoft/domain';
@@ -98,6 +102,36 @@ export class CustomersService {
       this.prisma.tenant.customer.count({ where }),
     ]);
     return { items: rows.map(toCustomerSummary), total, page, pageSize };
+  }
+
+  /**
+   * What the customer owes on credit sales, derived from the sales (see `creditBalance`): the `CREDIT` payments of their sales that
+   * are not cancelled, less the approved returns of each. A read only; collecting against it arrives with HU-CON-03.
+   */
+  async creditBalance(id: string): Promise<CustomerCreditBalance> {
+    await this.get(id);
+    const payments = await this.prisma.tenant.salePayment.findMany({
+      where: { method: 'CREDIT', sale: { customerId: id } },
+      select: { saleId: true, amount: true, dueDate: true, sale: { select: { status: true } } },
+    });
+    const returns = payments.length
+      ? await this.prisma.tenant.saleReturn.groupBy({
+          by: ['saleId'],
+          where: { saleId: { in: payments.map((payment) => payment.saleId) }, status: 'APPROVED' },
+          _sum: { total: true },
+        })
+      : [];
+    const returned = new Map(returns.map((row) => [row.saleId, (row._sum.total ?? new Prisma.Decimal(0)).toFixed(2)]));
+    return creditBalance(
+      id,
+      payments.map((payment) => ({
+        status: payment.sale.status as SaleStatus,
+        amount: payment.amount.toFixed(2),
+        dueDate: (payment.dueDate as Date).toISOString().slice(0, 10),
+        returned: returned.get(payment.saleId) ?? '0.00',
+      })),
+      laPazToday(new Date()),
+    );
   }
 
   async get(id: string): Promise<CustomerSummary> {

@@ -1,3 +1,5 @@
+@use '../shared/line-spec';
+
 :host {
   display: grid;
   gap: var(--space-6);
@@ -116,3 +118,4 @@
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); /* four cards on a desktop row, wrapping on narrow screens */
   gap: var(--space-4);
 }
+

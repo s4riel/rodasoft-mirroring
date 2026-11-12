@@ -167,6 +167,24 @@ describe('Quotes (integration, real Postgres)', () => {
       expect(res.items[0]).toMatchObject({ id: p.id, available: 7 });
       expect(JSON.stringify(res)).not.toMatch(/cost/i);
       expect((await svc().searchProducts('QSEARCH-9', state.annexId)).items[0].available).toBe(0);
+    });
+
+    it('returns the measures and the type of each product in the search and in the quote detail (HU-VEN-36)', async () => {
+      const p = await fx.newProduct({
+        code: 'QSPEC-1',
+        stock: { [state.centralId]: 3 },
+        dimensions: { innerDiameter: '25.000', outerDiameter: '52.000', width: '15.500' },
+      });
+      const found = await svc().searchProducts('QSPEC-1', state.centralId);
+      expect(found.items[0].spec).toMatchObject({
+        measures: { innerDiameter: '25', outerDiameter: '52', width: '15.5' },
+        category: 'Rodamientos',
+        subcategory: null,
+      });
+      const c = await customer();
+      const quote = await svc().create({ customerId: c.id, lines: [{ productId: p.id, quantity: 1 }] });
+      expect((await svc().detail(quote.id)).lines[0].spec).toEqual(found.items[0].spec);
+      expect(JSON.stringify(found)).not.toMatch(/cost/i);
       expect(await codeOf(svc().searchProducts('x', '019a0000-0000-7000-8000-000000000000'))).toBe('SALES_WAREHOUSE_NOT_FOUND');
     });
 

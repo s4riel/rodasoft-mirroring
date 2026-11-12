@@ -15,7 +15,9 @@ import {
   validateReturnDecision,
   validateReturnHeader,
   validateReturnLines,
+  splitReturnRefund,
   type CreateSaleReturnInput,
+  type RefundSplit,
   type ReturnDecisionInput,
   type SaleReturnDetail,
   type SaleStatus,
@@ -323,13 +325,15 @@ export class SaleReturnsService {
         });
     }
 
-    if (ret.refundMethod === 'CASH' && ctx.shiftId) {
+    // a sale on credit never collected part of its total: that part is not paid out, it reduces the customer's balance
+    const split = await this.refundSplit(tx, ret);
+    if (ret.refundMethod === 'CASH' && ctx.shiftId && !split.paidOut.isZero()) {
       await tx.cashMovement.create({
         data: {
           companyId: ctx.companyId,
           shiftId: ctx.shiftId,
           type: 'REFUND',
-          amount: ret.total.toFixed(2),
+          amount: split.paidOut.toString(),
           reason: `Devolución ${ret.number} · venta ${sale.number}`,
           refType: SALE_RETURN_REF_TYPE,
           refId: ret.id,
@@ -368,6 +372,8 @@ export class SaleReturnsService {
           saleNumber: sale.number,
           total: ret.total.toFixed(2),
           refundMethod: ret.refundMethod,
+          paidOut: split.paidOut.toString(),
+          onCredit: split.onCredit.toString(),
           pieces,
           scrapPieces,
           creditNoteId: creditNote.id,
@@ -387,12 +393,31 @@ export class SaleReturnsService {
         saleNumber: sale.number,
         total: ret.total.toFixed(2),
         refundMethod: ret.refundMethod,
+        // what leaves as money and what only reduces the customer's balance (accounts receivable, HU-CON-03)
+        paidOut: split.paidOut.toString(),
+        creditReduction: split.onCredit.toString(),
         customerId: sale.customerId,
         branchId: sale.branchId,
         shiftId: ctx.shiftId,
       },
       { tx, idempotencyKey: `return-completed:${ret.id}` },
     );
+  }
+
+  /** How much of a return is paid out and how much only reduces the balance of a sale on credit (`splitReturnRefund`). */
+  private async refundSplit(tx: TenantTransaction, ret: ReturnToApply): Promise<RefundSplit> {
+    const total = Decimal.of(ret.total.toFixed(2));
+    const payments = await tx.salePayment.findMany({ where: { saleId: ret.saleId }, select: { method: true, amount: true } });
+    // no credit: the sale collected all of its total, as it always did
+    if (!payments.some((payment) => payment.method === 'CREDIT')) return { paidOut: total, onCredit: Decimal.zero() };
+    const collected = payments
+      .filter((payment) => payment.method !== 'CREDIT')
+      .reduce((acc, payment) => acc.add(Decimal.of(payment.amount.toFixed(2))), Decimal.zero());
+    const earlier = await tx.saleReturn.aggregate({
+      where: { saleId: ret.saleId, companyId: ret.companyId, status: 'APPROVED', id: { not: ret.id } },
+      _sum: { total: true },
+    });
+    return splitReturnRefund(total, collected, Decimal.of((earlier._sum.total ?? new Prisma.Decimal(0)).toFixed(2)));
   }
 
   /** Units each sale line has already given back in returns that are not rejected. */

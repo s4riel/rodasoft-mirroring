@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import type { SaleDetail } from '@rodasoft/domain';
+import type { SaleDetail, SalesLineSpec } from '@rodasoft/domain';
 import { RS_PERMISSIONS } from '@rodasoft/ui';
 import { SaleDetailPage } from './sale-detail.page';
 
@@ -18,13 +18,13 @@ const detail = (over: Partial<SaleDetail> = {}): SaleDetail => ({
   cashier: { name: 'Alberto Andia' },
   order: null,
   customer: { name: 'Industrias Demo S.A.', documentType: 5, documentNumber: '1023456029', email: 'ventas@demo.bo' },
-  lines: [{ code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00' }],
+  lines: [{ code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00', spec: { measures: { innerDiameter: '25', outerDiameter: '52', width: '15' }, category: 'Rodamientos', subcategory: 'Rígidos de bolas', details: ['Sello: 2RS'] } }],
   subtotal: '490.00',
   discountType: 'NONE',
   discountAmount: '0.00',
   roundingAmount: '0.00',
   total: '490.00',
-  payments: [{ method: 'CASH', amount: '490.00', change: '10.00', reference: null }],
+  payments: [{ method: 'CASH', amount: '490.00', change: '10.00', reference: null, dueDate: null }],
   invoice: { status: 'PENDING', number: null },
   history: [
     { action: 'sales.sale.complete', at: '2026-10-14T14:24:00.000Z', userName: 'Alberto Andia', email: null },
@@ -95,6 +95,23 @@ describe('SaleDetailPage', () => {
     expect(text).toContain('Venta completada');
     expect(text).toContain('Comprobante reimpreso');
     expect(text).not.toContain('Descuento');
+  });
+
+  it('shows the measures and the type under the product of each line (HU-VEN-36)', async () => {
+    const f = await render();
+    http.expectOne(URL).flush(detail());
+    await settle(f);
+    expect(el(f).querySelector('.line-spec')?.textContent?.trim()).toBe('25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sello: 2RS');
+  });
+
+  it('says when a credit payment falls due (HU-VEN-34)', async () => {
+    const f = await render();
+    http.expectOne(URL).flush(detail({ payments: [{ method: 'CREDIT', amount: '490.00', change: '0.00', reference: null, dueDate: '2026-11-21' }] }));
+    await settle(f);
+    const text = el(f).textContent ?? '';
+    expect(text).toContain('Crédito · vence 21/11/2026');
+    expect(text).toContain('Bs 490,00');
+    expect(text).not.toContain('cambio');
   });
 
   it('shows the discount and the rounding only when there are some', async () => {

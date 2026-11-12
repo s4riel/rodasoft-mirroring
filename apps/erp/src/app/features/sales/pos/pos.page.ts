@@ -11,18 +11,21 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import {
   cartTotals,
   Decimal,
   lineTotal,
+  moveLine,
   receiptShareText,
   FINAL_CONSUMER,
   type CashRegisterOption,
   type CompletedSale,
   type CurrentCashShift,
   type CustomerSummary,
+  type PosCreditInfo,
   type PosCategory,
   type PosCheckoutLine,
   type PosCheckoutResponse,
@@ -36,6 +39,7 @@ import {
 import {
   ButtonComponent,
   ChipMediaComponent,
+  DragHandleComponent,
   EmptyStateComponent,
   EmptyStateIllustratedComponent,
   FilterChipComponent,
@@ -85,18 +89,24 @@ const keyOf = (k: SearchKey) => `${k.categoryId ?? ''}|${k.q}`;
 const isEmptySearch = (k: SearchKey) => !k.q && !k.categoryId;
 
 const money = (value: string) => Decimal.of(value).format();
+/** The amount without its sign: the row writes the sign itself. */
+const magnitude = (value: Decimal) => (value.isNegative() ? value.neg() : value).format();
 
 /**
  * VP-03 · Point of sale, full screen (HU-VEN-02). Left: search by code, measurement or brand, category chips and results
- * with the stock of the register's warehouse. Right: the current sale (server-side cart) with instant totals: quantity and
- * remove changes are optimistic, recalculated with `cartTotals()` on the spot and replaced by the server's answer, or undone
+ * with the stock of the register's warehouse. Right: the current sale (server-side cart) with instant totals: quantity,
+ * remove and reorder changes (drag the handle of a line, or ↑/↓ on it, HU-VEN-33) are optimistic, recalculated with `cartTotals()` on the spot and replaced by the server's answer, or undone
  * with a toast. Without an open shift the HU-VEN-01 "Caja cerrada" card (VP-14) covers the page.
  */
 @Component({
   selector: 'rs-pos-page',
   imports: [
     ButtonComponent,
+    CdkDrag,
+    CdkDragHandle,
+    CdkDropList,
     ChipMediaComponent,
+    DragHandleComponent,
     EmptyStateComponent,
     EmptyStateIllustratedComponent,
     FilterChipComponent,
@@ -200,6 +210,8 @@ export class PosPage implements OnInit {
   protected readonly payAllowMixed = signal(true);
   /** The company takes cards: the payment screen offers "Tarjeta" (HU-VEN-10). */
   protected readonly payCardEnabled = signal(true);
+  /** Whether the cart's customer can buy on credit and the terms to offer (HU-VEN-34); `null` until `pay` answers. */
+  protected readonly payCredit = signal<PosCreditInfo | null>(null);
   /** The card attempt the server still has for the cart, when the payment screen reopens after a refresh (HU-VEN-10). */
   protected readonly resumeCard = signal<PosCardPayment | null>(null);
   protected readonly completedOpen = signal(false);
@@ -212,8 +224,22 @@ export class PosPage implements OnInit {
     return cartTotals(this.lines(), pricing);
   });
   protected readonly subtotalText = computed(() => this.totals().subtotal.format());
-  protected readonly discountText = computed(() => (this.totals().discount.isZero() ? null : `−${this.totals().discount.format()}`));
   protected readonly totalText = computed(() => this.totals().total.format());
+  /**
+   * The row under the subtotal that the rounding changes (HU-VEN-35): "Descuento (redondeado)" folds the customer's discount and
+   * the rounding into one deduction, "Redondeo" is the rounding alone when there is no discount; with no rounding the plain
+   * "Descuento" row shows the discount as before. Subtotal − the row = Total.
+   */
+  protected readonly adjustment = computed<{ label: string; text: string } | null>(() => {
+    const { discount, rounding } = this.totals();
+    if (rounding.isZero()) return discount.isZero() ? null : { label: 'Descuento', text: `−${discount.format()}` };
+    if (discount.isZero()) return { label: 'Redondeo', text: `${rounding.isNegative() ? '−' : '+'}${magnitude(rounding)}` };
+    const deducted = discount.sub(rounding);
+    if (deducted.isZero()) return null;
+    return { label: 'Descuento (redondeado)', text: `${deducted.isNegative() ? '+' : '−'}${magnitude(deducted)}` };
+  });
+  /** Dragging is off while a sale is being paid, and while an add is in flight (its line is not in the list yet). */
+  protected readonly reorderDisabled = computed(() => this.paymentOpen() || this.paying() || this.payStarting() || this.adding().size > 0 || this.sheetAdding());
 
   /** The register named in the closed card: the only one of the branch in the ContextBar, when there is exactly one. */
   private readonly onlyRegister = computed(() => {
@@ -323,6 +349,7 @@ export class PosPage implements OnInit {
           this.paySuggested.set(res.suggestedAmounts);
           this.payAllowMixed.set(res.allowMixed);
           this.payCardEnabled.set(res.cardEnabled);
+          this.payCredit.set(res.credit);
           this.paymentKey = newIdempotencyKey();
           this.paymentOpen.set(true);
         },
@@ -439,6 +466,11 @@ export class PosPage implements OnInit {
   /** The terminal approved the card: the sale is completed with it, under the attempt's own key (HU-VEN-10). */
   protected confirmCardPayment(payment: PosCardPayment) {
     this.submitPayment([{ method: 'CARD', paymentId: payment.paymentId }], payment.idempotencyKey);
+  }
+
+  /** The cashier picked the credit term: the whole sale goes to the customer's account (HU-VEN-34), under the payment's own key. */
+  protected confirmCreditPayment(termDays: number) {
+    this.submitPayment([{ method: 'CREDIT', termDays }], this.paymentKey);
   }
 
   /** The mixed panel has the QR paid and the cash typed: one sale with both payments, under the QR's own key (HU-VEN-09). */
@@ -744,6 +776,25 @@ export class PosPage implements OnInit {
     this.mutate(this.api.updateItem(line.id, quantity));
   }
 
+  /** A drop of the CDK list: the dragged line goes to its new place. */
+  protected drop(event: CdkDragDrop<PosCheckoutLine[]>) {
+    this.moveTo(event.previousIndex, event.currentIndex);
+  }
+
+  /**
+   * Moves the line at `from` to `to` (HU-VEN-33): the list changes at once and the server keeps the order. If the server
+   * refuses, `mutate` puts the server's order back and shows why.
+   */
+  protected moveTo(from: number, to: number) {
+    if (this.reorderDisabled()) return;
+    const lines = this.lines();
+    const ids = moveLine(lines.map((line) => line.id), from, to);
+    if (ids.every((id, index) => id === lines[index].id)) return;
+    const byId = new Map(lines.map((line) => [line.id, line]));
+    this.lines.set(ids.map((id) => byId.get(id) as PosCheckoutLine));
+    this.mutate(this.api.reorderItems(ids));
+  }
+
   protected remove(line: PosCheckoutLine) {
     this.lines.update((lines) => lines.filter((l) => l.id !== line.id));
     this.mutate(this.api.removeItem(line.id));
@@ -779,7 +830,7 @@ export class PosPage implements OnInit {
         const code = problemOf(err).code;
         this.settle();
         done();
-        if (code === 'CHECKOUT_ITEM_NOT_FOUND' || code === 'CHECKOUT_NOT_EDITABLE') this.loadCart();
+        if (code === 'CHECKOUT_ITEM_NOT_FOUND' || code === 'CHECKOUT_NOT_EDITABLE' || code === 'CHECKOUT_ORDER_MISMATCH') this.loadCart();
       },
     });
   }

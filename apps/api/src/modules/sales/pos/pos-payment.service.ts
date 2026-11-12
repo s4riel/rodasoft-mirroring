@@ -4,8 +4,12 @@ import {
   availableQuantity,
   canCompleteWithPayments,
   cartTotals,
+  creditDueDate,
+  creditEligibility,
   Decimal,
   InvalidTransitionError,
+  MONEY_SCALE,
+  laPazToday,
   lineTotal,
   paymentMachine,
   paymentsCover,
@@ -13,12 +17,15 @@ import {
   SALE_REF_TYPE,
   suggestCashAmounts,
   validateCashTendered,
+  validateCreditTerm,
   validateMixedPayments,
   validateOpeningFloat,
   type CompletedSale,
   type CompletePosCheckoutResponse,
+  type CreditEligibility,
   type CurrentCashShift,
   type PosCheckoutResponse,
+  type PosCreditInfo,
   type PosPayResponse,
   type PosPriceChange,
   type PosCheckoutEvent,
@@ -57,7 +64,11 @@ type TenantDb = TenantTransaction | PrismaService['tenant'];
 const MY_CART_STATUSES: PosCheckoutStatus[] = ['OPEN', 'PAYING'];
 
 /** One line of what the customer paid with, as `complete` reads it from the request. */
-type Tender = { method: 'CASH'; received: string } | { method: 'QR'; paymentId: string } | { method: 'CARD'; paymentId: string };
+type Tender =
+  | { method: 'CASH'; received: string }
+  | { method: 'QR'; paymentId: string }
+  | { method: 'CARD'; paymentId: string }
+  | { method: 'CREDIT'; termDays: number };
 
 /** A confirmed QR or card payment of this cart, found and checked. `reference` is the card's authorization code. */
 type ProviderLine = { amount: Decimal; providerRef: string; paymentId: string; reference: string | null };
@@ -67,11 +78,13 @@ type ProviderLine = { amount: Decimal; providerRef: string; paymentId: string; r
  * the customer handed over; the QR line with its provider reference; and the whole sale's received amount and change.
  */
 interface Settlement {
-  method: 'CASH' | 'QR' | 'CARD' | 'MIXED';
+  method: 'CASH' | 'QR' | 'CARD' | 'MIXED' | 'CREDIT';
   cash: { received: Decimal; due: Decimal } | null;
   qr: ProviderLine | null;
   /** A card is always the only payment of the sale (HU-VEN-10). */
   card: ProviderLine | null;
+  /** The whole sale on credit (HU-VEN-34): always alone; nothing is collected now, the balance waits for accounts receivable. */
+  credit: { amount: Decimal; termDays: number; dueDate: string } | null;
   /** Everything the customer handed over, change included. */
   received: Decimal;
   change: Decimal;
@@ -153,6 +166,7 @@ export class PosPaymentService {
         suggestedAmounts: suggestCashAmounts(totals.total).map((amount) => amount.toString()),
         allowMixed: await this.settings.get('sales.allowMixedPayment', tx),
         cardEnabled: await this.settings.get('sales.cardPaymentEnabled', tx),
+        credit: await this.creditInfo(tx, cart.customer),
       };
       return { kind: 'paying', response } as const;
     });
@@ -186,7 +200,7 @@ export class PosPaymentService {
 
   /** Completes the sale: see the class comment. A repeat with the same `idempotencyKey` returns the stored sale. */
   async complete(dto: CompletePosCheckoutDto): Promise<CompletePosCheckoutResponse> {
-    // cash, QR or both (HU-VEN-09); card, transfer and credit arrive with their own stories
+    // cash, QR or both (HU-VEN-09); a card or a credit alone; transfer arrives with its own story
     const tenders = this.parseTenders(dto.payments);
 
     // a retry of a sale that already committed returns it, even if the shift was closed in between
@@ -217,13 +231,17 @@ export class PosPaymentService {
     }
   }
 
-  /** The request lines as tenders: cash and QR (alone or mixed), or a card alone; one line per method. */
+  /** The request lines as tenders: cash and QR (alone or mixed), or a card or a credit alone; one line per method. */
   private parseTenders(payments: CompletePosCheckoutDto['payments']): Tender[] {
     const tenders: Tender[] = [];
     for (const payment of payments) {
-      if (payment.method !== 'CASH' && payment.method !== 'QR' && payment.method !== 'CARD') throw posErrors.paymentMethodNotAvailable();
+      if (payment.method !== 'CASH' && payment.method !== 'QR' && payment.method !== 'CARD' && payment.method !== 'CREDIT')
+        throw posErrors.paymentMethodNotAvailable();
       if (tenders.some((tender) => tender.method === payment.method)) throw posErrors.paymentDuplicateMethod();
-      if (payment.method === 'CASH') {
+      if (payment.method === 'CREDIT') {
+        if (!validateCreditTerm(payment.termDays)) throw posErrors.creditTermInvalid();
+        tenders.push({ method: 'CREDIT', termDays: payment.termDays });
+      } else if (payment.method === 'CASH') {
         if (typeof payment.received !== 'string') throw posErrors.invalidPayment('received');
         tenders.push({ method: 'CASH', received: payment.received });
       } else {
@@ -233,6 +251,8 @@ export class PosPaymentService {
     }
     // a card does not mix with another method (HU-VEN-10)
     if (tenders.length > 1 && tenders.some((tender) => tender.method === 'CARD')) throw posErrors.paymentMethodNotAvailable();
+    // nor does a credit: the whole sale is charged to the customer's account (HU-VEN-34)
+    if (tenders.length > 1 && tenders.some((tender) => tender.method === 'CREDIT')) throw posErrors.paymentMethodNotAvailable();
     return tenders;
   }
 
@@ -265,17 +285,23 @@ export class PosPaymentService {
       if (this.priceMoved(cart) || !totals.total.eq(expected))
         throw posErrors.totalChanged(expected.toString(), totals.total.toString());
 
+      const creditTender = tenders.find((tender) => tender.method === 'CREDIT');
       const cashTender = tenders.find((tender) => tender.method === 'CASH');
       const qrTender = tenders.find((tender) => tender.method === 'QR');
       const cardTender = tenders.find((tender) => tender.method === 'CARD');
       // a payment of another provider method that is still waiting is dropped, and one already paid blocks the sale: the
       // customer paid it (a stale client or a second tab), so the cashier cannot take the money again another way
-      if (cashTender && !qrTender) await this.dropProviderPayments(tx, cart.id, ['QR', 'CARD']);
+      if (creditTender) await this.assertNoProviderPayment(tx, cart.id);
+      else if (cashTender && !qrTender) await this.dropProviderPayments(tx, cart.id, ['QR', 'CARD']);
       else if (qrTender) await this.dropProviderPayments(tx, cart.id, ['CARD']);
       else if (cardTender) await this.dropProviderPayments(tx, cart.id, ['QR']);
       const qr = qrTender ? await this.loadProviderPayment(tx, cart.id, 'QR', qrTender.paymentId, dto.idempotencyKey) : null;
       const card = cardTender ? await this.loadProviderPayment(tx, cart.id, 'CARD', cardTender.paymentId, dto.idempotencyKey) : null;
-      const settled = card ? this.settleCard(totals.total, card) : await this.settle(tx, totals.total, cashTender?.received ?? null, qr);
+      const settled = creditTender
+        ? this.settleCredit(totals.total, creditTender.termDays, cart.customer)
+        : card
+          ? this.settleCard(totals.total, card)
+          : await this.settle(tx, totals.total, cashTender?.received ?? null, qr);
 
       const companyId = this.companyId();
       const userId = this.userId();
@@ -354,6 +380,25 @@ export class PosPaymentService {
           },
         });
       }
+      if (settled.credit) {
+        // nothing is collected: the balance is the payment itself, with its due date, until accounts receivable exists (HU-CON-03)
+        const dueDate = new Date(`${settled.credit.dueDate}T00:00:00Z`);
+        await tx.salePayment.create({
+          data: { companyId, saleId: sale.id, method: 'CREDIT', amount: settled.credit.amount.toString(), change: '0.00', dueDate },
+        });
+        await tx.posCheckoutPayment.create({
+          data: {
+            companyId,
+            checkoutId: cart.id,
+            method: 'CREDIT',
+            amount: settled.credit.amount.toString(),
+            change: '0.00',
+            idempotencyKey: dto.idempotencyKey,
+            status: 'CONFIRMED',
+            dueDate,
+          },
+        });
+      }
       if (settled.card) {
         // the card payment row already exists and is CONFIRMED; the money goes to the bank, so the register gets nothing
         await tx.salePayment.create({
@@ -409,6 +454,9 @@ export class PosPaymentService {
               ...(settled.cash ? [{ method: 'CASH', amount: settled.cash.due.toString() }] : []),
               ...(settled.qr ? [{ method: 'QR', amount: settled.qr.amount.toString() }] : []),
               ...(settled.card ? [{ method: 'CARD', amount: settled.card.amount.toString() }] : []),
+              ...(settled.credit
+                ? [{ method: 'CREDIT', amount: settled.credit.amount.toString(), termDays: settled.credit.termDays, dueDate: settled.credit.dueDate }]
+                : []),
             ],
             total: totals.total.toString(),
             received: settled.received.toString(),
@@ -427,6 +475,10 @@ export class PosPaymentService {
           total: totals.total.toString(),
           shiftId: shift.id,
           branchId: shift.branch.id,
+          // accounts receivable (HU-CON-03) takes the balance from here
+          ...(settled.credit
+            ? { credit: { customerId: cart.customerId, amount: settled.credit.amount.toString(), dueDate: settled.credit.dueDate } }
+            : {}),
         },
         { tx, idempotencyKey: `sale-completed:${sale.id}` },
       );
@@ -441,6 +493,7 @@ export class PosPaymentService {
         customerName: invoice.name,
         invoiceStatus: 'PENDING',
         customerEmail: customer?.email ?? null,
+        dueDate: settled.credit?.dueDate ?? null,
       };
       return { sale: completed };
     });
@@ -468,7 +521,7 @@ export class PosPaymentService {
       if (qr.amount.cmp(total) > 0) throw posErrors.totalChanged(qr.amount.toString(), total.toString());
       const cover = paymentsCover(total, [{ method: 'QR', amount: total }]);
       if (!cover.ok) throw posErrors.paymentNotCovered(total.toString());
-      return { method: 'QR', cash: null, qr, card: null, received: total, change: cover.change };
+      return { method: 'QR', cash: null, qr, card: null, credit: null, received: total, change: cover.change };
     }
     if (cashText !== null && !qr) return this.settleCash(total, cashText);
     if (cashText === null || !qr) throw posErrors.paymentMethodNotAvailable();
@@ -496,6 +549,7 @@ export class PosPaymentService {
       cash: { received: parsed.value, due: mix.cashDue },
       qr,
       card: null,
+      credit: null,
       received: total.add(mix.change),
       change: mix.change,
     };
@@ -510,7 +564,7 @@ export class PosPaymentService {
     }
     const cover = paymentsCover(total, [{ method: 'CASH', amount: tendered.received }]);
     if (!cover.ok) throw posErrors.insufficientCash(total.toString());
-    return { method: 'CASH', cash: { received: tendered.received, due: total }, qr: null, card: null, received: tendered.received, change: cover.change };
+    return { method: 'CASH', cash: { received: tendered.received, due: total }, qr: null, card: null, credit: null, received: tendered.received, change: cover.change };
   }
 
   /**
@@ -544,7 +598,54 @@ export class PosPaymentService {
     if (card.amount.cmp(total) > 0) throw posErrors.totalChanged(card.amount.toString(), total.toString());
     const cover = paymentsCover(total, [{ method: 'CARD', amount: total }]);
     if (!cover.ok) throw posErrors.paymentNotCovered(total.toString());
-    return { method: 'CARD', cash: null, qr: null, card, received: total, change: cover.change };
+    return { method: 'CARD', cash: null, qr: null, card, credit: null, received: total, change: cover.change };
+  }
+
+  /**
+   * Credit (HU-VEN-34): the customer is read inside the transaction, so a flag turned off after `pay` is refused. The whole
+   * total goes to the customer's account; nothing is received, so the change is zero. The due date is today (La Paz) plus the term.
+   */
+  private settleCredit(
+    total: Decimal,
+    termDays: number,
+    customer: { creditEnabled: boolean; documentType: number } | null,
+  ): Settlement {
+    const eligibility = creditEligibility(customer);
+    if (!eligibility.ok) throw this.creditRefusal(eligibility);
+    return {
+      method: 'CREDIT',
+      cash: null,
+      qr: null,
+      card: null,
+      credit: { amount: total, termDays, dueDate: creditDueDate(laPazToday(new Date()), termDays) },
+      received: Decimal.zero(MONEY_SCALE),
+      change: Decimal.zero(MONEY_SCALE),
+    };
+  }
+
+  private creditRefusal(eligibility: Extract<CreditEligibility, { ok: false }>) {
+    if (eligibility.reason === 'CUSTOMER_REQUIRED') return posErrors.creditCustomerRequired();
+    if (eligibility.reason === 'CREDIT_NOT_ENABLED') return posErrors.creditNotEnabled();
+    return posErrors.creditNitRequired();
+  }
+
+  /** What the payment screen needs to offer credit: whether the cart's customer qualifies, why not, and the terms to show. */
+  private async creditInfo(tx: TenantTransaction, customer: { creditEnabled: boolean; documentType: number } | null): Promise<PosCreditInfo> {
+    const eligibility = creditEligibility(customer);
+    return {
+      available: eligibility.ok,
+      reason: eligibility.ok ? null : eligibility.reason,
+      termOptions: await this.settings.get('sales.creditTermDays', tx),
+    };
+  }
+
+  /** A credit takes the whole sale: a QR or card of this cart that is waiting or already paid blocks it (the customer may have paid). */
+  private async assertNoProviderPayment(tx: TenantTransaction, cartId: string): Promise<void> {
+    const live = await tx.posCheckoutPayment.findFirst({
+      where: { checkoutId: cartId, method: { in: ['QR', 'CARD'] }, status: { in: ['PENDING', 'CONFIRMED'] } },
+      select: { id: true },
+    });
+    if (live) throw posErrors.paymentAlreadyPending();
   }
 
   /**
@@ -603,7 +704,7 @@ export class PosPaymentService {
                 createdAt: true,
                 total: true,
                 invoice: { select: { customerTaxName: true } },
-                payments: { select: { amount: true, change: true } },
+                payments: { select: { method: true, amount: true, change: true, dueDate: true } },
               },
             },
           },
@@ -627,14 +728,16 @@ export class PosPaymentService {
         number: sale.number,
         createdAt: sale.createdAt.toISOString(),
         total: sale.total.toFixed(2),
-        // what the customer handed over: every payment of the sale plus the change given back
+        // what the customer handed over: every payment of the sale plus the change given back; a credit is not handed over
         received: sale.payments
+          .filter((p) => p.method !== 'CREDIT')
           .reduce((acc, p) => acc.add(p.amount.add(p.change)), new Prisma.Decimal(0))
           .toFixed(2),
         change: sale.payments.reduce((acc, p) => acc.add(p.change), new Prisma.Decimal(0)).toFixed(2),
         customerName: sale.invoice?.customerTaxName ?? 'S/N',
         invoiceStatus: 'PENDING',
         customerEmail: checkout.customer?.email ?? null,
+        dueDate: sale.payments.find((p) => p.dueDate)?.dueDate?.toISOString().slice(0, 10) ?? null,
       },
     };
   }

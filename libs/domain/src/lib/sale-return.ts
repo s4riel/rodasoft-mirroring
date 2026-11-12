@@ -193,6 +193,28 @@ export function returnTotals(input: ReturnTotalsInput): ReturnTotals {
   return { lines: refunds, total: refunds.reduce((acc, value) => acc.add(value), zero) };
 }
 
+export interface RefundSplit {
+  /** What leaves as money (cash, transfer or store credit): never more than the sale collected. */
+  paidOut: Decimal;
+  /** What was never collected because the sale was on credit: it reduces the customer's balance instead (HU-CON-03). */
+  onCredit: Decimal;
+}
+
+/**
+ * Splits the refund of a return between money and credit balance (HU-VEN-34). A sale paid partly or wholly on credit collected
+ * less than its total, so the refunds of its returns can only pay out the collected money, first come first served; the rest
+ * is a reduction of what the customer still owes. `collected` is the sum of the payments that are not credit and
+ * `returnedBefore` the refunds of the sale's earlier approved returns. A sale without credit has `collected = sale.total`, so
+ * everything is paid out as before.
+ */
+export function splitReturnRefund(total: Decimal, collected: Decimal, returnedBefore: Decimal): RefundSplit {
+  const zero = Decimal.zero(MONEY_SCALE);
+  const room = collected.sub(returnedBefore);
+  const available = room.isNegative() ? zero : room;
+  const paidOut = total.cmp(available) < 0 ? total : available;
+  return { paidOut, onCredit: total.sub(paidOut) };
+}
+
 export type ReturnTimelineKey = 'requested' | 'approved' | 'creditNote' | 'refunded';
 export type ReturnTimelineState = 'done' | 'current' | 'pending';
 

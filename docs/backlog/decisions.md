@@ -44,7 +44,7 @@ Same rule: parameterize in the per-company settings table with the default below
 | 18 | Who can change prices | VEN-26 | Permission `sales.prices.edit` (Management). One price per product and company; every change (Precios screen, inventory form, Excel import) is kept in `price_changes` |
 | 19 | Do bulk price changes need approval? | VEN-27 | No; applied with preview and audit. Setting `sales.bulkPriceRequiresApproval` (`false`): when a company turns it on, applying is refused (`BULK_PRICE_APPROVAL_REQUIRED`) until the approval flow of a later story exists |
 | 20 | Do discount rules stack? | VEN-28 | **Obsolete (3 Nov):** discount rules were replaced by the per-customer discount (#5) |
-| 53 | Credit sales: to whom, limit, terms | VEN-34, CRM-05 | **Answered 22 Oct:** credit is a yes/no flag on the customer, no amount limit, variable terms (5, 15, 30 days or other) |
+| 53 | Credit sales: to whom, limit, terms | VEN-34, CRM-05 | **Answered 22 Oct:** credit is a yes/no flag on the customer, no amount limit, variable terms (5, 15, 30 days or other). The terms offered are the setting `sales.creditTermDays` (`[5, 15, 30]`) plus "Otro" (1 to 365 days) |
 | 54 | Rounding rule (integer or Bs 0.50); who sees costs in exported lists | VEN-35, REP-07 | `sales.roundingMode` = `NONE` until answered; costs only with `inventory.costs.view` |
 
 When the client answers, update this table and the Sheet, and change the default value in the settings seed.

@@ -36,7 +36,7 @@ import { CustomersService } from '../customers/customers.service';
 import { CompletePosCheckoutDto, ConfirmPosCardDto, ConfirmPosQrDto, StartPosCardDto, StartPosQrDto } from './pos-payment.dto';
 import { PosCardPaymentService } from './pos-card-payment.service';
 import { PosQrPaymentService } from './pos-qr-payment.service';
-import { AddPosCheckoutItemDto, PosProductSearchQueryDto, UpdatePosCheckoutItemDto } from './pos.dto';
+import { AddPosCheckoutItemDto, PosProductSearchQueryDto, ReorderPosCheckoutItemsDto, UpdatePosCheckoutItemDto } from './pos.dto';
 import { posErrors } from './pos.errors';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { PosCatalogService } from './pos-catalog.service';
@@ -215,6 +215,12 @@ export class PosController {
   @Post('checkout/items')
   addItem(@Body(bodyPipe) body: AddPosCheckoutItemDto): Promise<PosCheckoutResponse> {
     return this.checkout.addItem(body);
+  }
+
+  /** VP-03 (HU-VEN-33): rewrites the order of my cart's lines. */
+  @Put('checkout/items/order')
+  reorderItems(@Body(bodyPipe) body: ReorderPosCheckoutItemsDto): Promise<PosCheckoutResponse> {
+    return this.checkout.reorderItems(body);
   }
 
   @Patch('checkout/items/:id')

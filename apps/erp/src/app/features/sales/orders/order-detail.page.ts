@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { dispatchableQuantity, ORDER_CANCEL_REASON_MAX, type SalesOrderDetail } from '@rodasoft/domain';
+import { dispatchableQuantity, ORDER_CANCEL_REASON_MAX, salesLineSpecText, type SalesLineSpec, type SalesOrderDetail } from '@rodasoft/domain';
 import {
   ButtonComponent,
   CanDirective,
+  DocTableCellDirective,
   DocTableColumn,
   DocTableComponent,
   EmptyStateIllustratedComponent,
@@ -30,7 +31,7 @@ type LoadState = 'loading' | 'ready' | 'forbidden' | 'error';
 
 const COLUMNS: DocTableColumn[] = [
   { key: 'code', label: 'Código', type: 'text', width: '10rem' },
-  { key: 'name', label: 'Producto', type: 'text' },
+  { key: 'name', label: 'Producto', type: 'custom' },
   { key: 'quantity', label: 'Pedido', type: 'number', width: '6rem' },
   { key: 'reserved', label: 'Reservado', type: 'number', width: '6rem' },
   { key: 'dispatched', label: 'Despachado', type: 'number', width: '6rem' },
@@ -57,6 +58,7 @@ const DISPATCH_COLUMNS: DocTableColumn[] = [
   imports: [
     ButtonComponent,
     CanDirective,
+    DocTableCellDirective,
     DocTableComponent,
     EmptyStateIllustratedComponent,
     DispatchOrderDialog,
@@ -82,6 +84,12 @@ export class OrderDetailPage {
   private readonly toast = inject(ToastService);
 
   protected readonly columns = COLUMNS;
+  protected readonly specText = (line: { spec: SalesLineSpec }) => salesLineSpecText(line.spec);
+
+  /** The line of a table row (the name cell shows its measures and type). */
+  protected lineOf(rowId: string) {
+    return this.detail()?.lines.find((l) => l.id === rowId) ?? null;
+  }
   protected readonly dispatchColumns = DISPATCH_COLUMNS;
   protected readonly reasonMax = ORDER_CANCEL_REASON_MAX;
   protected readonly state = signal<LoadState>('loading');

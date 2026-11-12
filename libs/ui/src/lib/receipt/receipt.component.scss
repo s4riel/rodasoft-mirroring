@@ -89,6 +89,10 @@
 .description {
   grid-column: 1 / -1;
 }
+.note {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+}
 .detail {
   color: var(--text-muted);
 }
@@ -113,6 +117,7 @@
   }
   .row dt,
   .row.strong dd,
+  .note,
   .detail,
   .foot {
     color: var(--black);

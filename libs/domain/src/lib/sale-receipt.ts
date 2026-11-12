@@ -5,6 +5,7 @@
 import type { ReceiptFormat } from './company-settings';
 import { Decimal, MONEY_SCALE } from './money';
 import type { CustomerDiscountType } from './sales-pricing';
+import type { SalesLineSpec } from './sales-line-spec';
 
 export type PaymentMethod = 'CASH' | 'QR' | 'CARD' | 'TRANSFER' | 'CREDIT';
 
@@ -14,6 +15,8 @@ export interface SaleReceiptLine {
   quantity: number;
   unitPrice: string;
   lineTotal: string;
+  /** Measures and type of the product (HU-VEN-36). */
+  spec: SalesLineSpec;
 }
 
 export interface SaleReceiptPayment {
@@ -22,6 +25,8 @@ export interface SaleReceiptPayment {
   amount: string;
   /** Cash given back; `0.00` for the other methods. */
   change: string;
+  /** Credit only (HU-VEN-34): the day the balance falls due, `YYYY-MM-DD`; `null` for the other methods. */
+  dueDate: string | null;
 }
 
 /** `GET /sales/sales/:id/receipt`. It never carries costs. */
@@ -61,6 +66,25 @@ export interface ReceiptLineView {
   description: string;
   detail: string;
   total: string;
+}
+
+/** `2026-11-21` → `21/11/2026`. */
+export function formatDay(day: string): string {
+  const [year, month, date] = day.split('-');
+  return `${date}/${month}/${year}`;
+}
+
+const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] as const;
+
+/** `2026-11-21` → `21 nov 2026`: how the credit panel writes the due date (Figma VP-04d). */
+export function formatDayShort(day: string): string {
+  const [year, month, date] = day.split('-');
+  return `${Number(date)} ${MONTHS_SHORT[Number(month) - 1]} ${year}`;
+}
+
+/** "Crédito · vence 21/11/2026": how a credit payment reads on the receipt and in the sale detail (HU-VEN-34). */
+export function creditDueText(dueDate: string): string {
+  return `Crédito · vence ${formatDay(dueDate)}`;
 }
 
 const money = (value: string): string => Decimal.of(value).round(MONEY_SCALE).format();

@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, untracked, viewChild } from '@angular/core';
-import { Decimal, MONEY_SCALE, validateCashTendered, validateOpeningFloat, type PosCardPayment, type PosQrPayment } from '@rodasoft/domain';
+import { Decimal, MONEY_SCALE, validateCashTendered, validateOpeningFloat, type PosCardPayment, type PosCreditInfo, type PosQrPayment } from '@rodasoft/domain';
 import { ButtonComponent, ChipMediaComponent, FilterChipComponent, IconComponent, ModalComponent, NumpadComponent, groupThousands } from '@rodasoft/ui';
 import { PosCardPanel } from './pos-card-panel';
+import { PosCreditPanel } from './pos-credit-panel';
 import { PosMixedPanel, type PosMixedConfirmation } from './pos-mixed-panel';
 import { PosQrPanel } from './pos-qr-panel';
 import { typedAmount } from './typed-amount';
 
-/** The ways to pay that have a screen so far (cash, QR, the two together and card); transfer and credit arrive with HU-VEN-34. */
-export type PosPayMethod = 'CASH' | 'QR' | 'MIXED' | 'CARD';
+/** The ways to pay that have a screen so far (cash, QR, the two together, card and credit); transfer is not available yet. */
+export type PosPayMethod = 'CASH' | 'QR' | 'MIXED' | 'CARD' | 'CREDIT';
 
 export { typedAmount };
 
@@ -20,10 +21,12 @@ export { typedAmount };
  * cancelled from then on, because the customer already paid. "Mixto" (VP-04c, HU-VEN-09) pays part by QR and the rest in cash
  * through its own panel, with the same lock once the QR is confirmed. "Tarjeta" (VP-12, HU-VEN-10) waits for the terminal: the
  * cashier reports it approved or declined, a decline offers a retry, and an approved card locks the dialog like a confirmed QR.
+ * "Crédito" (VP-04d, HU-VEN-34) charges the whole sale to the customer's account with a term; it is enabled only when the server
+ * said the cart's customer has credit and a NIT, and it holds nothing, so the cashier can still go back to another method.
  */
 @Component({
   selector: 'rs-pos-payment-dialog',
-  imports: [ButtonComponent, ChipMediaComponent, FilterChipComponent, IconComponent, ModalComponent, NumpadComponent, PosCardPanel, PosMixedPanel, PosQrPanel],
+  imports: [ButtonComponent, ChipMediaComponent, FilterChipComponent, IconComponent, ModalComponent, NumpadComponent, PosCardPanel, PosCreditPanel, PosMixedPanel, PosQrPanel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown)': 'onKey($event)' },
   templateUrl: './pos-payment.dialog.html',
@@ -37,11 +40,14 @@ export class PosPaymentDialog {
   /** The card panel while "Tarjeta" is chosen: its decline (VP-12) frees the other chips and shows "Reintentar cobro" here. */
   protected readonly cardPanel = viewChild(PosCardPanel);
   protected readonly cardDeclined = computed(() => this.cardPanel()?.declined() ?? false);
+  /** The credit panel while "Crédito" is chosen: its footer button confirms from here. */
+  protected readonly creditPanel = viewChild(PosCreditPanel);
   /** A live card attempt holds the dialog: the other chips wait until it is declined (Figma VP-12). */
   private readonly cardHolds = computed(() => this.method() === 'CARD' && !this.cardDeclined());
-  protected readonly cashChipDisabled = computed(() => this.method() !== 'CASH' && !this.cardDeclined());
+  protected readonly cashChipDisabled = computed(() => this.method() !== 'CASH' && this.method() !== 'CREDIT' && !this.cardDeclined());
   protected readonly qrChipDisabled = computed(() => this.busy() || this.method() === 'MIXED' || this.cardHolds());
   protected readonly cardChipDisabled = computed(() => !this.cardEnabled() || this.busy() || this.method() === 'QR' || this.method() === 'MIXED');
+  protected readonly creditChipDisabled = computed(() => !this.credit()?.available || this.busy() || this.method() === 'QR' || this.method() === 'MIXED' || this.cardHolds());
   protected readonly mixedChipDisabled = computed(() => this.busy() || this.method() === 'QR' || this.cardHolds());
 
   readonly open = input(false);
@@ -59,6 +65,10 @@ export class PosPaymentDialog {
   readonly cardEnabled = input(true);
   /** A card attempt the server already has for the cart (after a refresh): the dialog opens on it. */
   readonly resumeCard = input<PosCardPayment | null>(null);
+  /** Whether the cart's customer can buy on credit and the terms to offer (`pay`, HU-VEN-34); `null` before the answer. */
+  readonly credit = input<PosCreditInfo | null>(null);
+  /** The customer of the sale, for the credit panel. */
+  readonly customerName = input('');
 
   /** The amount received, as a decimal string, when the cashier confirms. */
   readonly confirm = output<string>();
@@ -70,6 +80,8 @@ export class PosPaymentDialog {
   readonly mixedConfirmed = output<PosMixedConfirmation>();
   /** The card was approved: the page completes the sale with this payment. */
   readonly cardConfirmed = output<PosCardPayment>();
+  /** The credit term was confirmed: the page completes the sale on credit. */
+  readonly creditConfirmed = output<number>();
   /** The server refused something the QR or card panel cannot fix. */
   readonly qrProblem = output<unknown>();
 
@@ -184,6 +196,13 @@ export class PosPaymentDialog {
     this.locked.set(false);
     this.method.set('CASH');
   }
+
+  /** Why the "Crédito" chip is disabled, as its tooltip; `null` when it is available. */
+  protected readonly creditHint = computed(() => {
+    const credit = this.credit();
+    if (!credit || credit.available) return null;
+    return credit.reason === 'CREDIT_NOT_ENABLED' ? 'El cliente no tiene crédito habilitado' : 'Elige un cliente con NIT y crédito habilitado';
+  });
 
   /** The physical keyboard types like the touch keys; Enter confirms. */
   protected onKey(event: KeyboardEvent) {

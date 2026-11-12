@@ -97,10 +97,18 @@ describe('EquivalenceLinkPage', () => {
     await h.fixture.whenStable();
     h.detectChanges();
   }
-  /** The search waits 250 ms after the last key before it asks. */
-  const debounced = async (h: RouterTestingHarness) => {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await settle(h);
+  /**
+   * The search goes out 250 ms after the last key, and later on a busy machine: wait for the request instead of for a fixed time
+   * (a fixed sleep failed under load) and hand it over.
+   */
+  const searchRequest = async (h: RouterTestingHarness) => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      await settle(h);
+      const [request] = http.match((r) => r.url === PRODUCTS_URL);
+      if (request) return request;
+    }
+    throw new Error('The product search was never sent');
   };
   const button = (h: RouterTestingHarness, label: string) =>
     Array.from(root(h).querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim().includes(label));
@@ -113,8 +121,7 @@ describe('EquivalenceLinkPage', () => {
     const input = root(h).querySelector<HTMLInputElement>(`input[type=search][aria-label="Buscar rodamiento ${side === 'origen' ? 'de origen' : 'equivalente'}"]`)!;
     input.value = query;
     input.dispatchEvent(new Event('input'));
-    await debounced(h);
-    const req = http.expectOne((r) => r.url === PRODUCTS_URL);
+    const req = await searchRequest(h);
     expect(req.request.params.get('search')).toBe(query);
     expect(req.request.params.get('status')).toBe('ACTIVE');
     req.flush({ items: found, page: 1, pageSize: 6, total: found.length, catalogEmpty: false });
@@ -197,8 +204,7 @@ describe('EquivalenceLinkPage', () => {
       const input = root(h).querySelector<HTMLInputElement>('input[type=search]')!;
       input.value = 'abc';
       input.dispatchEvent(new Event('input'));
-      await debounced(h);
-      http.expectOne((r) => r.url === PRODUCTS_URL).flush({}, { status: 500, statusText: 'Error' });
+      (await searchRequest(h)).flush({}, { status: 500, statusText: 'Error' });
       await settle(h);
       expect(text(h)).toContain('No pudimos buscar productos. Intenta de nuevo.');
     });

@@ -9,6 +9,7 @@ import {
   type SalesOrderListItem,
   type SalesOrderListQuery,
   type SalesOrderStatus,
+  type SalesLineSpec,
 } from '@rodasoft/domain';
 import type { DocTableCell, DocTableRow, DocTableStatus, SelectOption } from '@rodasoft/ui';
 import { formatBs, formatDateTime } from '../cash/cash-format';
@@ -129,6 +130,8 @@ export interface EditorLine {
   unitPrice: string;
   quantity: number;
   available: number;
+  /** Measures and type of the product (HU-VEN-36). */
+  spec: SalesLineSpec;
 }
 
 export interface EditorTotals {

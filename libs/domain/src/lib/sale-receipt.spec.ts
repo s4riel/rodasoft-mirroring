@@ -1,4 +1,5 @@
-import { buildReceiptLines, formatReceiptDate, receiptShareText, type SaleReceipt } from './sale-receipt';
+import { EMPTY_SALES_LINE_SPEC } from './sales-line-spec';
+import { buildReceiptLines, creditDueText, formatDay, formatDayShort, formatReceiptDate, receiptShareText, type SaleReceipt } from './sale-receipt';
 
 const receipt: SaleReceipt = {
   saleId: 'sale-1',
@@ -9,15 +10,15 @@ const receipt: SaleReceipt = {
   cashier: { name: 'Alberto Andia' },
   customer: { name: 'Taller Mecánico Perez', documentType: 1, documentNumber: '4455667788', complement: null, email: null },
   lines: [
-    { code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00' },
-    { code: '6306-2RS', name: 'Rodamiento rígido de bolas', quantity: 1, unitPrice: '361.00', lineTotal: '361.00' },
+    { code: '6205-2RS', name: 'Rodamiento rígido de bolas', quantity: 2, unitPrice: '245.00', lineTotal: '490.00', spec: EMPTY_SALES_LINE_SPEC },
+    { code: '6306-2RS', name: 'Rodamiento rígido de bolas', quantity: 1, unitPrice: '361.00', lineTotal: '361.00', spec: EMPTY_SALES_LINE_SPEC },
   ],
   subtotal: '851.00',
   discountType: 'NONE',
   discountAmount: '0.00',
   roundingAmount: '0.00',
   total: '851.00',
-  payments: [{ method: 'CASH', amount: '851.00', change: '49.00' }],
+  payments: [{ method: 'CASH', amount: '851.00', change: '49.00', dueDate: null }],
   invoiceStatus: 'PENDING',
   format: 'TICKET_80MM',
 };
@@ -41,7 +42,7 @@ describe('buildReceiptLines', () => {
   });
 
   it('groups thousands with a dot', () => {
-    const [line] = buildReceiptLines([{ code: 'X', name: 'Y', quantity: 3, unitPrice: '1200.00', lineTotal: '3600.00' }]);
+    const [line] = buildReceiptLines([{ code: 'X', name: 'Y', quantity: 3, unitPrice: '1200.00', lineTotal: '3600.00', spec: EMPTY_SALES_LINE_SPEC }]);
     expect(line.total).toBe('Bs 3.600,00');
   });
 });
@@ -59,5 +60,17 @@ describe('receiptShareText', () => {
   it('never shows the customer NIT or any cost', () => {
     expect(text).not.toContain('4455667788');
     expect(text.toLowerCase()).not.toContain('cost');
+  });
+});
+
+describe('creditDueText (HU-VEN-34)', () => {
+  it('writes the due date of the credit panel with a short month', () => {
+    expect(formatDayShort('2026-11-21')).toBe('21 nov 2026');
+    expect(formatDayShort('2027-01-04')).toBe('4 ene 2027');
+  });
+
+  it('writes the credit payment with its due date in Bolivian format', () => {
+    expect(creditDueText('2026-11-21')).toBe('Crédito · vence 21/11/2026');
+    expect(formatDay('2027-01-04')).toBe('04/01/2027');
   });
 });

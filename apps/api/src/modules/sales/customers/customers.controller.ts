@@ -12,7 +12,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { CustomerListResponse, CustomerSummary } from '@rodasoft/domain';
+import type { CustomerCreditBalance, CustomerListResponse, CustomerSummary } from '@rodasoft/domain';
 import { RequirePermissions } from '../../access/require-permissions.decorator';
 import { CustomerListQueryDto, SaveCustomerDto, UpdateCustomerDto } from './customers.dto';
 import { customerErrors } from './customers.errors';
@@ -44,6 +44,12 @@ export class CustomersController {
   @Get()
   list(@Query(filterPipe) query: CustomerListQueryDto): Promise<CustomerListResponse> {
     return this.customers.list(query);
+  }
+
+  /** HU-VEN-34: what the customer owes on credit sales, derived from their sales until accounts receivable exists (HU-CON-03). */
+  @Get(':id/credit-balance')
+  creditBalance(@Param('id', customerIdPipe) id: string): Promise<CustomerCreditBalance> {
+    return this.customers.creditBalance(id);
   }
 
   @Get(':id')

@@ -1,4 +1,5 @@
 import { Decimal } from './money';
+import { roundSaleTotal } from './sales-pricing';
 import {
   applyBulkAdjustment,
   BULK_PERCENT_MAX,
@@ -164,5 +165,19 @@ describe('applyBulkAdjustment', () => {
   it('accepts a Decimal as the price', () => {
     const result = applyBulkAdjustment(Decimal.of('245.00'), adjust('INCREASE', '5'));
     expect('newPrice' in result && result.newPrice.toString()).toBe('257.25');
+  });
+});
+
+describe('bulk and sale rounding agree (HU-VEN-35)', () => {
+  it('rounds a price the way a sale total rounds', () => {
+    for (const mode of ['NONE', 'INTEGER', 'HALF_BOLIVIANO'] as const) {
+      for (const price of ['10.30', '99.74', '123.26', '0.75']) {
+        const adjusted = applyBulkAdjustment(price, { direction: 'INCREASE', percent: Decimal.of('7'), rounding: mode });
+        const exact = Decimal.of(price).add(Decimal.of(price).percent(Decimal.of('7')));
+        const expected = roundSaleTotal(exact, mode).total;
+        if ('newPrice' in adjusted) expect(adjusted.newPrice.toString()).toBe(expected.toString());
+        else expect(expected.eq(Decimal.of(price))).toBe(true);
+      }
+    }
   });
 });

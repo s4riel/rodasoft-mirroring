@@ -1,0 +1,14 @@
+/* the measures and type under the product name (HU-VEN-36): one line, cut with an ellipsis; the full text is the title */
+.line-name {
+  display: block;
+}
+.line-spec {
+  display: block;
+  max-width: 36ch;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

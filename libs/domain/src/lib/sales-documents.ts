@@ -1,4 +1,5 @@
 import type { CustomerDiscountType, RoundingMode } from './sales-pricing';
+import type { SalesLineSpec } from './sales-line-spec';
 import { availableQuantity } from './pos-cart';
 import type { QuoteSendLogEntry, QuoteTimelineStep } from './quote-tracking';
 import type { DispatchSummary, OrderTimelineStep } from './sales-order-dispatch';
@@ -142,6 +143,8 @@ export interface QuoteLineDetail {
   lineTotal: string;
   /** Available stock (`quantity − reserved`) in the main warehouse of the user's branch; `null` when there is none. */
   available: number | null;
+  /** Measures and type of the product (HU-VEN-36). */
+  spec: SalesLineSpec;
 }
 
 export interface QuoteDetail {
@@ -185,6 +188,7 @@ export interface QuoteProductResult {
   brandName: string;
   salePrice: string;
   available: number;
+  spec: SalesLineSpec;
 }
 
 export interface QuoteWarehouseOption {
@@ -243,6 +247,7 @@ export interface SalesOrderLineDetail {
   invoicedQuantity: number;
   /** Units ordered that have not left yet: the balance that stays pending on the order. */
   pendingQuantity: number;
+  spec: SalesLineSpec;
 }
 
 export interface SalesOrderDetail {

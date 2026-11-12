@@ -6,6 +6,7 @@ import {
   returnableQuantity,
   returnTimeline,
   returnTotals,
+  splitReturnRefund,
   validateReturnDecision,
   validateReturnHeader,
   validateReturnLines,
@@ -15,6 +16,30 @@ const items = [
   { saleItemId: 'a', quantity: 3, returnedQuantity: 1 },
   { saleItemId: 'b', quantity: 2, returnedQuantity: 0 },
 ];
+
+describe('splitReturnRefund (HU-VEN-34)', () => {
+  const d = (value: string) => Decimal.of(value);
+
+  it('pays everything out when the sale collected its whole total', () => {
+    const split = splitReturnRefund(d('100.00'), d('500.00'), d('0.00'));
+    expect([split.paidOut.toString(), split.onCredit.toString()]).toEqual(['100.00', '0.00']);
+  });
+
+  it('pays nothing out on a sale that collected nothing: all of it reduces the balance', () => {
+    const split = splitReturnRefund(d('245.00'), d('0.00'), d('0.00'));
+    expect([split.paidOut.toString(), split.onCredit.toString()]).toEqual(['0.00', '245.00']);
+  });
+
+  it('pays out only what is left of the collected money, earlier returns first', () => {
+    const split = splitReturnRefund(d('100.00'), d('150.00'), d('100.00'));
+    expect([split.paidOut.toString(), split.onCredit.toString()]).toEqual(['50.00', '50.00']);
+  });
+
+  it('never pays out a negative amount once the earlier returns passed the collected money', () => {
+    const split = splitReturnRefund(d('100.00'), d('150.00'), d('400.00'));
+    expect([split.paidOut.toString(), split.onCredit.toString()]).toEqual(['0.00', '100.00']);
+  });
+});
 
 describe('returnableQuantity', () => {
   it('is what was sold less what came back, never negative', () => {

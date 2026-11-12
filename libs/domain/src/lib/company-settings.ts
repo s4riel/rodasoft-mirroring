@@ -56,6 +56,8 @@ export interface CompanySettings {
   'sales.cardPaymentEnabled': boolean;
   /** Whether a bulk price update needs approval before it applies (decision #19, HU-VEN-27). On: applying is refused until the approval flow exists. */
   'sales.bulkPriceRequiresApproval': boolean;
+  /** Payment terms (days) the POS offers for a credit sale, besides "other" (decision #53, HU-VEN-34). */
+  'sales.creditTermDays': number[];
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -82,6 +84,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.qrConfirmTimeoutSeconds': 300,
   'sales.cardPaymentEnabled': true,
   'sales.bulkPriceRequiresApproval': false,
+  'sales.creditTermDays': [5, 15, 30],
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */
@@ -112,6 +115,11 @@ export function settingOrDefault<K extends CompanySettingKey>(key: K, stored: un
   const allowed = ENUM_SETTING_VALUES[key];
   if (allowed) return (typeof stored === 'string' && allowed.includes(stored) ? stored : fallback) as CompanySettings[K];
   if (NULLABLE_INTEGER_SETTING_KEYS.has(key)) return (isPositiveInteger(stored) ? stored : fallback) as CompanySettings[K];
+  if (Array.isArray(fallback)) {
+    // a list of positive whole numbers, without repeats and in ascending order; anything else falls back to the default
+    const valid = Array.isArray(stored) && stored.length > 0 && stored.every(isPositiveInteger);
+    return (valid ? [...new Set(stored as number[])].sort((a, b) => a - b) : fallback) as CompanySettings[K];
+  }
   if (typeof fallback === 'boolean') return (typeof stored === 'boolean' ? stored : fallback) as CompanySettings[K];
   if (typeof fallback === 'number') return (isPositiveInteger(stored) ? stored : fallback) as CompanySettings[K];
   if (typeof fallback === 'string') return (typeof stored === 'string' ? stored : fallback) as CompanySettings[K];

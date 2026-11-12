@@ -29,6 +29,7 @@ import { SettingsService } from '../../../common/settings/settings.service';
 import { MembershipService } from '../../access/membership.service';
 import { StockReservationService } from '../../inventory/stock-reservation.service';
 import { nextDocumentNumber } from '../document-sequence';
+import { LINE_SPEC_PRODUCT_SELECT, lineSpecsOf } from '../sales-line-spec';
 import { quoteErrors } from '../quotes/quotes.errors';
 
 const day = (date: Date): string => date.toISOString().slice(0, 10);
@@ -270,7 +271,7 @@ export class SalesOrdersService {
         quote: { select: { id: true, number: true } },
         branch: { select: { name: true } },
         warehouse: { select: { name: true } },
-        items: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { sku: true, manufacturerCode: true, name: true } } } },
+        items: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { sku: true, manufacturerCode: true, name: true, ...LINE_SPEC_PRODUCT_SELECT } } } },
         dispatches: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           include: { items: { select: { orderItemId: true, quantity: true } }, sale: { select: { number: true, total: true, invoice: { select: { status: true } } } } },
@@ -279,11 +280,12 @@ export class SalesOrdersService {
     });
     if (!order) throw quoteErrors.salesOrderNotFound();
     const userIds = [...new Set([order.createdById, ...order.dispatches.map((d) => d.createdById)])];
-    const [users, partialDispatchAllowed, roundingMode, company] = await Promise.all([
+    const [users, partialDispatchAllowed, roundingMode, company, specs] = await Promise.all([
       this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }),
       this.settings.get('sales.allowPartialDispatch'),
       this.settings.get('sales.roundingMode'),
       this.prisma.company.findUniqueOrThrow({ where: { id: order.companyId }, select: { tradeName: true } }),
+      lineSpecsOf(this.prisma.tenant, order.items.map((item) => item.product)),
     ]);
     const userName = new Map(users.map((u) => [u.id, u.name]));
     const { invoicedTotal, invoicedByItem } = invoicedFigures(order.dispatches);
@@ -318,6 +320,7 @@ export class SalesOrdersService {
         dispatchedQuantity: item.dispatchedQuantity,
         invoicedQuantity: invoicedByItem.get(item.id) ?? 0,
         pendingQuantity: pendingQuantity(item),
+        spec: specs.get(item.productId)!,
       })),
       cancellable: salesOrderMachine.can(order.status, 'cancel'),
       dispatches: order.dispatches.map((d) => ({

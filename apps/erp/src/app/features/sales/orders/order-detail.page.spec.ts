@@ -38,6 +38,7 @@ const order = (over: Partial<SalesOrderDetail> = {}): SalesOrderDetail => ({
       dispatchedQuantity: 0,
       invoicedQuantity: 0,
       pendingQuantity: 2,
+      spec: { measures: { innerDiameter: '25', outerDiameter: '52', width: '15' }, category: 'Rodamientos', subcategory: 'Rígidos de bolas', details: ['Sello: 2RS'] },
     },
   ],
   cancellable: true,
@@ -83,6 +84,11 @@ describe('OrderDetailPage', () => {
     expect(el(h).textContent).toContain('PED-000001');
     expect(el(h).textContent).toContain('COT-000001');
     expect(el(h).textContent).toContain('reservado en Central');
+  });
+
+  it('shows the measures and the type under the product of each line (HU-VEN-36)', async () => {
+    const h = await open(order());
+    expect(el(h).querySelector('.line-spec')?.textContent?.trim()).toBe('25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sello: 2RS');
   });
 
   it('asks for a reason before cancelling, then shows the order cancelled', async () => {

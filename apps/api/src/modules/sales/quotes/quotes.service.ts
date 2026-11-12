@@ -32,6 +32,7 @@ import { MembershipService } from '../../access/membership.service';
 import { codeRank, productSearchWhere } from '../../inventory/product-search-where';
 import { CustomersService } from '../customers/customers.service';
 import { nextDocumentNumber } from '../document-sequence';
+import { LINE_SPEC_PRODUCT_SELECT, lineSpecsOf } from '../sales-line-spec';
 import { quoteErrors } from './quotes.errors';
 
 const SEARCH_LIMIT = 20;
@@ -92,13 +93,13 @@ export class QuotesService {
     if (!search) return { items: [] };
 
     const select = {
-      id: true,
       sku: true,
       manufacturerCode: true,
       name: true,
       salePrice: true,
       brand: { select: { name: true } },
       stockLevels: { where: { warehouseId }, select: { quantity: true, reserved: true } },
+      ...LINE_SPEC_PRODUCT_SELECT,
     } satisfies Prisma.ProductSelect;
     const where = productSearchWhere(search);
     const orderBy: Prisma.ProductOrderByWithRelationInput[] = [{ manufacturerCode: 'asc' }, { id: 'asc' }];
@@ -111,6 +112,7 @@ export class QuotesService {
       .filter((p) => (seen.has(p.id) ? false : !!seen.add(p.id)))
       .sort((a, b) => codeRank(a.manufacturerCode, search) - codeRank(b.manufacturerCode, search))
       .slice(0, SEARCH_LIMIT);
+    const specs = await lineSpecsOf(this.prisma.tenant, rows);
     return {
       items: rows.map((p) => ({
         id: p.id,
@@ -120,6 +122,7 @@ export class QuotesService {
         brandName: p.brand.name,
         salePrice: p.salePrice.toFixed(2),
         available: p.stockLevels[0] ? p.stockLevels[0].quantity - p.stockLevels[0].reserved : 0,
+        spec: specs.get(p.id)!,
       })),
     };
   }
@@ -172,15 +175,16 @@ export class QuotesService {
       where: { id },
       include: {
         customer: { select: { id: true, name: true, documentNumber: true, email: true, phone: true } },
-        items: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { sku: true, manufacturerCode: true, name: true } } } },
+        items: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { sku: true, manufacturerCode: true, name: true, ...LINE_SPEC_PRODUCT_SELECT } } } },
         salesOrders: { where: { status: { not: 'CANCELLED' } }, select: { id: true, number: true }, take: 1 },
       },
     });
     if (!quote) throw quoteErrors.quoteNotFound();
-    const [creator, company, available] = await Promise.all([
+    const [creator, company, available, specs] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: quote.createdById }, select: { name: true } }),
       this.prisma.company.findUniqueOrThrow({ where: { id: quote.companyId }, select: { tradeName: true } }),
       this.availableByProduct(quote.items.map((item) => item.productId)),
+      lineSpecsOf(this.prisma.tenant, quote.items.map((item) => item.product)),
     ]);
     const today = laPazToday(new Date());
     const validUntil = day(quote.validUntil);
@@ -232,6 +236,7 @@ export class QuotesService {
         unitPrice: item.unitPrice.toFixed(2),
         lineTotal: item.lineTotal.toFixed(2),
         available: available.get(item.productId) ?? null,
+        spec: specs.get(item.productId)!,
       })),
       order: quote.salesOrders[0] ?? null,
       convertible: isQuoteConvertible(quote.status, validUntil, today),

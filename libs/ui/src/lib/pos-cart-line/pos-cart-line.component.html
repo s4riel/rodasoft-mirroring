@@ -1,6 +1,6 @@
 <div class="info">
   <span class="title" [title]="title()">{{ title() }}</span>
-  <span class="unit">{{ unitPrice() }}</span>
+  <span class="unit" [title]="unitPrice()">{{ unitPrice() }}</span>
   @if (hasDiscount()) {
     <span class="discount">{{ discountLabel() }}</span>
   }

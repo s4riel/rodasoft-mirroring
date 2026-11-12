@@ -1,3 +1,5 @@
+@use '../shared/line-drag';
+
 :host {
   display: grid;
   gap: var(--space-6);
@@ -125,4 +127,15 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.hint {
+  margin: 0;
+}
+
+/* a line is the grip (HU-VEN-33) and the cart line */
+.line-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }

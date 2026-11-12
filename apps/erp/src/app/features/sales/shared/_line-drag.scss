@@ -1,0 +1,31 @@
+/* A reorderable cart line: the drag grip next to the cart line (HU-VEN-33). Shared by the POS and the quote form. */
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.line rs-pos-cart-line {
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* the CDK's copy that follows the pointer, and the gap it leaves in the list */
+.line.cdk-drag-preview {
+  box-sizing: border-box;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+.line.cdk-drag-placeholder {
+  opacity: 0.4;
+}
+.line.cdk-drag-animating,
+.line-list.cdk-drop-list-dragging .line:not(.cdk-drag-placeholder) {
+  transition: transform 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line.cdk-drag-animating,
+  .line-list.cdk-drop-list-dragging .line:not(.cdk-drag-placeholder) {
+    transition: none;
+  }
+}

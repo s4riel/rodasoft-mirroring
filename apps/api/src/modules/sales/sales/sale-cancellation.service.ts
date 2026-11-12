@@ -304,6 +304,12 @@ export class SaleCancellationService {
           invoiceAction,
           cashRefund: impact.cashRefund,
           manualRefunds: impact.manualRefunds,
+          // a sale on credit collected nothing for this part: accounts receivable (HU-CON-03) takes it off the customer's balance
+          creditReversal: sale.payments
+            .filter((payment) => payment.method === 'CREDIT')
+            .reduce((acc, payment) => acc.add(Decimal.of(payment.amount.toFixed(2))), Decimal.zero())
+            .toString(),
+          customerId: sale.customerId,
         },
         { tx, idempotencyKey: `cancellation-approved:${pending.id}` },
       );

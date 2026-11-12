@@ -7,6 +7,7 @@ import { OutboxService } from '../../../common/outbox/outbox.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { posErrors } from '../pos/pos.errors';
+import { LINE_SPEC_PRODUCT_SELECT, lineSpecsOf } from '../sales-line-spec';
 import { SaleVisibilityService } from './sale-visibility.service';
 
 /** Deliberately simple: the mail server is the real check. It only stops obvious typos. */
@@ -35,7 +36,7 @@ export class SaleReceiptService {
       include: {
         items: {
           orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-          include: { product: { select: { manufacturerCode: true, name: true } } },
+          include: { product: { select: { manufacturerCode: true, name: true, ...LINE_SPEC_PRODUCT_SELECT } } },
         },
         payments: { orderBy: { id: 'asc' } },
         invoice: true,
@@ -44,13 +45,14 @@ export class SaleReceiptService {
       },
     });
     if (!sale || !sale.invoice) throw posErrors.saleNotFound();
-    const [company, cashier, format] = await Promise.all([
+    const [company, cashier, format, specs] = await Promise.all([
       this.prisma.company.findUniqueOrThrow({
         where: { id: sale.companyId },
         select: { tradeName: true, legalName: true, nit: true },
       }),
       this.prisma.user.findUnique({ where: { id: sale.createdById }, select: { name: true } }),
       this.settings.get('sales.receiptFormat'),
+      lineSpecsOf(this.prisma.tenant, sale.items.map((item) => item.product)),
     ]);
     return {
       saleId: sale.id,
@@ -73,6 +75,7 @@ export class SaleReceiptService {
         quantity: item.quantity,
         unitPrice: item.unitPrice.toFixed(2),
         lineTotal: item.lineTotal.toFixed(2),
+        spec: specs.get(item.productId)!,
       })),
       subtotal: sale.subtotal.toFixed(2),
       discountType: sale.discountType,
@@ -83,6 +86,7 @@ export class SaleReceiptService {
         method: p.method,
         amount: p.amount.toFixed(2),
         change: p.change.toFixed(2),
+        dueDate: p.dueDate ? p.dueDate.toISOString().slice(0, 10) : null,
       })),
       invoiceStatus: sale.invoice.status,
       format,

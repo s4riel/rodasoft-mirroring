@@ -28,7 +28,7 @@ const customer = {
   discount: { type: 'PERCENT', value: '10.00' },
   status: 'ACTIVE',
 } as CustomerSummary;
-const product: QuoteProductResult = { id: 'p1', sku: 'S1', code: 'ABC-1', name: 'Rodamiento', brandName: 'SKF', salePrice: '100.00', available: 7 };
+const product: QuoteProductResult = { id: 'p1', sku: 'S1', code: 'ABC-1', name: 'Rodamiento', brandName: 'SKF', salePrice: '100.00', available: 7, spec: { measures: { innerDiameter: '25', outerDiameter: '52', width: '15' }, category: 'Rodamientos', subcategory: 'Rígidos de bolas', details: ['Sello: 2RS'] } };
 
 describe('QuoteFormPage', () => {
   let http: HttpTestingController;
@@ -105,7 +105,7 @@ describe('QuoteFormPage', () => {
     harness.detectChanges();
     (el().querySelector('#quote-product') as HTMLInputElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     harness.detectChanges();
-    expect(el().textContent).toContain('Disponible 7');
+    expect(el().querySelector('[data-testid="quote-lines-title"]')?.textContent).toContain('Ítems de la cotización (1)');
     // 100.00 − 10 % of the customer
     expect(el().querySelector('[data-testid="quote-total"]')?.textContent).toContain('90,00');
 
@@ -116,5 +116,72 @@ describe('QuoteFormPage', () => {
     jest.useRealTimers();
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/sales/quotes/q1');
+  });
+
+  describe('the items list (HU-VEN-33, HU-VEN-36)', () => {
+    const second: QuoteProductResult = { ...product, id: 'p2', sku: 'S2', code: 'XYZ-2', salePrice: '50.00', available: 0, spec: { ...product.spec, measures: null, subcategory: null, details: [] } };
+
+    /** Picks the customer and adds the products in order, each one searched and added with Enter. */
+    function fill(products: QuoteProductResult[]) {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'queueMicrotask'] });
+      http.expectOne('/api/v1/sales/quotes/context').flush(context);
+      harness.detectChanges();
+      type('#quote-customer', 'ana');
+      jest.advanceTimersByTime(300);
+      http.expectOne((r) => r.url === '/api/v1/sales/quotes/customers').flush({ items: [customer] });
+      harness.detectChanges();
+      (el().querySelector('.results .result') as HTMLButtonElement).click();
+      harness.detectChanges();
+      for (const p of products) {
+        type('#quote-product', p.code);
+        jest.advanceTimersByTime(300);
+        http.expectOne((r) => r.url === '/api/v1/sales/quotes/product-search').flush({ items: [p] });
+        harness.detectChanges();
+        (el().querySelector('#quote-product') as HTMLInputElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+        harness.detectChanges();
+      }
+    }
+
+    const lineRows = () => Array.from(el().querySelectorAll<HTMLElement>('[data-testid="quote-lines"] > li'));
+    const press = (button: Element, key: string) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      button.dispatchEvent(event);
+      harness.detectChanges();
+      return event;
+    };
+
+    it('draws a drag handle with its accessible name on each line', () => {
+      fill([product, second]);
+      expect(lineRows()).toHaveLength(2);
+      const handles = lineRows().map((row) => row.querySelector('rs-drag-handle button')?.getAttribute('aria-label'));
+      expect(handles).toEqual(['Arrastrar ABC-1', 'Arrastrar XYZ-2']);
+    });
+
+    it('writes the price, the measures and type under each line, and "Sin existencia" when there is no stock', () => {
+      fill([product, second]);
+      const [first, short] = lineRows().map((row) => row.querySelector('.unit')?.textContent ?? '');
+      expect(first).toContain('c/u');
+      expect(first).toContain('25 × 52 × 15 mm · Rodamientos · Rígidos de bolas · Sello: 2RS');
+      expect(first).not.toContain('Sin existencia');
+      expect(short).toContain('Rodamientos');
+      expect(short).toContain('Sin existencia');
+    });
+
+    it('reorders with the arrow keys on the handle and saves the lines in that order', () => {
+      fill([product, second]);
+      press(lineRows()[1].querySelector('rs-drag-handle button') as Element, 'ArrowUp');
+      expect(lineRows().map((row) => row.querySelector('.title')?.textContent)).toEqual(['XYZ-2 · SKF', 'ABC-1 · SKF']);
+      // the first line cannot go further up
+      press(lineRows()[0].querySelector('rs-drag-handle button') as Element, 'ArrowUp');
+      expect(lineRows().map((row) => row.querySelector('.title')?.textContent)).toEqual(['XYZ-2 · SKF', 'ABC-1 · SKF']);
+
+      (el().querySelector('[data-testid="quote-save"]') as HTMLButtonElement).click();
+      const create = http.expectOne('/api/v1/sales/quotes');
+      expect(create.request.body.lines).toEqual([
+        { productId: 'p2', quantity: 1 },
+        { productId: 'p1', quantity: 1 },
+      ]);
+      create.flush({ id: 'q1', number: 'COT-000001' });
+    });
   });
 });

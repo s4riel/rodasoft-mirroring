@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Decimal, type SaleDetail } from '@rodasoft/domain';
+import { creditDueText, Decimal, salesLineSpecText, type SaleDetail, type SalesLineSpec } from '@rodasoft/domain';
 import {
   ButtonComponent,
   CanDirective,
   DocTableCell,
+  DocTableCellDirective,
   DocTableColumn,
   DocTableComponent,
   DocTableRow,
@@ -35,7 +36,7 @@ type LoadState = 'loading' | 'ready' | 'error' | 'forbidden';
 
 const LINE_COLUMNS: DocTableColumn[] = [
   { key: 'code', label: 'Código', type: 'code', width: '10rem' },
-  { key: 'name', label: 'Producto', type: 'text' },
+  { key: 'name', label: 'Producto', type: 'custom' },
   { key: 'quantity', label: 'Cant.', type: 'number', width: '6rem' },
   { key: 'unitPrice', label: 'Precio', type: 'number', width: '9rem' },
   { key: 'lineTotal', label: 'Total', type: 'number', width: '9rem' },
@@ -50,6 +51,7 @@ const LINE_COLUMNS: DocTableColumn[] = [
   imports: [
     ButtonComponent,
     CanDirective,
+    DocTableCellDirective,
     DocTableComponent,
     EmptyStateIllustratedComponent,
     FieldComponent,
@@ -78,6 +80,12 @@ export class SaleDetailPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly lineColumns = LINE_COLUMNS;
+  protected readonly specText = (line: { spec: SalesLineSpec }) => salesLineSpecText(line.spec);
+
+  /** The line of a table row (the name cell shows its measures and type); row ids are the line positions. */
+  protected lineOf(rowId: string) {
+    return this.detail()?.lines[Number(rowId)] ?? null;
+  }
   protected readonly skeletonRows = Array.from({ length: 4 }, (_, i) => i);
   protected readonly state = signal<LoadState>('loading');
   protected readonly errorMessage = signal('');
@@ -184,7 +192,8 @@ export class SaleDetailPage implements OnInit {
 
   protected readonly payments = computed(() =>
     (this.detail()?.payments ?? []).map((p) => ({
-      method: PAYMENT_METHOD_LABELS[p.method],
+      // a credit payment says when it falls due (HU-VEN-34)
+      method: p.method === 'CREDIT' && p.dueDate ? creditDueText(p.dueDate) : PAYMENT_METHOD_LABELS[p.method],
       amount: formatBs(p.amount),
       change: Decimal.of(p.change).isZero() ? null : formatBs(p.change),
       reference: p.reference,
