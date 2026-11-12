@@ -2,6 +2,8 @@ import {
   CASH_DENOMINATIONS,
   CASH_DETAIL_MAX,
   CASH_MOVEMENT_CONCEPTS,
+  CASH_REVIEW_NOTE_MAX,
+  cashShiftDisplayStatus,
   closingDifferences,
   countedTotal,
   expenseExceedsCash,
@@ -9,10 +11,13 @@ import {
   normalizeCashCounts,
   normalizeDenomination,
   parseCashAmount,
+  isCashShiftDisplayStatus,
   paymentMethodTotals,
   planClosing,
   shiftCashSummary,
+  shiftDeposit,
   validateCashMovement,
+  validateShiftReview,
   type CloseCashShiftInput,
 } from './cash-register';
 import { Decimal } from './money';
@@ -295,5 +300,56 @@ describe('planClosing', () => {
       '0.00',
     );
     expect(empty.ok && empty.plan.counted).toBe('0.00');
+  });
+});
+
+describe('validateShiftReview', () => {
+  it('lets Accounting approve without an answer', () => {
+    expect(validateShiftReview('approve', undefined)).toEqual({ ok: true, comment: null });
+    expect(validateShiftReview('approve', '   ')).toEqual({ ok: true, comment: null });
+    expect(validateShiftReview('approve', '  Conforme  ')).toEqual({ ok: true, comment: 'Conforme' });
+  });
+
+  it('needs an answer to ask for a recount', () => {
+    expect(validateShiftReview('observe', null)).toEqual({ ok: false, error: 'REVIEW_COMMENT_REQUIRED' });
+    expect(validateShiftReview('observe', ' \n ')).toEqual({ ok: false, error: 'REVIEW_COMMENT_REQUIRED' });
+    expect(validateShiftReview('observe', 'Recontar')).toEqual({ ok: true, comment: 'Recontar' });
+  });
+
+  it('limits the answer of either decision', () => {
+    const limit = 'x'.repeat(CASH_REVIEW_NOTE_MAX);
+    expect(validateShiftReview('observe', limit)).toEqual({ ok: true, comment: limit });
+    expect(validateShiftReview('observe', `${limit}x`)).toEqual({ ok: false, error: 'REVIEW_COMMENT_TOO_LONG' });
+    expect(validateShiftReview('approve', `${limit}x`)).toEqual({ ok: false, error: 'REVIEW_COMMENT_TOO_LONG' });
+  });
+});
+
+describe('cashShiftDisplayStatus', () => {
+  it.each([
+    ['OPEN', false, 'OPEN'],
+    ['CLOSED', false, 'PENDING_REVIEW'],
+    ['APPROVED', false, 'CLOSED_CLEAN'],
+    ['APPROVED', true, 'DIFFERENCE_APPROVED'],
+    ['OBSERVED', true, 'OBSERVED'],
+  ] as const)('shows %s (reviewed: %s) as %s', (status, reviewed, shown) => {
+    expect(cashShiftDisplayStatus(status, reviewed)).toBe(shown);
+  });
+
+  it('recognises the statuses of the history filter', () => {
+    expect(isCashShiftDisplayStatus('PENDING_REVIEW')).toBe(true);
+    expect(isCashShiftDisplayStatus('CLOSED')).toBe(false);
+    expect(isCashShiftDisplayStatus(undefined)).toBe(false);
+  });
+});
+
+describe('shiftDeposit', () => {
+  it('is what was counted minus what stays in the register', () => {
+    expect(shiftDeposit('580.00', '100.00')).toBe('480.00');
+    expect(shiftDeposit('600.00', '600.00')).toBe('0.00');
+    expect(shiftDeposit('0.10', '0.03')).toBe('0.07');
+  });
+
+  it('is never negative', () => {
+    expect(shiftDeposit('100.00', '150.00')).toBe('0.00');
   });
 });

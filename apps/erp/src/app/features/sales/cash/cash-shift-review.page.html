@@ -1,0 +1,199 @@
+<rs-page-header
+  [title]="title()"
+  [description]="description()"
+  type="detail"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el cierre">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver este cierre"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('gone') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-results"
+        heading="Este turno ya no existe"
+        description="Vuelve al historial para ver los turnos."
+      >
+        <a rsButton variant="primary" routerLink="/sales/cash-register/history">Volver al historial</a>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated
+        illustration="error"
+        heading="No pudimos cargar el cierre"
+        [description]="errorMessage()"
+      >
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <a rsButton variant="secondary" routerLink="/sales/cash-register/history">Volver al historial</a>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (review(); as r) {
+      @if (pill(); as p) {
+        <div class="meta">
+          <rs-status-pill [status]="p.status" data-testid="review-status">{{ p.label }}</rs-status-pill>
+        </div>
+      }
+
+      <section class="kpis" aria-label="Resumen del cierre">
+        <rs-kpi-card label="Esperado" [value]="stats().expected" />
+        <rs-kpi-card label="Contado" [value]="stats().counted" />
+        <rs-kpi-card label="Diferencia" [value]="stats().difference" [trend]="stats().differenceTrend" />
+        <rs-kpi-card label="Ventas del turno" [value]="stats().sales" />
+      </section>
+
+      @if (r.review) {
+        <rs-note
+          [type]="r.status === 'OBSERVED' ? 'warning' : 'info'"
+          [title]="decisionTitle()"
+          data-testid="review-decision"
+        >
+          {{ r.review.note || 'Sin comentario.' }}
+        </rs-note>
+      }
+      @if (actionError(); as message) {
+        <rs-note
+          type="danger"
+          title="No pudimos registrar la decisión"
+          role="alert"
+          data-testid="review-action-error"
+          >{{ message }}</rs-note
+        >
+      }
+
+      <div class="columns">
+        <div class="column">
+          <section class="card" aria-labelledby="review-justification">
+            <h2 class="card-title" id="review-justification">Justificación del cajero</h2>
+            <rs-data-field
+              label="Comentario"
+              layout="inline"
+              [showIcon]="false"
+              [type]="r.closingComment ? 'text' : 'empty'"
+              data-testid="review-comment"
+            >
+              {{ r.closingComment }}
+            </rs-data-field>
+            <rs-data-field
+              label="Depósito"
+              layout="inline"
+              [showIcon]="false"
+              [type]="depositText() ? 'text' : 'empty'"
+              data-testid="review-deposit"
+            >
+              {{ depositText() }}
+            </rs-data-field>
+          </section>
+
+          @if (r.canDecide) {
+            <rs-field
+              *rsCan="'sales.cash-register.review'"
+              label="Respuesta de Contabilidad"
+              hint="Opcional al aprobar, obligatoria al pedir recuento."
+              forId="review-reply"
+              [error]="
+                replyMissing() ? 'Escribe la respuesta para el cajero antes de pedir el recuento.' : ''
+              "
+            >
+              <textarea
+                #replyBox
+                rsTextarea
+                id="review-reply"
+                rows="3"
+                placeholder="Escribe una respuesta para el cajero"
+                [attr.maxlength]="replyMax"
+                [value]="reply()"
+                (input)="setReply(replyBox.value)"
+              ></textarea>
+            </rs-field>
+          }
+        </div>
+
+        <div class="column">
+          <section class="card" aria-labelledby="review-methods">
+            <h2 class="card-title" id="review-methods">Por forma de pago</h2>
+            <rs-doc-table
+              size="md"
+              tableLabel="Totales por forma de pago"
+              emptyLabel="Este turno todavía no tiene un cierre"
+              [columns]="methodColumns"
+              [rows]="methodRows()"
+            />
+          </section>
+
+          <section class="card" aria-labelledby="review-audit">
+            <h2 class="card-title" id="review-audit">Auditoría</h2>
+            <ol class="timeline" data-testid="review-timeline">
+              @for (entry of timeline(); track $index) {
+                <li class="timeline-row">
+                  <span class="timeline-time">{{ entry.at }}</span>
+                  <span>{{ entry.text }}</span>
+                </li>
+              }
+              @if (r.status === 'CLOSED') {
+                <li class="timeline-row timeline-row--pending">
+                  <span class="timeline-time">Pendiente</span>
+                  <span>Revisión de Contabilidad</span>
+                </li>
+              }
+            </ol>
+          </section>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a rsButton variant="secondary" routerLink="/sales/cash-register/history" data-testid="review-back"
+          >Volver al historial</a
+        >
+        @if (r.canDecide) {
+          <ng-container *rsCan="'sales.cash-register.review'">
+            <button
+              rsButton
+              variant="ghost"
+              type="button"
+              data-testid="review-observe"
+              [disabled]="deciding() !== null"
+              [loading]="deciding() === 'observe'"
+              (click)="observe()"
+            >
+              Pedir recuento
+            </button>
+            <button
+              rsButton
+              variant="primary"
+              type="button"
+              data-testid="review-approve"
+              [disabled]="deciding() !== null"
+              [loading]="deciding() === 'approve'"
+              (click)="approve()"
+            >
+              Aprobar cierre
+            </button>
+          </ng-container>
+        }
+      </div>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

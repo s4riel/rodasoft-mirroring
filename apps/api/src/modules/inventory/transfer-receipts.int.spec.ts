@@ -142,6 +142,7 @@ describe('TransferReceiptsService (integration, real Postgres)', () => {
     await base.transferItem.deleteMany({ where: { companyId } });
     await base.transfer.deleteMany({ where: { companyId } });
     await base.stockLevel.deleteMany({ where: { companyId } });
+    await base.priceChange.deleteMany({ where: { companyId: { in: [companyId, otherCompanyId] } } });
     await base.product.deleteMany({ where: { companyId: { in: [companyId, otherCompanyId] } } });
     await base.membership.deleteMany({ where: { companyId } });
     await base.user.deleteMany({ where: { email: { in: [`rc-${run}@example.com`, `rc2-${run}@example.com`] } } });

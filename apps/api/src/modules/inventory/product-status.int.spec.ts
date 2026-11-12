@@ -83,6 +83,7 @@ async function removeCompany(companyId: string) {
   await base.stockThreshold.deleteMany({ where: { companyId } });
   await base.stockLevel.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
+  await base.priceChange.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.category.deleteMany({ where: { companyId } });
   await base.brand.deleteMany({ where: { companyId } });

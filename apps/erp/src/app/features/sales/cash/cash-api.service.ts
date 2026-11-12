@@ -1,10 +1,14 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
   CashMovementDecisionInput,
   CashMovementDetail,
   CashRegisterListResponse,
   CashShiftDetail,
+  CashShiftListQuery,
+  CashShiftListResponse,
+  CashShiftReview,
+  CashShiftReviewInput,
   CloseCashShiftInput,
   CloseCashShiftResponse,
   CreateCashMovementInput,
@@ -54,6 +58,30 @@ export class CashApi {
   /** VP-06 · Closes the shift with the count and the declared QR, card and transfer. */
   close(shiftId: string, body: CloseCashShiftInput): Observable<CloseCashShiftResponse> {
     return this.http.post<CloseCashShiftResponse>(`/api/v1/sales/cash-shifts/${shiftId}/close`, body);
+  }
+
+  /** VP-23 · The shift history. A reviewer gets every cashier's shifts; a cashier only their own. */
+  shifts(query: CashShiftListQuery): Observable<CashShiftListResponse> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
+    }
+    return this.http.get<CashShiftListResponse>('/api/v1/sales/cash-shifts', { params });
+  }
+
+  /** VP-06b · A closing with its difference, the cashier's comment, the totals per method and the audit trail. */
+  review(shiftId: string): Observable<CashShiftReview> {
+    return this.http.get<CashShiftReview>(`/api/v1/sales/cash-shifts/${shiftId}/review`);
+  }
+
+  /** VP-06b "Aprobar cierre". */
+  approveShift(shiftId: string, body: CashShiftReviewInput): Observable<CashShiftReview> {
+    return this.http.post<CashShiftReview>(`/api/v1/sales/cash-shifts/${shiftId}/approve`, body);
+  }
+
+  /** VP-06b "Pedir recuento": the comment is required. */
+  observeShift(shiftId: string, body: CashShiftReviewInput): Observable<CashShiftReview> {
+    return this.http.post<CashShiftReview>(`/api/v1/sales/cash-shifts/${shiftId}/observe`, body);
   }
 
   movement(id: string): Observable<CashMovementDetail> {

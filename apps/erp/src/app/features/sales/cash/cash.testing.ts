@@ -1,8 +1,9 @@
-import type { CashMovementDetail, CashShiftDetail, CurrentCashShift } from '@rodasoft/domain';
+import type { CashMovementDetail, CashShiftDetail, CashShiftListResponse, CashShiftListRow, CashShiftReview, CurrentCashShift } from '@rodasoft/domain';
 
 /** Shared data of the cash register specs (HU-VEN-22, HU-VEN-23). */
 export const CURRENT_SHIFT: CurrentCashShift = {
   id: 's1',
+  number: 'T-0142',
   openingFloat: '500.00',
   openedAt: '2026-11-04T12:02:00.000Z',
   openedBy: { id: 'u1', name: 'Ana Cajera' },
@@ -77,6 +78,83 @@ export function movementDetail(over: Partial<CashMovementDetail> = {}): CashMove
     approval: { requestId: 'a1', requestedBy: { id: 'u1', name: 'Ana Cajera' }, decidedBy: null, decidedAt: null, comment: null },
     canDecide: true,
     canWithdraw: false,
+    ...over,
+  };
+}
+
+/** A closing Bs 20 short waiting for Accounting (HU-VEN-24). */
+export function shiftReview(over: Partial<CashShiftReview> = {}): CashShiftReview {
+  return {
+    id: 's1',
+    number: 'T-0142',
+    status: 'CLOSED',
+    displayStatus: 'PENDING_REVIEW',
+    register: { id: 'r1', name: 'Caja 1' },
+    branch: { id: 'b1', name: 'Huayna Kapac' },
+    cashier: { id: 'u1', name: 'Ana Cajera' },
+    openedAt: '2026-10-14T12:02:00.000Z',
+    closedAt: '2026-10-14T23:05:00.000Z',
+    expected: '600.00',
+    counted: '580.00',
+    difference: '-20.00',
+    sales: { total: '700.00', count: 3 },
+    closingComment: 'Faltó un vuelto de Bs 20',
+    closingFloat: '100.00',
+    deposit: '480.00',
+    methods: [
+      { method: 'CASH', system: '600.00', declared: '580.00', difference: '-20.00' },
+      { method: 'QR', system: '100.00', declared: '100.00', difference: '0.00' },
+      { method: 'CARD', system: '0.00', declared: '0.00', difference: '0.00' },
+      { method: 'TRANSFER', system: '0.00', declared: '0.00', difference: '0.00' },
+    ],
+    review: null,
+    timeline: [
+      { at: '2026-10-14T12:02:00.000Z', action: 'OPEN', by: { id: 'u1', name: 'Ana Cajera' }, automatic: false },
+      { at: '2026-10-14T23:05:00.000Z', action: 'CLOSE', by: { id: 'u1', name: 'Ana Cajera' }, automatic: false },
+    ],
+    canDecide: true,
+    ...over,
+  };
+}
+
+export function shiftRow(over: Partial<CashShiftListRow> = {}): CashShiftListRow {
+  return {
+    id: 's1',
+    number: 'T-0142',
+    status: 'CLOSED',
+    displayStatus: 'PENDING_REVIEW',
+    cashier: { id: 'u1', name: 'Ana Cajera' },
+    register: { id: 'r1', name: 'Caja 1' },
+    branch: { id: 'b1', name: 'Huayna Kapac' },
+    openedAt: '2026-10-14T12:02:00.000Z',
+    closedAt: '2026-10-14T23:05:00.000Z',
+    sales: { total: '700.00', count: 3 },
+    difference: '-20.00',
+    hasDifference: true,
+    ...over,
+  };
+}
+
+/** The history as a reviewer gets it (HU-VEN-25): one closing waiting, one clean, one still open. */
+export function shiftList(over: Partial<CashShiftListResponse> = {}): CashShiftListResponse {
+  const items = [
+    shiftRow(),
+    shiftRow({ id: 's2', number: 'T-0141', status: 'APPROVED', displayStatus: 'CLOSED_CLEAN', cashier: { id: 'u2', name: 'Beto Cajero' }, difference: '0.00', hasDifference: false }),
+    shiftRow({ id: 's3', number: 'T-0143', status: 'OPEN', displayStatus: 'OPEN', closedAt: null, difference: null, hasDifference: false }),
+  ];
+  return {
+    items,
+    total: items.length,
+    page: 1,
+    pageSize: 20,
+    totals: { shifts: 3, salesCount: 9, salesTotal: '2100.00', difference: '-20.00' },
+    month: { shifts: 12, withDifference: 2, pendingReview: 1, accumulatedDifference: '-35.50' },
+    canReview: true,
+    cashiers: [
+      { id: 'u1', name: 'Ana Cajera' },
+      { id: 'u2', name: 'Beto Cajero' },
+    ],
+    registers: [{ id: 'r1', name: 'Caja 1' }],
     ...over,
   };
 }

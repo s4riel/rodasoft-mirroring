@@ -1,4 +1,20 @@
-import { formatDifference, formatOpenedAt, formatRelativeDateTime, formatTime, movementConceptLabel, movementStatusPill, registerPlace, signedAmount } from './cash-format';
+import {
+  formatDifference,
+  formatOpenedAt,
+  formatRelativeDateTime,
+  formatSchedule,
+  formatScheduleShort,
+  formatSignedBs,
+  formatTime,
+  movementConceptLabel,
+  movementStatusPill,
+  parseShiftStatus,
+  registerPlace,
+  SHIFT_STATUS_OPTIONS,
+  SHIFT_STATUS_PILLS,
+  signedAmount,
+  timelineText,
+} from './cash-format';
 
 describe('formatRelativeDateTime', () => {
   const now = new Date('2026-11-04T15:00:00.000Z'); // 11:00 in La Paz
@@ -56,5 +72,43 @@ describe('cash movement formats (HU-VEN-22)', () => {
     expect(formatOpenedAt('2026-11-04T12:02:00.000Z', now)).toBe('hoy a las 08:02');
     expect(formatOpenedAt('2026-11-03T23:02:00.000Z', now)).toBe('ayer a las 19:02');
     expect(formatOpenedAt('2026-11-02T22:30:00.000Z', now)).toBe('el 02/11/2026 a las 18:30');
+  });
+});
+
+describe('review and history formats (HU-VEN-24, HU-VEN-25)', () => {
+  it('signs a difference: a shortage, a surplus, none and unknown', () => {
+    expect(formatSignedBs('-20.00')).toBe('− Bs 20,00');
+    expect(formatSignedBs('5.50')).toBe('+ Bs 5,50');
+    expect(formatSignedBs('0.00')).toBe('Bs 0,00');
+    expect(formatSignedBs(null)).toBe('—');
+  });
+
+  it('writes the schedule of a shift in the business timezone', () => {
+    expect(formatSchedule('2026-10-14T12:02:00.000Z', '2026-10-14T23:05:00.000Z')).toBe('14/10/2026 08:02 a 19:05');
+    // closed after midnight in La Paz: the closing day is written too
+    expect(formatSchedule('2026-10-14T12:02:00.000Z', '2026-10-15T05:10:00.000Z')).toBe('14/10/2026 08:02 a 15/10/2026 01:10');
+    expect(formatSchedule('2026-10-14T12:02:00.000Z', null)).toBe('14/10/2026 08:02 · abierto');
+    expect(formatScheduleShort('2026-10-14T12:02:00.000Z', '2026-10-14T23:05:00.000Z')).toBe('14/10 08:02–19:05');
+    expect(formatScheduleShort('2026-10-14T12:02:00.000Z', '2026-10-15T05:10:00.000Z')).toBe('14/10 08:02–15/10 01:10');
+    expect(formatScheduleShort('2026-10-14T12:02:00.000Z', null)).toBe('14/10 08:02 · abierto');
+  });
+
+  it('labels every status of the history and reads the filter from the URL', () => {
+    expect(SHIFT_STATUS_OPTIONS.map((o) => o.label)).toEqual(['Por revisar', 'Observado', 'Diferencia aprobada', 'Cerrado', 'Abierto']);
+    expect(SHIFT_STATUS_PILLS.PENDING_REVIEW).toEqual({ label: 'Por revisar', status: 'warning' });
+    expect(parseShiftStatus('OBSERVED')).toBe('OBSERVED');
+    expect(parseShiftStatus('CLOSED')).toBeNull();
+    expect(parseShiftStatus('toString')).toBeNull();
+    expect(parseShiftStatus(null)).toBeNull();
+  });
+
+  it('writes each line of the audit trail', () => {
+    const by = { id: 'u1', name: 'Ana' };
+    expect(timelineText({ action: 'OPEN', by, automatic: false })).toBe('Apertura de caja por Ana');
+    expect(timelineText({ action: 'CLOSE', by, automatic: false })).toBe('Cierre de caja por Ana');
+    expect(timelineText({ action: 'APPROVE', by, automatic: false })).toBe('Cierre aprobado por Ana');
+    expect(timelineText({ action: 'APPROVE', by, automatic: true })).toBe('Cierre aprobado por el sistema: sin diferencias');
+    expect(timelineText({ action: 'OBSERVE', by, automatic: false })).toBe('Recuento pedido por Ana');
+    expect(timelineText({ action: 'CLOSE', by: null, automatic: false })).toBe('Cierre de caja por un usuario eliminado');
   });
 });

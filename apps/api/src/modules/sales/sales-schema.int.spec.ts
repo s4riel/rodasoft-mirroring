@@ -36,7 +36,7 @@ async function createFixture(tag: string): Promise<Fixture> {
 }
 
 const openShift = (f: Fixture) =>
-  base.cashShift.create({ data: { companyId: f.companyId, registerId: f.registerId, openingFloat: '100.00', openedById: randomUUID() } });
+  base.cashShift.create({ data: { number: `T-${Math.random().toString(36).slice(2, 10)}`, companyId: f.companyId, registerId: f.registerId, openingFloat: '100.00', openedById: randomUUID() } });
 
 describe('sales schema (integration, real Postgres)', () => {
   let a: Fixture;
@@ -66,6 +66,23 @@ describe('sales schema (integration, real Postgres)', () => {
     await base.$disconnect();
   });
 
+  describe('price changes', () => {
+    it('refuses a negative new price and a change that changes nothing; a change is MANUAL unless said otherwise', async () => {
+      const product = await createProduct(a.companyId);
+      const change = (oldPrice: string, newPrice: string) =>
+        base.priceChange.create({ data: { companyId: a.companyId, productId: product, oldPrice, newPrice, userId: randomUUID() } });
+
+      await expect(change('10.00', '-1.00')).rejects.toThrow();
+      await expect(change('10.00', '10.00')).rejects.toThrow();
+      await expect(change('10.00', '0.00')).resolves.toMatchObject({ source: 'MANUAL', reason: null, batchId: null });
+
+      await base.priceChange.deleteMany({ where: { companyId: a.companyId } });
+      await base.product.deleteMany({ where: { companyId: a.companyId } });
+      await base.brand.deleteMany({ where: { companyId: a.companyId } });
+      await base.category.deleteMany({ where: { companyId: a.companyId } });
+    });
+  });
+
   describe('cash shifts', () => {
     it('refuses a second OPEN shift on the same register', async () => {
       await openShift(a);
@@ -77,6 +94,17 @@ describe('sales schema (integration, real Postgres)', () => {
       await expect(openShift(a)).resolves.toBeDefined();
       // another company's register is independent
       await expect(openShift(b)).resolves.toBeDefined();
+    });
+
+    it('keeps the shift number unique per company', async () => {
+      const first = await base.cashShift.findFirstOrThrow({ where: { companyId: a.companyId } });
+      const numbered = (f: Fixture) =>
+        base.cashShift.create({
+          data: { number: first.number, companyId: f.companyId, registerId: f.registerId, openingFloat: '1.00', openedById: randomUUID(), status: 'CLOSED' },
+        });
+      await expect(numbered(a)).rejects.toThrow();
+      // the same number in another company is another shift
+      await expect(numbered(b)).resolves.toBeDefined();
     });
   });
 
@@ -202,6 +230,7 @@ describe('sales schema (integration, real Postgres)', () => {
         }),
       ).rejects.toThrow();
       await base.posCheckoutItem.deleteMany({ where: { companyId: a.companyId } });
+      await base.priceChange.deleteMany({ where: { companyId: a.companyId } });
       await base.product.deleteMany({ where: { companyId: a.companyId } });
       await base.brand.deleteMany({ where: { companyId: a.companyId } });
       await base.category.deleteMany({ where: { companyId: a.companyId } });

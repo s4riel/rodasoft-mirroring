@@ -151,6 +151,7 @@ describe('StockAdjustmentsService (integration, real Postgres)', () => {
     await base.stockAdjustmentItem.deleteMany({ where: { companyId: { in: [companyId, otherCompanyId] } } });
     await base.stockAdjustment.deleteMany({ where: { companyId: { in: [companyId, otherCompanyId] } } });
     await base.stockLevel.deleteMany({ where: { companyId } });
+    await base.priceChange.deleteMany({ where: { companyId: { in: [companyId, otherCompanyId] } } });
     await base.product.deleteMany({ where: { companyId: { in: [companyId, otherCompanyId] } } });
     await base.membership.deleteMany({ where: { companyId } });
     await base.user.deleteMany({ where: { email: { in: [`man-${run}@example.com`, `man2-${run}@example.com`] } } });

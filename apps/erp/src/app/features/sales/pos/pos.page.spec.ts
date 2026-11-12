@@ -30,6 +30,7 @@ const ITEMS = '/api/v1/sales/pos/checkout/items';
 
 const shift: CurrentCashShift = {
   id: 's1',
+  number: 'T-0142',
   openingFloat: '500.00',
   openedAt: '2026-11-04T12:00:00.000Z',
   openedBy: { id: 'u1', name: 'Ana Cajera' },

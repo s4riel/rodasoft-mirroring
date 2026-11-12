@@ -25,6 +25,7 @@ const register = (over: Partial<CashRegisterOption> = {}): CashRegisterOption =>
 
 const ownShift: CurrentCashShift = {
   id: 's1',
+  number: 'T-0142',
   openingFloat: '100.00',
   openedAt: '2026-11-04T12:00:00.000Z',
   openedBy: { id: 'u1', name: 'Ana Cajera' },

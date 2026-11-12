@@ -25,8 +25,10 @@ const base = new TestPrisma();
 const prisma = base as unknown as PrismaService;
 /** The product sheet reads the member's branches, so each company has a real full-access membership. */
 const memberships = new Map<string, string>();
+/** The user behind each company's membership: who the price history names. */
+const users = new Map<string, string>();
 const cls = {
-  get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? (memberships.get(current ?? '') ?? null) : null),
+  get: (k: string) => (k === 'companyId' ? current : k === 'membershipId' ? (memberships.get(current ?? '') ?? null) : k === 'userId' ? (users.get(current ?? '') ?? null) : null),
 } as never;
 const withCost = { permissions: async () => new Set(['inventory.costs.view']), operableBranchIds: async () => null } as never;
 const withoutCost = { permissions: async () => new Set<string>(), operableBranchIds: async () => null } as never;
@@ -74,6 +76,7 @@ async function createCompany(tag: string): Promise<Fixture> {
   const user = await base.user.create({ data: { email: `upd-${tag}-${run}@test.local`, name: 'it' } });
   const member = await base.membership.create({ data: { companyId, userId: user.id, roleId: role.id, allBranches: true } });
   memberships.set(companyId, member.id);
+  users.set(companyId, user.id);
   return { companyId, branchId: branch.id, warehouseId: warehouse.id, countrySE: se.id, brandSKF: skf.id, brandFAG: fag.id, bearings: bearings.id, seals: seals.id };
 }
 
@@ -93,6 +96,7 @@ async function removeCompany(companyId: string) {
   await base.stockThreshold.deleteMany({ where: { companyId } });
   await base.stockLevel.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
+  await base.priceChange.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.attributeDefinition.deleteMany({ where: { companyId } });
   await base.category.deleteMany({ where: { companyId } });
@@ -181,6 +185,22 @@ describe('ProductCommandsService update (integration, real Postgres)', () => {
     expect(event).not.toBeNull();
   });
 
+  it('leaves a row in the price history when the form changes the price, and none when it does not (HU-VEN-26)', async () => {
+    const { id, updatedAt } = await product({ manufacturerCode: 'UPD-PRICE-HISTORY' });
+
+    const first = await commands.update(id, edit(updatedAt, { salePrice: '49.90' }));
+    const changes = await base.priceChange.findMany({ where: { productId: id } });
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ companyId: a.companyId, source: 'PRODUCT_FORM', reason: null, batchId: null });
+    expect([changes[0].oldPrice.toFixed(2), changes[0].newPrice.toFixed(2)]).toEqual(['45.50', '49.90']);
+    const row = await base.product.findUniqueOrThrow({ where: { id } });
+    expect(changes[0].userId).toBe(row.updatedById);
+
+    // another field changes, the price is sent again as it is: no new row
+    await commands.update(id, edit(first.updatedAt, { salePrice: '49.9', width: '17' }));
+    expect(await base.priceChange.count({ where: { productId: id } })).toBe(1);
+  });
+
   it('writes nothing when the form comes back unchanged', async () => {
     const { id, updatedAt } = await product({ manufacturerCode: 'UPD-NOOP' });
 
@@ -188,6 +208,7 @@ describe('ProductCommandsService update (integration, real Postgres)', () => {
 
     expect(saved.updatedAt).toBe(updatedAt);
     expect(await base.auditLog.count({ where: { companyId: a.companyId, entityId: id, action: 'inventory.product.update' } })).toBe(0);
+    expect(await base.priceChange.count({ where: { productId: id } })).toBe(0);
   });
 
   it('refuses an empty price with PRICE_REQUIRED (422), like creation', async () => {

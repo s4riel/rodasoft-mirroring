@@ -1,0 +1,171 @@
+<rs-page-header
+  title="Historial de turnos"
+  description="Aperturas y cierres de caja con sus diferencias y aprobaciones."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver los turnos de caja"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <section class="kpis" aria-label="Resumen del mes">
+    <rs-kpi-card label="Turnos este mes" [value]="kpis().shifts" />
+    <rs-kpi-card label="Con diferencia" [value]="kpis().withDifference" />
+    <rs-kpi-card label="Por revisar" [value]="kpis().pendingReview" />
+    <rs-kpi-card label="Diferencia acumulada" [value]="kpis().accumulated" />
+  </section>
+
+  <div class="filters">
+    <rs-date-range-picker
+      placeholder="Fecha"
+      ariaLabel="Rango de fechas"
+      [value]="range()"
+      (valueChange)="setRange($event)"
+    />
+    @if (canReview()) {
+      <rs-select
+        placeholder="Cajero"
+        ariaLabel="Cajero"
+        data-testid="history-cashier"
+        [options]="cashierOptions()"
+        [value]="filters().cashierId"
+        (valueChange)="setFilter('cashierId', $event)"
+      />
+    }
+    <rs-select
+      placeholder="Estado"
+      ariaLabel="Estado"
+      data-testid="history-status"
+      [options]="statusOptions"
+      [value]="filters().status"
+      (valueChange)="setFilter('status', $event)"
+    />
+    <button
+      rsButton
+      variant="ghost"
+      type="button"
+      data-testid="history-clear"
+      [disabled]="!hasFilters()"
+      (click)="clearAll()"
+    >
+      Limpiar
+    </button>
+  </div>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando turnos">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="8%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="26%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="20%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated
+          illustration="error"
+          heading="No pudimos cargar los turnos"
+          [description]="errorMessage()"
+        >
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-invoices"
+            heading="Aún no hay turnos de caja"
+            description="Cuando se abra la primera caja, su turno aparecerá aquí."
+            [showAction]="false"
+          />
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No encontramos turnos"
+            description="Prueba con otras fechas u otro estado."
+          >
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table
+          size="lg"
+          tableLabel="Historial de turnos"
+          [columns]="columns"
+          [rows]="rows()"
+          [totals]="totals()"
+        >
+          <ng-template rsDocCell="number" let-row>
+            @if (itemOf(row.id); as item) {
+              @if (item.status === 'OPEN') {
+                <span class="number">{{ item.number }}</span>
+              } @else {
+                <a
+                  class="number number--link"
+                  [routerLink]="['/sales/cash-register/shifts', item.id, 'review']"
+                  >{{ item.number }}</a
+                >
+              }
+            }
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              @if (menuFor(item); as menu) {
+                @if (menu.length > 0) {
+                  <rs-row-action
+                    [label]="'Acciones del turno ' + item.number"
+                    [items]="menu"
+                    (selected)="openReview(item)"
+                  />
+                }
+              }
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeText() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+
+  <div class="page-actions">
+    <a
+      *rsCan="'sales.cash-register.open'"
+      rsButton
+      variant="primary"
+      routerLink="/sales/cash-register"
+      data-testid="history-current"
+      >Ir al turno actual</a
+    >
+  </div>
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -1,6 +1,7 @@
 <rs-page-header [title]="title()" [description]="description()" [breadcrumbs]="breadcrumbs" breadcrumbLabel="Ruta de navegación">
   @if (state() === 'ready') {
     <div rsActions class="header-actions">
+      <a rsButton variant="ghost" routerLink="/sales/cash-register/history" data-testid="cash-history">Historial de turnos</a>
       <button *rsCan="'sales.cash-register.open'" rsButton variant="secondary" type="button" data-testid="cash-add-income" (click)="openDialog('INCOME')">
         Registrar ingreso
       </button>

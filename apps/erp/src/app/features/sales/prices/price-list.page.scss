@@ -1,0 +1,95 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-4);
+}
+
+.filters {
+  display: flex;
+  flex: 0 0 auto; /* the search takes the free width of the row; the filters keep theirs */
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* the filters are 180 px wide in the Figma filter bar */
+.filters rs-select {
+  flex: 0 0 11.25rem;
+  width: 11.25rem;
+}
+
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.skeleton {
+  display: grid;
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4);
+  border-bottom: var(--stroke-default) solid var(--border-default);
+}
+
+.product {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.product-text {
+  display: grid;
+  min-width: 0;
+}
+
+.product-name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--body-md-size);
+  line-height: var(--body-md-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-brand {
+  color: var(--text-muted);
+  font-size: var(--body-sm-size);
+  line-height: var(--body-sm-line-height);
+}
+
+.stock {
+  font-family: var(--font-family-mono);
+  font-size: var(--mono-md-size);
+  color: var(--text-primary);
+}
+
+.footer {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.range {
+  font-size: var(--body-md-size);
+  color: var(--text-muted);
+}

@@ -406,3 +406,146 @@ export interface CloseCashShiftResponse {
   needsReview: boolean;
   methods: MethodDifference[];
 }
+
+// ── Review of a closing and shift history (HU-VEN-24, HU-VEN-25) ──
+
+/** `cash_shifts.review_note` limit: what Accounting answers. */
+export const CASH_REVIEW_NOTE_MAX = 500;
+
+export const CASH_SHIFT_REVIEW_DECISIONS = ['approve', 'observe'] as const;
+export type CashShiftReviewDecision = (typeof CASH_SHIFT_REVIEW_DECISIONS)[number];
+
+export type ShiftReviewError = 'REVIEW_COMMENT_REQUIRED' | 'REVIEW_COMMENT_TOO_LONG';
+
+/** The reviewer's answer cleaned. Observing a closing ("Pedir recuento") needs it: the cashier reads why. */
+export function validateShiftReview(
+  decision: CashShiftReviewDecision,
+  comment: string | null | undefined,
+): { ok: true; comment: string | null } | { ok: false; error: ShiftReviewError } {
+  const cleaned = comment?.trim() || null;
+  if (cleaned && cleaned.length > CASH_REVIEW_NOTE_MAX) return { ok: false, error: 'REVIEW_COMMENT_TOO_LONG' };
+  if (decision === 'observe' && !cleaned) return { ok: false, error: 'REVIEW_COMMENT_REQUIRED' };
+  return { ok: true, comment: cleaned };
+}
+
+/** What the shift history shows for a shift (the pills of Figma VP-23). */
+export const CASH_SHIFT_DISPLAY_STATUSES = ['OPEN', 'PENDING_REVIEW', 'CLOSED_CLEAN', 'DIFFERENCE_APPROVED', 'OBSERVED'] as const;
+export type CashShiftDisplayStatus = (typeof CASH_SHIFT_DISPLAY_STATUSES)[number];
+
+export function isCashShiftDisplayStatus(value: unknown): value is CashShiftDisplayStatus {
+  return typeof value === 'string' && (CASH_SHIFT_DISPLAY_STATUSES as readonly string[]).includes(value);
+}
+
+/**
+ * The status as the history shows it. A `CLOSED` shift waits for Accounting; an `APPROVED` one was either approved by the system
+ * at closing (nothing differed beyond the tolerance) or by a reviewer, which `reviewed` tells apart.
+ */
+export function cashShiftDisplayStatus(status: CashShiftStatus, reviewed: boolean): CashShiftDisplayStatus {
+  if (status === 'OPEN') return 'OPEN';
+  if (status === 'CLOSED') return 'PENDING_REVIEW';
+  if (status === 'OBSERVED') return 'OBSERVED';
+  return reviewed ? 'DIFFERENCE_APPROVED' : 'CLOSED_CLEAN';
+}
+
+/** The cash that goes to the bank: what was counted minus what stays in the register. Never negative. */
+export function shiftDeposit(counted: string, closingFloat: string): string {
+  const deposit = Decimal.of(counted).sub(Decimal.of(closingFloat));
+  return (deposit.isNegative() ? Decimal.zero() : deposit).toString();
+}
+
+/** Most rows a page of the shift history returns. */
+export const CASH_SHIFT_PAGE_SIZE_MAX = 100;
+export const CASH_SHIFT_PAGE_SIZE_DEFAULT = 20;
+
+export type CashShiftTimelineAction = 'OPEN' | 'CLOSE' | 'APPROVE' | 'OBSERVE';
+
+/** One line of the "Auditoría" card, read from the audit log of the shift. */
+export interface CashShiftTimelineEntry {
+  at: string;
+  action: CashShiftTimelineAction;
+  /** Null when the user no longer exists. */
+  by: { id: string; name: string } | null;
+  /** The system approved the closing by itself: nothing differed beyond the tolerance. */
+  automatic: boolean;
+}
+
+/** A closed shift as VP-06b shows it. */
+export interface CashShiftReview {
+  id: string;
+  number: string;
+  status: CashShiftStatus;
+  displayStatus: CashShiftDisplayStatus;
+  register: { id: string; name: string };
+  branch: { id: string; name: string };
+  cashier: { id: string; name: string };
+  openedAt: string;
+  closedAt: string | null;
+  /** Null while the shift is open. */
+  expected: string | null;
+  counted: string | null;
+  /** Counted minus expected cash: negative is a shortage. */
+  difference: string | null;
+  sales: { total: string; count: number };
+  closingComment: string | null;
+  /** Cash left in the register for the next shift. */
+  closingFloat: string | null;
+  /** Cash that goes to the bank (`counted − closingFloat`). */
+  deposit: string | null;
+  /** System against declared per method, cash first. */
+  methods: MethodDifference[];
+  /** The reviewer's decision, once taken. */
+  review: { by: { id: string; name: string }; at: string; note: string | null } | null;
+  timeline: CashShiftTimelineEntry[];
+  /** The caller may approve or observe it now. */
+  canDecide: boolean;
+}
+
+/** The body of `POST /sales/cash-shifts/:id/approve` and `/observe`. */
+export interface CashShiftReviewInput {
+  comment?: string | null;
+}
+
+export interface CashShiftListRow {
+  id: string;
+  number: string;
+  status: CashShiftStatus;
+  displayStatus: CashShiftDisplayStatus;
+  cashier: { id: string; name: string };
+  register: { id: string; name: string };
+  branch: { id: string; name: string };
+  openedAt: string;
+  closedAt: string | null;
+  /** Sales of the shift that are not cancelled. */
+  sales: { total: string; count: number };
+  /** Counted minus expected cash; null while the shift is open. */
+  difference: string | null;
+  /** Any payment method differs, cash included. */
+  hasDifference: boolean;
+}
+
+/** The query of `GET /sales/cash-shifts`. `from` and `to` are La Paz days (`YYYY-MM-DD`) of the opening. */
+export interface CashShiftListQuery {
+  from?: string;
+  to?: string;
+  cashierId?: string;
+  registerId?: string;
+  status?: CashShiftDisplayStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CashShiftListResponse {
+  items: CashShiftListRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** Over every shift the filters match, not only this page. */
+  totals: { shifts: number; salesCount: number; salesTotal: string; difference: string };
+  /** The month in La Paz; `pendingReview` counts every closing still waiting, whenever it was closed. */
+  month: { shifts: number; withDifference: number; pendingReview: number; accumulatedDifference: string };
+  /** The caller sees every cashier's shifts (`sales.cash-register.review`); otherwise only their own. */
+  canReview: boolean;
+  /** Options of the filters; empty for who only sees their own shifts. */
+  cashiers: { id: string; name: string }[];
+  registers: { id: string; name: string }[];
+}

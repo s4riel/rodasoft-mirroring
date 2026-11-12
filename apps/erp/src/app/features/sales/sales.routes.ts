@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { requiresSalesPermission, requiresSalesTab, salesHomeRedirect } from './sales-permission.guard';
+import { cashRegisterEntry, requiresSalesPermission, requiresSalesTab, salesHomeRedirect } from './sales-permission.guard';
 import { POS_TAB, SALES_TABS } from './sales-tabs';
 
 /** Screens already built; every other tab is a placeholder until its story fills it (see `SALES_TABS`). */
@@ -41,9 +41,26 @@ const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
     ],
   },
   customers: { loadComponent: () => import('./customers/customers.page').then((m) => m.CustomersPage) },
+  prices: { loadComponent: () => import('./prices/price-list.page').then((m) => m.PriceListPage) },
   'cash-register': {
     children: [
-      { path: '', pathMatch: 'full', loadComponent: () => import('./cash/cash-register.page').then((m) => m.CashRegisterPage) },
+      {
+        path: '',
+        pathMatch: 'full',
+        // a reviewer who does not operate a register has no shift of their own: the tab opens on the history
+        canActivate: [cashRegisterEntry],
+        loadComponent: () => import('./cash/cash-register.page').then((m) => m.CashRegisterPage),
+      },
+      {
+        path: 'history',
+        title: 'Historial de turnos · ERP',
+        loadComponent: () => import('./cash/cash-shift-history.page').then((m) => m.CashShiftHistoryPage),
+      },
+      {
+        path: 'shifts/:id/review',
+        title: 'Revisar cierre · ERP',
+        loadComponent: () => import('./cash/cash-shift-review.page').then((m) => m.CashShiftReviewPage),
+      },
       { path: 'open', title: 'Apertura de caja · ERP', loadComponent: () => import('./cash/cash-opening.page').then((m) => m.CashOpeningPage) },
       { path: 'close', title: 'Cierre de caja · ERP', loadComponent: () => import('./cash/cash-closing.page').then((m) => m.CashClosingPage) },
       {

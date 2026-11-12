@@ -73,6 +73,16 @@ export const cashMovementErrors = {
     }),
 };
 
+/** Errors of the review of a closing and of the shift history (HU-VEN-24, HU-VEN-25). */
+export const cashReviewErrors = {
+  shiftNotClosed: (status: string) =>
+    new ConflictException({ code: 'CASH_SHIFT_NOT_CLOSED', message: 'Only a closed shift waiting for review can be decided', details: { status } }),
+  selfReview: () => new ForbiddenException({ code: 'CASH_SHIFT_SELF_REVIEW', message: 'You cannot review your own cash shift' }),
+  commentRequired: () => new BadRequestException({ code: 'REVIEW_COMMENT_REQUIRED', message: 'Asking for a recount needs a comment' }),
+  commentTooLong: () => new BadRequestException({ code: 'REVIEW_COMMENT_TOO_LONG', message: 'The comment is too long' }),
+  invalidFilter: (field: string) => new BadRequestException({ code: 'INVALID_FILTER', message: 'Invalid filter', details: [{ field }] }),
+};
+
 const FIELD_ERROR_STATUS: Record<string, 'bad-request' | 'conflict'> = {
   INVALID_CASH_TYPE: 'bad-request',
   INVALID_CASH_AMOUNT: 'bad-request',

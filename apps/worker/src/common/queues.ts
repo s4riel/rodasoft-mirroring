@@ -22,6 +22,9 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   // HU-VEN-22 and 23: no consumer yet either; Accounting reviews differences and Management approves expenses in HU-VEN-24 and 29
   'sales.cash-shift.closed': QUEUE.accounting,
   'sales.cash-shift.difference': QUEUE.accounting,
+  // HU-VEN-24 and 26: no consumer yet; accounting just logs them
+  'sales.cash-shift.reviewed': QUEUE.accounting,
+  'sales.price.changed': QUEUE.accounting,
   'sales.cash-movement.created': QUEUE.accounting,
   'sales.cash-expense.requested': QUEUE.accounting,
   'sales.cash-expense.decided': QUEUE.accounting,

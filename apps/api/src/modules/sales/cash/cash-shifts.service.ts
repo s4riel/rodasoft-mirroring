@@ -17,6 +17,7 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { MembershipService } from '../../access/membership.service';
 import type { OpenCashShiftDto } from './cash.dto';
 import { cashErrors, mapCashUniqueViolation } from './cash.errors';
+import { nextDocumentNumber } from '../document-sequence';
 import { SHIFT_WITH_PLACE, toCurrentShift } from './cash-shift.mapper';
 
 /**
@@ -86,13 +87,16 @@ export class CashShiftsService {
         const lastClosingFloat = last?.closingFloat ? Decimal.of(last.closingFloat.toFixed(2)) : null;
         const matches = floatMatchesLastClose(openingFloat, lastClosingFloat);
 
+        // the last lock of the opening: the sequence row is held until the transaction ends, so a failed opening leaves no gap
+        const number = await nextDocumentNumber(tx, companyId, 'cashShift');
         const created = await tx.cashShift.create({
-          data: { companyId, registerId: register.id, openingFloat: new Prisma.Decimal(openingFloat.toString()), openedById: userId },
+          data: { companyId, registerId: register.id, number, openingFloat: new Prisma.Decimal(openingFloat.toString()), openedById: userId },
           include: SHIFT_WITH_PLACE,
         });
 
         const snapshot = {
           registerId: created.registerId,
+          number: created.number,
           openingFloat: created.openingFloat.toFixed(2),
           openedById: created.openedById,
           openedAt: created.openedAt.toISOString(),

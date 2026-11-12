@@ -88,6 +88,7 @@ async function removeCompany(companyId: string) {
   await base.stockThreshold.deleteMany({ where: { companyId } });
   await base.stockLevel.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
+  await base.priceChange.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.attributeDefinition.deleteMany({ where: { companyId } });
   await base.category.deleteMany({ where: { companyId, parentId: { not: null } } });
@@ -290,6 +291,23 @@ describe('ProductImportService (integration, real Postgres)', () => {
       expect(product.salePrice.toFixed(2)).toBe('60.00');
       expect(product.attributes).toMatchObject({ seal: '2RS' });
       expect(await base.auditLog.count({ where: { companyId: a.companyId, action: 'inventory.product.update', entityId: product.id } })).toBe(1);
+    });
+
+    it('records an updated price in the price history as an imported list, and nothing for a new product (HU-VEN-26)', async () => {
+      await importer.commit(await sheet([good('PH-1')]), 'create_only');
+      const product = await base.product.findFirstOrThrow({ where: { companyId: a.companyId, manufacturerCode: 'PH-1' } });
+      // creating a product is not a price change
+      expect(await base.priceChange.count({ where: { productId: product.id } })).toBe(0);
+
+      await importer.commit(await sheet([['PH-1', 'SKF', 'Rodamientos', 60, null]]), 'create_or_update');
+      const changes = await base.priceChange.findMany({ where: { productId: product.id } });
+      expect(changes).toHaveLength(1);
+      expect(changes[0]).toMatchObject({ source: 'IMPORT', userId: a.userId, companyId: a.companyId });
+      expect([changes[0].oldPrice.toFixed(2), changes[0].newPrice.toFixed(2)]).toEqual([product.salePrice.toFixed(2), '60.00']);
+
+      // the same file again changes nothing
+      await importer.commit(await sheet([['PH-1', 'SKF', 'Rodamientos', 60, null]]), 'create_or_update');
+      expect(await base.priceChange.count({ where: { productId: product.id } })).toBe(1);
     });
 
     it('two commits of the same file at once create every product exactly once', async () => {

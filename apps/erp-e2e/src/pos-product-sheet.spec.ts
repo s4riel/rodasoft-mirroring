@@ -34,7 +34,7 @@ test.beforeAll(async () => {
     select: { id: true, companyId: true, warehouseId: true },
   });
   const { companyId } = register;
-  await prisma.cashShift.create({ data: { companyId, registerId: register.id, openingFloat: '500.00', openedById: user.id } });
+  await prisma.cashShift.create({ data: { number: `T-${Math.random().toString(36).slice(2, 10)}`, companyId, registerId: register.id, openingFloat: '500.00', openedById: user.id } });
   const category = await prisma.category.findFirstOrThrow({ where: { companyId, name: 'Rígidos de bolas' }, select: { id: true } });
   const brand = await prisma.brand.findFirstOrThrow({ where: { companyId, name: 'SKF' }, select: { id: true } });
   const product = await prisma.product.create({

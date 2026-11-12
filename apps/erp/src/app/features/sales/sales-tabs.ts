@@ -20,7 +20,14 @@ export const SALES_TABS: readonly SalesTab[] = [
   { key: 'orders', label: 'Pedidos', path: 'orders', permissions: ['sales.orders.manage'], story: 'HU-VEN-19' },
   { key: 'history', label: 'Ventas realizadas', path: 'history', permissions: ['sales.pos.use', 'sales.history.view-all'], story: 'HU-VEN-12' },
   { key: 'returns', label: 'Devoluciones', path: 'returns', permissions: ['sales.returns.manage'], story: 'HU-VEN-21' },
-  { key: 'cash-register', label: 'Caja', path: 'cash-register', permissions: ['sales.cash-register.open'], story: 'HU-VEN-22' },
+  // who reviews differences reaches the shift history through this tab too (HU-VEN-24, HU-VEN-25)
+  {
+    key: 'cash-register',
+    label: 'Caja',
+    path: 'cash-register',
+    permissions: ['sales.cash-register.open', 'sales.cash-register.review'],
+    story: 'HU-VEN-22',
+  },
   { key: 'customers', label: 'Clientes', path: 'customers', permissions: ['sales.customers.manage'], story: 'HU-VEN-37' },
   { key: 'prices', label: 'Precios y descuentos', path: 'prices', permissions: ['sales.prices.edit'], story: 'HU-VEN-26' },
   {

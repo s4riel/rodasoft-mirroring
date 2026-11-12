@@ -40,3 +40,15 @@ export const salesHomeRedirect: RedirectFunction = () => {
   const first = SALES_TABS.find((tab) => canSeeSalesTab(tab, (p) => context.permissions().has(p)));
   return first ? `/sales/${first.path}` : '/';
 };
+
+/**
+ * `/sales/cash-register` is the cashier's own shift. Who only reviews differences (no `sales.cash-register.open`) has none, so
+ * the tab takes them to the shift history instead.
+ */
+export const cashRegisterEntry: CanActivateFn = () => {
+  const context = inject(ContextStore);
+  if (!context.context()) return true;
+  const permissions = context.permissions();
+  if (permissions.has('sales.cash-register.open') || !permissions.has('sales.cash-register.review')) return true;
+  return inject(Router).createUrlTree(['/sales/cash-register/history']);
+};

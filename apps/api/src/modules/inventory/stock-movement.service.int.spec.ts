@@ -72,6 +72,7 @@ describe('StockMovementService (integration, real Postgres)', () => {
   afterAll(async () => {
     await purgeMovements(companyId);
     await base.stockLevel.deleteMany({ where: { companyId } });
+    await base.priceChange.deleteMany({ where: { companyId } });
     await base.product.deleteMany({ where: { companyId } });
     await base.category.deleteMany({ where: { companyId } });
     await base.brand.deleteMany({ where: { companyId } });

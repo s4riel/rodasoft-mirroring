@@ -1,0 +1,140 @@
+<rs-modal variant="form" size="medium" closeLabel="Cerrar" [heading]="heading()" [(open)]="open">
+  @switch (state()) {
+    @case ('loading') {
+      <div class="body" role="status" aria-busy="true" aria-label="Cargando el precio">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+        <rs-skeleton shape="rect" width="100%" height="var(--space-10)" />
+      </div>
+    }
+    @case ('error') {
+      <div class="body">
+        @if (forbidden()) {
+          <rs-note
+            type="warning"
+            title="No tienes permiso para editar este precio"
+            role="alert"
+            data-testid="price-forbidden"
+          >
+            Pide acceso al administrador de tu empresa.
+          </rs-note>
+        } @else {
+          <rs-note
+            type="danger"
+            title="No pudimos cargar el producto"
+            role="alert"
+            data-testid="price-load-error"
+            >{{ loadError() }}</rs-note
+          >
+        }
+      </div>
+    }
+    @default {
+      <form id="price-edit-form" class="body" (submit)="$event.preventDefault(); submit()" novalidate>
+        <p class="subtitle" data-testid="price-subtitle">{{ subtitle() }}</p>
+
+        @if (changedElsewhere()) {
+          <rs-note
+            type="warning"
+            title="El precio cambió mientras lo editabas"
+            data-testid="price-changed-note"
+          >
+            Revisa el precio actual antes de guardar de nuevo.
+          </rs-note>
+        }
+
+        <rs-field label="Nuevo precio (Bs)" forId="price-new" required [error]="priceMessage()">
+          <rs-input-group [invalid]="!!priceMessage()">
+            <input
+              #priceBox
+              rsInput
+              rsNumeric="decimal"
+              id="price-new"
+              class="mono"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="0,00"
+              [invalid]="!!priceMessage()"
+              [value]="price()"
+              (input)="price.set(priceBox.value)"
+            />
+          </rs-input-group>
+        </rs-field>
+
+        <div class="facts">
+          @if (showCosts()) {
+            <rs-data-field
+              label="Costo promedio (solo Gerencia)"
+              layout="inline"
+              [showIcon]="false"
+              type="mono"
+              data-testid="price-cost"
+              >{{ costText() }}</rs-data-field
+            >
+            <rs-data-field label="Margen actual" layout="inline" [showIcon]="false" type="mono">{{
+              currentMargin()
+            }}</rs-data-field>
+            <rs-data-field
+              label="Margen con el nuevo precio"
+              layout="inline"
+              [showIcon]="false"
+              type="mono"
+              data-testid="price-new-margin"
+            >
+              {{ newMargin() }}
+            </rs-data-field>
+          }
+          <rs-data-field
+            label="Cambio"
+            layout="inline"
+            [showIcon]="false"
+            type="mono"
+            data-testid="price-change"
+            >{{ changeText() }}</rs-data-field
+          >
+        </div>
+
+        <rs-field label="Motivo (opcional)" forId="price-reason">
+          <textarea
+            #reasonBox
+            rsTextarea
+            id="price-reason"
+            rows="2"
+            placeholder="Por ejemplo: nueva lista del proveedor"
+            [attr.maxlength]="reasonMax"
+            [value]="reason()"
+            (input)="reason.set(reasonBox.value)"
+          ></textarea>
+        </rs-field>
+
+        @if (submitError(); as error) {
+          <rs-note
+            type="danger"
+            title="No se pudo guardar el precio"
+            role="alert"
+            data-testid="price-error"
+            >{{ error }}</rs-note
+          >
+        }
+      </form>
+    }
+  }
+  <div slot="footer" class="actions">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    @if (state() === 'error' && !forbidden()) {
+      <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+    } @else {
+      <button
+        rsButton
+        variant="primary"
+        type="submit"
+        form="price-edit-form"
+        data-testid="price-save"
+        [disabled]="saving() || state() !== 'ready'"
+        [loading]="saving()"
+        (click)="$event.preventDefault(); submit()"
+      >
+        Guardar precio
+      </button>
+    }
+  </div>
+</rs-modal>

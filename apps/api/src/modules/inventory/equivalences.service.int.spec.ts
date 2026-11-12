@@ -75,6 +75,7 @@ async function removeCompany(companyId: string) {
   await base.companySetting.deleteMany({ where: { companyId } });
   await base.outboxEvent.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
+  await base.priceChange.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.attributeDefinition.deleteMany({ where: { companyId } });
   await base.category.deleteMany({ where: { companyId, parentId: { not: null } } });

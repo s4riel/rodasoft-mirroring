@@ -1,4 +1,5 @@
 import {
+  formatCashShiftNumber,
   formatDispatchNumber,
   formatOrderNumber,
   formatQuoteNumber,
@@ -15,6 +16,12 @@ describe('sales document numbers', () => {
     expect(formatOrderNumber(12)).toBe('PED-000012');
     expect(formatDispatchNumber(12)).toBe('DSP-000012');
     expect(formatReturnNumber(12)).toBe('DEV-000012');
+  });
+
+  it('formats a cash shift with four digits and keeps growing past them', () => {
+    expect(formatCashShiftNumber(142)).toBe('T-0142');
+    expect(formatCashShiftNumber(12345)).toBe('T-12345');
+    expect(parseSalesDocumentNumber('cashShift', 'T-0142')).toBe(142);
   });
 
   it('keeps growing past six digits', () => {

@@ -90,6 +90,7 @@ describe('Cash shifts (integration, real Postgres)', () => {
   const closedShift = (registerId: string, closingFloat: string) =>
     base.cashShift.create({
       data: {
+        number: `T-${Math.random().toString(36).slice(2, 10)}`,
         companyId,
         registerId,
         status: 'CLOSED',
@@ -145,6 +146,7 @@ describe('Cash shifts (integration, real Postgres)', () => {
     await base.outboxEvent.deleteMany({ where: { companyId: { in: companies } } });
     await base.auditLog.deleteMany({ where: { companyId: { in: companies } } });
     await base.cashShift.deleteMany({ where: { companyId: { in: companies } } });
+    await base.documentSequence.deleteMany({ where: { companyId: { in: companies } } });
     await base.cashRegister.deleteMany({ where: { companyId: { in: companies } } });
     await base.siatPointOfSale.deleteMany({ where: { companyId: { in: companies } } });
     await base.warehouse.deleteMany({ where: { companyId: { in: companies } } });
@@ -185,6 +187,47 @@ describe('Cash shifts (integration, real Postgres)', () => {
       expect(audit.after).toMatchObject({ registerId, openingFloat: '500.00', openedById: cashier.userId });
       expect(await base.outboxEvent.count({ where: { companyId, type: 'sales.cash-shift.opened', payload: { path: ['shiftId'], equals: shift.id } } })).toBe(1);
       expect(await base.outboxEvent.count({ where: { companyId, type: 'sales.cash-shift.float-mismatch', payload: { path: ['shiftId'], equals: shift.id } } })).toBe(0);
+    });
+
+    it('numbers the shift from the company sequence (HU-VEN-25)', async () => {
+      const first = await newRegister(branchA);
+      const { shift } = await as(cashier.userId, cashier.membershipId).shifts.open({ registerId: first, openingFloat: '100.00' });
+      expect(shift.number).toMatch(/^T-\d{4,}$/);
+      const stored = await base.cashShift.findUniqueOrThrow({ where: { id: shift.id } });
+      expect(stored.number).toBe(shift.number);
+      const audit = await base.auditLog.findFirstOrThrow({ where: { companyId, action: 'sales.cash-shift.open', entityId: shift.id } });
+      expect(audit.after).toMatchObject({ number: shift.number });
+      await base.cashShift.update({ where: { id: shift.id }, data: { status: 'CLOSED', closedAt: new Date() } });
+
+      const second = await newRegister(branchA);
+      const { shift: next } = await as(cashier.userId, cashier.membershipId).shifts.open({ registerId: second, openingFloat: '100.00' });
+      expect(Number(next.number.slice(2))).toBe(Number(shift.number.slice(2)) + 1);
+    });
+
+    it('gives every one of 8 concurrent openings on different registers its own number', async () => {
+      const roleId = (await base.role.findFirstOrThrow({ where: { companyId, key: 'cashier' } })).id;
+      const openers = [];
+      for (let i = 0; i < 8; i++) openers.push({ member: await newMember(`num${i}`, roleId, { allBranches: true }), registerId: await newRegister(branchA) });
+
+      const opened = await Promise.all(openers.map((o) => as(o.member.userId, o.member.membershipId).shifts.open({ registerId: o.registerId, openingFloat: '100.00' })));
+
+      const numbers = opened.map((o) => o.shift.number);
+      expect(new Set(numbers).size).toBe(8);
+      // no gap either: the sequence row is locked until each opening commits
+      const sequences = numbers.map((n) => Number(n.slice(2))).sort((a, b) => a - b);
+      expect(sequences[7] - sequences[0]).toBe(7);
+    });
+
+    it('a failed opening does not burn a number', async () => {
+      const registerId = await newRegister(branchA);
+      const { shift } = await as(cashier.userId, cashier.membershipId).shifts.open({ registerId, openingFloat: '100.00' });
+      // the cashier already has a shift: this opening rolls back
+      expect(await codeOf(as(cashier.userId, cashier.membershipId).shifts.open({ registerId: await newRegister(branchA), openingFloat: '100.00' }))).toBe(
+        'CASH_SHIFT_ALREADY_OPEN_FOR_USER',
+      );
+      await base.cashShift.update({ where: { id: shift.id }, data: { status: 'CLOSED', closedAt: new Date() } });
+      const { shift: next } = await as(cashier.userId, cashier.membershipId).shifts.open({ registerId: await newRegister(branchA), openingFloat: '100.00' });
+      expect(Number(next.number.slice(2))).toBe(Number(shift.number.slice(2)) + 1);
     });
 
     it('accepts a zero float and the Bolivian comma format', async () => {
@@ -231,10 +274,10 @@ describe('Cash shifts (integration, real Postgres)', () => {
       await as(cashier.userId, cashier.membershipId).shifts.open({ registerId, openingFloat: '100.00' });
 
       const sameRegister = await base.cashShift
-        .create({ data: { companyId, registerId, openingFloat: '1.00', openedById: restricted.userId } })
+        .create({ data: { number: `T-${Math.random().toString(36).slice(2, 10)}`, companyId, registerId, openingFloat: '1.00', openedById: restricted.userId } })
         .catch((err: unknown) => err);
       const sameUser = await base.cashShift
-        .create({ data: { companyId, registerId: await newRegister(branchA), openingFloat: '1.00', openedById: cashier.userId } })
+        .create({ data: { number: `T-${Math.random().toString(36).slice(2, 10)}`, companyId, registerId: await newRegister(branchA), openingFloat: '1.00', openedById: cashier.userId } })
         .catch((err: unknown) => err);
 
       expect(mapCashUniqueViolation(sameRegister)).toMatchObject({ response: { code: 'CASH_REGISTER_ALREADY_OPEN' } });
