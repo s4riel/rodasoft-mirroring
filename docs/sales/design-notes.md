@@ -71,7 +71,7 @@ Document state changes only through these, audited with `AuditService`.
 
 ## Settings (per company, typed in `libs/domain/src/lib/company-settings.ts`)
 
-`sales.roundingMode`, `sales.allowMixedPayment`, `sales.quoteValidityDays` (7), `sales.allowPartialDispatch` (true), `sales.cancellationWindowDays` (null), `sales.cashExpenseApprovalLimit` (null). Defaults follow `docs/backlog/decisions.md`. There is no discount limit setting: the discount comes from the customer.
+`sales.roundingMode`, `sales.allowMixedPayment`, `sales.quoteValidityDays` (7), `sales.allowPartialDispatch` (true), `sales.cancellationWindowDays` (null), `sales.cashExpenseApprovalLimit` (null), `sales.bulkPriceRequiresApproval` (false, decision #19). Defaults follow `docs/backlog/decisions.md`. There is no discount limit setting: the discount comes from the customer.
 
 ## Screens and API conventions
 

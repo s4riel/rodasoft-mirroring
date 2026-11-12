@@ -1,4 +1,4 @@
-import type { Permission } from '@rodasoft/domain';
+import { APPROVAL_TYPE_PERMISSION, APPROVAL_TYPES, type Permission } from '@rodasoft/domain';
 
 /** One tab of the sales section: its route, who sees it, and the story that fills it. */
 export interface SalesTab {
@@ -34,7 +34,8 @@ export const SALES_TABS: readonly SalesTab[] = [
     key: 'approvals',
     label: 'Aprobaciones',
     path: 'approvals',
-    permissions: ['sales.cancellations.approve', 'sales.cash-register.review'],
+    // whoever can decide at least one of the four kinds of request (HU-VEN-29)
+    permissions: APPROVAL_TYPES.map((type) => APPROVAL_TYPE_PERMISSION[type]),
     story: 'HU-VEN-29',
   },
 ];
@@ -43,5 +44,6 @@ export const SALES_TABS: readonly SalesTab[] = [
 export const POS_TAB: SalesTab = SALES_TABS.find((tab) => tab.key === 'pos') as SalesTab;
 export const QUOTES_TAB: SalesTab = SALES_TABS.find((tab) => tab.key === 'quotes') as SalesTab;
 export const ORDERS_TAB: SalesTab = SALES_TABS.find((tab) => tab.key === 'orders') as SalesTab;
+export const APPROVALS_TAB: SalesTab = SALES_TABS.find((tab) => tab.key === 'approvals') as SalesTab;
 
 export const canSeeSalesTab = (tab: SalesTab, can: (permission: string) => boolean): boolean => tab.permissions.some(can);

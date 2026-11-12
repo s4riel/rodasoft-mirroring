@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { PricedFilter, PriceListQuery, PriceListResponse, PriceListRow } from '@rodasoft/domain';
 import {
   ButtonComponent,
@@ -73,6 +73,7 @@ const ROW_MENU: RowMenuItem[] = [{ key: 'edit', label: 'Editar precio', icon: 'e
     PaginationComponent,
     PriceEditDialog,
     ProductThumbComponent,
+    RouterLink,
     RowActionComponent,
     SelectComponent,
     SkeletonComponent,

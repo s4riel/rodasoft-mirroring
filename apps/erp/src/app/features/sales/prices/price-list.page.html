@@ -4,7 +4,11 @@
   type="list"
   [breadcrumbs]="breadcrumbs"
   breadcrumbLabel="Ruta de navegación"
-/>
+>
+  <div rsActions>
+    <a *rsCan="'sales.prices.edit'" rsButton variant="secondary" routerLink="/sales/prices/bulk" data-testid="prices-bulk">Actualización masiva</a>
+  </div>
+</rs-page-header>
 
 @if (state() === 'forbidden') {
   <section class="state" role="status">

@@ -41,7 +41,17 @@ const BUILT_TABS: Record<string, Pick<Route, 'loadComponent' | 'children'>> = {
     ],
   },
   customers: { loadComponent: () => import('./customers/customers.page').then((m) => m.CustomersPage) },
-  prices: { loadComponent: () => import('./prices/price-list.page').then((m) => m.PriceListPage) },
+  prices: {
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./prices/price-list.page').then((m) => m.PriceListPage) },
+      {
+        path: 'bulk',
+        title: 'Actualización masiva de precios · ERP',
+        loadComponent: () => import('./prices/price-bulk-update.page').then((m) => m.PriceBulkUpdatePage),
+      },
+    ],
+  },
+  approvals: { loadComponent: () => import('./approvals/approvals-inbox.page').then((m) => m.ApprovalsInboxPage) },
   'cash-register': {
     children: [
       {

@@ -33,6 +33,13 @@ describe('settingOrDefault', () => {
     expect(settingOrDefault('sales.qrConfirmTimeoutSeconds', undefined)).toBe(300);
   });
 
+  it('does not ask for approval of a bulk price update unless the company turns it on (decision #19)', () => {
+    expect(COMPANY_SETTING_DEFAULTS['sales.bulkPriceRequiresApproval']).toBe(false);
+    expect(settingOrDefault('sales.bulkPriceRequiresApproval', undefined)).toBe(false);
+    expect(settingOrDefault('sales.bulkPriceRequiresApproval', true)).toBe(true);
+    expect(settingOrDefault('sales.bulkPriceRequiresApproval', 'yes')).toBe(false);
+  });
+
   it('accepts only the known receipt formats', () => {
     expect(settingOrDefault('sales.receiptFormat', 'LETTER')).toBe('LETTER');
     expect(settingOrDefault('sales.receiptFormat', 'A4')).toBe('TICKET_80MM');

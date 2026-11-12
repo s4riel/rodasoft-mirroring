@@ -1,4 +1,4 @@
-import type { PriceChangeEntry, PriceDetail, PriceListResponse, PriceListRow } from '@rodasoft/domain';
+import type { BulkPricePreview, PriceChangeEntry, PriceDetail, PriceListResponse, PriceListRow } from '@rodasoft/domain';
 
 /** Shared data of the prices specs (HU-VEN-26). */
 export function priceChange(over: Partial<PriceChangeEntry> = {}): PriceChangeEntry {
@@ -74,6 +74,24 @@ export function priceDetail(over: Partial<PriceDetail> = {}): PriceDetail {
     brand: { id: 'b1', name: 'SKF' },
     salePrice: '245.00',
     changes: [priceChange()],
+    ...over,
+  };
+}
+
+/** The preview of a bulk update (HU-VEN-27): two products that change and one that does not. */
+export function bulkPreview(over: Partial<BulkPricePreview> = {}): BulkPricePreview {
+  return {
+    counts: { matched: 3, toChange: 2, unchanged: 1, invalid: 0 },
+    items: [
+      { productId: 'p1', sku: 'RL-000001', manufacturerCode: '6205-2RS', name: 'Rodamiento rígido de bolas', brand: { id: 'b1', name: 'SKF' }, currentPrice: '245.00', newPrice: '257.25', percent: '5.0', status: 'CHANGE' },
+      { productId: 'p2', sku: 'RL-000002', manufacturerCode: '6206-ZZ', name: 'Rodamiento con tapas', brand: { id: 'b1', name: 'SKF' }, currentPrice: '100.00', newPrice: '105.00', percent: '5.0', status: 'CHANGE' },
+      { productId: 'p3', sku: 'RL-000003', manufacturerCode: '6207-ZZ', name: 'Rodamiento económico', brand: { id: 'b1', name: 'SKF' }, currentPrice: '20.00', newPrice: null, percent: null, status: 'UNCHANGED' },
+    ],
+    page: 1,
+    pageSize: 20,
+    previewHash: 'hash-1',
+    defaultRounding: 'NONE',
+    requiresApproval: false,
     ...over,
   };
 }

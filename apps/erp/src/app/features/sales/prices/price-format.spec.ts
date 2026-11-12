@@ -1,4 +1,19 @@
-import { brandLine, changeAuthor, formatMargin, formatPercent, formatSignedAmount, lastChangeText, parsePriced, priceStatusPill } from './price-format';
+import {
+  applyLabel,
+  brandLine,
+  BULK_DIRECTIONS,
+  BULK_ROUNDINGS,
+  bulkSkipLabel,
+  changeAuthor,
+  formatMargin,
+  formatPercent,
+  formatSignedAmount,
+  lastChangeText,
+  matchCountText,
+  parsePriced,
+  priceStatusPill,
+  skippedText,
+} from './price-format';
 import { priceChange } from './prices.testing';
 
 describe('price formats (HU-VEN-26)', () => {
@@ -27,6 +42,7 @@ describe('price formats (HU-VEN-26)', () => {
     expect(changeAuthor(priceChange())).toBe('Gabriela Gerente');
     expect(changeAuthor(priceChange({ source: 'PRODUCT_FORM' }))).toBe('Gabriela Gerente');
     expect(changeAuthor(priceChange({ source: 'IMPORT' }))).toBe('lista importada');
+    expect(changeAuthor(priceChange({ source: 'BULK' }))).toBe('actualización masiva');
     expect(changeAuthor(priceChange({ by: null }))).toBe('usuario eliminado');
   });
 
@@ -55,5 +71,39 @@ describe('price formats (HU-VEN-26)', () => {
     expect(parsePriced('without')).toBe('without');
     expect(parsePriced('all')).toBeNull();
     expect(parsePriced(null)).toBeNull();
+  });
+});
+
+describe('bulk update formats (HU-VEN-27)', () => {
+  it('offers the two adjustments and the three roundings of the screen, in order', () => {
+    expect(BULK_DIRECTIONS.map((d) => [d.value, d.label])).toEqual([
+      ['INCREASE', 'Aumentar %'],
+      ['DECREASE', 'Rebajar %'],
+    ]);
+    expect(BULK_ROUNDINGS.map((r) => [r.value, r.label])).toEqual([
+      ['NONE', 'Sin redondeo'],
+      ['HALF_BOLIVIANO', 'A Bs 0,50'],
+      ['INTEGER', 'A Bs 1'],
+    ]);
+  });
+
+  it('says why a product does not change', () => {
+    expect(bulkSkipLabel('UNCHANGED')).toBe('Sin cambio');
+    expect(bulkSkipLabel('INVALID')).toBe('Sin precio');
+  });
+
+  it('counts the matching products and labels the apply button', () => {
+    expect(matchCountText(142)).toBe('142 productos coinciden con el filtro');
+    expect(matchCountText(1)).toBe('1 producto coincide con el filtro');
+    expect(matchCountText(0)).toBe('0 productos coinciden con el filtro');
+    expect(applyLabel(142)).toBe('Aplicar a 142 productos');
+    expect(applyLabel(1)).toBe('Aplicar a 1 producto');
+  });
+
+  it('describes the products that are left as they are', () => {
+    expect(skippedText(0, 0)).toBe('');
+    expect(skippedText(3, 0)).toBe('No se modifican: 3 con el mismo precio tras el ajuste.');
+    expect(skippedText(0, 1)).toBe('No se modifican: 1 sin precio.');
+    expect(skippedText(1, 2)).toBe('No se modifican: 1 con el mismo precio tras el ajuste y 2 sin precio.');
   });
 });

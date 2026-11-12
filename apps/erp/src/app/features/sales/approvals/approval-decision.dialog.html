@@ -1,0 +1,41 @@
+<rs-modal variant="form" size="medium" closeLabel="Cerrar" [heading]="heading()" [(open)]="open">
+  <form id="approval-decision-form" class="body" (submit)="$event.preventDefault(); submit()" novalidate>
+    <div class="summary">
+      <p class="title" data-testid="decision-title">{{ title() }}</p>
+      <p class="detail" data-testid="decision-summary">{{ summary() }}</p>
+    </div>
+
+    <rs-field [label]="label()" forId="decision-comment" [required]="rejecting()" [error]="commentError()">
+      <textarea
+        #commentBox
+        rsTextarea
+        id="decision-comment"
+        rows="3"
+        data-testid="decision-comment"
+        [attr.maxlength]="commentMax"
+        [attr.aria-invalid]="commentError() ? 'true' : null"
+        [value]="comment()"
+        (input)="comment.set(commentBox.value)"
+      ></textarea>
+    </rs-field>
+
+    @if (submitError(); as message) {
+      <rs-note type="danger" title="No se pudo registrar la decisión" role="alert" data-testid="decision-error">{{ message }}</rs-note>
+    }
+  </form>
+  <div slot="footer" class="actions">
+    <button rsButton variant="ghost" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+    <button
+      rsButton
+      [variant]="rejecting() ? 'secondary' : 'primary'"
+      type="submit"
+      form="approval-decision-form"
+      data-testid="decision-confirm"
+      [disabled]="saving()"
+      [loading]="saving()"
+      (click)="$event.preventDefault(); submit()"
+    >
+      {{ confirmLabel() }}
+    </button>
+  </div>
+</rs-modal>

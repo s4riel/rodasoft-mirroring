@@ -54,6 +54,8 @@ export interface CompanySettings {
   'sales.qrConfirmTimeoutSeconds': number;
   /** Whether the POS offers card payments (decision #8, HU-VEN-10): off for a company without a terminal. */
   'sales.cardPaymentEnabled': boolean;
+  /** Whether a bulk price update needs approval before it applies (decision #19, HU-VEN-27). On: applying is refused until the approval flow exists. */
+  'sales.bulkPriceRequiresApproval': boolean;
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -79,6 +81,7 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.receiptFormat': 'TICKET_80MM',
   'sales.qrConfirmTimeoutSeconds': 300,
   'sales.cardPaymentEnabled': true,
+  'sales.bulkPriceRequiresApproval': false,
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */

@@ -1,0 +1,47 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-4);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.group {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--body-lg-size);
+}
+
+.group-count {
+  color: var(--text-muted);
+  font-size: var(--body-md-size);
+  font-weight: var(--body-md-weight);
+}
+
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-8) 0;
+}

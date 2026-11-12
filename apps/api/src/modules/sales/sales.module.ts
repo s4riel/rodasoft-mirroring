@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { StorageService } from '../../common/storage/storage.service';
 import { InventoryModule } from '../inventory/inventory.module';
+import { ApprovalsController } from './approvals/approvals.controller';
+import { ApprovalsInboxService } from './approvals/approvals-inbox.service';
 import { CashController, CashMovementsController } from './cash/cash.controller';
 import { CashClosingService } from './cash/cash-closing.service';
 import { CashMovementsService } from './cash/cash-movements.service';
@@ -19,6 +21,7 @@ import { QuotesController } from './quotes/quotes.controller';
 import { QuotesService } from './quotes/quotes.service';
 import { PosController } from './pos/pos.controller';
 import { PricesController } from './pricing/prices.controller';
+import { PriceBulkService } from './pricing/price-bulk.service';
 import { PricesService } from './pricing/prices.service';
 import { PosCatalogService } from './pos/pos-catalog.service';
 import { PosCheckoutService } from './pos/pos-checkout.service';
@@ -44,12 +47,13 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
  * Sales and POS. HU-VEN-00 laid the foundations (payment providers); HU-VEN-01 adds the cash register opening
  * (`cash/`); HU-VEN-02 the POS search and cart (`pos/`); HU-VEN-03 the equivalents of an out-of-stock product; HU-VEN-04 the product sheet inside the POS; HU-VEN-05 and 37 the customers (`customers/`) and the customer of the cart. The next stories add their controllers and services here, split into sub-folders (`pos`, `quotes`,
  * `orders`, `pricing`, `approvals`) as the module grows. HU-VEN-22 and 23 add the cash movements, the shift summary and the closing (`cash/`);
- * HU-VEN-24 and 25 the review of a closing and the shift history (`cash/`); HU-VEN-26 the price list and the price edit (`pricing/`).
+ * HU-VEN-24 and 25 the review of a closing and the shift history (`cash/`); HU-VEN-26 the price list and the price edit (`pricing/`);
+ * HU-VEN-27 the bulk price update (`pricing/`); HU-VEN-29 the approvals inbox (`approvals/`).
  */
 @Module({
   // the POS reads the inventory's equivalences (HU-VEN-03) and product sheet (HU-VEN-04)
   imports: [InventoryModule],
-  controllers: [CashController, CashMovementsController, CustomersController, PosController, PricesController, QuotesController, SalesOrdersController, SaleCancellationController, SaleReturnsController, SaleReceiptController, SalesHistoryController],
+  controllers: [ApprovalsController, CashController, CashMovementsController, CustomersController, PosController, PricesController, QuotesController, SalesOrdersController, SaleCancellationController, SaleReturnsController, SaleReceiptController, SalesHistoryController],
   providers: [
     CashRegistersService,
     CashShiftsService,
@@ -59,6 +63,8 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
     CashShiftHistoryService,
     CashShiftReviewService,
     PricesService,
+    PriceBulkService,
+    ApprovalsInboxService,
     StorageService,
     CustomersService,
     PosCatalogService,

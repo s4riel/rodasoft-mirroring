@@ -75,6 +75,22 @@ describe('PriceListPage', () => {
     expect(text(h)).not.toContain('Margen promedio');
   });
 
+  it('offers the bulk update in the header to who can edit prices, and not to who cannot (HU-VEN-27)', async () => {
+    const h = await open();
+    flushList();
+    await settle(h);
+    const link = root(h).querySelector('[data-testid="prices-bulk"]');
+    expect(link?.textContent).toContain('Actualización masiva');
+    expect(link?.getAttribute('href')).toBe('/sales/prices/bulk');
+    http.verify();
+    TestBed.resetTestingModule();
+
+    const without = await open('/prices', []);
+    flushList();
+    await settle(without);
+    expect(root(without).querySelector('[data-testid="prices-bulk"]')).toBeNull();
+  });
+
   it('shows the average margin only when the API sends it', async () => {
     const h = await open();
     flushList(priceList({ kpis: { products: 40, withPrice: 37, withoutPrice: 3, changesThisMonth: 5, averageMarginPercent: '38.5' } }));

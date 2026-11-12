@@ -21,3 +21,4 @@ export * from './pos-customer/pos-customer.component';
 export * from './numpad/numpad.component';
 export * from './receipt/receipt.component';
 export * from './qr-code/qr-code.component';
+export * from './request-card/request-card.component';

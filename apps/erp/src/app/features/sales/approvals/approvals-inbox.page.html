@@ -1,0 +1,104 @@
+<rs-page-header
+  title="Aprobaciones"
+  description="Todo lo que espera tu decisión, agrupado por tipo."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver las aprobaciones"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <section class="kpis" aria-label="Resumen de aprobaciones">
+    <rs-kpi-card label="Pendientes" [value]="kpis().pending" data-testid="approvals-pending" />
+    <rs-kpi-card label="Más antigua" [value]="kpis().oldest" data-testid="approvals-oldest" />
+    <rs-kpi-card label="Aprobadas hoy" [value]="kpis().approved" data-testid="approvals-approved" />
+    <rs-kpi-card label="Rechazadas hoy" [value]="kpis().rejected" data-testid="approvals-rejected" />
+  </section>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando las aprobaciones">
+        @for (i of skeletonCards; track i) {
+          <rs-skeleton shape="rect" width="100%" height="var(--space-16)" />
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las aprobaciones" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state" data-testid="approvals-empty">
+          <rs-empty-state-illustrated
+            illustration="all-clear"
+            heading="No hay solicitudes pendientes"
+            description="Cuando un cajero pida una anulación, una devolución o un gasto, o cierre una caja con diferencia, aparecerá aquí."
+            [showAction]="false"
+          />
+        </section>
+      } @else {
+        <div class="chips" role="group" aria-label="Filtrar por tipo de solicitud">
+          @for (chip of chips(); track chip.key ?? 'all') {
+            <rs-filter-chip
+              [label]="chip.label"
+              [showMedia]="false"
+              [selected]="selected() === chip.key"
+              [attr.data-testid]="'approvals-chip-' + (chip.key ?? 'all')"
+              (selectedChange)="choose(chip.key, $event)"
+            />
+          }
+        </div>
+
+        @for (section of sections(); track section.type) {
+          <section class="group" [attr.aria-labelledby]="'approvals-group-' + section.type" [attr.data-testid]="'approvals-group-' + section.type">
+            <h2 class="group-title" [id]="'approvals-group-' + section.type">
+              {{ section.heading }} <span class="group-count">{{ section.count }}</span>
+            </h2>
+            @for (card of section.cards; track card.item.id) {
+              <rs-request-card
+                [kicker]="card.kicker"
+                [title]="card.title"
+                [description]="card.description"
+                [detail]="card.detail"
+                [amount]="card.amount"
+                [tone]="card.tone"
+                [attr.data-testid]="'approval-' + card.item.id"
+              >
+                <a slot="actions" rsButton variant="secondary" [routerLink]="card.link" [attr.data-testid]="'approval-detail-' + card.item.id">Ver detalle</a>
+                @if (card.inline) {
+                  <button slot="actions" rsButton variant="ghost" type="button" [attr.data-testid]="'approval-reject-' + card.item.id" (click)="decide(card.item, 'reject')">Rechazar</button>
+                }
+                @if (card.inline) {
+                  <button slot="actions" rsButton variant="primary" type="button" [attr.data-testid]="'approval-approve-' + card.item.id" (click)="decide(card.item, 'approve')">Aprobar</button>
+                }
+              </rs-request-card>
+            }
+          </section>
+        }
+
+        @if (truncated()) {
+          <rs-note type="info" title="Hay más solicitudes de las que se muestran" data-testid="approvals-truncated">
+            Se muestran las más antiguas. Decide algunas para ver el resto.
+          </rs-note>
+        }
+      }
+
+      <rs-note type="info" title="Quién aprueba qué: PENDIENTE del cliente">{{ whoText }}</rs-note>
+    }
+  }
+}
+
+<rs-approval-decision-dialog [(open)]="decisionOpen" [item]="decisionItem()" [decision]="decisionKind()" (decided)="onDecided()" />
+<rs-toast-outlet closeLabel="Cerrar" />

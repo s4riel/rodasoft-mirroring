@@ -25,6 +25,8 @@ import { CashShiftReviewService } from '../cash/cash-shift-review.service';
 import { CashShiftSummaryService } from '../cash/cash-shift-summary.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { CustomersService } from '../customers/customers.service';
+import { ApprovalsInboxService } from '../approvals/approvals-inbox.service';
+import { PriceBulkService } from '../pricing/price-bulk.service';
 import { PricesService } from '../pricing/prices.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
@@ -129,6 +131,8 @@ export function createPosFixture(prefix: string) {
       cashReview: new CashShiftReviewService(prisma, cls, audit, outbox, scopedMembership),
       cashHistory: new CashShiftHistoryService(prisma, cls, scopedMembership),
       prices: new PricesService(prisma, cls, audit, outbox, scopedMembership),
+      bulkPrices: new PriceBulkService(prisma, cls, audit, outbox, settings),
+      approvals: new ApprovalsInboxService(prisma, cls, scopedMembership, visibility),
       cashMovements: new CashMovementsService(prisma, cls, audit, outbox, settings, membership, storage, cashSummary),
       cashClosing: new CashClosingService(prisma, cls, audit, outbox, settings),
       customers,
