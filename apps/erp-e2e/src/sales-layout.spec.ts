@@ -59,7 +59,8 @@ test('who can only approve returns sees Aprobaciones (HU-VEN-29) but not Precios
     await route.fulfill({ response, json: { ...body, permissions: ['sales.pos.use', 'sales.returns.approve'] } });
   });
   await login(page);
-  await page.goto('/sales');
+  // `/sales` opens the full-screen POS, which has no sub-navigation: the history tab is inside the shell
+  await page.goto('/sales/history');
   const nav = page.getByRole('navigation', { name: 'Secciones de ventas' });
   await expect(nav.getByRole('link', { name: /Aprobaciones/ })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Precios' })).toHaveCount(0);
