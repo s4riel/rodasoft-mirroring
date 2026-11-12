@@ -219,3 +219,125 @@ test('an expense above the limit waits for approval, blocks the closing, and Man
   await expect(kpi(page, 'Egresos')).toContainText('Bs 150,00');
   await expect(page.getByTestId('cash-pending-note')).toHaveCount(0);
 });
+
+/**
+ * HU-VEN-24 and HU-VEN-25. Nobody reviews their own shift, so the closings reviewed here belong to another cashier: they are
+ * written straight in the database as the closing would leave them (Bs 20 short, waiting for Accounting) and removed afterwards.
+ */
+test.describe('review of a closing and shift history', () => {
+  const tag = Math.random().toString(36).slice(2, 8);
+  const numbers = [`T-E2E-${tag}-1`, `T-E2E-${tag}-2`];
+  let cashierId = '';
+  const shiftIds: string[] = [];
+
+  test.beforeAll(async () => {
+    const admin = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL }, select: { memberships: { select: { companyId: true }, take: 1 } } });
+    const companyId = admin.memberships[0].companyId;
+    const register = await prisma.cashRegister.findFirstOrThrow({
+      where: { companyId, status: 'ACTIVE', branch: { name: BRANCH } },
+      orderBy: { name: 'asc' },
+      select: { id: true },
+    });
+    const cashier = await prisma.user.create({ data: { email: `e2e-cashier-${tag}@example.com`, name: `Cajera E2E ${tag}` } });
+    cashierId = cashier.id;
+    for (const number of numbers) {
+      const shift = await prisma.cashShift.create({
+        data: {
+          companyId,
+          registerId: register.id,
+          number,
+          status: 'CLOSED',
+          openingFloat: '100.00',
+          openedById: cashier.id,
+          openedAt: new Date(Date.now() - 8 * 3_600_000),
+          closedById: cashier.id,
+          closedAt: new Date(),
+          expectedAmount: '600.00',
+          countedAmount: '580.00',
+          differenceAmount: '-20.00',
+          closingFloat: '100.00',
+          closingComment: 'Faltó un vuelto de Bs 20',
+          methodTotals: {
+            create: [
+              { companyId, method: 'CASH', systemAmount: '600.00', declaredAmount: '580.00', differenceAmount: '-20.00' },
+              { companyId, method: 'QR', systemAmount: '0.00', declaredAmount: '0.00', differenceAmount: '0.00' },
+            ],
+          },
+        },
+      });
+      shiftIds.push(shift.id);
+      await prisma.approvalRequest.create({
+        data: { companyId, type: 'CASH_DIFFERENCE', subjectId: shift.id, requestedById: cashier.id, reason: 'CASH_DIFFERENCE', requesterComment: 'Faltó un vuelto de Bs 20' },
+      });
+    }
+  });
+
+  test.afterAll(async () => {
+    await prisma.approvalRequest.deleteMany({ where: { type: 'CASH_DIFFERENCE', subjectId: { in: shiftIds } } });
+    await prisma.cashShift.deleteMany({ where: { id: { in: shiftIds } } });
+    if (cashierId) await prisma.user.deleteMany({ where: { id: cashierId } });
+  });
+
+  const historyRow = (page: Page, number: string) => page.locator('rs-doc-table tbody tr').filter({ hasText: number });
+
+  test('Accounting finds the closing in the shift history, reviews it and approves it; a second one is sent back with a comment', async ({ page }) => {
+    await login(page);
+
+    // VP-23: the history, filtered to what waits for review
+    await page.goto(`/sales/cash-register/history?status=PENDING_REVIEW&cashierId=${cashierId}`);
+    await expect(page.getByRole('heading', { name: 'Historial de turnos', level: 1 })).toBeVisible();
+    await expect(kpi(page, 'Por revisar')).toBeVisible();
+    const first = historyRow(page, numbers[0]);
+    await expect(first).toContainText(`Cajera E2E ${tag}`);
+    await expect(first).toContainText('− Bs 20,00');
+    await expect(first).toContainText('Por revisar');
+
+    // VP-06b: the difference, the cashier's comment, the methods and the audit card
+    await first.getByRole('button').click();
+    await page.getByRole('menuitem', { name: 'Revisar cierre' }).click();
+    await expect(page).toHaveURL(new RegExp(`/sales/cash-register/shifts/${shiftIds[0]}/review$`));
+    await expect(page.getByRole('heading', { name: /Revisar cierre/, level: 1 })).toBeVisible();
+    await expect(kpi(page, 'Esperado')).toContainText('Bs 600,00');
+    await expect(kpi(page, 'Contado')).toContainText('Bs 580,00');
+    await expect(kpi(page, 'Diferencia')).toContainText('− Bs 20,00');
+    await expect(page.getByTestId('review-comment')).toContainText('Faltó un vuelto de Bs 20');
+    await expect(page.getByTestId('review-deposit')).toContainText('Bs 480,00 a banco · Bs 100,00 quedan en caja');
+    await expect(page.getByRole('heading', { name: 'Por forma de pago' })).toBeVisible();
+    await expect(page.getByTestId('review-timeline')).toContainText('Revisión de Contabilidad');
+
+    await page.getByTestId('review-approve').click();
+    await expect(page.getByText('Cierre aprobado', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('review-status')).toHaveText('Diferencia aprobada');
+    await expect(page.getByTestId('review-decision')).toContainText('Cierre aprobado por');
+    await expect(page.getByTestId('review-approve')).toHaveCount(0);
+
+    const approved = await prisma.cashShift.findUniqueOrThrow({ where: { id: shiftIds[0] } });
+    expect(approved.status).toBe('APPROVED');
+    expect(approved.reviewedById).toBe(adminId);
+    expect(await prisma.approvalRequest.count({ where: { type: 'CASH_DIFFERENCE', subjectId: shiftIds[0], status: 'APPROVED' } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { entity: 'CashShift', entityId: shiftIds[0], action: 'sales.cash-shift.approve' } })).toBe(1);
+
+    // back in the history the shift shows its new status
+    await page.getByTestId('review-back').click();
+    await expect(page).toHaveURL(/\/sales\/cash-register\/history/);
+    // other specs leave closed shifts behind; narrow the list to this cashier so the row is on the first page
+    await page.goto(`/sales/cash-register/history?cashierId=${cashierId}`);
+    await expect(historyRow(page, numbers[0])).toContainText('Diferencia aprobada');
+
+    // the second closing: "Pedir recuento" needs a comment
+    await page.goto(`/sales/cash-register/shifts/${shiftIds[1]}/review`);
+    await page.getByTestId('review-observe').click();
+    await expect(page.getByText('Escribe la respuesta para el cajero antes de pedir el recuento.')).toBeVisible();
+    await page.locator('#review-reply').fill('Recontar los billetes de 20');
+    await page.getByTestId('review-observe').click();
+    await expect(page.getByText('Recuento pedido al cajero')).toBeVisible();
+    await expect(page.getByTestId('review-status')).toHaveText('Observado');
+    await expect(page.getByTestId('review-decision')).toContainText('Recontar los billetes de 20');
+
+    const observed = await prisma.cashShift.findUniqueOrThrow({ where: { id: shiftIds[1] } });
+    expect(observed.status).toBe('OBSERVED');
+    expect(observed.reviewNote).toBe('Recontar los billetes de 20');
+    await page.goto(`/sales/cash-register/history?status=OBSERVED&cashierId=${cashierId}`);
+    await expect(historyRow(page, numbers[1])).toContainText('Observado');
+  });
+});

@@ -19,6 +19,7 @@ import {
   MOVEMENT_LOCKED_FIELDS,
   parseSkuNumber,
   PRODUCT_READONLY_FIELDS,
+  type PriceChangeSource,
   type ProductChange,
   type ProductLifecycleStatus,
   productStatusMachine,
@@ -41,6 +42,7 @@ import { SettingsService } from '../../common/settings/settings.service';
 import { MembershipService } from '../access/membership.service';
 import type { DuplicateProductDto } from './dto';
 import { ProductUpdateDto, ProductWriteDto } from './product-write.dto';
+import { recordPriceChange } from '../../common/prices/price-change.recorder';
 import { StockMovementService } from './stock-movement.service';
 
 const notFound = () => new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
@@ -492,7 +494,13 @@ export class ProductCommandsService {
    * validation as creation, the update, the audit entry (only what changed) and the outbox event. Stock is never written
    * here (design-notes rule 1): only the thresholds of one warehouse.
    */
-  async update(id: string, request: ProductUpdateDto, outer?: TenantTransaction, optionalAttributes: readonly string[] = []): Promise<ProductUpdateResponse> {
+  async update(
+    id: string,
+    request: ProductUpdateDto,
+    outer?: TenantTransaction,
+    optionalAttributes: readonly string[] = [],
+    priceSource: PriceChangeSource = 'PRODUCT_FORM',
+  ): Promise<ProductUpdateResponse> {
     const companyId = this.companyId();
     assertEditableShape(request);
     assertWizardShape(request);
@@ -643,6 +651,20 @@ export class ProductCommandsService {
         });
         await this.saveDimensions(tx, companyId, id, { ...dto, attributes });
         if (warehouseId && thresholdChange) await this.saveThreshold(tx, companyId, id, warehouseId, thresholdChange.values);
+        // every path that changes a price leaves its row in the price history (HU-VEN-26); nothing is written when it did not move
+        const newPrice = new Prisma.Decimal(after.salePrice ?? '0.00').toFixed(2);
+        // a price that moves without a user to name would leave a hole in the history: refuse instead of dropping the row
+        if (!userId && newPrice !== stored.salePrice.toFixed(2)) throw new Error('Price change outside a user context');
+        if (userId) {
+          await recordPriceChange(tx, {
+            companyId,
+            productId: id,
+            oldPrice: stored.salePrice.toFixed(2),
+            newPrice,
+            userId,
+            source: priceSource,
+          });
+        }
 
         await this.audit.log(
           { action: 'inventory.product.update', entity: 'Product', entityId: id, before: audited.before, after: audited.after },

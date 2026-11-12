@@ -4,7 +4,11 @@
   [description]="description()"
   [breadcrumbs]="breadcrumbs"
   breadcrumbLabel="Ruta de navegación"
-/>
+>
+  <div rsActions>
+    <a rsButton variant="ghost" routerLink="/sales/cash-register/history" data-testid="cash-history">Historial de turnos</a>
+  </div>
+</rs-page-header>
 
 @switch (state()) {
   @case ('forbidden') {

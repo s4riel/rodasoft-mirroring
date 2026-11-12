@@ -57,7 +57,7 @@ describe('POS checkout (integration, real Postgres)', () => {
     const { checkout } = await cashier().addItem({ productId: bearing, quantity: 1 });
     const shift = await state.base.cashShift.findFirstOrThrow({ where: { openedById: state.cashier.userId, status: 'OPEN' } });
     const older = await state.base.cashShift.create({
-      data: { companyId: state.companyId, registerId: shift.registerId, openingFloat: '1.00', openedById: state.second.userId, status: 'CLOSED', closedAt: new Date() },
+      data: { number: `T-${Math.random().toString(36).slice(2, 10)}`, companyId: state.companyId, registerId: shift.registerId, openingFloat: '1.00', openedById: state.second.userId, status: 'CLOSED', closedAt: new Date() },
     });
     await state.base.posCheckout.update({ where: { id: checkout!.id }, data: { shiftId: older.id } });
     await cashier().addItem({ productId: cheap, quantity: 1 });

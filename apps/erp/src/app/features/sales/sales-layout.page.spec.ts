@@ -1,5 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -76,6 +76,34 @@ describe('sales section', () => {
       h.detectChanges();
       expect(hasTab(h, '/sales/approvals')).toBe(true);
     }
+  });
+
+  it('shows Caja to who only reviews cash differences, and opens it on the shift history (HU-VEN-24, HU-VEN-25)', async () => {
+    setup(['sales.cash-register.review']);
+    const h = await RouterTestingHarness.create();
+    await h.navigateByUrl('/sales/cash-register');
+    h.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/sales/cash-register/history');
+    expect(hasTab(h, '/sales/cash-register')).toBe(true);
+    TestBed.inject(HttpTestingController).expectOne((r) => r.url === '/api/v1/sales/cash-shifts');
+  });
+
+  it('keeps a cashier on their own shift when opening Caja', async () => {
+    setup(CASHIER);
+    const h = await RouterTestingHarness.create();
+    await h.navigateByUrl('/sales/cash-register');
+    expect(TestBed.inject(Router).url).toBe('/sales/cash-register');
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/sales/cash-shifts/current');
+  });
+
+  it('opens Precios y descuentos on the price list (HU-VEN-26)', async () => {
+    setup(['sales.prices.edit']);
+    const h = await RouterTestingHarness.create();
+    await h.navigateByUrl('/sales/prices');
+    h.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/sales/prices');
+    expect((h.routeNativeElement as HTMLElement).querySelector('rs-price-list-page')).not.toBeNull();
+    TestBed.inject(HttpTestingController).expectOne((r) => r.url === '/api/v1/sales/prices');
   });
 
   it('opens /sales on the first tab the user may see', async () => {

@@ -20,16 +20,28 @@ import type {
   CashMovementDetail,
   CashRegisterListResponse,
   CashShiftDetail,
+  CashShiftListResponse,
+  CashShiftReview,
   CloseCashShiftResponse,
   CurrentCashShiftResponse,
   OpenCashShiftResponse,
 } from '@rodasoft/domain';
 import { RequireAnyPermission, RequirePermissions } from '../../access/require-permissions.decorator';
-import { CashMovementDecisionDto, CloseCashShiftDto, CreateCashMovementDto, ListCashRegistersQueryDto, OpenCashShiftDto } from './cash.dto';
+import {
+  CashMovementDecisionDto,
+  CashShiftReviewDto,
+  CloseCashShiftDto,
+  CreateCashMovementDto,
+  ListCashRegistersQueryDto,
+  ListCashShiftsQueryDto,
+  OpenCashShiftDto,
+} from './cash.dto';
 import { cashMovementErrors } from './cash.errors';
 import { CashClosingService } from './cash-closing.service';
 import { CashMovementsService } from './cash-movements.service';
 import { CashRegistersService } from './cash-registers.service';
+import { CashShiftHistoryService } from './cash-shift-history.service';
+import { CashShiftReviewService } from './cash-shift-review.service';
 import { CashShiftSummaryService } from './cash-shift-summary.service';
 import { CashShiftsService } from './cash-shifts.service';
 import { RECEIPT_PARSE_LIMIT_BYTES, ReceiptLimitInterceptor } from './cash-receipt.interceptor';
@@ -70,6 +82,8 @@ export class CashController {
     private readonly summary: CashShiftSummaryService,
     private readonly movements: CashMovementsService,
     private readonly closing: CashClosingService,
+    private readonly history: CashShiftHistoryService,
+    private readonly reviews: CashShiftReviewService,
   ) {}
 
   @Get('cash-registers')
@@ -82,6 +96,13 @@ export class CashController {
   @Get('cash-shifts/current')
   current(): Promise<CurrentCashShiftResponse> {
     return this.shifts.current();
+  }
+
+  /** VP-23 · the shift history. A reviewer sees every cashier's shifts; a cashier only their own (the service scopes it). */
+  @Get('cash-shifts')
+  @RequireAnyPermission('sales.cash-register.open', 'sales.cash-register.review')
+  listShifts(@Query(filterPipe) query: ListCashShiftsQueryDto): Promise<CashShiftListResponse> {
+    return this.history.list(query);
   }
 
   @Post('cash-shifts')
@@ -116,6 +137,27 @@ export class CashController {
   @RequirePermissions('sales.cash-register.open')
   close(@Param('id', shiftIdPipe) id: string, @Body(bodyPipe) body: CloseCashShiftDto): Promise<CloseCashShiftResponse> {
     return this.closing.close(id, body);
+  }
+
+  /** VP-06b · the closing with its difference, the cashier's comment and the audit trail. Read-only for the cashier of the shift. */
+  @Get('cash-shifts/:id/review')
+  @RequireAnyPermission('sales.cash-register.open', 'sales.cash-register.review')
+  review(@Param('id', shiftIdPipe) id: string): Promise<CashShiftReview> {
+    return this.reviews.review(id);
+  }
+
+  /** VP-06b "Aprobar cierre" · accepts the difference of a closed shift. */
+  @Post('cash-shifts/:id/approve')
+  @RequirePermissions('sales.cash-register.review')
+  approveShift(@Param('id', shiftIdPipe) id: string, @Body(bodyPipe) body: CashShiftReviewDto): Promise<CashShiftReview> {
+    return this.reviews.approve(id, body);
+  }
+
+  /** VP-06b "Pedir recuento" · flags the closing as observed; the comment is required. */
+  @Post('cash-shifts/:id/observe')
+  @RequirePermissions('sales.cash-register.review')
+  observeShift(@Param('id', shiftIdPipe) id: string, @Body(bodyPipe) body: CashShiftReviewDto): Promise<CashShiftReview> {
+    return this.reviews.observe(id, body);
   }
 }
 

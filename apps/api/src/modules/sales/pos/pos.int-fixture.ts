@@ -20,9 +20,12 @@ import { StockMovementService } from '../../inventory/stock-movement.service';
 import { StorageService } from '../../../common/storage/storage.service';
 import { CashClosingService } from '../cash/cash-closing.service';
 import { CashMovementsService } from '../cash/cash-movements.service';
+import { CashShiftHistoryService } from '../cash/cash-shift-history.service';
+import { CashShiftReviewService } from '../cash/cash-shift-review.service';
 import { CashShiftSummaryService } from '../cash/cash-shift-summary.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { CustomersService } from '../customers/customers.service';
+import { PricesService } from '../pricing/prices.service';
 import { PosCatalogService } from './pos-catalog.service';
 import { PosCheckoutService } from './pos-checkout.service';
 import { PosEquivalentsService } from './pos-equivalents.service';
@@ -121,7 +124,11 @@ export function createPosFixture(prefix: string) {
     const orders = new SalesOrdersService(prisma, cls, audit, outbox, scopedMembership, reservations, settings);
     const cashSummary = new CashShiftSummaryService(prisma, cls, settings, membership, storage);
     return {
+      shifts,
       cashSummary,
+      cashReview: new CashShiftReviewService(prisma, cls, audit, outbox, scopedMembership),
+      cashHistory: new CashShiftHistoryService(prisma, cls, scopedMembership),
+      prices: new PricesService(prisma, cls, audit, outbox, scopedMembership),
       cashMovements: new CashMovementsService(prisma, cls, audit, outbox, settings, membership, storage, cashSummary),
       cashClosing: new CashClosingService(prisma, cls, audit, outbox, settings),
       customers,
@@ -164,7 +171,7 @@ export function createPosFixture(prefix: string) {
     const register = await base.cashRegister.create({
       data: { companyId, branchId, pointOfSaleId: pos.id, warehouseId, name: `Caja ${seq}` },
     });
-    await base.cashShift.create({ data: { companyId, registerId: register.id, openingFloat: '100.00', openedById: caller.userId } });
+    await base.cashShift.create({ data: { number: `T-${Math.random().toString(36).slice(2, 10)}`, companyId, registerId: register.id, openingFloat: '100.00', openedById: caller.userId } });
   }
 
   interface ProductOptions {
@@ -318,6 +325,7 @@ export function createPosFixture(prefix: string) {
     await base.invoice.deleteMany({ where: { companyId: { in: companies } } });
     await base.sale.deleteMany({ where: { companyId: { in: companies } } });
     await base.cashMovement.deleteMany({ where: { companyId: { in: companies } } });
+    await base.priceChange.deleteMany({ where: { companyId: { in: companies } } });
     await base.documentSequence.deleteMany({ where: { companyId: { in: companies } } });
     await base.posCheckoutItem.deleteMany({ where: { companyId: { in: companies } } });
     await base.posCheckout.deleteMany({ where: { companyId: { in: companies } } });
@@ -354,7 +362,7 @@ export function createPosFixture(prefix: string) {
       data: { companyId: state.companyId, branchId: state.branchId, pointOfSaleId: pos.id, warehouseId: state.centralId, name: `Caja ${seq}` },
     });
     const shift = await base.cashShift.create({
-      data: { companyId: state.companyId, registerId: register.id, openingFloat, openedById: caller.userId },
+      data: { number: `T-${Math.random().toString(36).slice(2, 10)}`, companyId: state.companyId, registerId: register.id, openingFloat, openedById: caller.userId },
     });
     return { caller, shiftId: shift.id, registerId: register.id };
   }

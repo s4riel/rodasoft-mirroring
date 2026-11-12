@@ -15,6 +15,8 @@ export type OutboxType =
   | 'sales.cash-shift.float-mismatch'
   | 'sales.cash-shift.closed'
   | 'sales.cash-shift.difference'
+  | 'sales.cash-shift.reviewed'
+  | 'sales.price.changed'
   | 'sales.cash-movement.created'
   | 'sales.cash-expense.requested'
   | 'sales.cash-expense.decided'

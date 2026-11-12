@@ -139,6 +139,13 @@ describe('CashRegisterPage', () => {
     expect(root(withRefunds).querySelector('[data-testid="cash-refunds"]')?.textContent).toContain('25,00');
   });
 
+  it('links to the shift history (HU-VEN-25)', async () => {
+    const h = await open();
+    const link = (h.routeNativeElement as HTMLElement).querySelector('[data-testid="cash-history"]');
+    expect(link?.textContent).toContain('Historial de turnos');
+    expect(link?.getAttribute('href')).toBe('/sales/cash-register/history');
+  });
+
   it('offers the three buttons to who may operate the register, the last one going to the closing', async () => {
     const h = await open();
     expect(root(h).querySelector('[data-testid="cash-add-income"]')?.textContent).toContain('Registrar ingreso');

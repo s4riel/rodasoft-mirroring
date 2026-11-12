@@ -89,6 +89,7 @@ async function removeCompany(companyId: string) {
   await base.stockLevel.deleteMany({ where: { companyId } });
   await base.stockThreshold.deleteMany({ where: { companyId } });
   await base.productDimension.deleteMany({ where: { companyId } });
+  await base.priceChange.deleteMany({ where: { companyId } });
   await base.product.deleteMany({ where: { companyId } });
   await base.attributeDefinition.deleteMany({ where: { companyId } });
   await base.category.deleteMany({ where: { companyId, parentId: { not: null } } });
@@ -242,6 +243,7 @@ describe('ProductsService (integration, real Postgres)', () => {
 
   it('flags an empty catalog (first use)', async () => {
     current = b.companyId;
+    await base.priceChange.deleteMany({ where: { companyId: b.companyId } });
     await base.product.deleteMany({ where: { companyId: b.companyId } });
     expect((await service.list({})).catalogEmpty).toBe(true);
   });

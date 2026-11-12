@@ -232,7 +232,14 @@ export class ProductImportService {
     // deleted between the validation and the write: a clean error instead of a 500 (the whole import rolls back)
     if (!stored) throw new ConflictException({ code: 'PRODUCT_NOT_FOUND', message: 'A product of the file was deleted during the import' });
     // the code is how the row found the product (in any case): the stored spelling stays
-    await this.commands.update(productId, { ...fields, manufacturerCode: undefined, expectedUpdatedAt: stored.updatedAt.toISOString() } as ProductUpdateDto, tx, IMPORT_OPTIONAL_ATTRIBUTES);
+    await this.commands.update(
+      productId,
+      { ...fields, manufacturerCode: undefined, expectedUpdatedAt: stored.updatedAt.toISOString() } as ProductUpdateDto,
+      tx,
+      IMPORT_OPTIONAL_ATTRIBUTES,
+      // the price history says the change came from an imported list (HU-VEN-26)
+      'IMPORT',
+    );
     return productId;
   }
 

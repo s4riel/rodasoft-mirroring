@@ -2,16 +2,22 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   CASH_COUNT_MAX,
   CASH_DETAIL_MAX,
+  CASH_REVIEW_NOTE_MAX,
+  CASH_SHIFT_DISPLAY_STATUSES,
+  CASH_SHIFT_PAGE_SIZE_MAX,
   CLOSING_COMMENT_MAX,
   type CashCountInput,
   type CashMovementDecisionInput,
+  type CashShiftDisplayStatus,
+  type CashShiftListQuery,
+  type CashShiftReviewInput,
   type CloseCashShiftInput,
   type CreateCashMovementInput,
   type DeclaredMethod,
   type OpenCashShiftInput,
 } from '@rodasoft/domain';
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 
 const trimmed = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -74,6 +80,61 @@ export class CashMovementDecisionDto implements CashMovementDecisionInput {
   @IsString()
   @MaxLength(500)
   comment?: string;
+}
+
+/** Accounting's answer to a closing with a difference; "Pedir recuento" needs it (the domain rule answers with its own code). */
+export class CashShiftReviewDto implements CashShiftReviewInput {
+  @ApiPropertyOptional({ maxLength: CASH_REVIEW_NOTE_MAX })
+  @IsOptional()
+  @IsString()
+  // twice the limit: the domain rule answers an over-long comment with its own code
+  @MaxLength(CASH_REVIEW_NOTE_MAX * 2)
+  comment?: string;
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Filters of the shift history. `from` and `to` are La Paz days of the opening. */
+export class ListCashShiftsQueryDto implements CashShiftListQuery {
+  @ApiPropertyOptional({ example: '2026-10-01' })
+  @IsOptional()
+  @Matches(DAY)
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-10-31' })
+  @IsOptional()
+  @Matches(DAY)
+  to?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  cashierId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  registerId?: string;
+
+  @ApiPropertyOptional({ enum: CASH_SHIFT_DISPLAY_STATUSES })
+  @IsOptional()
+  @IsIn(CASH_SHIFT_DISPLAY_STATUSES)
+  status?: CashShiftDisplayStatus;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: CASH_SHIFT_PAGE_SIZE_MAX })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(CASH_SHIFT_PAGE_SIZE_MAX)
+  pageSize?: number;
 }
 
 export class CashCountDto implements CashCountInput {

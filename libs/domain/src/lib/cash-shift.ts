@@ -74,6 +74,8 @@ export interface CashRegisterListResponse {
 /** The caller's open shift with where it runs (POS header, Caja tab). */
 export interface CurrentCashShift {
   id: string;
+  /** `T-0142` */
+  number: string;
   openingFloat: string;
   openedAt: string;
   openedBy: { id: string; name: string };

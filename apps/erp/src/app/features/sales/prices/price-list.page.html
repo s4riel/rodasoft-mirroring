@@ -1,0 +1,141 @@
+<rs-page-header
+  title="Precios y descuentos"
+  description="Un solo precio de venta por producto y empresa."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver los precios"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  <section class="kpis" aria-label="Resumen de precios">
+    <rs-kpi-card label="Productos con precio" [value]="kpis().withPrice" [note]="kpis().withPriceNote" />
+    <rs-kpi-card label="Sin precio" [value]="kpis().withoutPrice" />
+    <rs-kpi-card label="Cambios este mes" [value]="kpis().changes" />
+    @if (kpis().showMargin) {
+      <rs-kpi-card label="Margen promedio (solo Gerencia)" [value]="kpis().margin" data-testid="prices-margin" />
+    }
+  </section>
+
+  <rs-filter-bar-products
+    inline
+    searchPlaceholder="Buscar por código, nombre, marca o medida"
+    searchLabel="Buscar productos"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select placeholder="Marca" ariaLabel="Marca" [options]="brandOptions()" [value]="filters().brandId" (valueChange)="setFilter('brandId', $event)" />
+      <rs-select
+        placeholder="Categoría"
+        ariaLabel="Categoría"
+        [options]="categoryOptions()"
+        [value]="filters().categoryId"
+        (valueChange)="setFilter('categoryId', $event)"
+      />
+      <rs-select
+        placeholder="Precio"
+        ariaLabel="Con o sin precio"
+        data-testid="prices-priced"
+        [options]="pricedOptions"
+        [value]="filters().priced"
+        (valueChange)="setFilter('priced', $event)"
+      />
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando precios">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="30%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="20%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="8%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los precios" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="Aún no hay productos"
+            description="Crea los productos en Inventario; su precio se consulta y se edita aquí."
+            [showAction]="false"
+          />
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="No encontramos productos" description="Prueba con otros filtros o con otro código.">
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Precios de venta" [columns]="columns" [rows]="rows()">
+          <ng-template rsDocCell="product" let-row>
+            @if (itemOf(row.id); as item) {
+              <div class="product">
+                <rs-product-thumb [src]="item.photo" />
+                <div class="product-text">
+                  <span class="product-name">{{ item.name }}</span>
+                  <span class="product-brand">{{ brandLine(item) }}</span>
+                </div>
+              </div>
+            }
+          </ng-template>
+          <ng-template rsDocCell="stock" let-row>
+            @if (itemOf(row.id); as item) {
+              @if (item.branchStock > 0) {
+                <span class="stock" role="img" [attr.aria-label]="stockLabel() + ': ' + item.branchStock">{{ item.branchStock }}</span>
+              } @else {
+                <rs-stock-flag level="out" label="Agotado" />
+              }
+            }
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <rs-row-action *rsCan="'sales.prices.edit'" [label]="'Acciones de ' + item.manufacturerCode" [items]="rowMenu" (selected)="onMenu(item, $event)" />
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeText() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-price-edit-dialog [(open)]="dialogOpen" [productId]="editing()" (saved)="onSaved()" />
+<rs-toast-outlet closeLabel="Cerrar" />

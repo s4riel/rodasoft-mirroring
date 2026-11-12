@@ -1067,6 +1067,8 @@ model CashShift {
   id               String          @id @default(uuid(7)) @db.Uuid
   companyId        String          @map("company_id") @db.Uuid
   registerId       String          @map("register_id") @db.Uuid
+  /// `T-0142`, from the `CASH_SHIFT` document sequence when the shift opens (HU-VEN-25)
+  number           String
   status           CashShiftStatus @default(OPEN)
   openingFloat     Decimal         @map("opening_float") @db.Decimal(14, 2)
   openedById       String          @map("opened_by_id") @db.Uuid
@@ -1092,8 +1094,10 @@ model CashShift {
   checkouts PosCheckout[]
   sales     Sale[]
 
+  @@unique([companyId, number])
   @@index([companyId, registerId, status])
   @@index([companyId, openedAt(sort: Desc)])
+  @@index([companyId, status, closedAt(sort: Desc)])
   @@map("cash_shifts")
 }
 
@@ -1588,7 +1592,16 @@ model CreditNote {
   @@map("credit_notes")
 }
 
-/// Append-only audit of single and bulk price edits (`batchId` groups a bulk update).
+/// Where a price change came from: the Precios screen, the inventory product form, the Excel import or a bulk update (HU-VEN-27).
+enum PriceChangeSource {
+  MANUAL
+  PRODUCT_FORM
+  IMPORT
+  BULK
+}
+
+/// Append-only audit of single and bulk price edits (`batchId` groups a bulk update). The migration adds CHECKs
+/// `new_price >= 0` and `old_price <> new_price`.
 model PriceChange {
   id        String   @id @default(uuid(7)) @db.Uuid
   companyId String   @map("company_id") @db.Uuid
@@ -1597,6 +1610,9 @@ model PriceChange {
   newPrice  Decimal  @map("new_price") @db.Decimal(14, 2)
   userId    String   @map("user_id") @db.Uuid
   batchId   String?  @map("batch_id") @db.Uuid
+  source    PriceChangeSource @default(MANUAL)
+  /// the optional "Motivo" of a manual edit
+  reason    String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company Company @relation(fields: [companyId], references: [id])

@@ -115,6 +115,7 @@ describe('WarehousesService (integration, real Postgres)', () => {
     await base.outboxEvent.deleteMany({ where: { companyId } });
     await base.auditLog.deleteMany({ where: { companyId } });
     await base.stockLevel.deleteMany({ where: { companyId } });
+    await base.priceChange.deleteMany({ where: { companyId } });
     await base.product.deleteMany({ where: { companyId } });
     await base.membership.deleteMany({ where: { companyId: { in: [companyId, otherCompanyId] } } });
     await base.user.deleteMany({ where: { email: { in: [`wh-${run}@example.com`, `wh2-${run}@example.com`] } } });

@@ -10,6 +10,7 @@ export type ShiftWithPlace = Prisma.CashShiftGetPayload<{ include: typeof SHIFT_
 export function toCurrentShift(shift: ShiftWithPlace, openedByName: string): CurrentCashShift {
   return {
     id: shift.id,
+    number: shift.number,
     openingFloat: shift.openingFloat.toFixed(2),
     openedAt: shift.openedAt.toISOString(),
     openedBy: { id: shift.openedById, name: openedByName },
