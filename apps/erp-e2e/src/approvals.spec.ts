@@ -37,6 +37,9 @@ async function reset() {
   if (companyId) await prisma.companySetting.deleteMany({ where: { companyId, key: RETURN_LIMIT_KEY } });
 }
 
+/** A KPI card reads `Pendientes4`: the number after its label. */
+const kpi = async (page: Page, id: string, label: string) => Number((await page.getByTestId(id).innerText()).replace(label, '').trim());
+
 const onHand = async () => (await prisma.stockLevel.findFirstOrThrow({ where: { productId, warehouseId }, select: { quantity: true } })).quantity;
 
 test.beforeAll(async () => {
@@ -138,13 +141,20 @@ test('Management decides a return and an expense from the inbox and a cancellati
   // VP-25: the three groups, the KPIs and the badge of the tab
   await page.goto('/sales/approvals');
   await expect(page.getByRole('heading', { name: 'Aprobaciones', level: 1 })).toBeVisible();
-  await expect(page.getByTestId('approvals-pending')).toContainText('3');
+  // the demo database may hold other days' decisions and other users' requests: the KPIs are read as differences
+  await expect(page.getByTestId('approvals-group-CANCELLATION')).toContainText(cancelled);
+  const start = {
+    pending: await kpi(page, 'approvals-pending', 'Pendientes'),
+    approved: await kpi(page, 'approvals-approved', 'Aprobadas hoy'),
+    rejected: await kpi(page, 'approvals-rejected', 'Rechazadas hoy'),
+  };
+  expect(start.pending).toBeGreaterThanOrEqual(3);
   await expect(page.getByTestId('approvals-group-CANCELLATION')).toContainText(cancelled);
   await expect(page.getByTestId('approvals-group-RETURN')).toContainText('Producto con falla de fábrica');
   await expect(page.getByTestId('approvals-group-CASH_EXPENSE')).toContainText('Reparación de la puerta');
   await expect(page.getByTestId('approvals-group-CASH_EXPENSE')).toContainText('−Bs 150,00');
   const nav = page.getByRole('navigation', { name: 'Secciones de ventas' });
-  await expect(nav.getByRole('link', { name: /Aprobaciones/ })).toContainText('3');
+  await expect(nav.getByRole('link', { name: /Aprobaciones/ })).toContainText(String(start.pending));
   // the chips filter without asking again
   await page.getByTestId('approvals-chip-RETURN').getByRole('button').click();
   await expect(page.getByTestId('approvals-group-CASH_EXPENSE')).toHaveCount(0);
@@ -160,8 +170,8 @@ test('Management decides a return and an expense from the inbox and a cancellati
   await decision.getByTestId('decision-confirm').click();
   await expect(page.getByText('Solicitud rechazada')).toBeVisible();
   await expect(page.getByTestId(`approval-${expenseRequest.id}`)).toHaveCount(0);
-  await expect(page.getByTestId('approvals-pending')).toContainText('2');
-  await expect(page.getByTestId('approvals-rejected')).toContainText('1');
+  await expect.poll(() => kpi(page, 'approvals-pending', 'Pendientes')).toBe(start.pending - 1);
+  await expect.poll(() => kpi(page, 'approvals-rejected', 'Rechazadas hoy')).toBe(start.rejected + 1);
   const rejected = await prisma.approvalRequest.findUniqueOrThrow({ where: { id: expenseRequest.id } });
   expect(rejected).toMatchObject({ status: 'REJECTED', comment: 'Falta el comprobante', decidedById: adminId });
   expect((await prisma.cashMovement.findUniqueOrThrow({ where: { id: expense.id } })).status).toBe('REJECTED');
@@ -171,8 +181,8 @@ test('Management decides a return and an expense from the inbox and a cancellati
   await page.getByTestId(`approval-approve-${returnRequest.id}`).click();
   await page.getByRole('dialog', { name: 'Aprobar devolución' }).getByTestId('decision-confirm').click();
   await expect(page.getByTestId(`approval-${returnRequest.id}`)).toHaveCount(0);
-  await expect(page.getByTestId('approvals-pending')).toContainText('1');
-  await expect(page.getByTestId('approvals-approved')).toContainText('1');
+  await expect.poll(() => kpi(page, 'approvals-pending', 'Pendientes')).toBe(start.pending - 2);
+  await expect.poll(() => kpi(page, 'approvals-approved', 'Aprobadas hoy')).toBe(start.approved + 1);
   expect((await prisma.approvalRequest.findUniqueOrThrow({ where: { id: returnRequest.id } })).status).toBe('APPROVED');
   expect(await onHand()).toBe(before - 1);
 
@@ -185,11 +195,13 @@ test('Management decides a return and an expense from the inbox and a cancellati
   await page.getByTestId('review-approve-confirm').click();
   await expect(page.getByRole('heading', { name: `Venta ${cancelled}`, exact: true })).toBeVisible();
 
-  // nothing is left to decide: the empty state, no badge, and today's decisions counted
+  // the three requests are gone and today's decisions are counted; with nobody else's request waiting, the inbox is empty
   await page.goto('/sales/approvals');
-  await expect(page.getByTestId('approvals-empty')).toContainText('No hay solicitudes pendientes');
-  await expect(page.getByTestId('approvals-pending')).toContainText('0');
-  await expect(page.getByTestId('approvals-approved')).toContainText('2');
-  await expect(page.getByTestId('approvals-rejected')).toContainText('1');
-  await expect(page.getByRole('navigation', { name: 'Secciones de ventas' }).getByRole('link', { name: /Aprobaciones/ })).not.toContainText(/\d/);
+  await expect.poll(() => kpi(page, 'approvals-pending', 'Pendientes')).toBe(start.pending - 3);
+  await expect.poll(() => kpi(page, 'approvals-approved', 'Aprobadas hoy')).toBe(start.approved + 2);
+  await expect.poll(() => kpi(page, 'approvals-rejected', 'Rechazadas hoy')).toBe(start.rejected + 1);
+  if (start.pending === 3) {
+    await expect(page.getByTestId('approvals-empty')).toContainText('No hay solicitudes pendientes');
+    await expect(page.getByRole('navigation', { name: 'Secciones de ventas' }).getByRole('link', { name: /Aprobaciones/ })).not.toContainText(/\d/);
+  }
 });
