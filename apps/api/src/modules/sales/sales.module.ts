@@ -93,6 +93,6 @@ import { PAYMENT_PROVIDERS, type PaymentProviderRegistry } from './payments/paym
     },
   ],
   // the POS stories call `CashShiftsService.requireOpenShift()` before any cart or payment action
-  exports: [PAYMENT_PROVIDERS, CashShiftsService],
+  exports: [PAYMENT_PROVIDERS, CashShiftsService, SaleVisibilityService, SaleCancellationService],
 })
 export class SalesModule {}

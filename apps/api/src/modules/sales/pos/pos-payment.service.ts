@@ -37,6 +37,7 @@ import type { AppClsStore } from '../../../common/cls';
 import { OutboxService } from '../../../common/outbox/outbox.service';
 import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
+import { pointOfSaleOfSale, publishFirstIssueAttempt } from '../../../common/siat/invoice-intake';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { cashErrors } from '../cash/cash.errors';
 import { CashShiftsService } from '../cash/cash-shifts.service';
@@ -427,11 +428,14 @@ export class PosPaymentService {
           },
         });
       }
-      // no SIAT call here: the invoice is a PENDING record that the SIAT epic issues (HU-FAC)
-      await tx.invoice.create({
+      // no SIAT call here: the invoice is a PENDING record; the worker issues it after the commit (HU-FAC-01…10)
+      const createdInvoice = await tx.invoice.create({
+        select: { id: true },
         data: {
           companyId,
           saleId: sale.id,
+          branchId: shift.branch.id,
+          pointOfSaleId: await pointOfSaleOfSale(tx, { branchId: shift.branch.id, shiftId: shift.id }),
           status: 'PENDING',
           total: totals.total.toString(),
           customerTaxName: invoice.name,
@@ -439,6 +443,7 @@ export class PosPaymentService {
           customerDocumentNumber: invoice.documentNumber,
         },
       });
+      await publishFirstIssueAttempt({ settings: this.settings, outbox: this.outbox }, tx, createdInvoice.id);
       await tx.posCheckout.update({ where: { id: cart.id }, data: { status: next } });
 
       await this.audit.log(

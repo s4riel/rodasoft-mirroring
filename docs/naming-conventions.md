@@ -73,8 +73,8 @@ Official Bolivian/SIAT terms stay as they are because they are proper nouns, not
 
 - `TransferStatus`: `DRAFT, PENDING_APPROVAL, APPROVED, IN_TRANSIT, PARTIALLY_RECEIVED, RECEIVED, REJECTED, CANCELLED`
   events `send, requestApproval, approve, reject, dispatch, receivePartial, receiveAll, cancel`; `transferMachine`.
-- `InvoiceStatus`: `PENDING, SENDING, VALID, REJECTED, CONTINGENCY, OBSERVED, CANCELLATION_PENDING, CANCELLED`
-  events `send, accept, reject, offline, packageValidated, packageObserved, fix, requestCancellation, approveCancellation, rejectCancellation`; `invoiceMachine`.
+- `InvoiceStatus`: `PENDING, SENDING, VALID, REJECTED, CANCELLATION_PENDING, CANCELLED` (no contingency: client rule)
+  events `send, accept, reject, unavailable, fix, void, requestCancellation, approveCancellation, rejectCancellation`; `invoiceMachine`.
 
 ## Exported names that changed in `@rodasoft/domain`
 

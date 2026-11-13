@@ -55,13 +55,25 @@ export class MailProcessor extends WorkerHost {
           `<p>${escapeHtml(p['text']).replace(/\n/g, '<br>')}</p>`,
         );
         break;
+      case 'invoice.email':
+        // HU-FAC-06: the API renders the PDF and the XML (base64 in the payload); the worker only delivers them
+        await this.send(
+          p['email'],
+          `Factura ${p['number']} · ${p['company']}`,
+          `<p>Adjuntamos tu factura ${escapeHtml(p['number'])} de ${escapeHtml(p['company'])}, en PDF y XML.</p>`,
+          [
+            { filename: `factura-${p['number']}.pdf`, content: Buffer.from(p['pdfBase64'], 'base64'), contentType: 'application/pdf' },
+            { filename: `factura-${p['number']}.xml`, content: Buffer.from(p['xmlBase64'], 'base64'), contentType: 'application/xml' },
+          ],
+        );
+        break;
       default:
         this.logger.warn(`Unknown mail job: ${job.name}`);
     }
   }
 
-  private async send(to: string, subject: string, html: string) {
-    await this.transport.sendMail({ from: this.config.get('MAIL_FROM'), to, subject, html });
+  private async send(to: string, subject: string, html: string, attachments?: { filename: string; content: Buffer; contentType: string }[]) {
+    await this.transport.sendMail({ from: this.config.get('MAIL_FROM'), to, subject, html, ...(attachments ? { attachments } : {}) });
     this.logger.log(`E-mail "${subject}" sent to ${to}`);
   }
 }

@@ -1,0 +1,24 @@
+<rs-modal [(open)]="open" variant="form" size="large" [heading]="invoiceNumber() === null ? 'Vista previa de la factura' : 'Factura ' + numberLabel() + ' · vista previa'" closeLabel="Cerrar">
+  <div class="content">
+    @switch (state()) {
+      @case ('loading') {
+        <div role="status" aria-busy="true" aria-label="Cargando la factura">
+          <rs-skeleton shape="rect" width="100%" height="24rem" />
+        </div>
+      }
+      @case ('error') {
+        <rs-note type="danger" title="No pudimos cargar la factura">{{ errorMessage() }}</rs-note>
+      }
+      @default {
+        @if (source(); as src) {
+          <iframe #pdfFrame class="pdf" title="Factura en formato impreso" [src]="src"></iframe>
+        }
+      }
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" data-testid="preview-download" [disabled]="state() !== 'ready'" (click)="download()">Descargar PDF</button>
+    <button rsButton variant="primary" type="button" data-testid="preview-print" [disabled]="state() !== 'ready'" (click)="print()">Imprimir</button>
+  </div>
+</rs-modal>

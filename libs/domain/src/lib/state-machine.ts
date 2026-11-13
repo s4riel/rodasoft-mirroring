@@ -95,30 +95,28 @@ export type InvoiceStatus =
   | 'SENDING'
   | 'VALID'
   | 'REJECTED'
-  | 'CONTINGENCY'
-  | 'OBSERVED'
   | 'CANCELLATION_PENDING'
   | 'CANCELLED';
 export type InvoiceEvent =
   | 'send'
   | 'accept'
   | 'reject'
-  | 'offline'
-  | 'packageValidated'
-  | 'packageObserved'
+  | 'unavailable'
   | 'fix'
   | 'void'
   | 'requestCancellation'
   | 'approveCancellation'
   | 'rejectCancellation';
 
+/**
+ * There is no contingency (client rule, HU-FAC-01…10): when the SIAT does not answer, the invoice goes back to `PENDING` ("No facturada
+ * en SIAT") and a person issues it again when the SIAT is back.
+ */
 export const invoiceMachine = createMachine<InvoiceStatus, InvoiceEvent>({
-  // `void`: a cancelled sale whose invoice never left the system has nothing to cancel in the SIAT (HU-VEN-15)
-  PENDING: { send: 'SENDING', offline: 'CONTINGENCY', void: 'CANCELLED' },
-  SENDING: { accept: 'VALID', reject: 'REJECTED', offline: 'CONTINGENCY' },
-  REJECTED: { fix: 'PENDING' },
-  CONTINGENCY: { packageValidated: 'VALID', packageObserved: 'OBSERVED' },
-  OBSERVED: { fix: 'PENDING' },
+  // `void`: a cancelled sale whose invoice never got a valid SIAT answer has nothing to cancel in the SIAT (HU-VEN-15)
+  PENDING: { send: 'SENDING', void: 'CANCELLED' },
+  SENDING: { accept: 'VALID', reject: 'REJECTED', unavailable: 'PENDING' },
+  REJECTED: { fix: 'PENDING', void: 'CANCELLED' },
   VALID: { requestCancellation: 'CANCELLATION_PENDING' },
   CANCELLATION_PENDING: { approveCancellation: 'CANCELLED', rejectCancellation: 'VALID' },
   CANCELLED: {},

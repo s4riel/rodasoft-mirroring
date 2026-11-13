@@ -13,7 +13,10 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'auth.password-reset': QUEUE.mail,
   'auth.invitation': QUEUE.mail,
   'invoice.issue': QUEUE.siat,
-  'invoice.cancel': QUEUE.siat,
+  'invoice.email': QUEUE.mail,
+  // HU-FAC-08: no consumer yet; accounting just logs them
+  'invoicing.nit-exception.requested': QUEUE.accounting,
+  'invoicing.nit-exception.decided': QUEUE.accounting,
   'sale.completed': QUEUE.accounting,
   'sale.receipt-email': QUEUE.mail,
   'sales.quote-email': QUEUE.mail,

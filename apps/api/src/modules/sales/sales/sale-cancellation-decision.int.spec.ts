@@ -32,6 +32,7 @@ describe('Sale cancellation decision (integration, real Postgres)', () => {
     await state.base.cashShift.updateMany({ where: { companyId: state.companyId, status: 'CLOSED' }, data: { status: 'OPEN' } });
     await state.base.approvalRequest.deleteMany({ where: { companyId: state.companyId } });
     await state.base.invoice.deleteMany({ where: { companyId: state.companyId } });
+    await state.base.simulatedSiatRecord.deleteMany({ where: { companyId: state.companyId } });
     await state.base.sale.deleteMany({ where: { companyId: state.companyId } });
     await state.base.cashMovement.deleteMany({ where: { companyId: state.companyId } });
     await state.base.posCheckoutItem.deleteMany({ where: { companyId: state.companyId } });
@@ -159,9 +160,13 @@ describe('Sale cancellation decision (integration, real Postgres)', () => {
 
     it('asks the SIAT to cancel an invoice that is already valid instead of voiding it', async () => {
       const { saleId } = await sellAndAsk(1);
-      await state.base.invoice.update({ where: { saleId }, data: { status: 'VALID', number: 1528 } });
+      const cuf = `ABC${randomUUID().slice(0, 8).toUpperCase()}SIM0`;
+      await state.base.invoice.update({ where: { saleId }, data: { status: 'VALID', number: 1528, cuf } });
+      await state.base.simulatedSiatRecord.create({ data: { cuf, companyId: state.companyId, receptionCode: 'SIM-1' } });
       await approve(saleId);
-      expect((await saleRow(saleId)).invoice?.status).toBe('CANCELLATION_PENDING');
+      // the SIAT is asked first (HU-FAC-10), then the invoice and the sale are cancelled together
+      expect((await state.base.simulatedSiatRecord.findUniqueOrThrow({ where: { cuf } })).cancelledAt).not.toBeNull();
+      expect((await saleRow(saleId)).invoice?.status).toBe('CANCELLED');
       expect((await saleRow(saleId)).status).toBe('CANCELLED');
     });
 

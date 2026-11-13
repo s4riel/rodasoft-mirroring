@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import type { CancellationDecisionError, CancellationRequestError } from '@rodasoft/domain';
 
 /** Errors of the cancellation request of a sale (HU-VEN-14). The ERP translates each `code` into Spanish. */
@@ -45,6 +45,15 @@ export const cancellationErrors = {
       message: 'The warehouse of the sale is inactive and cannot receive the stock back',
       details: { warehouseName },
     }),
+  /** The SIAT did not answer: nothing was cancelled, moved or refunded, and the request still waits. */
+  siatUnavailable: () =>
+    new ServiceUnavailableException({ code: 'SIAT_UNAVAILABLE', message: 'The SIAT does not answer right now; the cancellation was not approved' }),
+  /** The SIAT answered that it will not cancel the invoice; its messages go in `details`. */
+  siatRefused: (messages: { code: number; description: string }[]) =>
+    new ConflictException({ code: 'SIAT_CANCELLATION_REJECTED', message: 'The SIAT refused to cancel the invoice', details: messages }),
+  /** The invoice is being cancelled in the SIAT: the request can no longer be withdrawn or rejected, only approved. */
+  inProgress: () =>
+    new ConflictException({ code: 'CANCELLATION_IN_PROGRESS', message: 'The invoice is being cancelled in the SIAT; the request can only be approved now' }),
   invoiceNotCancellable: (status: string) =>
     new ConflictException({ code: 'INVOICE_NOT_CANCELLABLE', message: 'The invoice of this sale cannot be cancelled in its current state', details: { status } }),
   withdrawForbidden: () =>

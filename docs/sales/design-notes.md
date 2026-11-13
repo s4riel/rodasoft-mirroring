@@ -141,3 +141,8 @@ Built together on one branch (12 Nov 2026). The plan is `docs/plans/sales/HU-VEN
 
 - Accounts receivable (HU-CON-03): collecting payments against the balance and a screen for it. The events above and the balance endpoint are what it builds on.
 - Figma: the drag handle is its own component, not part of PosCartLine; "Otro" in the credit terms is not drawn (Figma has 5/15/30/45); the quote line text includes the category, which Figma's does not (decided with the client's team on 12 Nov).
+
+## Invoicing hand-over (12 Nov 2026)
+
+A completed sale (POS or order dispatch) creates the `Invoice` with `branchId` and `pointOfSaleId` and publishes `invoice.issue`; the worker issues it (`docs/invoicing/design-notes.md`). Approving the cancellation of a sale whose invoice is `VALID` now cancels the invoice in the SIAT first; a `PENDING` or `REJECTED` invoice is voided locally. The cancellation reason can also be `SIN_<n>` when asked from the invoice.
+

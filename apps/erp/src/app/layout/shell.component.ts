@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { ContextBarComponent, IconComponent, SidebarComponent, StatusPillComponent } from '@rodasoft/ui';
+import { ContextBarComponent, IconComponent, NavGroup, SidebarComponent, StatusPillComponent } from '@rodasoft/ui';
 import { AuthService } from '../core/auth/auth.service';
 import { ContextStore } from '../core/context.store';
+import { InvoicingStatusStore } from '../core/invoicing-status.store';
 import { TenantService } from '../core/tenant.service';
 import { ERP_NAV } from './navigation';
 
@@ -12,11 +13,10 @@ import { ERP_NAV } from './navigation';
   imports: [RouterOutlet, SidebarComponent, ContextBarComponent, IconComponent, StatusPillComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <rs-sidebar [groups]="nav" [brandName]="tenant.name()" navLabel="Módulos">
+    <rs-sidebar [groups]="navGroups()" [brandName]="tenant.name()" navLabel="Módulos">
       <div rsSidebarFooter class="siat">
         <span class="rs-eyebrow">SIAT</span>
-        <!-- S2: real status (online / contingency) from /invoicing/status -->
-        <rs-status-pill status="idle">Sin configurar</rs-status-pill>
+        <rs-status-pill [status]="siat().status" [tooltip]="siat().hint" data-testid="siat-pill">{{ siat().label }}</rs-status-pill>
       </div>
     </rs-sidebar>
     <div class="main">
@@ -71,10 +71,39 @@ import { ERP_NAV } from './navigation';
   `,
 })
 export class ShellComponent {
-  protected readonly nav = ERP_NAV;
   protected readonly auth = inject(AuthService);
   protected readonly ctx = inject(ContextStore);
   protected readonly tenant = inject(TenantService);
+  private readonly invoicingStatus = inject(InvoicingStatusStore);
+
+  /** The "Facturación" item carries the count of invoices the SIAT has not accepted (not issued + rejected). */
+  protected readonly navGroups = computed<NavGroup[]>(() => {
+    const s = this.invoicingStatus.status();
+    const pending = s ? s.notIssued + s.rejected : 0;
+    return ERP_NAV.map((group) => ({
+      ...group,
+      items: group.items.map((item) => (item.key === 'invoicing' && pending > 0 ? { ...item, badge: pending } : item)),
+    }));
+  });
+
+  protected readonly siat = computed(() => {
+    const s = this.invoicingStatus.status();
+    if (!s || s.connection === 'UNKNOWN') return { status: 'idle' as const, label: 'Sin configurar', hint: null };
+    if (s.connection === 'ONLINE') return { status: 'success' as const, label: 'SIAT en línea', hint: null };
+    const n = s.notIssued;
+    return {
+      status: 'danger' as const,
+      label: 'SIAT sin conexión',
+      hint: n > 0 ? `${n} ${n === 1 ? 'factura queda' : 'facturas quedan'} sin emitir hasta que vuelva` : 'Las ventas se facturan cuando vuelva',
+    };
+  });
+
+  constructor() {
+    this.invoicingStatus.start();
+    // the shell goes away with the session (logout), and the polling with it
+    inject(DestroyRef).onDestroy(() => this.invoicingStatus.stop());
+  }
+
   protected readonly initials = computed(() =>
     (this.auth.user()?.name ?? '?')
       .split(/\s+/)

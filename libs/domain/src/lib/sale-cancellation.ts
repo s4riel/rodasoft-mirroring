@@ -21,8 +21,18 @@ export interface CancellationRequestInput {
 
 export type CancellationRequestError = 'REASON_INVALID' | 'COMMENT_REQUIRED' | 'COMMENT_TOO_LONG';
 
-export function isCancellationReason(value: unknown): value is CancellationReason {
-  return typeof value === 'string' && (CANCELLATION_REASONS as readonly string[]).includes(value);
+/**
+ * A reason from the SIN parametric table, chosen from an invoice (HU-FAC-09): `SIN_<code>`. The four built-in codes are in
+ * `SIAT_CANCELLATION_REASONS` (invoicing.ts); the synced catalogue replaces them in HU-FAC-25.
+ */
+const SIN_REASON = /^SIN_[1-9]\d{0,3}$/;
+
+export function isSinCancellationReason(value: unknown): value is `SIN_${number}` {
+  return typeof value === 'string' && SIN_REASON.test(value);
+}
+
+export function isCancellationReason(value: unknown): value is CancellationReason | `SIN_${number}` {
+  return (typeof value === 'string' && (CANCELLATION_REASONS as readonly string[]).includes(value)) || isSinCancellationReason(value);
 }
 
 /** What is wrong with a request, in the order the form asks for it; empty when it can be sent. The comment is judged trimmed. */
@@ -112,8 +122,8 @@ export function validateCancellationDecision(input: { decision: CancellationDeci
 }
 
 /**
- * What an approval does to the invoice: a `PENDING` one never left the system and is voided; a `VALID` one asks the SIAT to
- * cancel it (the SIAT epic finishes that, HU-FAC-10); in any other state the cancellation cannot go on.
+ * What an approval does to the invoice: a `PENDING` or `REJECTED` one has no valid SIAT answer and is voided; a `VALID` one asks
+ * the SIAT to cancel it (HU-FAC-10); in any other state the cancellation cannot go on.
  */
 export type InvoiceCancellationAction = 'VOID' | 'REQUEST_SIAT_CANCELLATION' | 'BLOCKED';
 

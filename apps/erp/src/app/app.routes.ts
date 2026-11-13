@@ -74,7 +74,10 @@ export const routes: Route[] = [
         path: 'sales',
         loadChildren: () => import('./features/sales/sales.routes').then((m) => m.SALES_ROUTES),
       },
-      modulePlaceholder('invoicing', 'Facturación SIAT', 'S2–S3 (16 nov–13 dic)'),
+      {
+        path: 'invoicing',
+        loadChildren: () => import('./features/invoicing/invoicing.routes').then((m) => m.INVOICING_ROUTES),
+      },
       {
         path: 'inventory',
         loadChildren: () => import('./features/inventory/inventory.routes').then((m) => m.INVENTORY_ROUTES),

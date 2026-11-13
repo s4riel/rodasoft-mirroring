@@ -151,12 +151,14 @@ export class ApprovalsInboxService {
     const branchIds = membershipId ? await this.membership.operableBranchIds(membershipId) : [];
     const subjects = new Map<string, Subject>();
 
-    const [cancellations, shifts, returns, expenses] = await Promise.all([
+    const [cancellations, shifts, returns, expenses, exceptions] = await Promise.all([
       this.cancellationSubjects(idsOf('CANCELLATION'), branchIds),
       this.shiftSubjects(idsOf('CASH_DIFFERENCE'), branchIds),
       this.returnSubjects(idsOf('RETURN'), branchIds),
       this.expenseSubjects(idsOf('CASH_EXPENSE'), branchIds),
+      this.nitExceptionSubjects(idsOf('NIT_EXCEPTION'), branchIds),
     ]);
+    for (const [id, subject] of exceptions) subjects.set(`NIT_EXCEPTION:${id}`, subject);
     for (const [id, subject] of cancellations) subjects.set(`CANCELLATION:${id}`, subject);
     for (const [id, subject] of shifts) subjects.set(`CASH_DIFFERENCE:${id}`, subject);
     for (const [id, subject] of returns) subjects.set(`RETURN:${id}`, subject);
@@ -189,6 +191,31 @@ export class ApprovalsInboxService {
           registerName: sale.shift?.register.name ?? null,
           pieces: null,
           amount: outflow(sale.total),
+          ownerId: null,
+        },
+      ]),
+    );
+  }
+
+  /** A NIT exception is about an invoice the SIN refused (HU-FAC-08); the card names the invoice, its sale and the customer. */
+  private async nitExceptionSubjects(ids: string[], branchIds: string[] | null): Promise<Map<string, Subject>> {
+    if (ids.length === 0) return new Map();
+    const scope = await this.visibility.resolve();
+    const invoices = await this.prisma.tenant.invoice.findMany({
+      where: { AND: [{ id: { in: ids } }, { sale: scope.where }, branchIds ? { branchId: { in: branchIds } } : {}] },
+      select: { id: true, number: true, total: true, customerTaxName: true, sale: { select: { number: true } } },
+    });
+    return new Map(
+      invoices.map((invoice) => [
+        invoice.id,
+        {
+          number: invoice.number === null ? invoice.sale.number : String(invoice.number).padStart(6, '0'),
+          saleNumber: invoice.sale.number,
+          customerName: invoice.customerTaxName,
+          registerName: null,
+          pieces: null,
+          // no money leaves the company: the invoice is just issued with an unverified NIT
+          amount: null,
           ownerId: null,
         },
       ]),

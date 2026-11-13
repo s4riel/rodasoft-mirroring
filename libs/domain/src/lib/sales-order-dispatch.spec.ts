@@ -36,7 +36,7 @@ describe('quantities', () => {
 
 describe('isInvoicedStatus', () => {
   it('counts an invoice waiting for the SIAT, in process, issued or observed', () => {
-    for (const status of ['PENDING', 'SENDING', 'VALID', 'CONTINGENCY', 'OBSERVED']) expect(isInvoicedStatus(status)).toBe(true);
+    for (const status of ['PENDING', 'SENDING', 'VALID']) expect(isInvoicedStatus(status)).toBe(true);
   });
 
   it('does not count a cancelled, rejected or being-cancelled invoice, or a missing one', () => {

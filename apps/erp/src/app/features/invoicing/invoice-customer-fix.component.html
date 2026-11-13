@@ -1,0 +1,74 @@
+<section class="card" aria-labelledby="fix-title" data-testid="invoice-customer-fix">
+  <h2 class="card-title" id="fix-title">Datos del cliente</h2>
+
+  @if (invoice().pendingNitException) {
+    <rs-note type="info" title="Excepción de NIT pendiente" data-testid="fix-exception-pending">
+      Gerencia está revisando la excepción. Cuando la apruebe, la factura se enviará de nuevo.
+    </rs-note>
+  }
+  @if (invoice().nitException) {
+    <rs-note type="info" title="Excepción de NIT aprobada" data-testid="fix-exception-approved">La factura puede enviarse aunque el SIN no reconozca el NIT.</rs-note>
+  }
+
+  <div class="grid">
+    <rs-field label="Nombre o razón social" forId="fix-name">
+      <input #nameBox rsInput id="fix-name" autocomplete="off" [value]="name()" (input)="name.set(nameBox.value)" />
+    </rs-field>
+    <rs-field label="Tipo de documento">
+      <rs-select ariaLabel="Tipo de documento" [options]="documentTypes" [value]="documentType()" (valueChange)="setDocumentType($event)" />
+    </rs-field>
+    <rs-field label="NIT o CI" forId="fix-number" [error]="numberError()">
+      <input
+        #numberBox
+        rsInput
+        id="fix-number"
+        autocomplete="off"
+        [value]="documentNumber()"
+        (input)="documentNumber.set(numberBox.value)"
+        (blur)="touched.set(true)"
+      />
+    </rs-field>
+    @if (!isNitSelected()) {
+      <rs-field label="Complemento" forId="fix-complement">
+        <input #complementBox rsInput id="fix-complement" maxlength="2" autocomplete="off" [value]="complement()" (input)="complement.set(complementBox.value)" />
+      </rs-field>
+    }
+  </div>
+
+  @if (verification(); as v) {
+    <rs-note [type]="v.valid ? 'info' : 'danger'" [title]="v.valid ? 'NIT verificado' : 'El SIN no reconoce el NIT'" data-testid="fix-verification">{{ v.message }}</rs-note>
+  } @else if (isNit() && verified()) {
+    <rs-note type="info" title="NIT verificado" data-testid="fix-verified">El SIN reconoce este NIT.</rs-note>
+  }
+
+  @if (error(); as message) {
+    <rs-note type="danger" title="No pudimos completar la acción" data-testid="fix-error">{{ message }}</rs-note>
+  }
+
+  <div class="actions" *rsCan="'invoicing.invoices.issue'">
+    <button rsButton variant="secondary" type="button" data-testid="fix-save" [disabled]="!canSave()" [loading]="busy() === 'save'" (click)="save()">Guardar cambios</button>
+    @if (isNit()) {
+      <button rsButton variant="secondary" type="button" data-testid="fix-verify" [disabled]="!canVerify()" [loading]="busy() === 'verify'" (click)="verify()">Verificar NIT</button>
+    }
+  </div>
+</section>
+
+@if (canAskException()) {
+  <rs-note type="warning" title="¿El cliente insiste en este NIT?" data-testid="fix-exception-note">
+    Puedes emitir con excepción de NIT. Requiere aprobación de Gerencia y queda en auditoría. Confirma con tu contador si aplica a este cliente.
+  </rs-note>
+}
+@if (isNit() && verified() && !invoice().nitException && !invoice().pendingNitException) {
+  <rs-note type="info" title="Listo para reenviar" data-testid="fix-ready">Al reenviar, la factura vuelve al SIAT y su estado se actualiza aquí.</rs-note>
+}
+@if (isNit() && !verified() && !invoice().nitException) {
+  <p class="hint">Para reenviar, verifica el NIT con el SIN o pide una excepción a Gerencia.</p>
+}
+<div class="footer-actions" *rsCan="'invoicing.invoices.issue'">
+  @if (canAskException()) {
+    <button rsButton variant="secondary" type="button" data-testid="fix-exception" (click)="exceptionOpen.set(true)">Emitir con excepción de NIT</button>
+  }
+  <button rsButton variant="primary" type="button" data-testid="fix-resend" [disabled]="!canSend()" [loading]="busy() === 'resend'" (click)="resend()">Reenviar al SIAT</button>
+</div>
+
+<rs-nit-exception-dialog [(open)]="exceptionOpen" [invoiceId]="invoice().id" (requested)="changed.emit()" />

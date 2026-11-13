@@ -1,4 +1,4 @@
-import { CANCELLATION_REASONS, cancellationImpact, type CancellationImpact, type CancellationReason, Decimal, saleItemsCount, type PaymentMethod, type SaleHistoryEntry, type SaleListItem, type SaleListQuery, type SaleStatus } from '@rodasoft/domain';
+import { SIAT_CANCELLATION_REASONS, CANCELLATION_REASONS, cancellationImpact, type CancellationImpact, type CancellationReason, Decimal, saleItemsCount, type PaymentMethod, type SaleHistoryEntry, type SaleListItem, type SaleListQuery, type SaleStatus } from '@rodasoft/domain';
 import type { DocTableCell, DocTableRow, DocTableStatus, RowMenuItem, SelectOption } from '@rodasoft/ui';
 import { formatBs, formatDateTime } from '../cash/cash-format';
 
@@ -188,6 +188,9 @@ export const CANCELLATION_REASON_LABELS: Record<CancellationReason, string> = {
 export const CANCELLATION_REASON_OPTIONS = CANCELLATION_REASONS.map((value) => ({ value, label: CANCELLATION_REASON_LABELS[value] }));
 
 export function cancellationReasonLabel(reason: string): string {
+  // a reason chosen from the invoice is a code of the SIN table (HU-FAC-09)
+  const sin = /^SIN_(\d+)$/.exec(reason);
+  if (sin) return SIAT_CANCELLATION_REASONS.find((r) => r.code === Number(sin[1]))?.description ?? reason;
   return Object.hasOwn(CANCELLATION_REASON_LABELS, reason) ? CANCELLATION_REASON_LABELS[reason as CancellationReason] : reason;
 }
 

@@ -38,3 +38,4 @@ export * from './lib/quote-tracking';
 export * from './lib/cash-register';
 export * from './lib/pricing';
 export * from './lib/approvals';
+export * from './lib/invoicing';

@@ -20,18 +20,21 @@ import {
   isWithinCancellationWindow,
   SALE_REF_TYPE,
   saleMachine,
+  siatCancellationReasonCode,
   validateCancellationDecision,
   validateCancellationRequest,
   type SaleCancellationResponse,
   type SaleCancellationState,
   type SaleStatus,
 } from '@rodasoft/domain';
+import { SiatUnavailableError } from '@rodasoft/siat';
 import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../../../common/audit/audit.service';
 import type { AppClsStore } from '../../../common/cls';
 import { OutboxService } from '../../../common/outbox/outbox.service';
 import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
+import { SiatGatewayFactory } from '../../../common/siat/siat-gateway.factory';
 import { MembershipService } from '../../access/membership.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { posErrors } from '../pos/pos.errors';
@@ -92,6 +95,7 @@ export class SaleCancellationService {
     private readonly visibility: SaleVisibilityService,
     private readonly membership: MembershipService,
     private readonly stock: StockMovementService,
+    private readonly gateways: SiatGatewayFactory,
   ) {}
 
   /** `COMPLETED → CANCELLATION_PENDING`, with a pending request that carries the reason and the cashier's comment. */
@@ -162,6 +166,7 @@ export class SaleCancellationService {
     return this.prisma.tenant.$transaction(async (tx) => {
       const { locked, pending } = await this.lockPendingCancellation(tx, saleId, companyId);
       if (pending.requestedById !== userId && !granted.has('sales.cancellations.approve')) throw cancellationErrors.withdrawForbidden();
+      await this.requireNotInSiatCancellation(tx, saleId);
 
       const next = saleMachine.next(locked.status, 'withdrawCancellation');
       const requestStatus = approvalRequestMachine.next('PENDING', 'withdraw');
@@ -241,6 +246,8 @@ export class SaleCancellationService {
     const comment = this.reply('APPROVE', input);
     const companyId = this.requireCompany();
     const userId = this.requireUser();
+    // a valid invoice is cancelled in the SIAT first, outside any transaction (HU-FAC-10); null when the invoice never got there
+    const siat = await this.cancelInvoiceInSiat(saleId, companyId);
 
     return this.prisma.tenant.$transaction(async (tx) => {
       const scope = await this.visibility.resolve();
@@ -259,9 +266,16 @@ export class SaleCancellationService {
 
       // read after the lock: the SIAT epic may have moved the invoice meanwhile
       const invoice = await tx.invoice.findUniqueOrThrow({ where: { saleId }, select: { id: true, status: true } });
-      const invoiceAction = invoiceCancellationAction(invoice.status as InvoiceStatus);
-      const invoiceEvent = invoiceCancellationEvent(invoice.status as InvoiceStatus);
+      // after the SIAT cancelled it the invoice waits in CANCELLATION_PENDING for this commit; otherwise the local rules apply
+      const invoiceAction = siat ? 'REQUEST_SIAT_CANCELLATION' : invoiceCancellationAction(invoice.status as InvoiceStatus);
+      const invoiceEvent = siat
+        ? invoice.status === 'CANCELLATION_PENDING'
+          ? ('approveCancellation' as const)
+          : null
+        : invoiceCancellationEvent(invoice.status as InvoiceStatus);
       if (!invoiceEvent) throw cancellationErrors.invoiceNotCancellable(invoice.status);
+      // the invoice was issued after the SIAT step decided it needed no SIAT call: approving again goes through the SIAT
+      if (!siat && (invoice.status === 'VALID' || invoice.status === 'CANCELLATION_PENDING')) throw cancellationErrors.invoiceNotCancellable(invoice.status);
 
       const nextSale = saleMachine.next(locked.status, 'approveCancellation');
       const nextRequest = approvalRequestMachine.next('PENDING', 'approve');
@@ -270,7 +284,10 @@ export class SaleCancellationService {
       await this.returnStock(tx, sale, locked.number);
       if (refundShiftId) await this.refundCash(tx, { companyId, shiftId: refundShiftId, amount: impact.cashRefund, saleId, saleNumber: locked.number, userId });
 
-      await tx.invoice.update({ where: { id: invoice.id }, data: { status: nextInvoice } });
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { status: nextInvoice, cancelledAt: new Date(), ...(siat ? { cancellationReasonCode: siat.reasonCode } : {}) },
+      });
       await tx.sale.update({ where: { id: saleId }, data: { status: nextSale } });
       await tx.approvalRequest.update({ where: { id: pending.id }, data: { status: nextRequest, decidedById: userId, decidedAt: new Date(), comment } });
 
@@ -325,6 +342,7 @@ export class SaleCancellationService {
 
     return this.prisma.tenant.$transaction(async (tx) => {
       const { locked, pending } = await this.lockPendingCancellation(tx, saleId, companyId);
+      await this.requireNotInSiatCancellation(tx, saleId);
 
       const nextSale = saleMachine.next(locked.status, 'rejectCancellation');
       const nextRequest = approvalRequestMachine.next('PENDING', 'reject');
@@ -395,12 +413,106 @@ export class SaleCancellationService {
     };
   }
 
+  /**
+   * HU-FAC-10 · Cancels a valid invoice in the SIAT before any stock or cash moves, in three steps so no transaction is open while the
+   * SIAT is called: (A) under the sale lock the invoice goes `VALID → CANCELLATION_PENDING`; (B) the SIAT is asked; (C) is the commit
+   * of `approve`. If the SIAT does not answer or refuses, the invoice goes back to `VALID`, nothing else was touched and the request
+   * stays pending. An invoice already in `CANCELLATION_PENDING` is a crash between B and C: the SIAT is asked what it did, so it is
+   * never cancelled twice. Returns null when the invoice needs no SIAT call (never issued, or rejected: it is voided locally).
+   */
+  private async cancelInvoiceInSiat(saleId: string, companyId: string): Promise<{ reasonCode: number } | null> {
+    const start = await this.prisma.tenant.$transaction(async (tx) => {
+      const { pending } = await this.lockPendingCancellation(tx, saleId, companyId);
+      // the approver must be able to see the sale before the SIAT is touched: a refusal after it would leave the SIAT cancelled and the sale open
+      const scope = await this.visibility.resolve();
+      if (!(await tx.sale.findFirst({ where: { AND: [{ id: saleId }, scope.where] }, select: { id: true } }))) throw posErrors.saleNotFound();
+      const invoice = await tx.invoice.findUniqueOrThrow({ where: { saleId }, select: { id: true, status: true, cuf: true } });
+      if (invoice.status !== 'VALID' && invoice.status !== 'CANCELLATION_PENDING') return null;
+      if (!invoice.cuf) throw cancellationErrors.invoiceNotCancellable(invoice.status);
+      // what the local commit will need is checked before the SIAT is touched: once it cancels, only a re-approval can finish
+      await this.requireLocalCommitPossible(tx, saleId);
+      // the reason of the request decides the SIN code; anything the table does not know goes as the generic "badly issued"
+      const reasonCode = siatCancellationReasonCode(pending.reason ?? '') ?? 1;
+      const resumed = invoice.status === 'CANCELLATION_PENDING';
+      if (!resumed) {
+        const next = invoiceMachine.next('VALID', 'requestCancellation');
+        await tx.invoice.update({ where: { id: invoice.id }, data: { status: next } });
+        await this.audit.log(
+          { action: 'invoicing.invoice.cancellation-start', entity: 'Invoice', entityId: invoice.id, before: { status: 'VALID' }, after: { status: next, reasonCode } },
+          tx as unknown as Prisma.TransactionClient,
+        );
+      }
+      return { invoiceId: invoice.id, cuf: invoice.cuf, reasonCode, resumed };
+    });
+    if (!start) return null;
+
+    try {
+      const gateway = await this.gateways.forCurrentCompany();
+      // always ask first: another approval (or a crash before the commit) may already have got the SIAT to cancel it
+      const known = await gateway.invoiceStatus(start.cuf);
+      if (known.status !== 'CANCELLED') {
+        const result = await gateway.cancelInvoice(start.cuf, start.reasonCode);
+        if (!result.cancelled) {
+          // a refusal is only final when the SIAT still holds the invoice as valid
+          const after = await gateway.invoiceStatus(start.cuf);
+          if (after.status !== 'CANCELLED') {
+            await this.revertSiatCancellation(saleId, companyId, start.invoiceId, 'refused');
+            throw cancellationErrors.siatRefused(result.messages);
+          }
+        }
+      }
+    } catch (err) {
+      if (err instanceof SiatUnavailableError) {
+        // only the attempt that moved the invoice to CANCELLATION_PENDING gives it back: for a resumed one the SIAT's real state is unknown
+        if (!start.resumed) await this.revertSiatCancellation(saleId, companyId, start.invoiceId, 'unavailable');
+        throw cancellationErrors.siatUnavailable();
+      }
+      throw err;
+    }
+    return { reasonCode: start.reasonCode };
+  }
+
+  /** The refund has an open shift to leave from and the warehouse can take the stock back: the two refusals of the local commit. */
+  private async requireLocalCommitPossible(tx: TenantTransaction, saleId: string): Promise<void> {
+    const sale = await tx.sale.findFirstOrThrow({ where: { id: saleId }, include: DECISION_INCLUDE });
+    if (Decimal.of(impactOf(sale).cashRefund).cmp(Decimal.zero()) > 0 && sale.shift) {
+      const open = await tx.cashShift.findFirst({ where: { registerId: sale.shift.registerId, status: 'OPEN' }, select: { id: true } });
+      if (!open) throw cancellationErrors.refundShiftNotOpen(sale.shift.register.name);
+    }
+    const warehouse = await tx.warehouse.findFirst({ where: { id: sale.warehouseId }, select: { status: true } });
+    if (warehouse?.status === 'INACTIVE') throw cancellationErrors.warehouseInactive(sale.warehouse.name);
+  }
+
+  /**
+   * While the SIAT cancellation of the invoice is under way (`CANCELLATION_PENDING`) the request can only be approved: withdrawing or
+   * rejecting it now would leave a sale that is open next to an invoice the SIAT has cancelled.
+   */
+  private async requireNotInSiatCancellation(tx: TenantTransaction, saleId: string): Promise<void> {
+    const invoice = await tx.invoice.findUnique({ where: { saleId }, select: { status: true } });
+    if (invoice?.status === 'CANCELLATION_PENDING') throw cancellationErrors.inProgress();
+  }
+
+  /** The SIAT did not cancel: the invoice is valid again and the request waits for a new decision. */
+  private async revertSiatCancellation(saleId: string, companyId: string, invoiceId: string, why: 'unavailable' | 'refused'): Promise<void> {
+    await this.prisma.tenant.$transaction(async (tx) => {
+      await this.lockSale(tx, saleId, companyId);
+      const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { status: true } });
+      if (invoice.status !== 'CANCELLATION_PENDING') return;
+      const next = invoiceMachine.next('CANCELLATION_PENDING', 'rejectCancellation');
+      await tx.invoice.update({ where: { id: invoiceId }, data: { status: next } });
+      await this.audit.log(
+        { action: 'invoicing.invoice.cancellation-revert', entity: 'Invoice', entityId: invoiceId, before: { status: 'CANCELLATION_PENDING' }, after: { status: next, why } },
+        tx as unknown as Prisma.TransactionClient,
+      );
+    });
+  }
+
   /** The sale locked and its open cancellation request; fails when the sale is not waiting for a decision. */
   private async lockPendingCancellation(tx: TenantTransaction, saleId: string, companyId: string) {
     const locked = await this.lockSale(tx, saleId, companyId);
     const pending = await tx.approvalRequest.findFirst({
       where: { type: 'CANCELLATION', subjectId: saleId, status: 'PENDING' },
-      select: { id: true, requestedById: true },
+      select: { id: true, requestedById: true, reason: true },
     });
     if (!pending || locked.status !== 'CANCELLATION_PENDING') throw cancellationErrors.notPending();
     return { locked, pending };

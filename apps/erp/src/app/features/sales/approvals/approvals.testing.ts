@@ -67,6 +67,19 @@ export const EXPENSE_ITEM = approvalItem({
   requestedAt: HOURS_AGO(1),
 });
 
+export const NIT_EXCEPTION_ITEM = approvalItem({
+  id: 'r-nit',
+  type: 'NIT_EXCEPTION',
+  subjectId: 'inv1',
+  number: '000004',
+  saleNumber: 'V-000124',
+  customerName: 'Industrias Demo S.A.',
+  reason: 'NIT_EXCEPTION',
+  comment: 'El cliente no recuerda su NIT',
+  amount: null,
+  requestedAt: HOURS_AGO(2),
+});
+
 export const ALL_ITEMS: ApprovalInboxItem[] = [CANCELLATION_ITEM, DIFFERENCE_ITEM, RETURN_ITEM, EXPENSE_ITEM];
 
 export function approvalInbox(over: Partial<ApprovalInboxResponse> = {}, items: ApprovalInboxItem[] = ALL_ITEMS, types: readonly ApprovalType[] = APPROVAL_TYPES): ApprovalInboxResponse {

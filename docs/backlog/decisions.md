@@ -48,3 +48,14 @@ Same rule: parameterize in the per-company settings table with the default below
 | 54 | Rounding rule (integer or Bs 0.50); who sees costs in exported lists | VEN-35, REP-07 | `sales.roundingMode` = `NONE` until answered; costs only with `inventory.costs.view` |
 
 When the client answers, update this table and the Sheet, and change the default value in the settings seed.
+
+## Invoicing (HU-FAC)
+
+| No. | Question | Stories | Default value meanwhile |
+| --- | -------- | ------- | ----------------------- |
+| — | Contingency when the SIAT is down | FAC-01…10, 14…17 | **Answered 12 Nov (client rule):** no contingency. The invoice stays `PENDING` ("No facturada en SIAT"), nothing is retried, the ERP says which invoices are still not issued when the SIAT is back and a person issues them. HU-FAC-14…17 retired |
+| 21 | Is a NIT exception allowed and who approves it | FAC-08 | Allowed (`invoicing.allowNitException` = `true`); approved with `invoicing.nit-exception.approve` |
+| 22 | Cancellation reasons and deadline | FAC-09, FAC-10 | The four SIN reasons as the catalogue (replaced by the synced one in HU-FAC-25); deadline = `sales.cancellationWindowDays` (no limit) |
+| 31 | Modality and economic sector | FAC-04 | Modality read from `SiatSettings.modality`; sector 1 (purchase-sale) |
+
+Cancellation never moves stock or cash without the SIAT: if it is offline or refuses, the approval is blocked and the request stays pending.
