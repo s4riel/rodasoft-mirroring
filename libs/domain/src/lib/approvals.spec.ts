@@ -15,7 +15,7 @@ describe('approvals', () => {
   });
 
   it('decides only returns and cash expenses inline', () => {
-    expect([...APPROVAL_INLINE_TYPES]).toEqual(['RETURN', 'CASH_EXPENSE']);
+    expect([...APPROVAL_INLINE_TYPES]).toEqual(['RETURN', 'CASH_EXPENSE', 'NIT_EXCEPTION']);
     expect(isInlineApprovalType('RETURN')).toBe(true);
     expect(isInlineApprovalType('CANCELLATION')).toBe(false);
     expect(isInlineApprovalType('CASH_DIFFERENCE')).toBe(false);

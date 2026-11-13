@@ -28,6 +28,7 @@ import { StockMovementService } from '../../inventory/stock-movement.service';
 import { StockReservationService } from '../../inventory/stock-reservation.service';
 import { nextDocumentNumber } from '../document-sequence';
 import { invoiceDataOf } from '../pos/pos-invoice-data';
+import { pointOfSaleOfSale, publishFirstIssueAttempt } from '../../../common/siat/invoice-intake';
 import { quoteErrors } from '../quotes/quotes.errors';
 import { dispatchErrors, dispatchIssueError } from './sales-order-dispatch.errors';
 import { SalesOrdersService } from './sales-orders.service';
@@ -156,11 +157,14 @@ export class SalesOrderDispatchService {
       const saleId = await this.createSale(tx, order, lines, totals, { saleNumber, companyId, userId });
       await this.moveStock(tx, order, lines, { saleId, saleNumber, dispatchNumber });
 
-      // no SIAT call here: the invoice is a PENDING record that the SIAT epic issues (HU-FAC)
-      await tx.invoice.create({
+      // no SIAT call here: the invoice is a PENDING record; the worker issues it after the commit (HU-FAC-01…10)
+      const createdInvoice = await tx.invoice.create({
+        select: { id: true },
         data: {
           companyId,
           saleId,
+          branchId: order.branchId,
+          pointOfSaleId: await pointOfSaleOfSale(tx, { branchId: order.branchId }),
           status: 'PENDING',
           total: totals.total.toString(),
           customerTaxName: invoice.name,
@@ -168,6 +172,7 @@ export class SalesOrderDispatchService {
           customerDocumentNumber: invoice.documentNumber,
         },
       });
+      await publishFirstIssueAttempt({ settings: this.settings, outbox: this.outbox }, tx, createdInvoice.id);
 
       const dispatch = await tx.dispatch.create({
         data: {

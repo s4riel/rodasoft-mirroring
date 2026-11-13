@@ -12,12 +12,12 @@ import {
   decisionHeading,
   oldestText,
 } from './approval-format';
-import { approvalItem, CANCELLATION_ITEM, DIFFERENCE_ITEM, EXPENSE_ITEM, RETURN_ITEM } from './approvals.testing';
+import { approvalItem, CANCELLATION_ITEM, DIFFERENCE_ITEM, EXPENSE_ITEM, NIT_EXCEPTION_ITEM, RETURN_ITEM } from './approvals.testing';
 
 describe('approval formats (HU-VEN-29)', () => {
   it('names each type once for the card and once for the section', () => {
-    expect(Object.values(APPROVAL_TYPE_LABELS)).toEqual(['Anulación', 'Diferencia de caja', 'Devolución', 'Gasto de caja']);
-    expect(Object.values(APPROVAL_GROUP_LABELS)).toEqual(['Anulaciones', 'Diferencias de caja', 'Devoluciones', 'Gastos de caja']);
+    expect(Object.values(APPROVAL_TYPE_LABELS)).toEqual(['Anulación', 'Diferencia de caja', 'Devolución', 'Gasto de caja', 'Excepción de NIT']);
+    expect(Object.values(APPROVAL_GROUP_LABELS)).toEqual(['Anulaciones', 'Diferencias de caja', 'Devoluciones', 'Gastos de caja', 'Excepciones de NIT']);
   });
 
   it('translates the reason of each type', () => {
@@ -89,5 +89,15 @@ describe('approval formats (HU-VEN-29)', () => {
     expect(decisionHeading('RETURN', 'reject')).toBe('Rechazar devolución');
     expect(decisionHeading('CASH_EXPENSE', 'approve')).toBe('Aprobar gasto de caja');
     expect(decisionHeading('CASH_EXPENSE', 'reject')).toBe('Rechazar gasto de caja');
+  });
+
+  it('describes a NIT exception: the invoice, its sale and customer, the reason, and where to review it', () => {
+    expect(approvalTitle(NIT_EXCEPTION_ITEM)).toBe('Factura 000004 · venta V-000124 · Industrias Demo S.A.');
+    expect(approvalReasonLabel(NIT_EXCEPTION_ITEM)).toBe('NIT no reconocido por el SIN');
+    expect(approvalDetailLink(NIT_EXCEPTION_ITEM)).toBe('/invoicing/invoices/inv1');
+    expect(approvalDetail(NIT_EXCEPTION_ITEM)).toContain('El cliente no recuerda su NIT');
+    expect(decisionHeading('NIT_EXCEPTION', 'approve')).toBe('Aprobar excepción de NIT');
+    expect(decisionHeading('NIT_EXCEPTION', 'reject')).toBe('Rechazar excepción de NIT');
+    expect(canDecideInline(NIT_EXCEPTION_ITEM)).toBe(true);
   });
 });

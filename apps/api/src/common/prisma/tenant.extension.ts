@@ -43,6 +43,7 @@ export const TENANT_MODELS = new Set<Prisma.ModelName>([
   'SaleItem',
   'SalePayment',
   'Invoice',
+  'InvoiceDocument',
   'Quote',
   'QuoteItem',
   'SalesOrder',
@@ -63,6 +64,8 @@ export const UNSCOPED_MODELS = new Set<string>([
   'OutboxEvent',
   'RefreshToken',
   'SiatSettings',
+  // the simulated SIN is shared by the API and the worker; its store filters by company itself (development only)
+  'SimulatedSiatRecord',
   'Company',
 ]);
 

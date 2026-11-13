@@ -1,0 +1,29 @@
+<rs-modal [(open)]="open" variant="form" size="default" heading="Emitir con excepción de NIT" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">Úsala solo si el cliente confirma que su NIT es correcto y el SIAT no lo reconoce. Requiere aprobación de Gerencia y queda en auditoría.</p>
+
+    <rs-field label="Motivo de la excepción" forId="nit-exception-reason" hint="Se guarda con el usuario y la fecha." [error]="reasonError()">
+      <textarea
+        #reasonBox
+        rsTextarea
+        autosize
+        id="nit-exception-reason"
+        rows="3"
+        placeholder="El cliente confirma su NIT por escrito"
+        [attr.maxlength]="reasonMax"
+        [value]="reason()"
+        (input)="reason.set(reasonBox.value)"
+        (blur)="touched.set(true)"
+      ></textarea>
+    </rs-field>
+
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos enviar la solicitud">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Volver</button>
+    <button rsButton variant="primary" type="button" data-testid="nit-exception-send" [disabled]="!canSend()" [loading]="saving()" (click)="send()">Solicitar aprobación</button>
+  </div>
+</rs-modal>

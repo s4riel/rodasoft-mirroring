@@ -96,11 +96,13 @@ describe('validateCancellationDecision', () => {
 
 describe('invoice cancellation', () => {
   it('voids an invoice that never left, asks the SIAT for a valid one and refuses the rest', () => {
-    expect(invoiceCancellationAction('PENDING')).toBe('VOID');
-    expect(invoiceCancellationEvent('PENDING')).toBe('void');
+    for (const status of ['PENDING', 'REJECTED'] as const) {
+      expect(invoiceCancellationAction(status)).toBe('VOID');
+      expect(invoiceCancellationEvent(status)).toBe('void');
+    }
     expect(invoiceCancellationAction('VALID')).toBe('REQUEST_SIAT_CANCELLATION');
     expect(invoiceCancellationEvent('VALID')).toBe('requestCancellation');
-    for (const status of ['SENDING', 'REJECTED', 'CONTINGENCY', 'OBSERVED', 'CANCELLATION_PENDING', 'CANCELLED'] as const) {
+    for (const status of ['SENDING', 'CANCELLATION_PENDING', 'CANCELLED'] as const) {
       expect(invoiceCancellationAction(status)).toBe('BLOCKED');
       expect(invoiceCancellationEvent(status)).toBeNull();
     }

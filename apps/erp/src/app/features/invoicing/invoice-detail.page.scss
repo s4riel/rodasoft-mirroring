@@ -1,0 +1,121 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.note-comment {
+  display: block;
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-4);
+}
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+  &.single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.main,
+.side {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.card-title {
+  margin: 0;
+  font-size: var(--body-lg-size);
+  color: var(--text-primary);
+}
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+.line {
+  margin: 0;
+  color: var(--text-primary);
+}
+.muted {
+  margin: 0;
+  color: var(--text-muted);
+}
+.graphic {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.graphic rs-qr-code {
+  flex: none;
+  width: calc(var(--space-12) * 2);
+}
+.graphic-text {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.cuf {
+  font-family: var(--font-mono);
+  font-size: var(--mono-md-size);
+}
+.state-text[data-status='VALID'] {
+  color: var(--status-success);
+}
+.link {
+  margin-left: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  &:focus-visible {
+    outline: var(--stroke-focus) solid var(--focus-control);
+    outline-offset: var(--focus-offset);
+  }
+}
+.entry {
+  display: grid;
+  grid-template-columns: var(--space-12) 1fr;
+  gap: var(--space-3);
+  color: var(--text-primary);
+}
+.time {
+  font-family: var(--font-mono);
+}
+.footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+@media (max-width: 64rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

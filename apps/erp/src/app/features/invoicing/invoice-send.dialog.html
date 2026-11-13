@@ -1,0 +1,42 @@
+<rs-modal [(open)]="open" variant="form" size="default" [heading]="heading()" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">El cliente recibe el PDF con el QR y el XML adjunto. Queda registrado en el historial.</p>
+
+    <rs-field label="Correo" forId="invoice-send-email" hint="Se envía a este correo." [error]="emailError()">
+      <input
+        #emailBox
+        rsInput
+        id="invoice-send-email"
+        type="email"
+        autocomplete="off"
+        placeholder="cliente@correo.com"
+        [value]="email()"
+        (input)="email.set(emailBox.value)"
+        (blur)="touched.set(true)"
+      />
+    </rs-field>
+
+    <rs-field label="WhatsApp" forId="invoice-send-phone" hint="Se envía el enlace de descarga." [error]="phoneError()">
+      <input
+        #phoneBox
+        rsInput
+        id="invoice-send-phone"
+        type="tel"
+        autocomplete="off"
+        placeholder="7 123 4567"
+        [value]="phone()"
+        (input)="phone.set(phoneBox.value)"
+        (blur)="touched.set(true)"
+      />
+    </rs-field>
+
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos enviar la factura">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="invoice-send" [disabled]="!canSend()" [loading]="saving()" (click)="send()">Enviar</button>
+  </div>
+</rs-modal>

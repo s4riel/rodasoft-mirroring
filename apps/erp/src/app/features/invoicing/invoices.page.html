@@ -1,0 +1,157 @@
+<rs-page-header
+  title="Facturas"
+  description="Estado de cada factura ante el SIAT. Abre una factura para descargar, reenviar o anular."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <a *rsCan="'sales.cancellations.approve'" rsButton variant="secondary" routerLink="/invoicing/cancellations" data-testid="invoice-cancellations-link">Anulaciones por aprobar</a>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver las facturas"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  @if (kpis(); as k) {
+    <section class="kpis" aria-label="Indicadores del día" data-testid="invoice-kpis">
+      <rs-kpi-card label="Emitidas hoy" [value]="k.issuedToday.count + ' · ' + issuedTodayTotal()" />
+      <rs-kpi-card
+        label="No facturadas en SIAT"
+        [value]="'' + k.notIssued"
+        [note]="k.notIssued > 0 ? k.notIssued + ' por emitir' : 'Todo emitido'"
+        [trend]="k.notIssued > 0 ? 'negative' : 'neutral'"
+      />
+      <rs-kpi-card label="Rechazadas por el SIAT" [value]="'' + k.rejected" [note]="k.rejected > 0 ? k.rejected + ' por corregir' : ''" [trend]="k.rejected > 0 ? 'negative' : 'neutral'" />
+      <rs-kpi-card label="Anulaciones por aprobar" [value]="'' + k.cancellationsPending" />
+    </section>
+  }
+
+  @if (notIssuedCount() > 0) {
+    <rs-note type="warning" title="Hay facturas sin emitir en el SIAT" data-testid="invoice-not-issued-note">
+      Estas facturas no se enviaron porque el SIAT no respondió. No se reintentan solas: emítelas cuando el SIAT vuelva a estar en línea.
+      <button *rsCan="'invoicing.invoices.issue'" rsButton variant="secondary" type="button" [disabled]="issuing() || issuableIds().length === 0" [loading]="issuing()" (click)="issuePending()">
+        Emitir pendientes de esta página
+      </button>
+    </rs-note>
+  }
+
+  <rs-filter-bar-products
+    inline
+    searchPlaceholder="Buscar por N.º o cliente"
+    searchLabel="Buscar facturas"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-date-range-picker placeholder="Período" ariaLabel="Rango de fechas" [value]="range()" (valueChange)="setRange($event)" />
+      <rs-select placeholder="Estado SIAT" ariaLabel="Estado SIAT" [options]="statusOptions" [value]="filters().status" (valueChange)="setStatus($event)" />
+      @if (branchOptions().length > 1) {
+        <rs-select placeholder="Sucursal" ariaLabel="Sucursal" [options]="branchOptions()" [value]="filters().branchId" (valueChange)="setBranch($event)" />
+      }
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando facturas">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="26%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="14%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las facturas" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-invoices"
+            heading="Aún no hay facturas"
+            description="Cada venta cobrada genera su factura; aparecerá aquí."
+            [showAction]="false"
+          />
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="No encontramos facturas" description="Prueba con otros filtros o con otro número.">
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        @if (selected().length > 0) {
+          <div class="bulk" role="region" aria-label="Acciones sobre las facturas seleccionadas" data-testid="invoice-bulk-bar">
+            <span class="bulk-count">{{ selected().length }} {{ selected().length === 1 ? 'factura seleccionada' : 'facturas seleccionadas' }} · {{ selectedTotal() }}</span>
+            <button rsButton variant="secondary" type="button" [disabled]="bulkBusy()" (click)="downloadSelected('PDF')">Descargar PDF</button>
+            <button rsButton variant="secondary" type="button" [disabled]="bulkBusy()" (click)="downloadSelected('XML')">Descargar XML</button>
+            <button rsButton variant="secondary" type="button" [disabled]="bulkBusy()" (click)="emailSelected()">Enviar al cliente</button>
+            <button *rsCan="'invoicing.invoices.issue'" rsButton variant="primary" type="button" [disabled]="issuing()" (click)="issueSelected()">Emitir seleccionadas</button>
+            <button rsButton variant="ghost" type="button" (click)="clearSelection()">Limpiar selección</button>
+          </div>
+        }
+        <rs-doc-table
+          size="lg"
+          selectable
+          tableLabel="Facturas"
+          selectionHeader="Seleccionar facturas"
+          [maxSelected]="maxSelected"
+          [columns]="columns"
+          [rows]="rows()"
+          [totals]="totals()"
+          [(selectedIds)]="selected"
+        >
+          <ng-template rsDocCell="number" let-row>
+            @if (itemOf(row.id); as item) {
+              <a class="number" [routerLink]="['/invoicing/invoices', item.id]">{{ row.cells['number'] }}</a>
+            }
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <rs-row-action [label]="menuLabel(item)" [items]="menuFor(item)" (selected)="onAction(item, $event)" />
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeText() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+@if (target(); as t) {
+  <rs-invoice-preview-dialog [(open)]="previewOpen" [invoiceId]="t.id" [invoiceNumber]="t.number" />
+  <rs-invoice-send-dialog [(open)]="sendOpen" [invoiceId]="t.id" [invoiceNumber]="t.number" />
+  <rs-invoice-cancellation-dialog [(open)]="cancelOpen" [invoiceId]="t.id" [invoiceNumber]="t.number" [saleNumber]="t.saleNumber" [total]="t.total" (requested)="retry()" />
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

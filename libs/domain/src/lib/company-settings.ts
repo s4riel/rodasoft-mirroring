@@ -8,6 +8,14 @@ export type NitVerificationMode = (typeof NIT_VERIFICATION_MODES)[number];
 export const RECEIPT_FORMATS = ['TICKET_80MM', 'LETTER'] as const;
 export type ReceiptFormat = (typeof RECEIPT_FORMATS)[number];
 
+/** Which SIAT adapter issues the invoices: the built-in simulator, or the real SOAP one (HU-FAC-22…26; refused until it exists). */
+export const SIAT_GATEWAYS = ['SIMULATED', 'SOAP'] as const;
+export type SiatGatewayKind = (typeof SIAT_GATEWAYS)[number];
+
+/** Whether the simulated SIAT answers or not: the demo and test switch of the no-contingency flow (HU-FAC-01…10). */
+export const SIMULATOR_MODES = ['ONLINE', 'OFFLINE'] as const;
+export type SimulatorMode = (typeof SIMULATOR_MODES)[number];
+
 /**
  * Per-company settings (HU-INV-06). Each key is typed here with its default, so code always has a value even when
  * the company has no `company_settings` row. Defaults follow the open client decisions (#32, #37): a missing
@@ -58,6 +66,18 @@ export interface CompanySettings {
   'sales.bulkPriceRequiresApproval': boolean;
   /** Payment terms (days) the POS offers for a credit sale, besides "other" (decision #53, HU-VEN-34). */
   'sales.creditTermDays': number[];
+  /** Whether completing a sale makes a first attempt to issue its invoice (HU-FAC-01). Off: invoices are issued by hand. */
+  'invoicing.autoIssueOnSale': boolean;
+  /** Minutes between two checks of the SIAT connection (HU-FAC-01). */
+  'invoicing.statusCheckMinutes': number;
+  /** Minutes after which an invoice stuck in `SENDING` may be issued again (HU-FAC-01). */
+  'invoicing.sendingTimeoutMinutes': number;
+  /** Whether an invoice may be issued with an unverified NIT after an approval (decision #21, HU-FAC-08). */
+  'invoicing.allowNitException': boolean;
+  /** The SIAT adapter in use. `SOAP` is refused until the real adapter exists. */
+  'invoicing.siatGateway': SiatGatewayKind;
+  /** Demo and test switch of the simulated SIAT. */
+  'invoicing.simulatorMode': SimulatorMode;
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -85,6 +105,12 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'sales.cardPaymentEnabled': true,
   'sales.bulkPriceRequiresApproval': false,
   'sales.creditTermDays': [5, 15, 30],
+  'invoicing.autoIssueOnSale': true,
+  'invoicing.statusCheckMinutes': 2,
+  'invoicing.sendingTimeoutMinutes': 5,
+  'invoicing.allowNitException': true,
+  'invoicing.siatGateway': 'SIMULATED',
+  'invoicing.simulatorMode': 'ONLINE',
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */
@@ -100,6 +126,8 @@ const ENUM_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>>
   'sales.roundingMode': ROUNDING_MODES,
   'sales.nitVerification': NIT_VERIFICATION_MODES,
   'sales.receiptFormat': RECEIPT_FORMATS,
+  'invoicing.siatGateway': SIAT_GATEWAYS,
+  'invoicing.simulatorMode': SIMULATOR_MODES,
 };
 
 /** Settings that are a positive whole number or null (null = no limit); their default is null, so the type is not inferable from it. */

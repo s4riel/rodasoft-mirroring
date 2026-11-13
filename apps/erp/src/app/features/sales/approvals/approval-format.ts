@@ -9,6 +9,7 @@ export const APPROVAL_TYPE_LABELS: Record<ApprovalType, string> = {
   CASH_DIFFERENCE: 'Diferencia de caja',
   RETURN: 'Devolución',
   CASH_EXPENSE: 'Gasto de caja',
+  NIT_EXCEPTION: 'Excepción de NIT',
 };
 
 /** The heading of each section and the label of each chip. */
@@ -17,6 +18,7 @@ export const APPROVAL_GROUP_LABELS: Record<ApprovalType, string> = {
   CASH_DIFFERENCE: 'Diferencias de caja',
   RETURN: 'Devoluciones',
   CASH_EXPENSE: 'Gastos de caja',
+  NIT_EXCEPTION: 'Excepciones de NIT',
 };
 
 /** Who decides each type, for the note at the end of the screen (decisions #11, #15, #16, #17). */
@@ -32,6 +34,8 @@ export function approvalReasonLabel(item: Pick<ApprovalInboxItem, 'type' | 'reas
       return cancellationReasonLabel(item.reason);
     case 'RETURN':
       return returnReasonLabel(item.reason);
+    case 'NIT_EXCEPTION':
+      return 'NIT no reconocido por el SIN';
     default:
       return CONCEPT_LABELS.EXPENSE[item.reason] ?? item.reason;
   }
@@ -47,6 +51,10 @@ export function approvalTitle(item: ApprovalInboxItem): string {
     case 'RETURN': {
       const sale = item.saleNumber ? `${item.number} · venta ${item.saleNumber}` : item.number;
       return item.customerName ? `${sale} · ${item.customerName}` : sale;
+    }
+    case 'NIT_EXCEPTION': {
+      const invoice = item.saleNumber ? `Factura ${item.number} · venta ${item.saleNumber}` : `Factura ${item.number}`;
+      return item.customerName ? `${invoice} · ${item.customerName}` : invoice;
     }
     default:
       return item.registerName ? `Egreso de ${item.registerName} · turno ${item.number}` : `Egreso del turno ${item.number}`;
@@ -86,6 +94,8 @@ export function approvalDetailLink(item: Pick<ApprovalInboxItem, 'type' | 'subje
       return `/sales/cash-register/shifts/${item.subjectId}/review`;
     case 'RETURN':
       return `/sales/returns/${item.subjectId}`;
+    case 'NIT_EXCEPTION':
+      return `/invoicing/invoices/${item.subjectId}`;
     default:
       return `/sales/cash-register/movements/${item.subjectId}`;
   }
@@ -108,6 +118,6 @@ export function oldestText(oldestAt: string | null, now: Date = new Date()): str
 
 /** The heading of the decision dialog. */
 export function decisionHeading(type: ApprovalType, decision: 'approve' | 'reject'): string {
-  const noun = type === 'RETURN' ? 'devolución' : 'gasto de caja';
+  const noun = type === 'RETURN' ? 'devolución' : type === 'NIT_EXCEPTION' ? 'excepción de NIT' : 'gasto de caja';
   return decision === 'approve' ? `Aprobar ${noun}` : `Rechazar ${noun}`;
 }

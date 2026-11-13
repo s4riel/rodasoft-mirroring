@@ -175,4 +175,10 @@ describe('deciding a cancellation (HU-VEN-15)', () => {
       'Factura anulada · 8 piezas devueltas a Huayna Kapac · reembolso de QR Bs 1.280,00 a gestionar manualmente',
     );
   });
+
+  it('translates a reason chosen from the invoice with the SIN table and keeps an unknown one as it came', () => {
+    expect(cancellationReasonLabel('SIN_1')).toBe('Factura mal emitida');
+    expect(cancellationReasonLabel('SIN_3')).toBe('Datos de emisión incorrectos');
+    expect(cancellationReasonLabel('SIN_99')).toBe('SIN_99');
+  });
 });

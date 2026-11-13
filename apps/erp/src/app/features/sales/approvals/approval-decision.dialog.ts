@@ -4,6 +4,7 @@ import { APPROVAL_COMMENT_MAX, type ApprovalInboxItem } from '@rodasoft/domain';
 import { ButtonComponent, FieldComponent, ModalComponent, NoteComponent, TextareaDirective, ToastService } from '@rodasoft/ui';
 import type { Observable } from 'rxjs';
 import { problemOf } from '../../../core/api-error';
+import { InvoicingApi } from '../../invoicing/invoicing-api.service';
 import { CashApi } from '../cash/cash-api.service';
 import { ReturnsApi } from '../returns/returns-api.service';
 import { approvalAmount, approvalDescription, approvalTitle, decisionHeading } from './approval-format';
@@ -14,7 +15,7 @@ export type ApprovalDecision = 'approve' | 'reject';
 export type ApprovalDecisionOutcome = 'done' | 'stale';
 
 /** The codes that say the request no longer waits for a decision. */
-const NOT_PENDING_CODES = new Set(['RETURN_NOT_PENDING', 'CASH_MOVEMENT_NOT_PENDING']);
+const NOT_PENDING_CODES = new Set(['RETURN_NOT_PENDING', 'CASH_MOVEMENT_NOT_PENDING', 'NIT_EXCEPTION_NOT_PENDING']);
 
 /**
  * VP-25 · Aprobar / Rechazar from the inbox (HU-VEN-29). It decides a return or a cash expense through the endpoint of its own
@@ -31,6 +32,7 @@ const NOT_PENDING_CODES = new Set(['RETURN_NOT_PENDING', 'CASH_MOVEMENT_NOT_PEND
 export class ApprovalDecisionDialog {
   private readonly returns = inject(ReturnsApi);
   private readonly cash = inject(CashApi);
+  private readonly invoicing = inject(InvoicingApi);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -48,7 +50,7 @@ export class ApprovalDecisionDialog {
   protected readonly rejecting = computed(() => this.decision() === 'reject');
   protected readonly heading = computed(() => {
     const item = this.item();
-    return item && (item.type === 'RETURN' || item.type === 'CASH_EXPENSE') ? decisionHeading(item.type, this.decision()) : 'Decidir solicitud';
+    return item && (item.type === 'RETURN' || item.type === 'CASH_EXPENSE' || item.type === 'NIT_EXCEPTION') ? decisionHeading(item.type, this.decision()) : 'Decidir solicitud';
   });
   protected readonly title = computed(() => {
     const item = this.item();
@@ -119,6 +121,7 @@ export class ApprovalDecisionDialog {
     const approve = this.decision() === 'approve';
     if (item.type === 'RETURN') return approve ? this.returns.approve(item.subjectId, body) : this.returns.reject(item.subjectId, body);
     if (item.type === 'CASH_EXPENSE') return approve ? this.cash.approve(item.subjectId, body) : this.cash.reject(item.subjectId, body);
+    if (item.type === 'NIT_EXCEPTION') return approve ? this.invoicing.approveNitException(item.subjectId, body) : this.invoicing.rejectNitException(item.subjectId, body);
     // cancellations and cash differences are decided in their own review pages
     this.saving.set(false);
     return null;

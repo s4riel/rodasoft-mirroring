@@ -1,0 +1,60 @@
+<rs-page-header
+  title="Anulaciones por aprobar"
+  description="Solicitudes de anulación que esperan la aprobación de Gerencia."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando anulaciones">
+      @for (i of skeletonRows; track i) {
+        <div class="skeleton-row">
+          <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+          <rs-skeleton shape="text" width="30%" height="var(--space-4)" />
+          <rs-skeleton shape="text" width="20%" height="var(--space-4)" />
+        </div>
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver las anulaciones"
+        description="Solo quien aprueba anulaciones puede ver esta lista."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las anulaciones" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (items().length === 0) {
+      <section class="state">
+        <rs-empty-state-illustrated illustration="no-results" heading="No hay anulaciones por aprobar" description="Cuando alguien pida anular una factura, aparecerá aquí.">
+          <button rsButton variant="secondary" type="button" (click)="back()">Volver a facturas</button>
+        </rs-empty-state-illustrated>
+      </section>
+    } @else {
+      <rs-doc-table size="lg" tableLabel="Anulaciones por aprobar" [columns]="columns" [rows]="rows()" [totals]="totals()">
+        <ng-template rsDocCell="invoice" let-row>
+          @if (itemOf(row.id); as item) {
+            <a class="number" [routerLink]="['/invoicing/invoices', item.invoiceId]">{{ row.cells['invoice'] }}</a>
+          }
+        </ng-template>
+        <ng-template rsDocCell="review" let-row>
+          @if (itemOf(row.id); as item) {
+            <a class="review" [routerLink]="['/sales/history', item.saleId, 'cancellation']">Revisar</a>
+          }
+        </ng-template>
+      </rs-doc-table>
+    }
+  }
+}

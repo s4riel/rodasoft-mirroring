@@ -63,56 +63,58 @@ model Company {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  branches             Branch[]
-  warehouses           Warehouse[]
-  memberships          Membership[]
-  roles                Role[]
-  siatSettings         SiatSettings?
-  pointsOfSale         SiatPointOfSale[]
-  auditLogs            AuditLog[]
-  outboxEvents         OutboxEvent[]
-  countries            Country[]
-  brands               Brand[]
-  categories           Category[]
-  attributeDefinitions AttributeDefinition[]
-  products             Product[]
-  productDimensions    ProductDimension[]
-  stockLevels          StockLevel[]
-  stockThresholds      StockThreshold[]
-  stockMovements       StockMovement[]
-  equivalences         Equivalence[]
-  transfers            Transfer[]
-  transferItems        TransferItem[]
-  transferReceipts     TransferReceipt[]
-  transferReceiptItems TransferReceiptItem[]
-  stockAdjustments     StockAdjustment[]
-  stockAdjustmentItems StockAdjustmentItem[]
-  companySettings      CompanySetting[]
-  customers            Customer[]
-  cashRegisters        CashRegister[]
-  cashShifts           CashShift[]
-  cashMovements        CashMovement[]
-  cashCounts           CashCount[]
+  branches              Branch[]
+  warehouses            Warehouse[]
+  memberships           Membership[]
+  roles                 Role[]
+  siatSettings          SiatSettings?
+  pointsOfSale          SiatPointOfSale[]
+  auditLogs             AuditLog[]
+  outboxEvents          OutboxEvent[]
+  countries             Country[]
+  brands                Brand[]
+  categories            Category[]
+  attributeDefinitions  AttributeDefinition[]
+  products              Product[]
+  productDimensions     ProductDimension[]
+  stockLevels           StockLevel[]
+  stockThresholds       StockThreshold[]
+  stockMovements        StockMovement[]
+  equivalences          Equivalence[]
+  transfers             Transfer[]
+  transferItems         TransferItem[]
+  transferReceipts      TransferReceipt[]
+  transferReceiptItems  TransferReceiptItem[]
+  stockAdjustments      StockAdjustment[]
+  stockAdjustmentItems  StockAdjustmentItem[]
+  companySettings       CompanySetting[]
+  customers             Customer[]
+  cashRegisters         CashRegister[]
+  cashShifts            CashShift[]
+  cashMovements         CashMovement[]
+  cashCounts            CashCount[]
   cashShiftMethodTotals CashShiftMethodTotal[]
-  posCheckouts         PosCheckout[]
-  posCheckoutItems     PosCheckoutItem[]
-  posCheckoutPayments  PosCheckoutPayment[]
-  sales                Sale[]
-  saleItems            SaleItem[]
-  salePayments         SalePayment[]
-  invoices             Invoice[]
-  quotes               Quote[]
-  quoteItems           QuoteItem[]
-  salesOrders          SalesOrder[]
-  salesOrderItems      SalesOrderItem[]
-  dispatches           Dispatch[]
-  dispatchItems        DispatchItem[]
-  saleReturns          SaleReturn[]
-  saleReturnItems      SaleReturnItem[]
-  creditNotes          CreditNote[]
-  priceChanges         PriceChange[]
-  approvalRequests     ApprovalRequest[]
-  documentSequences    DocumentSequence[]
+  posCheckouts          PosCheckout[]
+  posCheckoutItems      PosCheckoutItem[]
+  posCheckoutPayments   PosCheckoutPayment[]
+  sales                 Sale[]
+  saleItems             SaleItem[]
+  salePayments          SalePayment[]
+  invoices              Invoice[]
+  invoiceDocuments      InvoiceDocument[]
+  quotes                Quote[]
+  quoteItems            QuoteItem[]
+  salesOrders           SalesOrder[]
+  salesOrderItems       SalesOrderItem[]
+  dispatches            Dispatch[]
+  dispatchItems         DispatchItem[]
+  saleReturns           SaleReturn[]
+  saleReturnItems       SaleReturnItem[]
+  creditNotes           CreditNote[]
+  priceChanges          PriceChange[]
+  approvalRequests      ApprovalRequest[]
+  documentSequences     DocumentSequence[]
+  simulatedSiatRecords  SimulatedSiatRecord[]
 
   @@map("companies")
 }
@@ -134,6 +136,7 @@ model Branch {
   company       Company            @relation(fields: [companyId], references: [id])
   warehouses    Warehouse[]
   pointsOfSale  SiatPointOfSale[]
+  invoices      Invoice[]
   memberships   MembershipBranch[]
   cashRegisters CashRegister[]
   sales         Sale[]
@@ -325,19 +328,22 @@ model PasswordReset {
 // ── SIAT invoicing: per-company settings (details in S2/S3) ─────────────────
 
 model SiatSettings {
-  companyId                  String          @id @map("company_id") @db.Uuid
-  environment                SiatEnvironment @default(TEST)
-  modality                   SiatModality    @default(ELECTRONIC_ONLINE)
-  systemCode                 String?         @map("system_code")
+  companyId                  String               @id @map("company_id") @db.Uuid
+  environment                SiatEnvironment      @default(TEST)
+  modality                   SiatModality         @default(ELECTRONIC_ONLINE)
+  systemCode                 String?              @map("system_code")
   /// SIAT delegated token, encrypted with AES-256-GCM (SecretsService)
-  tokenEncrypted             String?         @map("token_encrypted")
-  tokenExpiresAt             DateTime?       @map("token_expires_at") @db.Timestamptz(3)
+  tokenEncrypted             String?              @map("token_encrypted")
+  tokenExpiresAt             DateTime?            @map("token_expires_at") @db.Timestamptz(3)
   /// encrypted .p12 digital signature (base64) and its encrypted password
-  signatureP12Encrypted      String?         @map("signature_p12_encrypted")
-  signaturePasswordEncrypted String?         @map("signature_password_encrypted")
-  signatureExpiresAt         DateTime?       @map("signature_expires_at") @db.Timestamptz(3)
-  signatureHolder            String?         @map("signature_holder")
-  updatedAt                  DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  signatureP12Encrypted      String?              @map("signature_p12_encrypted")
+  signaturePasswordEncrypted String?              @map("signature_password_encrypted")
+  signatureExpiresAt         DateTime?            @map("signature_expires_at") @db.Timestamptz(3)
+  signatureHolder            String?              @map("signature_holder")
+  connectionStatus           SiatConnectionStatus @default(UNKNOWN) @map("connection_status")
+  connectionCheckedAt        DateTime?            @map("connection_checked_at") @db.Timestamptz(3)
+  connectionChangedAt        DateTime?            @map("connection_changed_at") @db.Timestamptz(3)
+  updatedAt                  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -363,6 +369,7 @@ model SiatPointOfSale {
   company      Company       @relation(fields: [companyId], references: [id])
   branch       Branch        @relation(fields: [branchId], references: [id])
   cashRegister CashRegister?
+  invoices     Invoice[]
 
   @@unique([companyId, branchId, code])
   @@map("siat_points_of_sale")
@@ -950,10 +957,15 @@ enum InvoiceStatus {
   SENDING
   VALID
   REJECTED
-  CONTINGENCY
-  OBSERVED
   CANCELLATION_PENDING
   CANCELLED
+}
+
+/// What the last health check saw of the SIAT (HU-FAC-01). `UNKNOWN` until the first check.
+enum SiatConnectionStatus {
+  UNKNOWN
+  ONLINE
+  OFFLINE
 }
 
 enum ApprovalType {
@@ -961,6 +973,7 @@ enum ApprovalType {
   CASH_DIFFERENCE
   RETURN
   CASH_EXPENSE
+  NIT_EXCEPTION
 }
 
 enum ApprovalStatus {
@@ -1086,13 +1099,13 @@ model CashShift {
   reviewedAt       DateTime?       @map("reviewed_at") @db.Timestamptz(3)
   reviewNote       String?         @map("review_note")
 
-  company   Company        @relation(fields: [companyId], references: [id])
-  register  CashRegister   @relation(fields: [registerId], references: [id])
-  movements CashMovement[]
-  counts    CashCount[]
+  company      Company                @relation(fields: [companyId], references: [id])
+  register     CashRegister           @relation(fields: [registerId], references: [id])
+  movements    CashMovement[]
+  counts       CashCount[]
   methodTotals CashShiftMethodTotal[]
-  checkouts PosCheckout[]
-  sales     Sale[]
+  checkouts    PosCheckout[]
+  sales        Sale[]
 
   @@unique([companyId, number])
   @@index([companyId, registerId, status])
@@ -1278,17 +1291,17 @@ model Sale {
   createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company    Company       @relation(fields: [companyId], references: [id])
-  checkout   PosCheckout?  @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
-  customer   Customer?     @relation(fields: [customerId], references: [id])
-  branch     Branch        @relation(fields: [branchId], references: [id])
-  warehouse  Warehouse     @relation(fields: [warehouseId], references: [id])
-  shift      CashShift?    @relation(fields: [shiftId], references: [id], onDelete: Restrict)
-  items      SaleItem[]
-  payments   SalePayment[]
-  invoice    Invoice?
-  returns    SaleReturn[]
-  dispatch   Dispatch?
+  company   Company       @relation(fields: [companyId], references: [id])
+  checkout  PosCheckout?  @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
+  customer  Customer?     @relation(fields: [customerId], references: [id])
+  branch    Branch        @relation(fields: [branchId], references: [id])
+  warehouse Warehouse     @relation(fields: [warehouseId], references: [id])
+  shift     CashShift?    @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  items     SaleItem[]
+  payments  SalePayment[]
+  invoice   Invoice?
+  returns   SaleReturn[]
+  dispatch  Dispatch?
 
   @@unique([companyId, number])
   @@index([companyId, status, createdAt(sort: Desc)])
@@ -1346,21 +1359,71 @@ model Invoice {
   id                     String        @id @default(uuid(7)) @db.Uuid
   companyId              String        @map("company_id") @db.Uuid
   saleId                 String        @unique @map("sale_id") @db.Uuid
+  branchId               String        @map("branch_id") @db.Uuid
+  /// null only when the company has no SIAT point of sale yet: the first attempt then fails with `POINT_OF_SALE_MISSING`
+  pointOfSaleId          String?       @map("point_of_sale_id") @db.Uuid
+  /// taken at the first send from the `INV-<branch>-<pos>` sequence and kept on later attempts
   number                 Int?
   status                 InvoiceStatus @default(PENDING)
   total                  Decimal       @db.Decimal(14, 2)
   customerTaxName        String        @map("customer_tax_name")
   customerDocumentType   Int           @map("customer_document_type")
   customerDocumentNumber String        @map("customer_document_number")
+  customerComplement     String?       @map("customer_complement")
+  cuf                    String?
+  /// real emission time of the last attempt; the CUF is built from it
+  issuedAt               DateTime?     @map("issued_at") @db.Timestamptz(3)
+  siatReceptionCode      String?       @map("siat_reception_code")
+  rejectionCode          Int?          @map("rejection_code")
+  rejectionMessage       String?       @map("rejection_message")
+  lastAttemptAt          DateTime?     @map("last_attempt_at") @db.Timestamptz(3)
+  lastError              String?       @map("last_error")
+  nitVerifiedAt          DateTime?     @map("nit_verified_at") @db.Timestamptz(3)
+  nitException           Boolean       @default(false) @map("nit_exception")
+  cancellationReasonCode Int?          @map("cancellation_reason_code")
+  cancelledAt            DateTime?     @map("cancelled_at") @db.Timestamptz(3)
   createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company     Company      @relation(fields: [companyId], references: [id])
-  sale        Sale         @relation(fields: [saleId], references: [id])
+  company     Company          @relation(fields: [companyId], references: [id])
+  sale        Sale             @relation(fields: [saleId], references: [id])
+  branch      Branch           @relation(fields: [branchId], references: [id])
+  pointOfSale SiatPointOfSale? @relation(fields: [pointOfSaleId], references: [id])
+  document    InvoiceDocument?
   creditNotes CreditNote[]
 
+  @@unique([companyId, pointOfSaleId, number])
   @@index([companyId, status])
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([companyId, issuedAt])
   @@map("invoices")
+}
+
+/// The signed XML of an issued invoice, apart from `invoices` so listing never drags it (HU-FAC-05).
+model InvoiceDocument {
+  invoiceId String   @id @map("invoice_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  signedXml String   @map("signed_xml")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("invoice_documents")
+}
+
+/// What the simulated SIN accepted and cancelled, shared by the API and the worker (the real SIN keeps this itself). Development only.
+model SimulatedSiatRecord {
+  cuf           String    @id
+  companyId     String    @map("company_id") @db.Uuid
+  receptionCode String    @map("reception_code")
+  cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@map("simulated_siat_records")
 }
 
 model Quote {
@@ -1472,17 +1535,17 @@ model SalesOrderItem {
 }
 
 model Dispatch {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
-  orderId     String   @map("order_id") @db.Uuid
+  id             String   @id @default(uuid(7)) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  orderId        String   @map("order_id") @db.Uuid
   /// `DSP-000012`
-  number      String
+  number         String
   /// the sale that invoiced this dispatch, once it is invoiced
-  saleId      String?  @unique @map("sale_id") @db.Uuid
+  saleId         String?  @unique @map("sale_id") @db.Uuid
   /// the `Idempotency-Key` of the request, so a repeated request returns this dispatch instead of making another
-  idempotencyKey String? @map("idempotency_key")
-  createdById String   @map("created_by_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  idempotencyKey String?  @map("idempotency_key")
+  createdById    String   @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company Company        @relation(fields: [companyId], references: [id])
   order   SalesOrder     @relation(fields: [orderId], references: [id])
@@ -1604,17 +1667,17 @@ enum PriceChangeSource {
 /// Append-only audit of single and bulk price edits (`batchId` groups a bulk update). The migration adds CHECKs
 /// `new_price >= 0` and `old_price <> new_price`.
 model PriceChange {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  companyId String   @map("company_id") @db.Uuid
-  productId String   @map("product_id") @db.Uuid
-  oldPrice  Decimal  @map("old_price") @db.Decimal(14, 2)
-  newPrice  Decimal  @map("new_price") @db.Decimal(14, 2)
-  userId    String   @map("user_id") @db.Uuid
-  batchId   String?  @map("batch_id") @db.Uuid
+  id        String            @id @default(uuid(7)) @db.Uuid
+  companyId String            @map("company_id") @db.Uuid
+  productId String            @map("product_id") @db.Uuid
+  oldPrice  Decimal           @map("old_price") @db.Decimal(14, 2)
+  newPrice  Decimal           @map("new_price") @db.Decimal(14, 2)
+  userId    String            @map("user_id") @db.Uuid
+  batchId   String?           @map("batch_id") @db.Uuid
   source    PriceChangeSource @default(MANUAL)
   /// the optional "Motivo" of a manual edit
   reason    String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company Company @relation(fields: [companyId], references: [id])
   product Product @relation(fields: [productId], references: [id])

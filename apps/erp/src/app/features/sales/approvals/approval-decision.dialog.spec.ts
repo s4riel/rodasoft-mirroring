@@ -5,7 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { ApprovalInboxItem } from '@rodasoft/domain';
 import { ToastService } from '@rodasoft/ui';
 import { ApprovalDecisionDialog, type ApprovalDecision, type ApprovalDecisionOutcome } from './approval-decision.dialog';
-import { EXPENSE_ITEM, RETURN_ITEM } from './approvals.testing';
+import { EXPENSE_ITEM, NIT_EXCEPTION_ITEM, RETURN_ITEM } from './approvals.testing';
 
 @Component({
   imports: [ApprovalDecisionDialog],
@@ -111,6 +111,20 @@ describe('ApprovalDecisionDialog', () => {
     const { fixture } = await setup(EXPENSE_ITEM, 'approve');
     await confirm(fixture);
     http.expectOne('/api/v1/sales/cash-movements/mov1/approve').flush({});
+  });
+
+  it('approves a NIT exception through the invoicing endpoint', async () => {
+    const { fixture } = await setup(NIT_EXCEPTION_ITEM, 'approve');
+    await confirm(fixture);
+    http.expectOne('/api/v1/invoicing/invoices/inv1/nit-exception/approve').flush(null);
+  });
+
+  it('asks the inbox to read again when somebody decided the NIT exception first', async () => {
+    const { fixture, host } = await setup(NIT_EXCEPTION_ITEM, 'approve');
+    await confirm(fixture);
+    http.expectOne('/api/v1/invoicing/invoices/inv1/nit-exception/approve').flush({ code: 'NIT_EXCEPTION_NOT_PENDING', message: 'x' }, { status: 409, statusText: 'Conflict' });
+    await settle(fixture);
+    expect(host.outcome()).toBe('stale');
   });
 
   it('shows the error inside the dialog and keeps it open', async () => {

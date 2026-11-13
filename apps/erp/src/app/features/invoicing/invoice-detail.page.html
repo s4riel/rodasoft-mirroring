@@ -1,0 +1,214 @@
+<rs-page-header [title]="title()" type="detail" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación" [description]="subtitle()">
+  @if (pill(); as p) {
+    <rs-status-pill rsStatus [status]="p.status" [icon]="p.icon ?? null">{{ p.label }}</rs-status-pill>
+  }
+  @if (detail() && (hasDocuments() || canCreditNote())) {
+    <div rsActions class="header-actions">
+      @if (hasDocuments()) {
+        <button rsButton variant="secondary" type="button" data-testid="invoice-preview" (click)="previewOpen.set(true)">Ver factura impresa</button>
+      }
+      @if (canCreditNote()) {
+        <a *rsCan="'sales.returns.manage'" rsButton variant="primary" data-testid="invoice-credit-note" [routerLink]="['/sales/history', detail()?.saleId]">Emitir nota de crédito</a>
+      }
+    </div>
+  }
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la factura">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated
+        illustration="no-access"
+        heading="No tienes permiso para ver esta factura"
+        description="Pide acceso al administrador de tu empresa."
+        [showAction]="false"
+      />
+    </section>
+  }
+  @case ('not-found') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-results" heading="La factura no existe" description="Puede que ya no esté disponible para tu usuario.">
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver a facturas</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la factura" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver a facturas</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      @if (d.status === 'PENDING') {
+        <rs-note type="warning" title="No facturada en SIAT" data-testid="invoice-pending-note">
+          @if (d.lastError === 'SIAT_UNAVAILABLE') {
+            El SIAT no respondió. La factura no se reintenta sola: emítela cuando el SIAT vuelva a estar en línea.
+          } @else if (d.lastError === 'POINT_OF_SALE_MISSING') {
+            La empresa no tiene un punto de venta SIAT configurado. Configúralo y emite la factura.
+          } @else {
+            Esta factura todavía no se envió al SIAT.
+          }
+        </rs-note>
+      }
+      @if (d.status === 'REJECTED') {
+        <rs-note type="danger" title="El SIAT rechazó esta factura" data-testid="invoice-rejected-note">
+          {{ d.rejectionMessage ?? 'El SIAT rechazó la factura.' }}
+          @if (d.rejectionCode !== null) {
+            <span class="note-comment">Código {{ d.rejectionCode }}</span>
+          }
+        </rs-note>
+      }
+      @if (d.pendingCancellation; as pending) {
+        <rs-note type="warning" title="Anulación pendiente de aprobación" data-testid="invoice-cancellation-pending">
+          Solicitada por {{ pending.requestedBy ?? 'un usuario' }}. Gerencia debe aprobarla; la factura sigue válida en el SIAT hasta entonces.
+        </rs-note>
+      }
+
+      @if ((d.status === 'REJECTED' || d.status === 'PENDING') && d.lastError !== 'POINT_OF_SALE_MISSING') {
+        <rs-invoice-customer-fix [invoice]="d" (changed)="refresh()" />
+      }
+
+      @if (hasDocuments()) {
+        <section class="summary" aria-label="Resumen de la factura" data-testid="invoice-summary">
+          <rs-kpi-card label="Total facturado" [value]="totalText()" />
+          <rs-kpi-card label="IVA · débito fiscal" [value]="fiscalDebitText()" />
+          <rs-kpi-card label="Cliente" [value]="d.customerName" />
+          <rs-kpi-card label="Venta de origen" [value]="originText()" />
+        </section>
+      }
+
+      <div class="columns" [class.single]="!hasDocuments()">
+        <div class="main">
+          <section class="card" aria-labelledby="invoice-lines">
+            <h2 class="card-title" id="invoice-lines">Productos ({{ d.lines.length }})</h2>
+            <rs-doc-table size="md" tableLabel="Productos de la factura" [columns]="lineColumns" [rows]="lineRows()" [totals]="lineTotals()" />
+          </section>
+
+          <section class="card" aria-labelledby="invoice-payment">
+            <h2 class="card-title" id="invoice-payment">Pago y leyenda</h2>
+            <rs-data-field [showIcon]="false" label="Pago" layout="inline">
+              @for (p of payments(); track $index) {
+                <span class="pay">{{ p.label }} · {{ p.amount }}</span>
+              }
+            </rs-data-field>
+            @if (d.legend) {
+              <rs-data-field [showIcon]="false" label="Leyenda" layout="inline">{{ d.legend }}</rs-data-field>
+            }
+          </section>
+
+          @if (d.verificationUrl; as url) {
+            <section class="card" aria-labelledby="invoice-graphic">
+              <h2 class="card-title" id="invoice-graphic">Representación gráfica</h2>
+              <div class="graphic">
+                <rs-qr-code [payload]="url" label="Verificación de la factura en el SIN" />
+                <div class="graphic-text">
+                  <p class="line">Factura con código QR del SIAT. Se imprime en rollo o en carta y el cliente la recibe con el XML.</p>
+                  <button rsButton variant="secondary" type="button" (click)="previewOpen.set(true)">Ver factura impresa</button>
+                </div>
+              </div>
+            </section>
+          }
+        </div>
+
+        @if (hasDocuments()) {
+          <aside class="side">
+            <section class="card siat" aria-labelledby="invoice-siat">
+              <h2 class="card-title" id="invoice-siat">Factura SIAT</h2>
+              <rs-data-field [showIcon]="false" label="N.º" layout="inline">{{ numberText() }}</rs-data-field>
+              <rs-data-field [showIcon]="false" label="Estado" layout="inline"><span class="state-text" [attr.data-status]="d.status">{{ statusText() }}</span></rs-data-field>
+              <rs-data-field [showIcon]="false" label="CUF" layout="inline">
+                <span class="cuf" data-testid="invoice-cuf" [title]="d.cuf ?? ''">{{ cufShort() }}</span>
+                @if (d.cuf) {
+                  <button class="link" type="button" data-testid="invoice-copy-cuf" (click)="copyCuf()">Copiar</button>
+                }
+              </rs-data-field>
+              <rs-data-field [showIcon]="false" label="Cliente" layout="inline">{{ d.customerName }} · {{ customerDocument() }}</rs-data-field>
+              <rs-data-field [showIcon]="false" label="Emitida" layout="inline">{{ issuedText() }}</rs-data-field>
+              <rs-data-field [showIcon]="false" label="Modalidad" layout="inline">{{ modalityText() }}</rs-data-field>
+              <rs-data-field [showIcon]="false" label="Punto de venta" layout="inline">{{ d.pointOfSale ?? '—' }}</rs-data-field>
+              <rs-data-field [showIcon]="false" label="Código de recepción" layout="inline">{{ d.siatReceptionCode ?? '—' }}</rs-data-field>
+            </section>
+
+            <section class="card" aria-labelledby="invoice-history">
+              <h2 class="card-title" id="invoice-history">Historial SIAT</h2>
+              @if (history().length === 0) {
+                <p class="muted">Todavía no hay movimientos.</p>
+              }
+              @for (h of history(); track $index) {
+                <div class="entry">
+                  <span class="muted time">{{ h.at }}</span>
+                  <span>{{ h.label }}@if (h.actor) { <span class="muted"> · {{ h.actor }}</span> }@if (h.detail) { <span class="muted"> · {{ h.detail }}</span> }</span>
+                </div>
+              }
+            </section>
+          </aside>
+        } @else {
+          <section class="card" aria-labelledby="invoice-history">
+            <h2 class="card-title" id="invoice-history">Historial SIAT</h2>
+            @if (history().length === 0) {
+              <p class="muted">Todavía no hay movimientos.</p>
+            }
+            @for (h of history(); track $index) {
+              <div class="entry">
+                <span class="muted time">{{ h.at }}</span>
+                <span>{{ h.label }}@if (h.actor) { <span class="muted"> · {{ h.actor }}</span> }@if (h.detail) { <span class="muted"> · {{ h.detail }}</span> }</span>
+              </div>
+            }
+          </section>
+        }
+      </div>
+
+      @if (hasDocuments() || canIssue() || canRequestCancellation() || canWithdraw()) {
+        <div class="footer-actions">
+          @if (canRequestCancellation()) {
+            <button *rsCan="'sales.cancellations.request'" rsButton variant="ghost" type="button" data-testid="invoice-cancel" (click)="cancelOpen.set(true)">Solicitar anulación</button>
+          }
+          @if (canWithdraw()) {
+            <button *rsCan="'sales.cancellations.request'" rsButton variant="ghost" type="button" data-testid="invoice-withdraw" [loading]="withdrawing()" (click)="withdraw()">
+              Cancelar solicitud
+            </button>
+          }
+          @if (hasDocuments()) {
+            <button rsButton variant="secondary" type="button" data-testid="invoice-download-xml" (click)="downloadFile('xml')">Descargar XML</button>
+            <button rsButton variant="secondary" type="button" data-testid="invoice-download-pdf" (click)="downloadFile('pdf')">Descargar PDF</button>
+            <button rsButton variant="secondary" type="button" data-testid="invoice-send-open" (click)="sendOpen.set(true)">Enviar al cliente</button>
+          }
+          @if (canIssue()) {
+            <button *rsCan="'invoicing.invoices.issue'" rsButton variant="primary" type="button" data-testid="invoice-issue" [loading]="issuing()" (click)="issue()">
+              Emitir en el SIAT
+            </button>
+          }
+        </div>
+      }
+    }
+  }
+}
+
+@if (detail(); as d) {
+  @if (canRequestCancellation()) {
+    <rs-invoice-cancellation-dialog
+      [(open)]="cancelOpen"
+      [invoiceId]="d.id"
+      [invoiceNumber]="d.number"
+      [saleNumber]="d.saleNumber"
+      [total]="d.total"
+      (requested)="refresh()"
+    />
+  }
+  @if (hasDocuments()) {
+    <rs-invoice-preview-dialog [(open)]="previewOpen" [invoiceId]="d.id" [invoiceNumber]="d.number" />
+    <rs-invoice-send-dialog [(open)]="sendOpen" [invoiceId]="d.id" [invoiceNumber]="d.number" />
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

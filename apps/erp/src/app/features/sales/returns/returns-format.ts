@@ -41,7 +41,7 @@ export const parseReturnStatus = (raw: string | null): SaleReturnStatus | null =
   RETURN_STATUS_OPTIONS.some((option) => option.value === raw) ? (raw as SaleReturnStatus) : null;
 
 const isCreditNoteIssued = (creditNoteStatus: SaleReturnSummary['creditNoteStatus']): boolean =>
-  creditNoteStatus === 'VALID' || creditNoteStatus === 'OBSERVED';
+  creditNoteStatus === 'VALID';
 
 /** "Nota emitida" once the SIAT epic issued the credit note, "Aprobada" until then. */
 export function returnStatusPill(item: Pick<SaleReturnSummary, 'status' | 'creditNoteStatus'>): DocTableStatus {

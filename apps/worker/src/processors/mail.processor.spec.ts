@@ -25,3 +25,22 @@ describe('MailProcessor · sales.quote-email (HU-VEN-17)', () => {
     });
   });
 });
+
+describe('MailProcessor · invoice.email (HU-FAC-06)', () => {
+  const sendMail = jest.fn().mockResolvedValue({});
+
+  it('delivers the invoice with its PDF and XML attached', async () => {
+    (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
+    const config = { get: (key: string) => (key === 'MAIL_FROM' ? 'facturas@rodalaser.test' : 'smtp://localhost') } as unknown as ConfigService<never, true>;
+    const payload = { email: 'ana@demo.test', number: '000012', company: 'RODALASER', pdfBase64: Buffer.from('%PDF-1.4').toString('base64'), xmlBase64: Buffer.from('<x/>').toString('base64') };
+    await new MailProcessor(config).process({ name: 'invoice.email', data: { outboxId: '1', companyId: 'c', payload } } as unknown as Job);
+
+    const sent = sendMail.mock.calls.at(-1)?.[0];
+    expect(sent).toMatchObject({ from: 'facturas@rodalaser.test', to: 'ana@demo.test', subject: 'Factura 000012 · RODALASER' });
+    expect(sent.attachments).toHaveLength(2);
+    expect(sent.attachments[0]).toMatchObject({ filename: 'factura-000012.pdf', contentType: 'application/pdf' });
+    expect(sent.attachments[0].content.toString()).toBe('%PDF-1.4');
+    expect(sent.attachments[1]).toMatchObject({ filename: 'factura-000012.xml', contentType: 'application/xml' });
+    expect(sent.attachments[1].content.toString()).toBe('<x/>');
+  });
+});

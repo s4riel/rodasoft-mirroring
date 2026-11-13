@@ -6,19 +6,20 @@
 import type { Permission } from './permissions';
 
 /** The kinds of request that wait for a decision. Discounts have none: they are per customer (decision #5). */
-export const APPROVAL_TYPES = ['CANCELLATION', 'CASH_DIFFERENCE', 'RETURN', 'CASH_EXPENSE'] as const;
+export const APPROVAL_TYPES = ['CANCELLATION', 'CASH_DIFFERENCE', 'RETURN', 'CASH_EXPENSE', 'NIT_EXCEPTION'] as const;
 export type ApprovalType = (typeof APPROVAL_TYPES)[number];
 
-/** The permission that lets a user decide each type (decisions #11, #15, #16, #17). */
+/** The permission that lets a user decide each type (decisions #11, #15, #16, #17, #21). */
 export const APPROVAL_TYPE_PERMISSION: Readonly<Record<ApprovalType, Permission>> = {
   CANCELLATION: 'sales.cancellations.approve',
   CASH_DIFFERENCE: 'sales.cash-register.review',
   RETURN: 'sales.returns.approve',
   CASH_EXPENSE: 'sales.cash-expenses.approve',
+  NIT_EXCEPTION: 'invoicing.nit-exception.approve',
 };
 
 /** The types decided from the inbox itself; the others open their own review page. */
-export const APPROVAL_INLINE_TYPES: readonly ApprovalType[] = ['RETURN', 'CASH_EXPENSE'];
+export const APPROVAL_INLINE_TYPES: readonly ApprovalType[] = ['RETURN', 'CASH_EXPENSE', 'NIT_EXCEPTION'];
 
 /** Most requests the inbox lists at once, oldest first. */
 export const APPROVAL_INBOX_MAX = 200;

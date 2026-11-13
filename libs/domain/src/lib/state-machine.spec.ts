@@ -67,10 +67,27 @@ describe('state machines', () => {
     expect(invoiceMachine.events('CANCELLED')).toEqual([]);
   });
 
-  it('an invoice that was never sent is voided, one already sent is not', () => {
+  it('an invoice without a valid SIAT answer is voided, a valid one is not', () => {
     expect(invoiceMachine.next('PENDING', 'void')).toBe('CANCELLED');
+    expect(invoiceMachine.next('REJECTED', 'void')).toBe('CANCELLED');
     expect(() => invoiceMachine.next('VALID', 'void')).toThrow(InvalidTransitionError);
     expect(() => invoiceMachine.next('SENDING', 'void')).toThrow(InvalidTransitionError);
+  });
+});
+
+describe('invoice issuing without contingency (HU-FAC-01…10)', () => {
+  it('goes PENDING → SENDING → VALID, or REJECTED and back to PENDING once fixed', () => {
+    expect(invoiceMachine.next(invoiceMachine.next('PENDING', 'send'), 'accept')).toBe('VALID');
+    const rejected = invoiceMachine.next('SENDING', 'reject');
+    expect(rejected).toBe('REJECTED');
+    expect(invoiceMachine.next(rejected, 'fix')).toBe('PENDING');
+  });
+
+  it('an unavailable SIAT sends the invoice back to PENDING, with no contingency events', () => {
+    expect(invoiceMachine.next('SENDING', 'unavailable')).toBe('PENDING');
+    for (const event of ['offline', 'packageValidated', 'packageObserved']) {
+      expect(() => invoiceMachine.next('SENDING', event as never)).toThrow(InvalidTransitionError);
+    }
   });
 });
 
