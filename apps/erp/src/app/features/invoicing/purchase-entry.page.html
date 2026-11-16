@@ -1,0 +1,99 @@
+<rs-page-header [title]="title()" type="detail" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación" [description]="subtitle()" />
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la compra">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver esta compra" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('not-found') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-results" heading="La compra no existe" description="Puede que ya no esté en el libro de este período.">
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver al libro de compras</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la compra" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver al libro de compras</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (entry(); as e) {
+      @if (observed()) {
+        <rs-note type="danger" title="NIT del proveedor no válido" data-testid="purchase-observed-note">
+          El SIN no reconoce este NIT. Corrígelo para que la compra sume crédito fiscal.
+        </rs-note>
+      } @else if (verified()) {
+        <rs-note type="success" title="Compra validada" data-testid="purchase-valid-note">El SIN reconoce el NIT: la compra suma {{ creditNow() }} de crédito fiscal.</rs-note>
+      }
+
+      <section class="card" aria-labelledby="supplier-title">
+        <h2 class="card-title" id="supplier-title">Datos del proveedor</h2>
+        <div class="fields">
+          <rs-field label="NIT del proveedor" forId="purchase-nit" [error]="nitError()">
+            <input
+              #nitBox
+              rsInput
+              id="purchase-nit"
+              inputmode="numeric"
+              autocomplete="off"
+              [value]="nit()"
+              [invalid]="nitError() !== null"
+              (input)="nit.set(nitBox.value)"
+              (blur)="touched.set(true)"
+            />
+          </rs-field>
+          <rs-field label="Razón social" forId="purchase-supplier" hint="Se completa al verificar el NIT.">
+            <input rsInput id="purchase-supplier" readonly [value]="e.supplierName" />
+          </rs-field>
+        </div>
+        <div class="verify">
+          <button rsButton variant="secondary" type="button" data-testid="purchase-nit-verify" [disabled]="!canVerify()" [loading]="saving()" (click)="verify()">Verificar NIT</button>
+        </div>
+      </section>
+
+      <rs-note type="info" title="El crédito fiscal se calcula al validar">
+        Con el NIT correcto, esta compra suma {{ creditIfValid() }} de crédito fiscal (13 % de {{ totalText() }}).
+      </rs-note>
+
+      <section class="card" aria-labelledby="invoice-title">
+        <h2 class="card-title" id="invoice-title">Datos de la factura</h2>
+        <div class="row head" aria-hidden="true">
+          <span class="code">N.º factura</span>
+          <span class="grow">Proveedor</span>
+          <span class="num">Fecha</span>
+          <span class="num">Importe</span>
+          <span class="num">Crédito fiscal</span>
+        </div>
+        <div class="row" data-testid="purchase-invoice-row">
+          <span class="code mono">{{ e.invoiceNumber }}</span>
+          <span class="grow">{{ e.supplierName }}</span>
+          <span class="num">{{ dateText() }}</span>
+          <span class="num">{{ totalText() }}</span>
+          <span class="num">{{ observed() ? creditIfValid() : creditNow() }}</span>
+        </div>
+      </section>
+
+      @if (error(); as message) {
+        <rs-note type="danger" title="No pudimos verificar el NIT">{{ message }}</rs-note>
+      }
+
+      <div class="footer-actions">
+        <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="back()">Cancelar</button>
+        <button rsButton variant="primary" type="button" data-testid="purchase-save" [disabled]="!canVerify() && observed()" [loading]="saving()" (click)="saveAndValidate()">Guardar y validar</button>
+      </div>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

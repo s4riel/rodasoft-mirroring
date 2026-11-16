@@ -8,7 +8,7 @@
         <button rsButton variant="secondary" type="button" data-testid="invoice-preview" (click)="previewOpen.set(true)">Ver factura impresa</button>
       }
       @if (canCreditNote()) {
-        <a *rsCan="'sales.returns.manage'" rsButton variant="primary" data-testid="invoice-credit-note" [routerLink]="['/sales/history', detail()?.saleId]">Emitir nota de crédito</a>
+        <a *rsCan="'sales.returns.manage'" rsButton variant="primary" data-testid="invoice-credit-note" [routerLink]="['/invoicing/invoices', detail()?.id, 'credit-note']">Emitir nota de crédito</a>
       }
     </div>
   }

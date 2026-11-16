@@ -111,6 +111,9 @@ model Company {
   saleReturns           SaleReturn[]
   saleReturnItems       SaleReturnItem[]
   creditNotes           CreditNote[]
+  creditNoteItems       CreditNoteItem[]
+  creditNoteDocuments   CreditNoteDocument[]
+  purchaseBookEntries   PurchaseBookEntry[]
   priceChanges          PriceChange[]
   approvalRequests      ApprovalRequest[]
   documentSequences     DocumentSequence[]
@@ -137,6 +140,7 @@ model Branch {
   warehouses    Warehouse[]
   pointsOfSale  SiatPointOfSale[]
   invoices      Invoice[]
+  creditNotes   CreditNote[]
   memberships   MembershipBranch[]
   cashRegisters CashRegister[]
   sales         Sale[]
@@ -370,6 +374,7 @@ model SiatPointOfSale {
   branch       Branch        @relation(fields: [branchId], references: [id])
   cashRegister CashRegister?
   invoices     Invoice[]
+  creditNotes  CreditNote[]
 
   @@unique([companyId, branchId, code])
   @@map("siat_points_of_sale")
@@ -1322,10 +1327,11 @@ model SaleItem {
   lineTotal Decimal @map("line_total") @db.Decimal(14, 2)
   sortOrder Int     @default(0) @map("sort_order")
 
-  company     Company          @relation(fields: [companyId], references: [id])
-  sale        Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product     Product          @relation(fields: [productId], references: [id])
-  returnItems SaleReturnItem[]
+  company         Company          @relation(fields: [companyId], references: [id])
+  sale            Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product         Product          @relation(fields: [productId], references: [id])
+  returnItems     SaleReturnItem[]
+  creditNoteItems CreditNoteItem[]
 
   @@index([companyId, saleId])
   @@index([companyId, productId])
@@ -1631,29 +1637,120 @@ model SaleReturnItem {
   @@map("sale_return_items")
 }
 
-/// Credit and debit note of an approved return, linked to the original invoice. Minimal record in status PENDING; the SIAT epic
-/// (HU-FAC) issues it. `number` stays null until then.
+/// Credit and debit note of an invoice (HU-FAC-11, HU-FAC-12). An approved return writes one in `PENDING`; a price-adjustment note
+/// (`invoicing.allowPriceAdjustmentNotes`) has no return. `number` is taken at the first send from the `NC-<branch>-<pos>`
+/// sequence. The status uses the invoice enum, restricted by `creditNoteMachine` to PENDING, SENDING, VALID, REJECTED, CANCELLED.
 model CreditNote {
   id                     String        @id @default(uuid(7)) @db.Uuid
   companyId              String        @map("company_id") @db.Uuid
-  returnId               String        @unique @map("return_id") @db.Uuid
+  /// null for a price-adjustment note
+  returnId               String?       @unique @map("return_id") @db.Uuid
   invoiceId              String        @map("invoice_id") @db.Uuid
+  branchId               String        @map("branch_id") @db.Uuid
+  /// null only when the invoice has none: the first send then fails with `POINT_OF_SALE_MISSING`
+  pointOfSaleId          String?       @map("point_of_sale_id") @db.Uuid
   number                 Int?
   status                 InvoiceStatus @default(PENDING)
   total                  Decimal       @db.Decimal(14, 2)
+  /// the fiscal debit this note takes back: 13 % of `total`
+  vatAdjusted            Decimal       @map("vat_adjusted") @db.Decimal(14, 2)
+  /// a `SIAT_CREDIT_NOTE_REASONS` code
+  reasonCode             Int           @map("reason_code")
   customerTaxName        String        @map("customer_tax_name")
   customerDocumentType   Int           @map("customer_document_type")
   customerDocumentNumber String        @map("customer_document_number")
+  cuf                    String?
+  issuedAt               DateTime?     @map("issued_at") @db.Timestamptz(3)
+  siatReceptionCode      String?       @map("siat_reception_code")
+  rejectionCode          Int?          @map("rejection_code")
+  rejectionMessage       String?       @map("rejection_message")
+  lastAttemptAt          DateTime?     @map("last_attempt_at") @db.Timestamptz(3)
+  lastError              String?       @map("last_error")
   createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company Company    @relation(fields: [companyId], references: [id])
-  return  SaleReturn @relation(fields: [returnId], references: [id])
-  invoice Invoice    @relation(fields: [invoiceId], references: [id])
+  company     Company             @relation(fields: [companyId], references: [id])
+  return      SaleReturn?         @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  invoice     Invoice             @relation(fields: [invoiceId], references: [id])
+  branch      Branch              @relation(fields: [branchId], references: [id])
+  pointOfSale SiatPointOfSale?    @relation(fields: [pointOfSaleId], references: [id])
+  items       CreditNoteItem[]
+  document    CreditNoteDocument?
 
+  @@unique([companyId, pointOfSaleId, number])
   @@index([companyId, status])
   @@index([companyId, invoiceId])
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([companyId, issuedAt])
   @@map("credit_notes")
+}
+
+/// What a credit note takes back of one invoiced line. A price adjustment credits money and no pieces (`quantity` 0). The
+/// migration adds the CHECKs `quantity >= 0` and `amount > 0`.
+model CreditNoteItem {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  companyId    String  @map("company_id") @db.Uuid
+  creditNoteId String  @map("credit_note_id") @db.Uuid
+  saleItemId   String  @map("sale_item_id") @db.Uuid
+  description  String
+  quantity     Int
+  unitPrice    Decimal @map("unit_price") @db.Decimal(14, 2)
+  amount       Decimal @db.Decimal(14, 2)
+
+  company    Company    @relation(fields: [companyId], references: [id])
+  creditNote CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  saleItem   SaleItem   @relation(fields: [saleItemId], references: [id])
+
+  @@index([companyId, creditNoteId])
+  @@index([companyId, saleItemId])
+  @@map("credit_note_items")
+}
+
+/// The XML of an issued credit note, apart from `credit_notes` so listing never drags it.
+model CreditNoteDocument {
+  creditNoteId String   @id @map("credit_note_id") @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  signedXml    String   @map("signed_xml")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company    @relation(fields: [companyId], references: [id])
+  creditNote CreditNote @relation(fields: [creditNoteId], references: [id])
+
+  @@map("credit_note_documents")
+}
+
+enum PurchaseBookStatus {
+  VALID
+  /// the SIN does not know the supplier's NIT: the entry is listed but adds no tax credit until it is verified
+  OBSERVED
+}
+
+/// One purchase invoice of the VAT purchases book (HU-FAC-19). Seeded with demo data until the purchasing module writes it:
+/// this table is the contract that module must fill. The migration adds the CHECKs `total >= 0` and `vat_credit >= 0`.
+model PurchaseBookEntry {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  companyId         String             @map("company_id") @db.Uuid
+  /// `YYYY-MM`, the La Paz month of `date`
+  period            String
+  date              DateTime           @db.Date
+  supplierNit       String             @map("supplier_nit")
+  supplierName      String             @map("supplier_name")
+  authorizationCode String             @map("authorization_code")
+  invoiceNumber     String             @map("invoice_number")
+  total             Decimal            @db.Decimal(14, 2)
+  vatCredit         Decimal            @map("vat_credit") @db.Decimal(14, 2)
+  status            PurchaseBookStatus @default(VALID)
+  observation       String?
+  nitVerifiedAt     DateTime?          @map("nit_verified_at") @db.Timestamptz(3)
+  /// where the entry came from (`SEED` until purchasing exists)
+  source            String
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, period])
+  @@map("purchase_book_entries")
 }
 
 /// Where a price change came from: the Precios screen, the inventory product form, the Excel import or a bulk update (HU-VEN-27).

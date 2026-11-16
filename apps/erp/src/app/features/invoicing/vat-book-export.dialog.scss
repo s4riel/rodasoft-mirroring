@@ -1,0 +1,21 @@
+.content {
+  display: grid;
+  gap: var(--space-4);
+}
+.description {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.file {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--mono-md-size);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

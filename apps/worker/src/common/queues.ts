@@ -13,6 +13,7 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'auth.password-reset': QUEUE.mail,
   'auth.invitation': QUEUE.mail,
   'invoice.issue': QUEUE.siat,
+  'credit-note.issue': QUEUE.siat,
   'invoice.email': QUEUE.mail,
   // HU-FAC-08: no consumer yet; accounting just logs them
   'invoicing.nit-exception.requested': QUEUE.accounting,
@@ -38,7 +39,7 @@ export const OUTBOX_ROUTES: Record<string, QueueName> = {
   'sales.cancellation.withdrawn': QUEUE.accounting,
   'sales.cancellation.approved': QUEUE.accounting,
   'sales.cancellation.rejected': QUEUE.accounting,
-  // the SIAT consumer of `sales.return.completed` (HU-FAC) issues the credit and debit note; until then accounting just logs it
+  // the credit note of a return is issued by its own `credit-note.issue` event (HU-FAC-12); accounting just logs these
   'sales.return.requested': QUEUE.accounting,
   'sales.return.completed': QUEUE.accounting,
   'sales.return.rejected': QUEUE.accounting,

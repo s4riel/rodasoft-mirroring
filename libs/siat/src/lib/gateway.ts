@@ -1,4 +1,4 @@
-import type { ServiceMessage } from './types';
+import type { PointOfSaleRef, ServiceMessage } from './types';
 
 /** The SIAT did not answer (network error, timeout, maintenance). The invoice stays `PENDING`: there is no contingency. */
 export class SiatUnavailableError extends Error {
@@ -49,6 +49,37 @@ export interface SiatInvoiceStatusResult {
 
 export type SiatCancelResult = { cancelled: true } | { cancelled: false; messages: ServiceMessage[] };
 
+/** What is sent to reception for one credit and debit note (HU-FAC-12). */
+export interface SiatCreditNoteSubmission {
+  cuf: string;
+  number: number;
+  issuedAt: Date;
+  issuerNit: string;
+  customer: InvoiceCustomer;
+  /** What the note credits. Decimal string, 2 places. */
+  total: string;
+  /** CUF of the invoice the note corrects: the SIN must hold it as valid. */
+  invoiceCuf: string;
+  reasonCode: number;
+  xml: string;
+  /** The original invoice went with an approved NIT exception, so the note goes with it too. */
+  nitException: boolean;
+}
+
+/** A daily code (CUFD) of a point of sale: invoices are numbered and their CUF closed with its control code. */
+export interface SiatCufd {
+  code: string;
+  controlCode: string;
+  address: string;
+  expiresAt: Date;
+}
+
+/** The system start code (CUIS) of a point of sale. */
+export interface SiatCuis {
+  code: string;
+  expiresAt: Date;
+}
+
 /**
  * The link to the SIAT. Every method except `verifyCommunication` throws `SiatUnavailableError` when the SIAT does not answer,
  * and returns the SIN's own verdict (accepted, rejected, refused) otherwise. Issuing and cancelling run against this port; the
@@ -60,4 +91,8 @@ export interface SiatGateway {
   sendInvoice(invoice: SiatInvoiceSubmission): Promise<SiatSendResult>;
   invoiceStatus(cuf: string): Promise<SiatInvoiceStatusResult>;
   cancelInvoice(cuf: string, reasonCode: number): Promise<SiatCancelResult>;
+  /** Reception of a credit and debit note; `invoiceStatus` also answers for the CUF of a note. */
+  sendCreditNote(note: SiatCreditNoteSubmission): Promise<SiatSendResult>;
+  requestCufd(pointOfSale: PointOfSaleRef): Promise<SiatCufd>;
+  requestCuis(pointOfSale: PointOfSaleRef): Promise<SiatCuis>;
 }

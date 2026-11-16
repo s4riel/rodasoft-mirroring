@@ -25,6 +25,8 @@ export const returnErrors = {
     new ConflictException({ code: 'SALE_NOT_RETURNABLE', message: 'This sale cannot be returned in its current status', details: { status } }),
   windowExpired: (endedAt: string) =>
     new ConflictException({ code: 'RETURN_WINDOW_EXPIRED', message: 'The deadline to return this sale has passed', details: { endedAt } }),
+  creditExceedsInvoiced: (details: unknown) =>
+    new ConflictException({ code: 'CREDIT_EXCEEDS_INVOICED', message: 'Price-adjustment notes already credit this line, so this return would credit more than was invoiced', details }),
   empty: () => new BadRequestException({ code: 'RETURN_EMPTY', message: 'Choose at least one piece to return' }),
   itemNotFound: (saleItemId?: string) =>
     new NotFoundException({ code: 'SALE_ITEM_NOT_FOUND', message: 'The line does not belong to the sale', details: { saleItemId } }),

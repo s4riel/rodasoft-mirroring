@@ -2,7 +2,10 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   approvalRequestMachine,
+  creditableOf,
   cancellationWindowEndsAt,
+  creditNoteReasonCode,
+  creditNoteVat,
   Decimal,
   InvalidTransitionError,
   isReturnableSaleStatus,
@@ -32,6 +35,7 @@ import { MembershipService } from '../../access/membership.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { CashShiftsService } from '../cash/cash-shifts.service';
 import { cashErrors } from '../cash/cash.errors';
+import { creditableLines } from '../../invoicing/creditable-lines';
 import { nextDocumentNumber } from '../document-sequence';
 import { returnErrors, returnIssueError } from './sale-returns.errors';
 import { SaleReturnsQueryService } from './sale-returns-query.service';
@@ -47,7 +51,7 @@ const SALE_INCLUDE = {
 type LoadedSale = Prisma.SaleGetPayload<{ include: typeof SALE_INCLUDE }>;
 
 const RETURN_APPLY_INCLUDE = {
-  items: { include: { saleItem: { select: { productId: true } } } },
+  items: { include: { saleItem: { select: { productId: true, unitPrice: true, product: { select: { name: true } } } } } },
   sale: { include: { invoice: true, warehouse: { select: { name: true } } } },
 } satisfies Prisma.SaleReturnInclude;
 type ReturnToApply = Prisma.SaleReturnGetPayload<{ include: typeof RETURN_APPLY_INCLUDE }>;
@@ -64,7 +68,7 @@ function isIdempotencyKeyConflict(err: unknown): boolean {
 /**
  * Returns of a sale (HU-VEN-21). Under the approval limit (`sales.returnApprovalLimit`, decision #15) a return is approved at
  * once: the pieces marked "A stock" go back to the sale's warehouse, the refund is paid or recorded, and the credit and debit
- * note of the original invoice is created, all in one transaction. Above the limit the return waits as `PENDING_APPROVAL` with
+ * note of the original invoice is created with its lines (and its first issue attempt published, HU-FAC-12), all in one transaction. Above the limit the return waits as `PENDING_APPROVAL` with
  * an `ApprovalRequest` and nothing else changes until Management decides.
  *
  * Lock order (the POS's and the cancellation's): the cash shift `FOR SHARE`, then the sale row `FOR UPDATE`, then the return,
@@ -342,19 +346,43 @@ export class SaleReturnsService {
       });
     }
 
+    await this.requireWithinInvoiced(tx, ret, sale.invoice);
+
     const creditNote = await tx.creditNote.create({
       data: {
         companyId: ctx.companyId,
         returnId: ret.id,
         invoiceId: sale.invoice.id,
+        branchId: sale.invoice.branchId,
+        pointOfSaleId: sale.invoice.pointOfSaleId,
         status: 'PENDING',
         total: ret.total.toFixed(2),
+        vatAdjusted: creditNoteVat(ret.total.toFixed(2)).toString(),
+        reasonCode: creditNoteReasonCode(ret.reason),
         customerTaxName: sale.invoice.customerTaxName,
         customerDocumentType: sale.invoice.customerDocumentType,
         customerDocumentNumber: sale.invoice.customerDocumentNumber,
+        items: {
+          // a line refunded with nothing credits nothing
+          create: ret.items
+            .filter((item) => !item.refundAmount.isZero())
+            .map((item) => ({
+              companyId: ctx.companyId,
+              saleItemId: item.saleItemId,
+              description: item.saleItem.product.name,
+              quantity: item.quantity,
+              unitPrice: item.saleItem.unitPrice.toFixed(2),
+              amount: item.refundAmount.toFixed(2),
+            })),
+        },
       },
       select: { id: true },
     });
+    // the first, automatic attempt to issue the note: only a note of an invoice the SIAT already validated can be sent. A lost
+    // event leaves a plain PENDING note that a person issues by hand (no contingency, no retry).
+    if (sale.invoice.status === 'VALID' && (await this.settings.get('invoicing.autoIssueOnSale', tx))) {
+      await this.outbox.publish('credit-note.issue', { creditNoteId: creditNote.id, attempt: 1, manual: false }, { tx, idempotencyKey: `credit-note-issue:${creditNote.id}:1` });
+    }
     await tx.saleReturn.update({ where: { id: ret.id }, data: { status: next, approvedAt: new Date(), shiftId: ctx.shiftId } });
 
     const pieces = ret.items.reduce((acc, item) => acc + item.quantity, 0);
@@ -402,6 +430,26 @@ export class SaleReturnsService {
       },
       { tx, idempotencyKey: `return-completed:${ret.id}` },
     );
+  }
+
+  /**
+   * Only what was invoiced can be credited (HU-FAC-12). A price-adjustment note credits money on a line without taking pieces back, so
+   * once one exists a return of that line must also fit in what is left of the line's money. Without one the return's own quantity
+   * rule is enough (its refunds are shares of the sale total and add up to it), so nothing changes for the usual flow.
+   */
+  private async requireWithinInvoiced(tx: TenantTransaction, ret: ReturnToApply, invoice: { id: string; saleId: string }): Promise<void> {
+    const adjustments = await tx.creditNote.count({ where: { invoiceId: invoice.id, returnId: null, status: { not: 'CANCELLED' } } });
+    if (adjustments === 0) return;
+    const lines = new Map((await creditableLines(tx, invoice)).map((line) => [line.saleItemId, creditableOf(line)]));
+    const asked = new Map<string, Decimal>();
+    for (const item of ret.items) {
+      if (item.refundAmount.isZero()) continue;
+      asked.set(item.saleItemId, (asked.get(item.saleItemId) ?? Decimal.zero()).add(Decimal.of(item.refundAmount.toFixed(2))));
+    }
+    const exceeded = [...asked].filter(([saleItemId, amount]) => amount.cmp(lines.get(saleItemId)?.amount ?? Decimal.zero()) > 0);
+    if (exceeded.length > 0) {
+      throw returnErrors.creditExceedsInvoiced(exceeded.map(([saleItemId]) => ({ saleItemId, creditableAmount: (lines.get(saleItemId)?.amount ?? Decimal.zero()).toString() })));
+    }
   }
 
   /** How much of a return is paid out and how much only reduces the balance of a sale on credit (`splitReturnRefund`). */

@@ -62,7 +62,8 @@ Written without a compiler and partly without Figma access (the Figma MCP quota 
 | Navigation & content | Sidebar, ContextBar, PageHeader (List), SubNav (Inventory), Stepper | Figma page 03 (read) | review |
 | | Tabs, Steps, Breadcrumb, Pagination, QtyStepper, Accordion, PriceRange | **estimated** (only frame sizes read) | re-check vs Figma |
 | ERP components | ProductTable, FilterBarProducts, RowMenu, ProductThumb | implemented (HU-INV-01) | re-check vs Figma |
-| | KpiCard, StockFlag (extracted from ProductTable) | implemented (HU-INV-03), names from the Figma plan | re-check vs Figma |
+| | KpiCard, StockFlag (extracted from ProductTable) | implemented (HU-INV-03), names from the Figma plan; `rs-kpi-card variant="stat"` is the small Figma "Stat" card of the invoicing screens FS-23…FS-39 (12 px label, 14 px semibold value, no shadow; HU-FAC-11…20) | re-check vs Figma |
+| | SubNav `exact` item flag: the tab is active only on exactly its route (the invoicing "Facturas" tab `/invoicing`, HU-FAC-11) | implemented | re-check vs Figma |
 | | ImageViewer (gallery lightbox, product sheet photos) | implemented (HU-INV-03), **not in Figma**: estimated | add to the Design System |
 | | BearingDiagram (`rs-bearing-diagram`: the d/D section drawing, extracted from the inventory sheet and used by the POS sheet, HU-VEN-04) | implemented, **not in Figma as a component**: estimated | add to the Design System |
 | | DataField (`2198:4942`), BranchStockTable (`2200:5023`, with Row Current) | Figma page 03 (read, HU-INV-03) | review |

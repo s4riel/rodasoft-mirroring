@@ -1,4 +1,4 @@
-import { SiatUnavailableError, type SiatInvoiceSubmission } from './gateway';
+import { SiatUnavailableError, type SiatCreditNoteSubmission, type SiatInvoiceSubmission } from './gateway';
 import { InMemorySiatStore, SimulatedSiatGateway, type SimulatorMode } from './simulated.gateway';
 
 const invoice = (nit: string, nitException = false): SiatInvoiceSubmission => ({
@@ -51,5 +51,69 @@ describe('SimulatedSiatGateway', () => {
     expect((await gateway.cancelInvoice('UNKNOWN', 1)).cancelled).toBe(false);
     await gateway.sendInvoice({ ...invoice('1234567'), cuf: 'OTHER' });
     expect((await gateway.cancelInvoice('OTHER', 9)).cancelled).toBe(false);
+  });
+
+  describe('credit notes (HU-FAC-12)', () => {
+    const note = (nit: string, nitException = false): SiatCreditNoteSubmission => ({
+      cuf: 'NOTE1234567890ABCDEF',
+      number: 1,
+      issuedAt: new Date('2026-11-16T15:00:00Z'),
+      issuerNit: '1020304050',
+      customer: { name: 'Cliente', documentType: 5, documentNumber: nit, complement: null },
+      total: '50.00',
+      invoiceCuf: invoice(nit).cuf,
+      reasonCode: 1,
+      xml: '<x/>',
+      nitException,
+    });
+
+    it('accepts the note of a valid invoice and answers for its CUF afterwards', async () => {
+      await gateway.sendInvoice(invoice('1234567'));
+      const result = await gateway.sendCreditNote(note('1234567'));
+      expect(result).toMatchObject({ status: 'ACCEPTED', receptionCode: 'SIM-NC-NOTE12345678' });
+      expect((await gateway.invoiceStatus(note('1234567').cuf)).status).toBe('ACCEPTED');
+    });
+
+    it('rejects the note of an invoice it does not hold, or of a cancelled one', async () => {
+      expect(await gateway.sendCreditNote(note('1234567'))).toMatchObject({ status: 'REJECTED', code: 906 });
+      await gateway.sendInvoice(invoice('1234567'));
+      await gateway.cancelInvoice(invoice('1234567').cuf, 1);
+      expect(await gateway.sendCreditNote(note('1234567'))).toMatchObject({ status: 'REJECTED', code: 906 });
+    });
+
+    it('applies the unknown NIT rule, with the exception of the invoice', async () => {
+      await gateway.sendInvoice(invoice('9991234', true));
+      expect(await gateway.sendCreditNote(note('9991234'))).toMatchObject({ status: 'REJECTED', code: 1037 });
+      expect((await gateway.sendCreditNote(note('9991234', true))).status).toBe('ACCEPTED');
+    });
+
+    it('is unavailable while offline', async () => {
+      mode = 'OFFLINE';
+      await expect(gateway.sendCreditNote(note('1234567'))).rejects.toBeInstanceOf(SiatUnavailableError);
+    });
+  });
+
+  describe('codes (HU-FAC-13)', () => {
+    const point = { branchCode: 0, pointOfSaleCode: 1 };
+
+    it('hands out a new CUFD valid for 24 hours every time, and a stable CUIS valid for a year', async () => {
+      let now = new Date('2026-11-16T10:00:00Z');
+      const clocked = new SimulatedSiatGateway(() => mode, new InMemorySiatStore(), () => now);
+      const first = await clocked.requestCufd(point);
+      expect(first.expiresAt).toEqual(new Date('2026-11-17T10:00:00Z'));
+      expect(first.code).toContain('SIMCUFD-0-1-');
+      expect(first.controlCode).toMatch(/^SIM/);
+      now = new Date('2026-11-16T10:00:01Z');
+      const second = await clocked.requestCufd(point);
+      expect(second.code).not.toBe(first.code);
+      const cuis = await clocked.requestCuis(point);
+      expect(cuis).toEqual({ code: 'SIMCUIS-0-1', expiresAt: new Date('2027-11-16T10:00:01Z') });
+    });
+
+    it('cannot renew codes while offline', async () => {
+      mode = 'OFFLINE';
+      await expect(gateway.requestCufd(point)).rejects.toBeInstanceOf(SiatUnavailableError);
+      await expect(gateway.requestCuis(point)).rejects.toBeInstanceOf(SiatUnavailableError);
+    });
   });
 });

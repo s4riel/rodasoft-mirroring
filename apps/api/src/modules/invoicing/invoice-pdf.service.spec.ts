@@ -49,6 +49,24 @@ describe('InvoicePdfService (HU-FAC-05)', () => {
     }
   });
 
+  it('draws another document with its own texts and reference line (the credit note, HU-FAC-11)', async () => {
+    const document = {
+      name: 'Nota de crédito-débito',
+      title: 'NOTA DE CREDITO-DEBITO',
+      subtitle: 'Documento de ajuste',
+      numberLabel: 'Nota',
+      totalLabel: 'TOTAL ACREDITADO',
+      reference: 'Corrige la factura 001528',
+      closing: 'Cierre de la nota',
+    };
+    const raw = (await service.render(input({ document, number: 45 }), { compress: false })).toString('latin1');
+    const decoded = [...raw.matchAll(/<([0-9a-f]+)>/gi)].map((m) => Buffer.from(m[1], 'hex').toString('latin1')).join('');
+    for (const expected of ['NOTA DE CREDITO-DEBITO', 'Documento de ajuste', '000045', 'Corrige la factura 001528', 'TOTAL ACREDITADO', 'Cierre de la nota']) {
+      expect(decoded).toContain(expected);
+    }
+    expect(decoded).not.toContain('FACTURA');
+  });
+
   it('marks a cancelled invoice', async () => {
     const raw = (await service.render(input({ status: 'CANCELLED' }), { compress: false })).toString('latin1');
     const decoded = [...raw.matchAll(/<([0-9a-f]+)>/gi)].map((m) => Buffer.from(m[1], 'hex').toString('latin1')).join('');

@@ -9,6 +9,8 @@ export interface SubNavItem {
   /** Optional count badge (Figma `ShowBadge`). */
   badge?: string | number;
   disabled?: boolean;
+  /** Active only on exactly this route: for a tab whose route is a prefix of the other tabs' (`/invoicing` and `/invoicing/notes`). */
+  exact?: boolean;
 }
 
 /**

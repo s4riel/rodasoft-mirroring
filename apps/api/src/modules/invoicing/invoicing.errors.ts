@@ -33,4 +33,28 @@ export const invoicingErrors = {
   invalidReasonCode: () =>
     new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field: 'reasonCode', error: 'REASON_INVALID' }] }),
   invalidFilter: (message: string) => new BadRequestException({ code: 'INVALID_FILTER', message }),
+
+  // credit and debit notes (HU-FAC-11, HU-FAC-12)
+  noteNotFound: () => new NotFoundException({ code: 'CREDIT_NOTE_NOT_FOUND', message: 'The credit note does not exist' }),
+  priceAdjustmentNotAllowed: () =>
+    new ConflictException({ code: 'PRICE_ADJUSTMENT_NOT_ALLOWED', message: 'This company only issues credit notes from a return' }),
+  invoiceNotCreditable: (status: string) =>
+    new ConflictException({ code: 'INVOICE_NOT_CREDITABLE', message: 'Only an invoice the SIAT holds as valid can be credited', details: { status } }),
+  creditExceedsInvoiced: (details: unknown) =>
+    new ConflictException({ code: 'CREDIT_EXCEEDS_INVOICED', message: 'The note credits more than what is left of the invoice', details }),
+  invalidNote: (details: unknown) => new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details }),
+  noteNotIssuable: (status: string) =>
+    new ConflictException({ code: 'NOTE_NOT_ISSUABLE', message: 'The credit note cannot be issued in its current state', details: { status } }),
+  noteAlreadySending: () => new ConflictException({ code: 'NOTE_ALREADY_SENDING', message: 'The credit note is being sent to the SIAT right now' }),
+  noteNotVoidable: (status: string) =>
+    new ConflictException({ code: 'NOTE_NOT_VOIDABLE', message: 'Only a note the SIAT never validated can be voided', details: { status } }),
+  noteNotIssued: () => new ConflictException({ code: 'NOTE_NOT_ISSUED', message: 'The credit note has not been issued by the SIAT yet' }),
+
+  // system status (HU-FAC-13)
+  pointOfSaleNotFound: () => new NotFoundException({ code: 'POINT_OF_SALE_NOT_FOUND', message: 'The point of sale does not exist' }),
+
+  // VAT books (HU-FAC-18, HU-FAC-19, HU-FAC-20)
+  invalidBookQuery: (field: string, error: string) =>
+    new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field, error }] }),
+  purchaseEntryNotFound: () => new NotFoundException({ code: 'PURCHASE_ENTRY_NOT_FOUND', message: 'The purchase entry does not exist' }),
 };

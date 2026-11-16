@@ -1,6 +1,8 @@
 import { booleanAttribute, ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 export type KpiTrend = 'positive' | 'negative' | 'neutral';
+/** `metric` is the Figma KpiCard (large mono value); `stat` is the Figma "Stat" card of the invoicing screens (small label, 14 px semibold value). */
+export type KpiVariant = 'metric' | 'stat';
 
 /**
  * Figma: KpiCard Trend=Positive|Negative|Neutral, State=Default|Hover|Focus|Disabled. Title, mono value and a trend
@@ -11,7 +13,7 @@ export type KpiTrend = 'positive' | 'negative' | 'neutral';
 @Component({
   selector: 'rs-kpi-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[attr.data-trend]': 'trend()', '[attr.aria-disabled]': 'disabled() || null' },
+  host: { '[attr.data-trend]': 'trend()', '[attr.data-variant]': 'variant()', '[attr.aria-disabled]': 'disabled() || null' },
   templateUrl: './kpi-card.component.html',
   styleUrl: './kpi-card.component.scss',
 })
@@ -22,5 +24,6 @@ export class KpiCardComponent {
   /** Trend line text. */
   readonly note = input('');
   readonly trend = input<KpiTrend>('neutral');
+  readonly variant = input<KpiVariant>('metric');
   readonly disabled = input(false, { transform: booleanAttribute });
 }

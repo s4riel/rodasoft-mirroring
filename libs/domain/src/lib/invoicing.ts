@@ -3,10 +3,12 @@
  * cancelling, the validation of a NIT exception and of a delivery, and the contracts of the invoicing API. There is no contingency
  * (client rule): an invoice the SIAT could not receive stays `PENDING` ("No facturada en SIAT") until a person issues it again.
  */
+import type { VatBookExportFormat, VatBookFormat } from './company-settings';
+import { laPazToday } from './kardex';
 import type { Permission } from './permissions';
 import { Decimal } from './money';
 import { IdentityDocumentType } from './nit';
-import { type InvoiceStatus, invoiceMachine } from './state-machine';
+import { type CreditNoteStatus, creditNoteMachine, type InvoiceStatus, invoiceMachine } from './state-machine';
 
 export const INVOICE_PAGE_SIZE_DEFAULT = 20;
 export const INVOICE_PAGE_SIZE_MAX = 100;
@@ -339,4 +341,472 @@ export interface InvoiceBulkResult {
   id: string;
   ok: boolean;
   code?: string;
+}
+
+// ── Credit and debit notes (HU-FAC-11, HU-FAC-12) ──
+
+export const CREDIT_NOTE_STATUSES: readonly CreditNoteStatus[] = ['PENDING', 'SENDING', 'VALID', 'REJECTED', 'CANCELLED'];
+
+export function isCreditNoteStatus(value: unknown): value is CreditNoteStatus {
+  return typeof value === 'string' && (CREDIT_NOTE_STATUSES as readonly string[]).includes(value);
+}
+
+/**
+ * Reasons of a credit and debit note. PROVISIONAL: the SIN catalogue is not synced yet (HU-FAC-25) and these codes have not been
+ * checked against it; the migration `invoicing_notes_books` back-fills with the same mapping as `creditNoteReasonCode`.
+ */
+export const SIAT_CREDIT_NOTE_REASONS: readonly { code: number; description: string }[] = [
+  { code: 1, description: 'Devolución de mercadería' },
+  { code: 2, description: 'Producto con falla de fábrica' },
+  { code: 3, description: 'Producto equivocado' },
+  { code: 4, description: 'Ajuste de precio' },
+  { code: 5, description: 'Otro' },
+];
+
+export function isCreditNoteReasonCode(code: unknown): code is number {
+  return typeof code === 'number' && SIAT_CREDIT_NOTE_REASONS.some((reason) => reason.code === code);
+}
+
+/** The note reason a return reason (`RETURN_REASONS`) maps to; an unknown one is "Otro". */
+export function creditNoteReasonCode(returnReason: string): number {
+  switch (returnReason) {
+    case 'CUSTOMER_CHANGED_MIND':
+      return 1;
+    case 'FACTORY_DEFECT':
+      return 2;
+    case 'WRONG_PRODUCT':
+      return 3;
+    default:
+      return 5;
+  }
+}
+
+/** The fiscal debit a credit note takes back: 13 % of what it credits, half up to cents. */
+export function creditNoteVat(total: Decimal | string): Decimal {
+  return fiscalDebit(total);
+}
+
+/** What the credit rules read of one invoiced line. */
+export interface CreditableLine {
+  saleItemId: string;
+  invoicedQuantity: number;
+  /** What the line was invoiced for, after the sale discount and rounding (decimal string). */
+  invoicedAmount: string;
+  /** Pieces and money already taken back by earlier notes that are not voided. */
+  creditedQuantity: number;
+  creditedAmount: string;
+}
+
+export interface CreditNoteLineInput {
+  saleItemId: string;
+  /** Pieces credited; 0 for a price adjustment. */
+  quantity: number;
+  /** Decimal string, 2 places. */
+  amount: string;
+}
+
+export type CreditNoteIssueCode = 'CREDIT_EMPTY' | 'SALE_ITEM_NOT_FOUND' | 'INVALID_QUANTITY' | 'INVALID_AMOUNT' | 'CREDIT_EXCEEDS_INVOICED';
+
+export interface CreditNoteIssue {
+  code: CreditNoteIssueCode;
+  saleItemId?: string;
+  /** For `CREDIT_EXCEEDS_INVOICED`: what is still creditable of the line. */
+  creditableQuantity?: number;
+  creditableAmount?: string;
+}
+
+const MONEY_STRING = /^\d{1,12}(\.\d{1,2})?$/;
+
+/** What is still creditable of a line: never below zero. */
+export function creditableOf(line: CreditableLine): { quantity: number; amount: Decimal } {
+  const amount = Decimal.of(line.invoicedAmount).sub(Decimal.of(line.creditedAmount));
+  return { quantity: Math.max(0, line.invoicedQuantity - line.creditedQuantity), amount: amount.isNegative() ? Decimal.zero() : amount };
+}
+
+/**
+ * Only what was invoiced can be credited (HU-FAC-12): each requested line must exist in the invoice, credit a positive amount and
+ * stay within the pieces and the money the line still has after earlier notes. Repeated lines count together. Empty when valid.
+ */
+export function validateCreditNote(lines: readonly CreditableLine[], request: readonly CreditNoteLineInput[]): CreditNoteIssue[] {
+  if (request.length === 0) return [{ code: 'CREDIT_EMPTY' }];
+  const byId = new Map(lines.map((line) => [line.saleItemId, line]));
+  const issues: CreditNoteIssue[] = [];
+  const asked = new Map<string, { quantity: number; amount: Decimal }>();
+  for (const item of request) {
+    const line = byId.get(item.saleItemId);
+    if (!line) {
+      issues.push({ code: 'SALE_ITEM_NOT_FOUND', saleItemId: item.saleItemId });
+    } else if (!Number.isInteger(item.quantity) || item.quantity < 0) {
+      issues.push({ code: 'INVALID_QUANTITY', saleItemId: item.saleItemId });
+    } else if (typeof item.amount !== 'string' || !MONEY_STRING.test(item.amount) || Decimal.of(item.amount).isZero()) {
+      issues.push({ code: 'INVALID_AMOUNT', saleItemId: item.saleItemId });
+    } else {
+      const known = asked.get(item.saleItemId) ?? { quantity: 0, amount: Decimal.zero() };
+      asked.set(item.saleItemId, { quantity: known.quantity + item.quantity, amount: known.amount.add(Decimal.of(item.amount)) });
+    }
+  }
+  if (issues.length > 0) return issues;
+  for (const [saleItemId, want] of asked) {
+    const creditable = creditableOf(byId.get(saleItemId) as CreditableLine);
+    if (want.quantity > creditable.quantity || want.amount.cmp(creditable.amount) > 0) {
+      issues.push({ code: 'CREDIT_EXCEEDS_INVOICED', saleItemId, creditableQuantity: creditable.quantity, creditableAmount: creditable.amount.toString() });
+    }
+  }
+  return issues;
+}
+
+/** The total of a note: the sum of its lines. */
+export function creditNoteTotal(request: readonly { amount: string }[]): Decimal {
+  return request.reduce((acc, item) => acc.add(Decimal.of(item.amount)), Decimal.zero());
+}
+
+/** Whether the original invoice can still be credited: only one the SIAT holds as valid. */
+export function isInvoiceCreditable(status: InvoiceStatus): boolean {
+  return status === 'VALID';
+}
+
+export type CreditNoteAction = 'VIEW_DETAIL' | 'ISSUE' | 'VOID' | 'DOWNLOAD_PDF' | 'DOWNLOAD_XML';
+
+/** The actions a note in `status` offers to a user holding `permissions`, in menu order. */
+export function creditNoteActions(status: CreditNoteStatus, permissions: Iterable<string>): CreditNoteAction[] {
+  const granted = new Set<string>(permissions);
+  const has = (permission: Permission) => granted.has(permission);
+  if (!has('invoicing.invoices.view')) return [];
+  const actions: CreditNoteAction[] = ['VIEW_DETAIL'];
+  if ((creditNoteMachine.can(status, 'send') || creditNoteMachine.can(status, 'fix')) && has('invoicing.notes.issue')) actions.push('ISSUE');
+  // a note the SIAT never validated can be given up, which frees what it reserved of the invoice
+  if (creditNoteMachine.can(status, 'void') && has('invoicing.notes.issue')) actions.push('VOID');
+  if (status === 'VALID') actions.push('DOWNLOAD_PDF', 'DOWNLOAD_XML');
+  return actions;
+}
+
+export interface CreditNoteListQuery {
+  q?: string;
+  status?: CreditNoteStatus;
+  /** `YYYY-MM-DD` La Paz days, inclusive. */
+  from?: string;
+  to?: string;
+  branchId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CreditNoteListItem {
+  id: string;
+  /** Null until the first attempt to send takes a number. */
+  number: number | null;
+  status: CreditNoteStatus;
+  invoiceId: string;
+  invoiceNumber: number | null;
+  customerName: string;
+  /** The return the note was born from; null for a price adjustment. */
+  returnId: string | null;
+  returnNumber: string | null;
+  total: string;
+  issuedAt: string | null;
+  createdAt: string;
+  branchId: string;
+  rejectionMessage: string | null;
+  actions: CreditNoteAction[];
+}
+
+export interface CreditNoteListKpis {
+  /** Notes the SIAT validated this La Paz month. */
+  issuedThisMonth: { count: number; total: string };
+  /** Notes still `PENDING`: they await a manual issue. */
+  notIssued: number;
+  /** How many of this month's valid notes come from a return. */
+  fromReturns: number;
+  rejected: number;
+}
+
+export interface CreditNoteListResponse {
+  items: CreditNoteListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalAmount: string;
+  kpis: CreditNoteListKpis;
+}
+
+export interface CreditNoteDetailLine {
+  saleItemId: string;
+  code: string;
+  description: string;
+  quantity: number;
+  unitPrice: string;
+  amount: string;
+}
+
+export interface CreditNoteDetail extends CreditNoteListItem {
+  cuf: string | null;
+  siatReceptionCode: string | null;
+  rejectionCode: number | null;
+  lastError: string | null;
+  reasonCode: number;
+  vatAdjusted: string;
+  customerDocumentNumber: string;
+  branchName: string;
+  invoice: { id: string; number: number | null; status: InvoiceStatus; issuedAt: string | null; total: string; saleId: string };
+  lines: CreditNoteDetailLine[];
+  history: InvoiceHistoryEntry[];
+}
+
+/** `GET invoicing/invoices/:id/creditable`: what the price-adjustment form shows (FS-25). */
+export interface CreditableInvoice {
+  invoiceId: string;
+  saleId: string;
+  /** `invoicing.allowPriceAdjustmentNotes`: off, the ERP sends the user to the return form of the sale instead. */
+  priceAdjustmentAllowed: boolean;
+  invoiceNumber: number | null;
+  customerName: string;
+  total: string;
+  /** What earlier notes that are not voided already credited. */
+  credited: string;
+  reasons: { code: number; description: string }[];
+  lines: {
+    saleItemId: string;
+    code: string;
+    description: string;
+    unitPrice: string;
+    invoicedQuantity: number;
+    invoicedAmount: string;
+    creditableQuantity: number;
+    creditableAmount: string;
+  }[];
+}
+
+/** The body of `POST invoicing/invoices/:id/credit-notes`. */
+export interface CreateCreditNoteInput {
+  reasonCode: number;
+  items: CreditNoteLineInput[];
+}
+
+// ── SIAT system status (HU-FAC-13) ──
+
+export type CodeHealth = 'OK' | 'EXPIRING' | 'EXPIRED';
+
+/**
+ * Health of a CUIS or CUFD by its expiry: `EXPIRED` once past it (or when there is none yet), `EXPIRING` inside the last
+ * `warnHours`, `OK` otherwise.
+ */
+export function codeHealth(expiresAt: Date | string | null, now: Date, warnHours: number): CodeHealth {
+  if (expiresAt === null) return 'EXPIRED';
+  const left = new Date(expiresAt).getTime() - now.getTime();
+  if (!(left > 0)) return 'EXPIRED';
+  return left <= warnHours * 3_600_000 ? 'EXPIRING' : 'OK';
+}
+
+/** The worst health of several codes, for a summary. */
+export function worstCodeHealth(healths: readonly CodeHealth[]): CodeHealth {
+  if (healths.includes('EXPIRED')) return 'EXPIRED';
+  return healths.includes('EXPIRING') ? 'EXPIRING' : 'OK';
+}
+
+export interface SiatCodeStatus {
+  /** Whether the point of sale holds a code at all; the code itself never leaves the API. */
+  present: boolean;
+  expiresAt: string | null;
+  health: CodeHealth;
+}
+
+export interface SiatPointOfSaleStatus {
+  id: string;
+  code: number;
+  name: string;
+  cuis: SiatCodeStatus;
+  cufd: SiatCodeStatus;
+  lastSyncedAt: string | null;
+  /** Invoices the SIAT validated today (La Paz) at this point of sale. */
+  issuedToday: number;
+}
+
+export interface SiatBranchStatus {
+  branchId: string;
+  branchCode: number;
+  branchName: string;
+  pointsOfSale: SiatPointOfSaleStatus[];
+}
+
+/** `GET invoicing/system-status` (FS-05, FS-11). */
+export interface SiatSystemStatus {
+  connection: SiatConnectionStatus;
+  checkedAt: string | null;
+  environment: 'PRODUCTION' | 'TEST';
+  modality: string;
+  /** The worst CUIS and CUFD of the company, and the latest sync of any point of sale. */
+  cuis: CodeHealth;
+  cufd: CodeHealth;
+  lastSyncedAt: string | null;
+  warnHours: number;
+  /** Invoices and notes that still wait for a manual issue. */
+  notIssued: number;
+  branches: SiatBranchStatus[];
+}
+
+// ── VAT books (HU-FAC-18, HU-FAC-19, HU-FAC-20) ──
+
+export const VAT_BOOKS = ['SALES', 'PURCHASES'] as const;
+export type VatBook = (typeof VAT_BOOKS)[number];
+
+const PERIOD = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+export function isVatBookPeriod(value: unknown): value is string {
+  return typeof value === 'string' && PERIOD.test(value);
+}
+
+/** The La Paz days a `YYYY-MM` period covers, or null when it is not a period. */
+export function vatBookPeriod(period: string): { year: number; month: number; firstDay: string; lastDay: string } | null {
+  const match = PERIOD.exec(period);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { year, month, firstDay: `${period}-01`, lastDay: `${period}-${String(days).padStart(2, '0')}` };
+}
+
+/** The current La Paz period (`YYYY-MM`). */
+export function currentVatBookPeriod(now: Date): string {
+  return laPazToday(now).slice(0, 7);
+}
+
+/** A period is a draft while its La Paz month has not ended (closing a period is HU-FAC-21). */
+export function isDraftPeriod(period: string, now: Date): boolean {
+  return period >= currentVatBookPeriod(now);
+}
+
+export type SalesBookRowKind = 'INVOICE' | 'CREDIT_NOTE';
+export type SalesBookRowStatus = 'VALID' | 'CANCELLED';
+
+export interface SalesBookRow {
+  id: string;
+  kind: SalesBookRowKind;
+  /** When the SIAT accepted the document (ISO). */
+  date: string;
+  number: number;
+  cuf: string;
+  customerDocumentNumber: string;
+  customerName: string;
+  /** A cancelled invoice is listed with 0. A credit note carries what it credits, as a positive amount. */
+  total: string;
+  fiscalDebit: string;
+  status: SalesBookRowStatus;
+}
+
+export interface SalesBookTotals {
+  invoices: number;
+  cancelled: number;
+  creditNotes: number;
+  /** Sum of the valid invoices. */
+  invoicedAmount: string;
+  /** Sum of the credit notes. */
+  creditedAmount: string;
+  /** Invoiced less credited. */
+  netAmount: string;
+  /** 13 % fiscal debit of the valid invoices less the VAT the notes adjust. */
+  fiscalDebit: string;
+}
+
+/** The indicators of the sales book: valid invoices add, cancelled ones add nothing, credit notes reduce. */
+export function salesBookTotals(rows: readonly SalesBookRow[]): SalesBookTotals {
+  let invoices = 0;
+  let cancelled = 0;
+  let creditNotes = 0;
+  let invoiced = Decimal.zero();
+  let credited = Decimal.zero();
+  let debit = Decimal.zero();
+  for (const row of rows) {
+    if (row.status === 'CANCELLED') {
+      cancelled++;
+    } else if (row.kind === 'CREDIT_NOTE') {
+      creditNotes++;
+      credited = credited.add(Decimal.of(row.total));
+      debit = debit.sub(Decimal.of(row.fiscalDebit));
+    } else {
+      invoices++;
+      invoiced = invoiced.add(Decimal.of(row.total));
+      debit = debit.add(Decimal.of(row.fiscalDebit));
+    }
+  }
+  return {
+    invoices,
+    cancelled,
+    creditNotes,
+    invoicedAmount: invoiced.toString(),
+    creditedAmount: credited.toString(),
+    netAmount: invoiced.sub(credited).toString(),
+    fiscalDebit: debit.toString(),
+  };
+}
+
+export type PurchaseBookStatus = 'VALID' | 'OBSERVED';
+
+export interface PurchaseBookRow {
+  id: string;
+  /** `YYYY-MM-DD`. */
+  date: string;
+  supplierNit: string;
+  supplierName: string;
+  authorizationCode: string;
+  invoiceNumber: string;
+  total: string;
+  vatCredit: string;
+  status: PurchaseBookStatus;
+  observation: string | null;
+  nitVerifiedAt: string | null;
+}
+
+export interface PurchaseBookTotals {
+  entries: number;
+  observed: number;
+  /** Sum and tax credit of the valid entries only: an observed purchase does not add (HU-FAC-19). */
+  totalAmount: string;
+  vatCredit: string;
+  /** What the observed entries would add once verified. */
+  observedAmount: string;
+  observedVatCredit: string;
+}
+
+export function purchaseBookTotals(rows: readonly PurchaseBookRow[]): PurchaseBookTotals {
+  let observed = 0;
+  let total = Decimal.zero();
+  let credit = Decimal.zero();
+  let observedAmount = Decimal.zero();
+  let observedCredit = Decimal.zero();
+  for (const row of rows) {
+    if (row.status === 'OBSERVED') {
+      observed++;
+      observedAmount = observedAmount.add(Decimal.of(row.total));
+      observedCredit = observedCredit.add(Decimal.of(row.vatCredit));
+    } else {
+      total = total.add(Decimal.of(row.total));
+      credit = credit.add(Decimal.of(row.vatCredit));
+    }
+  }
+  return {
+    entries: rows.length,
+    observed,
+    totalAmount: total.toString(),
+    vatCredit: credit.toString(),
+    observedAmount: observedAmount.toString(),
+    observedVatCredit: observedCredit.toString(),
+  };
+}
+
+/** `GET invoicing/vat-books/sales|purchases`. */
+export interface VatBookResponse<Row, Totals> {
+  period: string;
+  /** The month has not ended: the book can still change. */
+  draft: boolean;
+  format: VatBookFormat;
+  exportFormats: VatBookExportFormat[];
+  rows: Row[];
+  totals: Totals;
+}
+export type SalesBookResponse = VatBookResponse<SalesBookRow, SalesBookTotals>;
+export type PurchasesBookResponse = VatBookResponse<PurchaseBookRow, PurchaseBookTotals>;
+
+/** The name of an exported book: `libro-ventas-2026-11.xlsx`, with `-BORRADOR` while the period is open. */
+export function vatBookFileName(book: VatBook, period: string, format: VatBookExportFormat, draft: boolean): string {
+  return `libro-${book === 'SALES' ? 'ventas' : 'compras'}-${period}${draft ? '-BORRADOR' : ''}.${format.toLowerCase()}`;
 }
