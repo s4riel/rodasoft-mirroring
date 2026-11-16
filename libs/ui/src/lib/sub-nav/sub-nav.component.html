@@ -7,7 +7,7 @@
             class="item"
             [routerLink]="item.route"
             routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: false }"
+            [routerLinkActiveOptions]="{ exact: !!item.exact }"
             [class.active]="item.key === activeKey()"
             [attr.aria-current]="item.key === activeKey() ? 'page' : null"
             (click)="activeKey.set(item.key)"

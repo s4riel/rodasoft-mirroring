@@ -1,0 +1,135 @@
+<rs-page-header [title]="title()" type="detail" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación" [description]="subtitle()">
+  @if (pill(); as p) {
+    <rs-status-pill rsStatus [status]="p.status" [icon]="p.icon ?? null">{{ p.label }}</rs-status-pill>
+  }
+  @if (canIssue() || canVoid() || hasDocuments()) {
+    <div rsActions class="header-actions">
+      @if (hasDocuments()) {
+        <button rsButton variant="secondary" type="button" data-testid="note-xml" (click)="download('xml')">Descargar XML</button>
+      }
+      @if (canVoid()) {
+        <button rsButton variant="secondary" type="button" data-testid="note-void" [disabled]="busy()" (click)="voidNote()">Anular nota</button>
+      }
+      @if (canIssue()) {
+        <button rsButton variant="primary" type="button" data-testid="note-issue" [disabled]="busy()" [loading]="busy()" (click)="issue()">Emitir en el SIAT</button>
+      }
+    </div>
+  }
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la nota">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver esta nota" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('not-found') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-results" heading="La nota no existe" description="Puede que ya no esté disponible para tu usuario.">
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver a notas</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la nota" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="back()">Volver a notas</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (detail(); as d) {
+      @if (d.status === 'PENDING') {
+        <rs-note type="warning" title="No emitida en el SIAT" data-testid="note-pending-note">
+          @if (d.lastError === 'SIAT_UNAVAILABLE') {
+            El SIAT no respondió. La nota no se reintenta sola: emítela cuando el SIAT vuelva a estar en línea.
+          } @else if (d.lastError === 'INVOICE_NOT_VALID') {
+            La factura original todavía no es válida en el SIAT. Emítela primero y luego emite la nota.
+          } @else if (d.lastError === 'POINT_OF_SALE_MISSING') {
+            La empresa no tiene un punto de venta SIAT configurado. Configúralo y emite la nota.
+          } @else {
+            Esta nota todavía no se envió al SIAT.
+          }
+        </rs-note>
+      }
+      @if (d.status === 'REJECTED') {
+        <rs-note type="danger" title="El SIAT rechazó esta nota" data-testid="note-rejected-note">
+          {{ d.rejectionMessage ?? 'El SIAT rechazó la nota.' }}
+          @if (d.rejectionCode !== null) {
+            <span class="note-comment">Código {{ d.rejectionCode }}</span>
+          }
+        </rs-note>
+      }
+
+      <section class="timeline-card" aria-label="Estado de la nota">
+        <rs-status-timeline [steps]="timeline()" label="Estados de la nota" />
+      </section>
+
+      <section class="summary" aria-label="Resumen de la nota" data-testid="note-summary">
+        <rs-kpi-card variant="stat" label="Monto acreditado" [value]="money(d.total)" />
+        <rs-kpi-card variant="stat" label="IVA a ajustar (13 %)" [value]="money(d.vatAdjusted)" />
+        <rs-kpi-card variant="stat" label="Factura original" [value]="invoiceText()" />
+        <rs-kpi-card variant="stat" label="Origen" [value]="originText()" />
+      </section>
+
+      <div class="columns">
+        <div class="main">
+          <section class="card" aria-labelledby="note-lines">
+            <h2 class="card-title" id="note-lines">Producto acreditado</h2>
+            @for (line of lines(); track $index) {
+              <rs-data-field [showIcon]="false" [label]="line.code" layout="inline">{{ line.text }}</rs-data-field>
+            }
+            <rs-data-field [showIcon]="false" label="Factura original" layout="inline">{{ originalInvoiceText() }}</rs-data-field>
+            <rs-data-field [showIcon]="false" label="Motivo" layout="inline">{{ reasonText() }}</rs-data-field>
+          </section>
+        </div>
+
+        <aside class="side">
+          <section class="card" aria-labelledby="note-siat">
+            <h2 class="card-title" id="note-siat">Nota SIAT</h2>
+            <rs-data-field [showIcon]="false" label="N.º" layout="inline">{{ numberText() }}</rs-data-field>
+            <rs-data-field [showIcon]="false" label="CUF" layout="inline"><span class="cuf" [title]="d.cuf ?? ''">{{ d.cuf ?? '—' }}</span></rs-data-field>
+            <rs-data-field [showIcon]="false" label="Cliente" layout="inline">{{ d.customerName }} · {{ d.customerDocumentNumber }}</rs-data-field>
+            <rs-data-field [showIcon]="false" label="Sucursal" layout="inline">{{ d.branchName }}</rs-data-field>
+            <rs-data-field [showIcon]="false" label="Código de recepción" layout="inline">{{ d.siatReceptionCode ?? '—' }}</rs-data-field>
+          </section>
+
+          <section class="card" aria-labelledby="note-history">
+            <h2 class="card-title" id="note-history">Historial SIAT</h2>
+            @if (history().length === 0) {
+              <p class="muted">Todavía no hay movimientos.</p>
+            }
+            @for (h of history(); track $index) {
+              <div class="entry">
+                <span class="muted time">{{ h.at }}</span>
+                <span>{{ h.text }}@if (h.detail) { · {{ h.detail }} }</span>
+              </div>
+            }
+          </section>
+        </aside>
+      </div>
+
+      <rs-note type="info" [title]="d.returnNumber ? 'Vinculada a la devolución ' + d.returnNumber : 'Ajuste de precio sin devolución'">
+        El crédito fiscal se ajusta en el libro de ventas del mes en que el SIAT valida la nota. La nota solo acredita lo que se facturó.
+      </rs-note>
+
+      <div class="footer-actions">
+        <button rsButton variant="ghost" type="button" (click)="back()">Volver a notas</button>
+        @if (hasDocuments()) {
+          <button rsButton variant="secondary" type="button" data-testid="note-pdf" (click)="print()">Imprimir nota</button>
+        }
+        <a rsButton variant="primary" [routerLink]="['/invoicing/invoices', d.invoice.id]">Ver factura original</a>
+      </div>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

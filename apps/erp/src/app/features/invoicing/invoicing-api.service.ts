@@ -1,11 +1,41 @@
 import { HttpClient, HttpParams, type HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import type { InvoiceBulkResult, InvoiceCancellationsResponse, InvoiceDeliveryChannel, InvoiceDetail, InvoiceListQuery, InvoiceListResponse, InvoicingStatus } from '@rodasoft/domain';
+import type {
+  CreateCreditNoteInput,
+  CreditableInvoice,
+  CreditNoteDetail,
+  CreditNoteListQuery,
+  CreditNoteListResponse,
+  InvoiceBulkResult,
+  InvoiceCancellationsResponse,
+  InvoiceDeliveryChannel,
+  InvoiceDetail,
+  InvoiceListQuery,
+  InvoiceListResponse,
+  InvoicingStatus,
+  PurchaseBookRow,
+  PurchasesBookResponse,
+  SalesBookResponse,
+  SiatConnectionStatus,
+  SiatPointOfSaleStatus,
+  SiatSystemStatus,
+  VatBook,
+  VatBookExportFormat,
+} from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
 const BASE = '/api/v1/invoicing';
 
-/** The SIAT invoices: status, list, detail and issuing by hand (HU-FAC-01…04, HU-FAC-07). */
+/** Query parameters of a request: an empty value is left out. */
+function toParams(query: object): HttpParams {
+  let params = new HttpParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
+  }
+  return params;
+}
+
+/** The SIAT invoices, credit notes, system status and VAT books (HU-FAC-01…13, 18…20). */
 @Injectable({ providedIn: 'root' })
 export class InvoicingApi {
   private readonly http = inject(HttpClient);
@@ -100,5 +130,75 @@ export class InvoicingApi {
   /** E-mails several invoices to the e-mail of their customers. */
   deliverMany(ids: readonly string[]): Observable<{ results: InvoiceBulkResult[] }> {
     return this.http.post<{ results: InvoiceBulkResult[] }>(`${BASE}/invoices/deliveries`, { ids });
+  }
+
+  // ── Credit and debit notes (HU-FAC-11, HU-FAC-12) ──
+
+  notes(query: CreditNoteListQuery): Observable<CreditNoteListResponse> {
+    return this.http.get<CreditNoteListResponse>(`${BASE}/notes`, { params: toParams(query) });
+  }
+
+  note(id: string): Observable<CreditNoteDetail> {
+    return this.http.get<CreditNoteDetail>(`${BASE}/notes/${id}`);
+  }
+
+  /** What is still creditable of an invoice, and whether the company allows a price-adjustment note. */
+  creditable(invoiceId: string): Observable<CreditableInvoice> {
+    return this.http.get<CreditableInvoice>(`${BASE}/invoices/${invoiceId}/creditable`);
+  }
+
+  createNote(invoiceId: string, body: CreateCreditNoteInput): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${BASE}/invoices/${invoiceId}/credit-notes`, body);
+  }
+
+  issueNote(id: string): Observable<void> {
+    return this.http.post<void>(`${BASE}/notes/${id}/issue`, {});
+  }
+
+  /** Gives up a note the SIAT never validated. */
+  voidNote(id: string): Observable<void> {
+    return this.http.post<void>(`${BASE}/notes/${id}/void`, {});
+  }
+
+  notePdf(id: string): Observable<Blob> {
+    return this.http.get(`${BASE}/notes/${id}/pdf`, { responseType: 'blob' });
+  }
+
+  noteXml(id: string): Observable<Blob> {
+    return this.http.get(`${BASE}/notes/${id}/xml`, { responseType: 'blob' });
+  }
+
+  // ── SIAT system status (HU-FAC-13) ──
+
+  systemStatus(): Observable<SiatSystemStatus> {
+    return this.http.get<SiatSystemStatus>(`${BASE}/system-status`);
+  }
+
+  renewCufd(pointOfSaleId: string): Observable<SiatPointOfSaleStatus> {
+    return this.http.post<SiatPointOfSaleStatus>(`${BASE}/points-of-sale/${pointOfSaleId}/renew-cufd`, {});
+  }
+
+  testConnection(): Observable<{ connection: SiatConnectionStatus; checkedAt: string }> {
+    return this.http.post<{ connection: SiatConnectionStatus; checkedAt: string }>(`${BASE}/test-connection`, {});
+  }
+
+  // ── VAT books (HU-FAC-18, HU-FAC-19, HU-FAC-20) ──
+
+  salesBook(period: string, branchId?: string): Observable<SalesBookResponse> {
+    return this.http.get<SalesBookResponse>(`${BASE}/vat-books/sales`, { params: toParams({ period, branchId }) });
+  }
+
+  purchasesBook(period: string): Observable<PurchasesBookResponse> {
+    return this.http.get<PurchasesBookResponse>(`${BASE}/vat-books/purchases`, { params: toParams({ period }) });
+  }
+
+  /** Asks the SIN about the supplier's NIT (a corrected one when given) and validates the purchase when it knows it. */
+  verifyPurchaseNit(id: string, supplierNit?: string): Observable<{ valid: boolean; messages: { code: number; description: string }[]; entry: PurchaseBookRow }> {
+    return this.http.post<{ valid: boolean; messages: { code: number; description: string }[]; entry: PurchaseBookRow }>(`${BASE}/vat-books/purchases/${id}/verify-nit`, supplierNit ? { supplierNit } : {});
+  }
+
+  /** The book as a file; `X-Vat-Book-Draft` says whether the period is still open. */
+  exportBook(book: VatBook, period: string, format: VatBookExportFormat): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${BASE}/vat-books/export`, { params: toParams({ book, period, format }), responseType: 'blob', observe: 'response' });
   }
 }

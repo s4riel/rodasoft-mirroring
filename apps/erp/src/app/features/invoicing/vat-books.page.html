@@ -1,0 +1,106 @@
+<rs-page-header [title]="title()" [description]="description()" type="list" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación">
+  <div rsActions class="header-actions">
+    <button rsButton variant="primary" type="button" data-testid="book-export" [disabled]="state() !== 'ready'" (click)="exportOpen.set(true)">Exportar libro</button>
+  </div>
+</rs-page-header>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver los libros IVA" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+  </section>
+} @else {
+  @if (draft()) {
+    <rs-note type="warning" [title]="'Período abierto: ' + periodName()" data-testid="book-draft-note">
+      El mes todavía no terminó, así que el libro puede cambiar. Lo que exportes ahora sale como borrador.
+    </rs-note>
+  }
+  @if (firstObserved(); as observed) {
+    <rs-note type="warning" [title]="observedText()" data-testid="book-observed-note">
+      El NIT del proveedor de la compra {{ observed.invoiceNumber }} no es válido. No suma crédito fiscal hasta que lo corrijas.
+    </rs-note>
+  }
+
+  @if (sales(); as s) {
+    <section class="kpis" aria-label="Indicadores del libro de ventas" data-testid="book-kpis">
+      <rs-kpi-card variant="stat" label="Período" [value]="periodName() + (draft() ? ' · abierto' : '')" />
+      <rs-kpi-card variant="stat" label="Débito fiscal (13 %)" [value]="formatBs(s.totals.fiscalDebit)" [note]="s.totals.creditNotes > 0 ? 'Menos ' + s.totals.creditNotes + (s.totals.creditNotes === 1 ? ' nota de crédito' : ' notas de crédito') : ''" />
+      <rs-kpi-card variant="stat" label="Facturas del período" [value]="invoicesText()" />
+      <rs-kpi-card variant="stat" label="Importe neto" [value]="formatBs(s.totals.netAmount)" />
+    </section>
+  }
+  @if (purchases(); as p) {
+    <section class="kpis" aria-label="Indicadores del libro de compras" data-testid="book-kpis">
+      <rs-kpi-card variant="stat" label="Período" [value]="periodName() + (draft() ? ' · abierto' : '')" />
+      <rs-kpi-card variant="stat" label="Crédito fiscal (13 %)" [value]="formatBs(p.totals.vatCredit)" />
+      <rs-kpi-card variant="stat" label="Compras del período" [value]="entriesText()" />
+      <rs-kpi-card variant="stat" label="Por revisar" [value]="observedShort()" [trend]="p.totals.observed > 0 ? 'negative' : 'neutral'" />
+    </section>
+  }
+
+  <rs-filter-bar-products
+    inline
+    [searchPlaceholder]="book() === 'SALES' ? 'Buscar por cliente, NIT o N.º' : 'Buscar por proveedor, NIT o N.º'"
+    searchLabel="Buscar en el libro"
+    clearLabel="Limpiar"
+    [clearDisabled]="search() === '' && !branchId() && period() === periods[0].value"
+    [search]="search()"
+    (searchChange)="search.set($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select ariaLabel="Libro" [options]="bookOptions" [value]="book()" (valueChange)="setBook($event)" />
+      <rs-select ariaLabel="Período" [options]="periods" [value]="period()" (valueChange)="setPeriod($event)" />
+      @if (book() === 'SALES' && branchOptions().length > 1) {
+        <rs-select placeholder="Sucursal" ariaLabel="Sucursal" [options]="branchOptions()" [value]="branchId()" (valueChange)="setBranch($event)" />
+      }
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el libro">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="30%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="12%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el libro" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="reload()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (isEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" [heading]="'No hay registros en ' + periodName()" description="El libro se llena con lo que el SIAT valida en el mes." [showAction]="false" />
+        </section>
+      } @else if (noResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="No encontramos registros" description="Prueba con otro nombre, NIT o número.">
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" [tableLabel]="title()" [columns]="columns()" [rows]="rows()" [totals]="totalRow()">
+          <ng-template rsDocCell="actions" let-row>
+            @if (purchaseOf(row.id); as entry) {
+              <rs-row-action [label]="'Acciones de la compra ' + entry.invoiceNumber" [items]="menuFor(entry)" (selected)="openEntry(entry)" />
+            } @else if (saleRowOf(row.id); as sale) {
+              <rs-row-action [label]="'Acciones del documento ' + sale.number" [items]="saleMenuFor(sale)" (selected)="openSaleRow(sale)" />
+            }
+          </ng-template>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-vat-book-export-dialog [(open)]="exportOpen" [book]="book()" [period]="period()" [periods]="exportPeriods" [formats]="formats()" />
+
+<rs-toast-outlet closeLabel="Cerrar" />

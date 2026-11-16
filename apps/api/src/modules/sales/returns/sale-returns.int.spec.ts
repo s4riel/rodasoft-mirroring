@@ -449,4 +449,61 @@ describe('Sale returns (integration, real Postgres)', () => {
       expect(sale.returns).toHaveLength(1);
     });
   });
+
+  describe('the credit note of a return (HU-FAC-12)', () => {
+    const noteOf = (returnId: string) => state.base.creditNote.findUniqueOrThrow({ where: { returnId }, include: { items: { orderBy: { quantity: 'asc' } } } });
+    const validate = (saleId: string) => state.base.invoice.update({ where: { saleId }, data: { status: 'VALID', number: 7, cuf: 'CUF7', issuedAt: new Date() } });
+
+    it('carries its lines, the SIN reason, the VAT to adjust, and the branch and point of sale of the invoice', async () => {
+      const sold = await sell([2, 1]);
+      const detail = await create(make(sold, [{ item: 0, quantity: 2 }, { item: 1, quantity: 1, condition: 'SCRAP' }], { reason: 'WRONG_PRODUCT' }));
+      const invoice = await state.base.invoice.findUniqueOrThrow({ where: { saleId: sold.saleId } });
+      const note = await noteOf(detail.id);
+      expect(note).toMatchObject({ status: 'PENDING', reasonCode: 3, branchId: invoice.branchId, pointOfSaleId: invoice.pointOfSaleId, number: null });
+      expect(note.total.toFixed(2)).toBe('300.00');
+      expect(note.vatAdjusted.toFixed(2)).toBe('39.00');
+      expect(note.items.map((item) => [item.saleItemId, item.quantity, item.unitPrice.toFixed(2), item.amount.toFixed(2)])).toEqual([
+        [sold.items[1].id, 1, '100.00', '100.00'],
+        [sold.items[0].id, 2, '100.00', '200.00'],
+      ]);
+      expect(note.items.every((item) => item.description.length > 0)).toBe(true);
+    });
+
+    it('publishes the first issue attempt with the return when the invoice is valid, once', async () => {
+      const sold = await sell([1]);
+      await validate(sold.saleId);
+      const detail = await create(make(sold, [{ item: 0, quantity: 1 }]));
+      const note = await noteOf(detail.id);
+      const published = await events('credit-note.issue');
+      expect(published).toHaveLength(1);
+      expect(published[0]).toMatchObject({ idempotencyKey: `credit-note-issue:${note.id}:1`, payload: { creditNoteId: note.id, attempt: 1, manual: false } });
+    });
+
+    it('publishes nothing while the invoice is not valid, or when the automatic attempt is off', async () => {
+      const pending = await sell([1]);
+      await create(make(pending, [{ item: 0, quantity: 1 }]));
+      expect(await events('credit-note.issue')).toHaveLength(0);
+
+      await setSetting('invoicing.autoIssueOnSale', false);
+      const valid = await sell([1]);
+      await validate(valid.saleId);
+      const detail = await create(make(valid, [{ item: 0, quantity: 1 }]));
+      expect((await noteOf(detail.id)).status).toBe('PENDING');
+      expect(await events('credit-note.issue')).toHaveLength(0);
+      await state.base.companySetting.deleteMany({ where: { companyId: state.companyId, key: 'invoicing.autoIssueOnSale' } });
+    });
+
+    it('a return approved later writes the note and its event in the approval', async () => {
+      await setSetting('sales.returnApprovalLimit', '50.00');
+      const sold = await sell([1]);
+      await validate(sold.saleId);
+      const requested = await create(make(sold, [{ item: 0, quantity: 1 }]));
+      expect(await state.base.creditNote.count({ where: { returnId: requested.id } })).toBe(0);
+      expect(await events('credit-note.issue')).toHaveLength(0);
+      await svc(approver).returns.approve(requested.id, { comment: 'Ok' });
+      const note = await noteOf(requested.id);
+      expect(note.items).toHaveLength(1);
+      expect(await events('credit-note.issue')).toHaveLength(1);
+    });
+  });
 });

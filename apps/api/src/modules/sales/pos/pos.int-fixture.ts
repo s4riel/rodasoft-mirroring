@@ -49,6 +49,11 @@ import { QuoteLifecycleService } from '../quotes/quote-lifecycle.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { StockReservationService } from '../../inventory/stock-reservation.service';
 import { SiatGatewayFactory } from '../../../common/siat/siat-gateway.factory';
+import { CreditNoteQueriesService } from '../../invoicing/credit-note-queries.service';
+import { CreditNotesService } from '../../invoicing/credit-notes.service';
+import { SiatSystemStatusService } from '../../invoicing/siat-system-status.service';
+import { VatBookExportService } from '../../invoicing/vat-book-export.service';
+import { VatBooksService } from '../../invoicing/vat-books.service';
 import { InvoiceCancellationsService } from '../../invoicing/invoice-cancellations.service';
 import { InvoiceDocumentsService } from '../../invoicing/invoice-documents.service';
 import { InvoiceIssuingService } from '../../invoicing/invoice-issuing.service';
@@ -134,7 +139,13 @@ export function createPosFixture(prefix: string) {
     const cashSummary = new CashShiftSummaryService(prisma, cls, settings, membership, storage);
     const gateways = new SiatGatewayFactory(prisma, settings, cls);
     const invoiceIssuing = new InvoiceIssuingService(prisma, cls, audit, outbox, settings, gateways);
+    const vatBooks = new VatBooksService(prisma, cls, audit, settings, gateways);
     return {
+      creditNoteQueries: new CreditNoteQueriesService(prisma, visibility, membership, cls, new InvoicePdfService(), settings),
+      creditNotes: new CreditNotesService(prisma, cls, audit, outbox, settings, visibility),
+      siatSystemStatus: new SiatSystemStatusService(prisma, cls, audit, settings, gateways),
+      vatBooks,
+      vatBookExport: new VatBookExportService(prisma, cls, vatBooks, audit),
       invoiceQueries: new InvoiceQueriesService(prisma, visibility, membership, cls),
       invoiceDocuments: new InvoiceDocumentsService(prisma, cls, visibility, new InvoicePdfService(), audit, outbox),
       invoiceIssuing,
@@ -337,6 +348,8 @@ export function createPosFixture(prefix: string) {
     await base.dispatch.deleteMany({ where: { companyId: { in: companies } } });
     await base.salesOrder.deleteMany({ where: { companyId: { in: companies } } });
     await base.quote.deleteMany({ where: { companyId: { in: companies } } });
+    await base.purchaseBookEntry.deleteMany({ where: { companyId: { in: companies } } });
+    await base.creditNoteDocument.deleteMany({ where: { companyId: { in: companies } } });
     await base.creditNote.deleteMany({ where: { companyId: { in: companies } } });
     await base.saleReturn.deleteMany({ where: { companyId: { in: companies } } });
     await base.approvalRequest.deleteMany({ where: { companyId: { in: companies } } });

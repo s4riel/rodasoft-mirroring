@@ -1,4 +1,16 @@
-import { type SiatCancelResult, type SiatGateway, type SiatInvoiceStatusResult, type SiatInvoiceSubmission, type SiatNitResult, type SiatSendResult, SiatUnavailableError } from './gateway';
+import {
+  type SiatCancelResult,
+  type SiatCreditNoteSubmission,
+  type SiatCufd,
+  type SiatCuis,
+  type SiatGateway,
+  type SiatInvoiceStatusResult,
+  type SiatInvoiceSubmission,
+  type SiatNitResult,
+  type SiatSendResult,
+  SiatUnavailableError,
+} from './gateway';
+import type { PointOfSaleRef } from './types';
 
 export type SimulatorMode = 'ONLINE' | 'OFFLINE';
 
@@ -31,17 +43,23 @@ export class InMemorySiatStore implements SimulatedSiatStore {
 /** NITs starting with this prefix do not exist for the simulated SIN. */
 export const SIMULATED_UNKNOWN_NIT_PREFIX = '999';
 export const SIMULATED_NIT_REJECTION_CODE = 1037;
+/** A credit note whose invoice the simulated SIN does not hold as valid. */
+export const SIMULATED_INVOICE_NOT_VALID_CODE = 906;
+export const SIMULATED_CUFD_HOURS = 24;
+export const SIMULATED_CUIS_DAYS = 365;
 const UNKNOWN_NIT_MESSAGE = 'NIT INVALIDO';
 
 /**
  * Deterministic stand-in for the SIN (decision of HU-FAC-01…10): offline when told so, rejects the NITs that start with `999`
- * unless the invoice carries the exception flag, and keeps what it accepted and cancelled in an injected store. Nothing here is
+ * unless the invoice carries the exception flag, and keeps what it accepted and cancelled in an injected store. It also accepts
+ * credit notes of the invoices it holds as valid and hands out CUIS and CUFD codes (HU-FAC-12, HU-FAC-13). Nothing here is
  * certified against the real service.
  */
 export class SimulatedSiatGateway implements SiatGateway {
   constructor(
     private readonly mode: () => SimulatorMode | Promise<SimulatorMode>,
     private readonly store: SimulatedSiatStore = new InMemorySiatStore(),
+    private readonly clock: () => Date = () => new Date(),
   ) {}
 
   private async requireOnline(): Promise<void> {
@@ -83,5 +101,46 @@ export class SimulatedSiatGateway implements SiatGateway {
     // cancelling twice is not an error for the SIN: the invoice is already cancelled
     await this.store.markCancelled(cuf);
     return { cancelled: true };
+  }
+
+  /** A note is accepted when its invoice is one the simulated SIN holds as valid, with the same `999` NIT rule as an invoice. */
+  async sendCreditNote(note: SiatCreditNoteSubmission): Promise<SiatSendResult> {
+    await this.requireOnline();
+    if ((await this.store.accepted(note.invoiceCuf)) === null || (await this.store.isCancelled(note.invoiceCuf))) {
+      return {
+        status: 'REJECTED',
+        code: SIMULATED_INVOICE_NOT_VALID_CODE,
+        messages: [{ code: SIMULATED_INVOICE_NOT_VALID_CODE, description: 'FACTURA ORIGINAL NO VIGENTE' }],
+      };
+    }
+    const unknownNit = note.customer.documentType === 5 && note.customer.documentNumber.startsWith(SIMULATED_UNKNOWN_NIT_PREFIX);
+    if (unknownNit && !note.nitException) {
+      return { status: 'REJECTED', code: SIMULATED_NIT_REJECTION_CODE, messages: [{ code: SIMULATED_NIT_REJECTION_CODE, description: UNKNOWN_NIT_MESSAGE }] };
+    }
+    const receptionCode = `SIM-NC-${note.cuf.slice(0, 12)}`;
+    await this.store.remember(note.cuf, receptionCode);
+    return { status: 'ACCEPTED', receptionCode, messages: [] };
+  }
+
+  /** A new CUFD every call, valid for 24 hours like the real one. */
+  async requestCufd(pointOfSale: PointOfSaleRef): Promise<SiatCufd> {
+    await this.requireOnline();
+    const now = this.clock();
+    const stamp = now.getTime().toString(36).toUpperCase();
+    return {
+      code: `SIMCUFD-${pointOfSale.branchCode}-${pointOfSale.pointOfSaleCode}-${stamp}`,
+      controlCode: `SIM${stamp.slice(-5)}`,
+      address: 'DIRECCION SIMULADA',
+      expiresAt: new Date(now.getTime() + SIMULATED_CUFD_HOURS * 3_600_000),
+    };
+  }
+
+  /** The CUIS of a point of sale is stable and lasts a year. */
+  async requestCuis(pointOfSale: PointOfSaleRef): Promise<SiatCuis> {
+    await this.requireOnline();
+    return {
+      code: `SIMCUIS-${pointOfSale.branchCode}-${pointOfSale.pointOfSaleCode}`,
+      expiresAt: new Date(this.clock().getTime() + SIMULATED_CUIS_DAYS * 86_400_000),
+    };
   }
 }

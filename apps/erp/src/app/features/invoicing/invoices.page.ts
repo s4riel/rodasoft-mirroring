@@ -248,8 +248,8 @@ export class InvoicesPage {
   /** The chosen action of a row's ⋯ menu. */
   protected async onAction(item: InvoiceListItem, key: string) {
     if (key === 'view') void this.router.navigate(['/invoicing/invoices', item.id]);
-    // the credit note itself is HU-FAC-12: for now it opens the return form of the sale (HU-VEN-21)
-    if (key === 'credit-note') void this.router.navigate(['/sales/history', item.saleId]);
+    // the note page decides: a price adjustment when the company allows it, else the return form of the sale (HU-VEN-21)
+    if (key === 'credit-note') void this.router.navigate(['/invoicing/invoices', item.id, 'credit-note']);
     if (key === 'cancel') {
       this.target.set(item);
       this.cancelOpen.set(true);

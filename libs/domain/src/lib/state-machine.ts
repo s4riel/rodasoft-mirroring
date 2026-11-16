@@ -122,6 +122,22 @@ export const invoiceMachine = createMachine<InvoiceStatus, InvoiceEvent>({
   CANCELLED: {},
 });
 
+// ── Credit and debit note (HU-FAC-11, HU-FAC-12) ──
+export type CreditNoteStatus = 'PENDING' | 'SENDING' | 'VALID' | 'REJECTED' | 'CANCELLED';
+export type CreditNoteEvent = 'send' | 'accept' | 'reject' | 'unavailable' | 'fix' | 'void';
+
+/**
+ * A credit note is issued like an invoice and with the same no-contingency rule: an unavailable SIAT puts it back to `PENDING`
+ * until a person issues it again. Once `VALID` it is final here (cancelling a note in the SIAT is not built).
+ */
+export const creditNoteMachine = createMachine<CreditNoteStatus, CreditNoteEvent>({
+  PENDING: { send: 'SENDING', void: 'CANCELLED' },
+  SENDING: { accept: 'VALID', reject: 'REJECTED', unavailable: 'PENDING' },
+  REJECTED: { fix: 'PENDING', void: 'CANCELLED' },
+  VALID: {},
+  CANCELLED: {},
+});
+
 // ── Sales and POS (HU-VEN-00, docs/sales/design-notes.md) ──
 
 /** A shift is closed by the cashier and then reviewed: approved, or observed when the count needs a follow-up. */

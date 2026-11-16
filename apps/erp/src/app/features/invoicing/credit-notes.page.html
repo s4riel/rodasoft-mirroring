@@ -1,0 +1,118 @@
+<rs-page-header
+  title="Notas de crédito y débito"
+  description="Corrigen una factura ya emitida: devoluciones y ajustes de precio, validadas por el SIAT."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@if (state() === 'forbidden') {
+  <section class="state" role="status">
+    <rs-empty-state-illustrated
+      illustration="no-access"
+      heading="No tienes permiso para ver las notas de crédito"
+      description="Pide acceso al administrador de tu empresa."
+      [showAction]="false"
+    />
+  </section>
+} @else {
+  @if (kpis(); as k) {
+    <section class="kpis" aria-label="Indicadores del mes" data-testid="note-kpis">
+      <rs-kpi-card variant="stat" label="Emitidas este mes" [value]="issuedMonthText()" />
+      <rs-kpi-card
+        label="Sin emitir en el SIAT"
+        [value]="'' + k.notIssued"
+        [note]="k.notIssued > 0 ? k.notIssued + ' por emitir' : 'Todo emitido'"
+        [trend]="k.notIssued > 0 ? 'negative' : 'neutral'"
+      />
+      <rs-kpi-card variant="stat" label="Desde devoluciones" [value]="k.fromReturns + ' de ' + k.issuedThisMonth.count" />
+      <rs-kpi-card variant="stat" label="Rechazadas por el SIAT" [value]="'' + k.rejected" [note]="k.rejected > 0 ? k.rejected + ' por revisar' : ''" [trend]="k.rejected > 0 ? 'negative' : 'neutral'" />
+    </section>
+  }
+
+  <rs-filter-bar-products
+    inline
+    searchPlaceholder="Buscar por N.º, factura o cliente"
+    searchLabel="Buscar notas"
+    clearLabel="Limpiar"
+    [clearDisabled]="!hasFilters()"
+    [search]="searchText()"
+    (searchChange)="onSearch($event)"
+    (cleared)="clearAll()"
+  >
+    <div rsFilters class="filters">
+      <rs-select placeholder="Estado SIAT" ariaLabel="Estado SIAT" [options]="statusOptions" [value]="filters().status" (valueChange)="setStatus($event)" />
+      <rs-date-range-picker placeholder="Período" ariaLabel="Rango de fechas" [value]="range()" (valueChange)="setRange($event)" />
+      @if (branchOptions().length > 1) {
+        <rs-select placeholder="Sucursal" ariaLabel="Sucursal" [options]="branchOptions()" [value]="filters().branchId" (valueChange)="setBranch($event)" />
+      }
+    </div>
+  </rs-filter-bar-products>
+
+  @switch (state()) {
+    @case ('loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando notas">
+        @for (i of skeletonRows; track i) {
+          <div class="skeleton-row">
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="26%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="14%" height="var(--space-4)" />
+            <rs-skeleton shape="text" width="10%" height="var(--space-4)" />
+          </div>
+        }
+      </section>
+    }
+    @case ('error') {
+      <section class="state" role="alert">
+        <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar las notas" [description]="errorMessage()">
+          <button rsButton variant="secondary" type="button" (click)="retry()">Reintentar</button>
+        </rs-empty-state-illustrated>
+      </section>
+    }
+    @default {
+      @if (showEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-invoices"
+            heading="Aún no hay notas de crédito"
+            description="Cada devolución de una venta facturada genera su nota; aparecerá aquí."
+            [showAction]="false"
+          />
+        </section>
+      } @else if (showNoResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="No encontramos notas" description="Prueba con otros filtros o con otro número.">
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Notas de crédito y débito" [columns]="columns" [rows]="rows()" [totals]="totals()">
+          <ng-template rsDocCell="number" let-row>
+            @if (itemOf(row.id); as item) {
+              <a class="number" [routerLink]="['/invoicing/notes', item.id]">{{ row.cells['number'] }}</a>
+            }
+          </ng-template>
+          <ng-template rsDocCell="actions" let-row>
+            @if (itemOf(row.id); as item) {
+              <rs-row-action [label]="menuLabel(item)" [items]="menuFor(item)" (selected)="onAction(item, $event)" />
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rangeText() }}</span>
+            <rs-pagination
+              label="Paginación"
+              previousLabel="Anterior"
+              nextLabel="Siguiente"
+              [showLabels]="true"
+              [page]="filters().page"
+              [pageCount]="pageCount()"
+              (pageChange)="goToPage($event)"
+            />
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

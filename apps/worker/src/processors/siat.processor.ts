@@ -2,18 +2,20 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, OnModuleInit } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { QUEUE } from '../common/queues';
+import { CreditNoteIssueService } from '../siat/credit-note-issue.service';
 import { InvoiceIssueService } from '../siat/invoice-issue.service';
 
 interface SiatJob {
   outboxId: string;
   companyId: string | null;
-  payload: { invoiceId?: string; manual?: boolean; userId?: string | null };
+  payload: { invoiceId?: string; creditNoteId?: string; manual?: boolean; userId?: string | null };
 }
 
 /**
  * SIAT jobs. In S0 it only schedules the recurring tasks; the logic arrives in S2-S3:
  *  - invoice.issue: numbers, builds the CUF and XML, sends to the SIAT and stores the result (VALID / REJECTED / back to PENDING when
  *    the SIAT does not answer: there is no contingency and no retry). Cancelling is synchronous in the API (HU-FAC-10).
+ *  - credit-note.issue: the same for a credit and debit note (HU-FAC-12).
  *  - cufd.renew: renews the CUFD of each point of sale (daily, before registers open).
  *  - catalogs.sync: activities, legends, cancellation reasons, event types.
  * Concurrency 1 per process to avoid saturating the SIN; scale with more processes if needed.
@@ -25,6 +27,7 @@ export class SiatProcessor extends WorkerHost implements OnModuleInit {
   constructor(
     @InjectQueue(QUEUE.siat) private readonly queue: Queue,
     private readonly invoices: InvoiceIssueService,
+    private readonly creditNotes: CreditNoteIssueService,
   ) {
     super();
   }
@@ -51,6 +54,13 @@ export class SiatProcessor extends WorkerHost implements OnModuleInit {
         // an unavailable SIAT is an outcome, not a failure: the job completes and the invoice waits for a person
         const outcome = await this.invoices.issue({ invoiceId: payload.invoiceId, companyId, manual: payload.manual === true, userId: payload.userId ?? null });
         this.logger.log(`invoice.issue ${payload.invoiceId}: ${outcome}`);
+        return outcome;
+      }
+      case 'credit-note.issue': {
+        const { companyId, payload } = job.data;
+        if (!companyId || !payload.creditNoteId) throw new Error('credit-note.issue without company or credit note');
+        const outcome = await this.creditNotes.issue({ creditNoteId: payload.creditNoteId, companyId, manual: payload.manual === true, userId: payload.userId ?? null });
+        this.logger.log(`credit-note.issue ${payload.creditNoteId}: ${outcome}`);
         return outcome;
       }
       default:

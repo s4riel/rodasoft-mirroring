@@ -32,6 +32,7 @@ export type OutboxType =
   | 'sales.return.completed'
   | 'sales.return.rejected'
   | 'invoice.issue'
+  | 'credit-note.issue'
   | 'invoice.email'
   | 'invoicing.nit-exception.requested'
   | 'invoicing.nit-exception.decided'

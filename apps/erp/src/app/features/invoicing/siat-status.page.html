@@ -1,0 +1,98 @@
+<rs-page-header
+  title="Estado del sistema SIAT"
+  description="Conexión, CUIS y CUFD de cada punto de venta."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando el estado del SIAT">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver el estado del SIAT" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar el estado del SIAT" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (data(); as d) {
+      <rs-note [type]="online() && codesOk() ? 'success' : offline() ? 'danger' : 'warning'" [title]="headline()" data-testid="siat-headline">
+        @if (offline()) {
+          Revisa la conectividad antes de reintentar. Mientras el SIAT no responda, las facturas y notas quedan sin emitir y no se reintentan solas.
+        } @else if (online() && !codesOk()) {
+          El SIAT responde, pero hay códigos por vencer o vencidos. Renueva el CUFD antes de emitir: estar en línea no implica autorización para emitir.
+        } @else {
+          Conectividad de ejemplo; no implica autorización fiscal para emitir. Entorno {{ d.environment === 'PRODUCTION' ? 'de producción' : 'de pruebas' }}.
+        }
+      </rs-note>
+
+      <section class="kpis" aria-label="Resumen del SIAT" data-testid="siat-kpis">
+        <rs-kpi-card variant="stat" label="Conexión" [value]="connectionText()" [note]="checkedText()" [trend]="online() ? 'positive' : offline() ? 'negative' : 'neutral'" />
+        <rs-kpi-card variant="stat" label="CUIS" [value]="cuisText()" [trend]="d.cuis === 'OK' ? 'neutral' : 'negative'" />
+        <rs-kpi-card variant="stat" label="CUFD" [value]="cufdText()" [note]="'Avisa ' + d.warnHours + ' h antes de vencer'" [trend]="d.cufd === 'OK' ? 'neutral' : 'negative'" />
+        <rs-kpi-card variant="stat" label="Última sincronización" [value]="syncText()" />
+      </section>
+
+      @if (d.notIssued > 0) {
+        <rs-note type="warning" title="Documentos sin emitir en el SIAT" data-testid="siat-not-issued">
+          Hay {{ d.notIssued }} {{ d.notIssued === 1 ? 'documento' : 'documentos' }} (facturas y notas) esperando que una persona los emita.
+        </rs-note>
+      }
+
+      @if (points().length === 0) {
+        <section class="state">
+          <rs-empty-state-illustrated
+            illustration="no-results"
+            heading="No hay puntos de venta SIAT"
+            description="Configura un punto de venta para emitir facturas."
+            [showAction]="false"
+          />
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Puntos de venta SIAT" [columns]="columns" [rows]="rows()" [totals]="totals()">
+          <ng-template rsDocCell="actions" let-row>
+            @if (pointOf(row.id); as point) {
+              <rs-row-action *rsCan="'invoicing.settings.manage'" [label]="'Acciones del punto de venta ' + point.code" [items]="menu" (selected)="onAction(point, $event)" />
+            }
+          </ng-template>
+        </rs-doc-table>
+      }
+
+      <rs-note type="info" title="Si se cae la conexión, la venta no se detiene">
+        Las facturas y notas quedan sin emitir y no se reintentan solas. Cuando el SIAT vuelva, una persona las emite desde Facturas.
+      </rs-note>
+
+      <div class="actions">
+        <button *rsCan="'invoicing.settings.manage'" rsButton variant="secondary" type="button" data-testid="siat-test-connection" [disabled]="testing()" [loading]="testing()" (click)="testConnection()">
+          Probar conexión
+        </button>
+        <button
+          *rsCan="'invoicing.settings.manage'"
+          rsButton
+          variant="secondary"
+          type="button"
+          data-testid="siat-renew-all"
+          [disabled]="renewing() !== null || renewable().length === 0"
+          [loading]="renewing() !== null"
+          (click)="renewAll()"
+        >
+          Renovar CUFD
+        </button>
+      </div>
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

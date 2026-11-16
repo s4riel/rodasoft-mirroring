@@ -32,6 +32,21 @@ describe('InvoicingController permissions', () => {
     ['rejectNitException', proto.rejectNitException, 'invoicing.nit-exception.approve'],
     ['requestCancellation', proto.requestCancellation, 'sales.cancellations.request'],
     ['pendingCancellations', proto.pendingCancellations, 'sales.cancellations.approve'],
+    ['listNotes', proto.listNotes, 'invoicing.invoices.view'],
+    ['noteDetail', proto.noteDetail, 'invoicing.invoices.view'],
+    ['notePdf', proto.notePdf, 'invoicing.invoices.view'],
+    ['noteXml', proto.noteXml, 'invoicing.invoices.view'],
+    ['creditable', proto.creditable, 'invoicing.notes.issue'],
+    ['createNote', proto.createNote, 'invoicing.notes.issue'],
+    ['issueNote', proto.issueNote, 'invoicing.notes.issue'],
+    ['voidNote', proto.voidNote, 'invoicing.notes.issue'],
+    ['siatSystemStatus', proto.siatSystemStatus, 'invoicing.invoices.view'],
+    ['renewCufd', proto.renewCufd, 'invoicing.settings.manage'],
+    ['testConnection', proto.testConnection, 'invoicing.settings.manage'],
+    ['salesBook', proto.salesBook, 'invoicing.vat-books.view'],
+    ['purchasesBook', proto.purchasesBook, 'invoicing.vat-books.view'],
+    ['verifyPurchaseNit', proto.verifyPurchaseNit, 'invoicing.vat-books.view'],
+    ['exportBook', proto.exportBook, 'invoicing.vat-books.view'],
   ])('%s needs %s', (_name, handler, permission) => {
     expect(required(handler as never)).toEqual([permission]);
   });

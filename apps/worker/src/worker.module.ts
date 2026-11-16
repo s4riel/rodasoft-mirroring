@@ -12,6 +12,7 @@ import { InventoryProcessor } from './processors/inventory.processor';
 import { MailProcessor } from './processors/mail.processor';
 import { QuoteExpiryService } from './quotes/quote-expiry.service';
 import { SiatProcessor } from './processors/siat.processor';
+import { CreditNoteIssueService } from './siat/credit-note-issue.service';
 import { InvoiceIssueService } from './siat/invoice-issue.service';
 import { SiatHealthService } from './siat/siat-health.service';
 
@@ -28,6 +29,6 @@ import { SiatHealthService } from './siat/siat-health.service';
     }),
     BullModule.registerQueue({ name: QUEUE.mail }, { name: QUEUE.siat }, { name: QUEUE.accounting }, { name: QUEUE.inventory }),
   ],
-  providers: [PrismaService, OutboxRelayService, QuoteExpiryService, InvoiceIssueService, SiatHealthService, MailProcessor, SiatProcessor, AccountingProcessor, InventoryProcessor],
+  providers: [PrismaService, OutboxRelayService, QuoteExpiryService, InvoiceIssueService, CreditNoteIssueService, SiatHealthService, MailProcessor, SiatProcessor, AccountingProcessor, InventoryProcessor],
 })
 export class WorkerModule {}

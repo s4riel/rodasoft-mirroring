@@ -19,14 +19,38 @@ export interface InvoicePdfInput {
   total: string;
   legend: string;
   verificationUrl: string;
+  /** The texts of another fiscal document drawn with the same layout (a credit note); an invoice when left out. */
+  document?: PdfDocumentTexts;
 }
+
+/** What changes between the documents that share this layout. */
+export interface PdfDocumentTexts {
+  /** Used in the PDF title: "Factura 12". */
+  name: string;
+  title: string;
+  subtitle: string;
+  numberLabel: string;
+  totalLabel: string;
+  /** A line under the customer: the invoice a note corrects and why. */
+  reference?: string;
+  closing: string;
+}
+
+const INVOICE_TEXTS: PdfDocumentTexts = {
+  name: 'Factura',
+  title: 'FACTURA',
+  subtitle: 'Con derecho a crédito fiscal',
+  numberLabel: 'Factura N.º',
+  totalLabel: 'TOTAL',
+  closing: 'Este documento es la representación gráfica de una factura emitida por el SIAT. Verifícala con el código QR.',
+};
 
 const MARGIN = 40;
 const TIME = new Intl.DateTimeFormat('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'short', timeStyle: 'short', hour12: false });
 const money = (amount: string): string => Number(amount).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
- * The printed invoice (HU-FAC-05): issuer, number, CUF, customer, lines, total in words, legend and the verification QR. Rendered on
+ * The printed invoice (HU-FAC-05), and with other texts the printed credit note (HU-FAC-11): issuer, number, CUF, customer, lines, total in words, legend and the verification QR. Rendered on
  * the server so the preview, the download, the e-mail and the ZIP are the same bytes. It follows the SIN layout only roughly and says
  * "PROVISIONAL" on top: the official layout arrives with HU-FAC-22…26.
  */
@@ -34,8 +58,9 @@ const money = (amount: string): string => Number(amount).toLocaleString('es-BO',
 export class InvoicePdfService {
   /** `compress: false` keeps the page streams readable, for the tests. */
   render(input: InvoicePdfInput, options: { compress?: boolean } = {}): Promise<Buffer> {
+    const texts = input.document ?? INVOICE_TEXTS;
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'LETTER', margin: MARGIN, info: { Title: `Factura ${input.number}`, Author: input.issuerName }, compress: options.compress ?? true });
+      const doc = new PDFDocument({ size: 'LETTER', margin: MARGIN, info: { Title: `${texts.name} ${input.number}`, Author: input.issuerName }, compress: options.compress ?? true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -44,8 +69,8 @@ export class InvoicePdfService {
       const width = doc.page.width - MARGIN * 2;
       doc.font('Helvetica-Bold').fontSize(9).fillColor('#b45309').text('PROVISIONAL · no es un documento fiscal validado', { align: 'center' });
       doc.moveDown(0.5).fillColor('#000');
-      doc.font('Helvetica-Bold').fontSize(18).text('FACTURA', { align: 'center' });
-      doc.font('Helvetica').fontSize(9).text('Con derecho a crédito fiscal', { align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(18).text(texts.title, { align: 'center' });
+      doc.font('Helvetica').fontSize(9).text(texts.subtitle, { align: 'center' });
       if (input.status === 'CANCELLED') doc.font('Helvetica-Bold').fontSize(14).fillColor('#b91c1c').text('ANULADA', { align: 'center' }).fillColor('#000');
       doc.moveDown();
 
@@ -54,7 +79,7 @@ export class InvoicePdfService {
       doc.font('Helvetica').fontSize(9).text(`NIT: ${input.issuerNit}`, { width: width / 2 });
       doc.text(`Sucursal: ${input.branchName}`, { width: width / 2 });
       if (input.pointOfSale) doc.text(`Punto de venta: ${input.pointOfSale}`, { width: width / 2 });
-      doc.font('Helvetica').fontSize(9).text(`Factura N.º: ${String(input.number).padStart(6, '0')}`, MARGIN + width / 2, top, { width: width / 2, align: 'right' });
+      doc.font('Helvetica').fontSize(9).text(`${texts.numberLabel}: ${String(input.number).padStart(6, '0')}`, MARGIN + width / 2, top, { width: width / 2, align: 'right' });
       doc.text(`Fecha: ${TIME.format(input.issuedAt)}`, { width: width / 2, align: 'right' });
       doc.font('Helvetica-Bold').text('CUF', { width: width / 2, align: 'right' });
       doc.font('Courier').fontSize(7).text(input.cuf, { width: width / 2, align: 'right' });
@@ -63,6 +88,7 @@ export class InvoicePdfService {
       doc.x = MARGIN;
       doc.font('Helvetica-Bold').fontSize(9).text(`Cliente: ${input.customerName}`, MARGIN, doc.y, { width });
       doc.font('Helvetica').text(input.customerDocument);
+      if (texts.reference) doc.text(texts.reference, { width });
       doc.moveDown();
 
       const columns = { description: MARGIN, quantity: MARGIN + width * 0.55, unitPrice: MARGIN + width * 0.67, total: MARGIN + width * 0.83 };
@@ -89,7 +115,7 @@ export class InvoicePdfService {
 
       doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + width, doc.y).strokeColor('#999').stroke();
       doc.y += 8;
-      doc.font('Helvetica-Bold').fontSize(11).text(`TOTAL Bs ${money(input.total)}`, MARGIN, doc.y, { width, align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(11).text(`${texts.totalLabel} Bs ${money(input.total)}`, MARGIN, doc.y, { width, align: 'right' });
       doc.font('Helvetica').fontSize(9).text(`Son: ${amountInWords(input.total)}`, MARGIN, doc.y + 4, { width });
       doc.moveDown(1.5);
 
@@ -102,7 +128,7 @@ export class InvoicePdfService {
       doc.fillColor('#000');
       for (let row = 0; row < count; row++) for (let col = 0; col < count; col++) if (qr.isDark(row, col)) doc.rect(MARGIN + width - 96 + col * cell, qrTop + row * cell, cell, cell).fill();
       doc.fillColor('#000').font('Helvetica').fontSize(8).text(input.legend, MARGIN, qrTop, { width: width - 112 });
-      doc.moveDown(0.5).text('Este documento es la representación gráfica de una factura emitida por el SIAT. Verifícala con el código QR.', { width: width - 112 });
+      doc.moveDown(0.5).text(texts.closing, { width: width - 112 });
 
       doc.end();
     });

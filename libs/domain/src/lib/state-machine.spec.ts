@@ -2,6 +2,7 @@ import {
   approvalRequestMachine,
   cashMovementMachine,
   cashShiftMachine,
+  creditNoteMachine,
   InvalidTransitionError,
   invoiceMachine,
   posCheckoutMachine,
@@ -204,5 +205,24 @@ describe('cashMovementMachine (HU-VEN-22)', () => {
       expect(cashMovementMachine.events(status)).toEqual([]);
       expect(() => cashMovementMachine.next(status, 'approve')).toThrow(InvalidTransitionError);
     }
+  });
+});
+
+describe('creditNoteMachine (HU-FAC-12)', () => {
+  it('goes PENDING → SENDING → VALID, or REJECTED and back to PENDING once fixed', () => {
+    expect(creditNoteMachine.next(creditNoteMachine.next('PENDING', 'send'), 'accept')).toBe('VALID');
+    expect(creditNoteMachine.next(creditNoteMachine.next('SENDING', 'reject'), 'fix')).toBe('PENDING');
+  });
+
+  it('an unavailable SIAT sends the note back to PENDING', () => {
+    expect(creditNoteMachine.next('SENDING', 'unavailable')).toBe('PENDING');
+  });
+
+  it('only a note the SIAT never validated can be voided, and a valid one is final', () => {
+    expect(creditNoteMachine.next('PENDING', 'void')).toBe('CANCELLED');
+    expect(creditNoteMachine.next('REJECTED', 'void')).toBe('CANCELLED');
+    expect(creditNoteMachine.events('VALID')).toEqual([]);
+    expect(creditNoteMachine.events('CANCELLED')).toEqual([]);
+    expect(() => creditNoteMachine.next('SENDING', 'void')).toThrow(InvalidTransitionError);
   });
 });

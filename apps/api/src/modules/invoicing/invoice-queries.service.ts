@@ -256,7 +256,7 @@ export class InvoiceQueriesService {
 }
 
 /** The one-line detail of a history row: the SIAT code or message that matters, never raw JSON. */
-function describeAudit(after: unknown): string | null {
+export function describeAudit(after: unknown): string | null {
   if (typeof after !== 'object' || after === null) return null;
   const record = after as Record<string, unknown>;
   const message = record['message'] ?? record['error'] ?? record['receptionCode'];

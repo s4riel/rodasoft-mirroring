@@ -100,3 +100,27 @@ describe('sales.creditTermDays (decision #53)', () => {
     }
   });
 });
+
+describe('invoicing settings of the notes and the VAT books (HU-FAC-12, 13, 18, 20)', () => {
+  it('keeps price-adjustment notes off and warns six hours before a code expires', () => {
+    expect(settingOrDefault('invoicing.allowPriceAdjustmentNotes', undefined)).toBe(false);
+    expect(settingOrDefault('invoicing.allowPriceAdjustmentNotes', true)).toBe(true);
+    expect(settingOrDefault('invoicing.cufdWarnHours', undefined)).toBe(6);
+    expect(settingOrDefault('invoicing.cufdWarnHours', 12)).toBe(12);
+    expect(settingOrDefault('invoicing.cufdWarnHours', 0)).toBe(6);
+  });
+
+  it('reads the book layout from its closed list', () => {
+    expect(settingOrDefault('invoicing.vatBookFormat', undefined)).toBe('SIN_LCV');
+    expect(settingOrDefault('invoicing.vatBookFormat', 'OTHER')).toBe('SIN_LCV');
+  });
+
+  it('keeps a stored list of export formats without repeats and in catalogue order, or falls back', () => {
+    expect(settingOrDefault('invoicing.vatBookExportFormats', undefined)).toEqual(['XLSX', 'CSV']);
+    expect(settingOrDefault('invoicing.vatBookExportFormats', ['CSV'])).toEqual(['CSV']);
+    expect(settingOrDefault('invoicing.vatBookExportFormats', ['CSV', 'XLSX', 'CSV'])).toEqual(['XLSX', 'CSV']);
+    for (const bad of [[], ['PDF'], ['CSV', 3], 'CSV', 5, {}]) {
+      expect(settingOrDefault('invoicing.vatBookExportFormats', bad)).toEqual(['XLSX', 'CSV']);
+    }
+  });
+});

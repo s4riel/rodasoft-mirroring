@@ -1,0 +1,27 @@
+<rs-modal [(open)]="open" variant="form" size="default" heading="Exportar libro" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">Se exportan todas las columnas del formato del SIN. Un período abierto se exporta como borrador.</p>
+
+    <rs-field label="Libro" forId="export-book" hint="Ventas o compras.">
+      <rs-select inputId="export-book" leadingIcon="document" ariaLabel="Libro" [options]="bookOptions" [value]="chosenBook()" (valueChange)="chosenBook.set($any($event))" />
+    </rs-field>
+
+    <rs-field label="Período" forId="export-period" [hint]="draft() ? 'Borrador hasta que se cierre.' : 'Período cerrado.'">
+      <rs-select inputId="export-period" leadingIcon="calendar" ariaLabel="Período" [options]="periods()" [value]="chosenPeriod()" (valueChange)="chosenPeriod.set($any($event))" />
+    </rs-field>
+
+    <rs-field label="Formato" forId="export-format" hint="Columnas del SIN, por confirmar con el contador.">
+      <rs-select inputId="export-format" ariaLabel="Formato" [options]="formatOptions()" [value]="chosenFormat()" (valueChange)="chosenFormat.set($any($event))" />
+    </rs-field>
+
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos exportar el libro">{{ message }}</rs-note>
+    }
+    <p class="file" data-testid="export-file-name">{{ fileName() }}</p>
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="export-confirm" [disabled]="saving()" [loading]="saving()" (click)="export()">Exportar</button>
+  </div>
+</rs-modal>

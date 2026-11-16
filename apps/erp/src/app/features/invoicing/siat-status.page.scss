@@ -1,0 +1,32 @@
+:host {
+  display: grid;
+  gap: var(--space-6);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--bg-surface);
+  border: var(--stroke-default) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+@media (max-width: 64rem) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

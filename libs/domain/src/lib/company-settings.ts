@@ -16,6 +16,14 @@ export type SiatGatewayKind = (typeof SIAT_GATEWAYS)[number];
 export const SIMULATOR_MODES = ['ONLINE', 'OFFLINE'] as const;
 export type SimulatorMode = (typeof SIMULATOR_MODES)[number];
 
+/** Layout of the VAT books (HU-FAC-18): the SIN's "Libro de Compras y Ventas" columns. */
+export const VAT_BOOK_FORMATS = ['SIN_LCV'] as const;
+export type VatBookFormat = (typeof VAT_BOOK_FORMATS)[number];
+
+/** File formats a VAT book can be exported to (HU-FAC-20). */
+export const VAT_BOOK_EXPORT_FORMATS = ['XLSX', 'CSV'] as const;
+export type VatBookExportFormat = (typeof VAT_BOOK_EXPORT_FORMATS)[number];
+
 /**
  * Per-company settings (HU-INV-06). Each key is typed here with its default, so code always has a value even when
  * the company has no `company_settings` row. Defaults follow the open client decisions (#32, #37): a missing
@@ -78,6 +86,14 @@ export interface CompanySettings {
   'invoicing.siatGateway': SiatGatewayKind;
   /** Demo and test switch of the simulated SIAT. */
   'invoicing.simulatorMode': SimulatorMode;
+  /** Whether a credit note may be issued without a return, to adjust a price (HU-FAC-12). Off: notes are born from returns only. */
+  'invoicing.allowPriceAdjustmentNotes': boolean;
+  /** Hours before a CUIS or CUFD expires in which the system status warns about it (HU-FAC-13). */
+  'invoicing.cufdWarnHours': number;
+  /** Layout of the VAT books (HU-FAC-18). */
+  'invoicing.vatBookFormat': VatBookFormat;
+  /** File formats offered when exporting a VAT book (HU-FAC-20). */
+  'invoicing.vatBookExportFormats': VatBookExportFormat[];
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -111,6 +127,10 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'invoicing.allowNitException': true,
   'invoicing.siatGateway': 'SIMULATED',
   'invoicing.simulatorMode': 'ONLINE',
+  'invoicing.allowPriceAdjustmentNotes': false,
+  'invoicing.cufdWarnHours': 6,
+  'invoicing.vatBookFormat': 'SIN_LCV',
+  'invoicing.vatBookExportFormats': ['XLSX', 'CSV'],
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */
@@ -128,6 +148,12 @@ const ENUM_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>>
   'sales.receiptFormat': RECEIPT_FORMATS,
   'invoicing.siatGateway': SIAT_GATEWAYS,
   'invoicing.simulatorMode': SIMULATOR_MODES,
+  'invoicing.vatBookFormat': VAT_BOOK_FORMATS,
+};
+
+/** Settings that are a list of values from a closed list: kept without repeats, in the order of the closed list. */
+const ENUM_LIST_SETTING_VALUES: Partial<Record<CompanySettingKey, readonly string[]>> = {
+  'invoicing.vatBookExportFormats': VAT_BOOK_EXPORT_FORMATS,
 };
 
 /** Settings that are a positive whole number or null (null = no limit); their default is null, so the type is not inferable from it. */
@@ -143,6 +169,11 @@ export function settingOrDefault<K extends CompanySettingKey>(key: K, stored: un
   const allowed = ENUM_SETTING_VALUES[key];
   if (allowed) return (typeof stored === 'string' && allowed.includes(stored) ? stored : fallback) as CompanySettings[K];
   if (NULLABLE_INTEGER_SETTING_KEYS.has(key)) return (isPositiveInteger(stored) ? stored : fallback) as CompanySettings[K];
+  const listValues = ENUM_LIST_SETTING_VALUES[key];
+  if (listValues) {
+    const valid = Array.isArray(stored) && stored.length > 0 && stored.every((value) => typeof value === 'string' && listValues.includes(value));
+    return (valid ? listValues.filter((value) => (stored as string[]).includes(value)) : fallback) as CompanySettings[K];
+  }
   if (Array.isArray(fallback)) {
     // a list of positive whole numbers, without repeats and in ascending order; anything else falls back to the default
     const valid = Array.isArray(stored) && stored.length > 0 && stored.every(isPositiveInteger);

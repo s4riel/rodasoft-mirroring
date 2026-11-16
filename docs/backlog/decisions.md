@@ -58,4 +58,10 @@ When the client answers, update this table and the Sheet, and change the default
 | 22 | Cancellation reasons and deadline | FAC-09, FAC-10 | The four SIN reasons as the catalogue (replaced by the synced one in HU-FAC-25); deadline = `sales.cancellationWindowDays` (no limit) |
 | 31 | Modality and economic sector | FAC-04 | Modality read from `SiatSettings.modality`; sector 1 (purchase-sale) |
 
+| — | Credit notes without a return (price adjustment) | FAC-12 | **Not allowed** (`invoicing.allowPriceAdjustmentNotes` = `false`): a note is born from a return. When a company turns it on, the invoice offers a form to credit money on its lines, never more than was invoiced |
+| — | Layout of the VAT books and export formats | FAC-18, FAC-20 | `invoicing.vatBookFormat` = `SIN_LCV` (the SIN "Libro de Compras y Ventas" columns, to confirm with the accountant) and `invoicing.vatBookExportFormats` = `['XLSX', 'CSV']` |
+| — | Warning before a CUIS/CUFD expires | FAC-13 | `invoicing.cufdWarnHours` = `6` |
+
+The credit note reasons (`SIAT_CREDIT_NOTE_REASONS`) are provisional until the SIN catalogue is synced (HU-FAC-25). A VAT book period is a draft until its La Paz month ends; closing a period is HU-FAC-21.
+
 Cancellation never moves stock or cash without the SIAT: if it is offline or refuses, the approval is blocked and the request stays pending.

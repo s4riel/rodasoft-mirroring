@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { INVOICE_BULK_DOWNLOAD_MAX, INVOICE_BULK_ISSUE_MAX, INVOICE_DELIVERY_CHANNELS, type InvoiceDeliveryChannel, INVOICE_PAGE_SIZE_MAX, INVOICE_STATUSES, type InvoiceStatus } from '@rodasoft/domain';
+import { CREDIT_NOTE_STATUSES, type CreditNoteStatus, INVOICE_BULK_DOWNLOAD_MAX, INVOICE_BULK_ISSUE_MAX, INVOICE_DELIVERY_CHANNELS, type InvoiceDeliveryChannel, INVOICE_PAGE_SIZE_MAX, INVOICE_STATUSES, type InvoiceStatus, VAT_BOOK_EXPORT_FORMATS, VAT_BOOKS, type VatBook, type VatBookExportFormat } from '@rodasoft/domain';
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
 const trimmed = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -17,6 +17,51 @@ export class ListInvoicesQueryDto {
   @IsOptional()
   @IsIn(INVOICE_STATUSES)
   status?: InvoiceStatus;
+
+  @ApiPropertyOptional({ description: 'Created on or after this La Paz day (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Created on or before this La Paz day (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  to?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  branchId?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: INVOICE_PAGE_SIZE_MAX })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(INVOICE_PAGE_SIZE_MAX)
+  pageSize?: number;
+}
+
+/** The filters of the credit note list (HU-FAC-11): the same as the invoice list, with the statuses of a note. */
+export class ListCreditNotesQueryDto {
+  @ApiPropertyOptional({ description: 'Matches the note, invoice or return number, or the customer name or document' })
+  @IsOptional()
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(60)
+  q?: string;
+
+  @ApiPropertyOptional({ enum: CREDIT_NOTE_STATUSES })
+  @IsOptional()
+  @IsIn(CREDIT_NOTE_STATUSES)
+  status?: CreditNoteStatus;
 
   @ApiPropertyOptional({ description: 'Created on or after this La Paz day (YYYY-MM-DD)' })
   @IsOptional()
@@ -142,4 +187,74 @@ export class UpdateInvoiceCustomerDto {
   @IsString()
   @MaxLength(2)
   complement?: string;
+}
+
+export class CreditNoteItemDto {
+  @ApiProperty({ description: 'The invoiced line (sale item) the note credits' })
+  @IsUUID()
+  saleItemId!: string;
+
+  @ApiProperty({ description: 'Pieces credited; 0 for a price adjustment', minimum: 0 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  quantity!: number;
+
+  @ApiProperty({ description: 'Amount credited, a decimal string with up to 2 places', example: '40.00' })
+  @IsString()
+  @Matches(/^\d{1,12}(\.\d{1,2})?$/)
+  amount!: string;
+}
+
+export class CreateCreditNoteDto {
+  @ApiProperty({ description: 'A code of the credit note reasons' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  reasonCode!: number;
+
+  @ApiProperty({ type: [CreditNoteItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => CreditNoteItemDto)
+  items!: CreditNoteItemDto[];
+}
+
+const PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export class VatBookQueryDto {
+  @ApiProperty({ description: 'A La Paz month', example: '2026-11' })
+  @Matches(PERIOD)
+  period!: string;
+
+  @ApiPropertyOptional({ description: 'Sales book only: the invoices of one branch' })
+  @IsOptional()
+  @IsUUID()
+  branchId?: string;
+}
+
+export class VatBookExportQueryDto {
+  @ApiProperty({ enum: VAT_BOOKS })
+  @IsIn(VAT_BOOKS)
+  book!: VatBook;
+
+  @ApiProperty({ description: 'A La Paz month', example: '2026-11' })
+  @Matches(PERIOD)
+  period!: string;
+
+  @ApiProperty({ enum: VAT_BOOK_EXPORT_FORMATS })
+  @IsIn(VAT_BOOK_EXPORT_FORMATS)
+  format!: VatBookExportFormat;
+}
+
+export class VerifyPurchaseNitDto {
+  @ApiPropertyOptional({ description: 'A corrected NIT of the supplier; the stored one is verified when left out' })
+  @IsOptional()
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(20)
+  supplierNit?: string;
 }

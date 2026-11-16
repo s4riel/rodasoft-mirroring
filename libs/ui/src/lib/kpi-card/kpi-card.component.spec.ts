@@ -10,6 +10,7 @@ import { KpiCardComponent } from './kpi-card.component';
     </rs-kpi-card>
     <rs-kpi-card label="Precio" value="Bs 245,00" />
     <rs-kpi-card label="Ventas" value="Bs 1,00" trend="negative" note="−8% vs. mes anterior" disabled />
+    <rs-kpi-card label="Emitidas" value="3 · Bs 665,00" variant="stat" />
   `,
 })
 class HostComponent {}
@@ -37,5 +38,12 @@ describe('KpiCardComponent', () => {
     expect(third.getAttribute('data-trend')).toBe('negative');
     expect(third.getAttribute('aria-disabled')).toBe('true');
     expect(first.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('is the large metric by default and the small Figma "Stat" with variant="stat"', async () => {
+    const [first, , , stat] = await render();
+    expect(first.getAttribute('data-variant')).toBe('metric');
+    expect(stat.getAttribute('data-variant')).toBe('stat');
+    expect(stat.querySelector('.value')?.textContent).toBe('3 · Bs 665,00');
   });
 });

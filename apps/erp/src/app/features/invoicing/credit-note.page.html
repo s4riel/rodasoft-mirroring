@@ -1,0 +1,93 @@
+<rs-page-header title="Emitir nota de crédito y débito" type="form" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación" [description]="subtitle()" />
+
+@switch (state()) {
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la factura" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+        <button rsButton variant="secondary" type="button" (click)="cancel()">Volver</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @case ('ready') {
+    @if (data(); as d) {
+      <rs-note type="info" title="Solo se puede acreditar lo que se facturó">
+        La factura {{ numberText() }} sigue válida. La nota la corrige sin anularla y se envía al SIAT al confirmar.
+      </rs-note>
+
+      <section class="card" aria-labelledby="note-reason-title">
+        <h2 class="card-title" id="note-reason-title">Motivo de la nota</h2>
+        <rs-field label="Motivo (catálogo del SIN, por confirmar)" forId="note-reason" hint="Se guarda en la nota y en el libro de ventas." [error]="reasonError()" [required]="true">
+          <rs-select
+            inputId="note-reason"
+            ariaLabel="Motivo de la nota"
+            placeholder="Elige el motivo"
+            [options]="reasonOptions()"
+            [value]="reasonCode()"
+            [invalid]="reasonError() !== null"
+            (valueChange)="reasonCode.set($any($event))"
+          />
+        </rs-field>
+      </section>
+
+      <section class="card" aria-labelledby="note-lines-title">
+        <h2 class="card-title" id="note-lines-title">Productos a acreditar</h2>
+        <div class="line head" aria-hidden="true">
+          <span class="code">Código</span>
+          <span class="product">Producto</span>
+          <span class="num">Facturado</span>
+          <span class="num">Queda</span>
+          <span class="amount">A acreditar (Bs)</span>
+        </div>
+        @for (line of d.lines; track line.saleItemId) {
+          <div class="line" data-testid="note-line">
+            <span class="code">{{ line.code }}</span>
+            <span class="product">{{ line.description }}</span>
+            <span class="num">{{ money(line.invoicedAmount) }}</span>
+            <span class="num">{{ money(line.creditableAmount) }}</span>
+            <div class="amount">
+              <input
+                #amountBox
+                rsInput
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="0,00"
+                [id]="'amount-' + line.saleItemId"
+                [attr.aria-label]="'Monto a acreditar de ' + line.description"
+                [attr.aria-describedby]="'amount-error-' + line.saleItemId"
+                [disabled]="line.creditableAmount === '0.00'"
+                [value]="amounts()[line.saleItemId] ?? ''"
+                [invalid]="lineError(line.saleItemId, line.creditableAmount) !== null"
+                (input)="setAmount(line.saleItemId, amountBox.value)"
+              />
+              @if (lineError(line.saleItemId, line.creditableAmount); as message) {
+                <p class="line-error" role="alert" [id]="'amount-error-' + line.saleItemId">{{ message }}</p>
+              }
+            </div>
+          </div>
+        }
+      </section>
+
+      <rs-note type="info" [title]="'Total a acreditar: ' + totalText()" data-testid="note-total">
+        IVA a ajustar (13 %): {{ vatText() }}. El cliente recibe la nota por correo cuando el SIAT la valide.
+      </rs-note>
+
+      @if (error(); as message) {
+        <rs-note type="danger" title="No pudimos crear la nota">{{ message }}</rs-note>
+      }
+
+      <div class="footer-actions">
+        <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="cancel()">Cancelar</button>
+        <button rsButton variant="primary" type="button" data-testid="note-send" [disabled]="!canSend()" [loading]="saving()" (click)="send()">Emitir nota</button>
+      </div>
+    }
+  }
+  @default {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la factura">
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+    </section>
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />
