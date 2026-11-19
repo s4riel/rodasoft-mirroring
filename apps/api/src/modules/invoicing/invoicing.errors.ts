@@ -57,4 +57,38 @@ export const invoicingErrors = {
   invalidBookQuery: (field: string, error: string) =>
     new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field, error }] }),
   purchaseEntryNotFound: () => new NotFoundException({ code: 'PURCHASE_ENTRY_NOT_FOUND', message: 'The purchase entry does not exist' }),
+
+  // closing VAT periods (HU-FAC-21)
+  periodAlreadyClosed: (period: string) => new ConflictException({ code: 'PERIOD_ALREADY_CLOSED', message: 'The VAT period is already closed', details: { period } }),
+  periodNotEnded: (period: string) => new ConflictException({ code: 'PERIOD_NOT_ENDED', message: 'The month of this VAT period has not ended yet', details: { period } }),
+  previousPeriodOpen: (previous: string) =>
+    new ConflictException({ code: 'PREVIOUS_PERIOD_OPEN', message: 'The previous VAT period is still open: close it first', details: { period: previous } }),
+  periodHasPending: (period: string, pending: unknown) =>
+    new ConflictException({ code: 'PERIOD_HAS_PENDING', message: 'The VAT period has documents the SIAT has not issued or purchases it observes', details: { period, ...(pending as object) } }),
+  periodNotClosed: (period: string) => new ConflictException({ code: 'PERIOD_NOT_CLOSED', message: 'The VAT period is not closed', details: { period } }),
+  periodFiled: (period: string) => new ConflictException({ code: 'PERIOD_FILED', message: 'The VAT period is already filed and cannot change', details: { period } }),
+  laterPeriodClosed: (later: string) =>
+    new ConflictException({ code: 'LATER_PERIOD_CLOSED', message: 'A later VAT period is closed: reopen it first', details: { period: later } }),
+  invalidReopen: (errors: string[]) =>
+    new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: errors.map((error) => ({ field: 'reason', error })) }),
+
+  // fiscal configuration (HU-FAC-22…27)
+  signatureInvalid: () => new BadRequestException({ code: 'SIGNATURE_INVALID', message: 'The .p12 file or its password is not valid' }),
+  signatureExpired: () => new BadRequestException({ code: 'SIGNATURE_EXPIRED', message: 'The digital signature has already expired' }),
+  sinCodeUnknown: (field: string) => new ConflictException({ code: 'SIN_CODE_UNKNOWN', message: 'The code is not in the synced SIN catalogue', details: { field } }),
+  catalogsNotSynced: () => new ConflictException({ code: 'CATALOGS_NOT_SYNCED', message: 'The SIN catalogues have not been synced yet' }),
+  pointOfSaleMissing: () => new ConflictException({ code: 'POINT_OF_SALE_MISSING', message: 'The company has no active point of sale to ask the SIAT with' }),
+  pointOfSaleRejected: (details: unknown) => new ConflictException({ code: 'POINT_OF_SALE_REJECTED', message: 'The SIAT did not register the point of sale', details }),
+  pointOfSaleExists: () => new ConflictException({ code: 'POINT_OF_SALE_EXISTS', message: 'A point of sale with that code already exists in the branch' }),
+  pointOfSaleInUse: () => new ConflictException({ code: 'POINT_OF_SALE_IN_USE', message: 'The point of sale has an open cash shift' }),
+  pointOfSaleInactive: () => new ConflictException({ code: 'POINT_OF_SALE_INACTIVE', message: 'The point of sale is already deactivated' }),
+  branchNotFound: () => new NotFoundException({ code: 'BRANCH_NOT_FOUND', message: 'The branch does not exist' }),
+  warehouseNotFound: () => new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'The warehouse does not exist in that branch' }),
+  productNotFound: () => new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'The product does not exist' }),
+  catalogNotFound: () => new NotFoundException({ code: 'CATALOG_NOT_FOUND', message: 'The catalogue does not exist' }),
+  importHasErrors: (details: unknown) => new ConflictException({ code: 'IMPORT_HAS_ERRORS', message: 'The file has rows with errors: nothing was imported', details }),
+  productionRequirementsMissing: (requirements: string[]) =>
+    new ConflictException({ code: 'PRODUCTION_REQUIREMENTS_MISSING', message: 'The company is not ready to invoice for real', details: { requirements } }),
+  confirmationMismatch: () => new BadRequestException({ code: 'CONFIRMATION_MISMATCH', message: 'The confirmation text does not match' }),
+  alreadyProduction: () => new ConflictException({ code: 'ALREADY_PRODUCTION', message: 'The company already invoices in production' }),
 };

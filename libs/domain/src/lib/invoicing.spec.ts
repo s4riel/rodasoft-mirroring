@@ -251,14 +251,13 @@ describe('VAT books (HU-FAC-18, HU-FAC-19, HU-FAC-20)', () => {
     expect(isVatBookPeriod(202601)).toBe(false);
   });
 
-  it('a period is a draft until its La Paz month ends', () => {
+  it('a period is a draft until it is closed', () => {
     // 03:30 UTC on 1 Dec is still 30 Nov in La Paz
-    const lastNight = new Date('2026-12-01T03:30:00Z');
-    expect(currentVatBookPeriod(lastNight)).toBe('2026-11');
-    expect(isDraftPeriod('2026-11', lastNight)).toBe(true);
-    expect(isDraftPeriod('2026-10', lastNight)).toBe(false);
-    expect(isDraftPeriod('2026-11', new Date('2026-12-01T04:00:00Z'))).toBe(false);
-    expect(isDraftPeriod('2027-01', lastNight)).toBe(true);
+    expect(currentVatBookPeriod(new Date('2026-12-01T03:30:00Z'))).toBe('2026-11');
+    expect(currentVatBookPeriod(new Date('2026-12-01T04:00:00Z'))).toBe('2026-12');
+    expect(isDraftPeriod('OPEN')).toBe(true);
+    expect(isDraftPeriod('CLOSED')).toBe(false);
+    expect(isDraftPeriod('FILED')).toBe(false);
   });
 
   const sale = (over: Partial<SalesBookRow>): SalesBookRow => ({

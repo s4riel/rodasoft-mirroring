@@ -13,3 +13,4 @@ export * from './page-header/page-header.component';
 export * from './sub-nav/sub-nav.component';
 export * from './status-timeline/status-timeline.component';
 export * from './stepper/stepper.component';
+export * from './link/link.component';

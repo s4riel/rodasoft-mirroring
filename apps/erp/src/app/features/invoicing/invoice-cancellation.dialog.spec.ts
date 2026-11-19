@@ -38,7 +38,11 @@ describe('InvoiceCancellationDialog (FS-09, FS-12)', () => {
     f.detectChanges();
   };
 
-  afterEach(() => http.verify());
+  /** The dialog asks for the reasons of the synced catalogue when it opens; the built-in four are enough for these tests. */
+  afterEach(() => {
+    http.match('/api/v1/invoicing/reasons').forEach((req) => req.flush({ cancellation: [], creditNote: [] }));
+    http.verify();
+  });
 
   it('says the sale and total, that the invoice stays valid, and what an approval does in the SIAT, with the four reasons as chips', async () => {
     const f = await render();
@@ -106,5 +110,12 @@ describe('InvoiceCancellationDialog (FS-09, FS-12)', () => {
     f.detectChanges();
     expect(el(f).querySelector<HTMLTextAreaElement>('#invoice-cancellation-comment')?.value).toBe('');
     expect(send(f).disabled).toBe(true);
+  });
+
+  it('takes the SIN reason names from the synced catalogue', async () => {
+    const f = await render();
+    http.expectOne('/api/v1/invoicing/reasons').flush({ cancellation: [{ code: 3, description: 'Datos de emisión (catálogo sincronizado)' }], creditNote: [] });
+    pick(f, 'CUSTOMER_DATA_ERROR');
+    expect(el(f).textContent).toContain('Datos de emisión (catálogo sincronizado)');
   });
 });

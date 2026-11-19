@@ -78,3 +78,33 @@ Per branch and point of sale: CUIS and CUFD health (`codeHealth`: `OK`, `EXPIRIN
 - Not done: the XML and the PDF of a note are provisional and unsigned; the SIN catalogue of note reasons and the LCV column layout are unconfirmed; closing a period (HU-FAC-21); the real SOAP adapter (HU-FAC-22…26); no contingency tab (client rule).
 - Figma fidelity was compared side by side (headless screenshots against the frames, 16 Nov 2026). FS-25 is a page (`/invoicing/invoices/:id/credit-note`) and FS-38 a page (`/invoicing/books/purchases/:id?period=`), as in the design. FS-08 and FS-10 are one page with a book selector. Left out on purpose: the contingency elements the frames still draw (KPI, status, button), "Ver períodos" (closing periods is HU-FAC-21), the "Devolución vinculada" select of FS-25 (a note is linked to a return from the return form), the "Exportar" button of FS-23, the "Enviada al cliente" step of FS-24 (notes are not e-mailed) and the NIT/razón social icons of FS-38. Added: the "Nota SIAT" card (CUF, branch, reception code) of the note detail. Remaining differences come from the library (info note icon, the modal's close button).
 - Known gap: a return made after a price-adjustment note on the same line is not limited by what the note credited (price adjustments are off by default).
+
+## Closing periods and fiscal configuration (HU-FAC-21…27)
+
+### VAT periods (`vat-periods.service.ts`, `common/siat/vat-period.guard.ts`)
+
+```
+OPEN --close--> CLOSED --file--> FILED (final)
+                  |
+                  +--reopen (reason, audited)--> OPEN
+```
+
+- A month without a row is `OPEN`. Closing needs the month to be over (`PERIOD_NOT_ENDED`), the earlier period not open (`PREVIOUS_PERIOD_OPEN`) and nothing pending (`PERIOD_HAS_PENDING`): invoices and notes the SIAT has not issued, observed purchases and cancellations under way. It keeps a snapshot of the totals. Reopening is refused when the period is `FILED` or a later one is closed.
+- **Lock:** close, file and reopen take the company lock then the period lock (`pg_advisory_xact_lock`); a guarded write takes the period lock only and reads the status under it (`VatPeriodGuard.assertOpen`). Guarded: verifying a purchase NIT, asking for a cancellation and approving it (step A, before the SIAT is called). A close and a cancellation approval of one period therefore never interleave: the close is blocked while the invoice is `CANCELLATION_PENDING`, or the approval is refused with `PERIOD_CLOSED`.
+- A book is a draft until its period is closed (`isDraftPeriod(status)`), so the export of a closed period has no "BORRADOR".
+
+### Fiscal configuration
+
+- `GET invoicing/fiscal-settings` never carries a secret. The `.p12`, its password and the token are encrypted with `SecretsService`; the audit log keeps holder, expiry and file name only. `loadP12` validates the file (`SIGNATURE_INVALID`, `SIGNATURE_EXPIRED`).
+- **Points of sale** are registered in the SIAT first (outside any transaction), then saved with their cash register; offline gives 503 and nothing is saved. The simulator hands out consecutive codes per branch through `simulated_siat_records`, under an advisory lock.
+- **Catalogues** (`siat_catalog_entries`): a sync fetches first, then replaces the rows in one transaction; rows the SIN stops sending become inactive. The invoice worker fixes the `legend` and `activityCode` at the first send from them, so reprints never change. Cancellation and credit-note reasons are served from them (`GET invoicing/reasons`).
+- **Homologation:** `products.sin_product_code`, `sin_activity_code` and `sin_unit_code`. With `invoicing.requireHomologation` on, a line without code leaves the invoice `PENDING` with `PRODUCT_NOT_HOMOLOGATED`; off, the company default code is used.
+- **Production:** `productionReadiness` lists what is missing (signature, credentials, connection, a point of sale with CUIS, catalogues, activity, homologated products, and a non-simulated gateway unless `SIAT_ALLOW_SIMULATOR=true`). The switch needs `invoicing.production.enable` and the exact word `PRODUCCIÓN`, and is serialised on the settings row. There is no way back to `TEST` from the ERP.
+
+### As built (16 Nov 2026)
+
+- Not done: the real SOAP adapter (the port and the simulator gained `registerPointOfSale`, `closePointOfSale` and `syncCatalogs`; the simulated catalogue shapes are a fixture); the XML stays unsigned and "PROVISIONAL"; the worker reads no certificate.
+- To reconcile later: a point of sale registered in the SIN whose save crashed (the simulator is idempotent by branch and name; the real adapter must reconcile). A future purchase entry dated in a closed period must be refused or moved: `VatPeriodGuard` is the hook.
+- One permission (`invoicing.settings.manage`) covers the whole section; only the production switch has its own key (`invoicing.production.enable`, not in the accountant role). Splitting Management and Accounting further is a role-editor matter.
+- Figma fidelity of FS-07, 31…37 and 40 was not compared side by side. The pages are built with `libs/ui` components only.
+

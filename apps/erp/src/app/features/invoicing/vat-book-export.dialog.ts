@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, model, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { isDraftPeriod, VAT_BOOKS, type VatBook, type VatBookExportFormat, vatBookFileName } from '@rodasoft/domain';
+import { VAT_BOOKS, type VatBook, type VatBookExportFormat, vatBookFileName } from '@rodasoft/domain';
 import { ButtonComponent, FieldComponent, ModalComponent, NoteComponent, SelectComponent, type SelectOption, ToastService } from '@rodasoft/ui';
 import { problemOf } from '../../core/api-error';
 import { saveBlob } from './file-download';
@@ -34,6 +34,8 @@ export class VatBookExportDialog {
   readonly period = input.required<string>();
   readonly periods = input<readonly SelectOption[]>([]);
   readonly formats = input<readonly VatBookExportFormat[]>(['XLSX', 'CSV']);
+  /** Periods already closed or filed: any other period is exported as a draft. */
+  readonly closedPeriods = input<readonly string[]>([]);
 
   protected readonly bookOptions = BOOK_OPTIONS;
   protected readonly chosenBook = signal<VatBook>('SALES');
@@ -43,7 +45,7 @@ export class VatBookExportDialog {
   protected readonly error = signal<string | null>(null);
 
   protected readonly formatOptions = computed<SelectOption[]>(() => this.formats().map((f) => ({ value: f, label: FORMAT_LABELS[f] })));
-  protected readonly draft = computed(() => isDraftPeriod(this.chosenPeriod() || this.period(), new Date()));
+  protected readonly draft = computed(() => !this.closedPeriods().includes(this.chosenPeriod() || this.period()));
   protected readonly fileName = computed(() => vatBookFileName(this.chosenBook(), this.chosenPeriod() || this.period(), this.chosenFormat(), this.draft()));
 
   constructor() {

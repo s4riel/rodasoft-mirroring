@@ -1,0 +1,117 @@
+<rs-page-header
+  title="Actividades y leyendas"
+  description="Se sincronizan desde el SIN. Las leyendas se imprimen en la factura."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button rsButton variant="primary" type="button" data-testid="catalogs-sync" [disabled]="state() !== 'ready' || syncing()" [loading]="syncing()" (click)="sync()">Sincronizar catálogos</button>
+  </div>
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando los catálogos">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver los catálogos" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los catálogos" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (summary(); as s) {
+      <rs-note [type]="s.synced ? 'success' : 'warning'" [title]="syncedText()" data-testid="catalogs-note">
+        @if (s.synced) {
+          Las leyendas y los códigos de las facturas salen de estas tablas. Si el SIN deja de enviar un registro, queda inactivo.
+        } @else {
+          Sincroniza para poder elegir la actividad económica y homologar tus productos.
+        }
+      </rs-note>
+      @if (syncError(); as message) {
+        <rs-note type="danger" title="No pudimos sincronizar" data-testid="catalogs-sync-error">{{ message }} Los catálogos anteriores siguen vigentes.</rs-note>
+      }
+
+      @if (s.synced) {
+        <section class="group" aria-labelledby="activities-title">
+          <h2 id="activities-title" class="title">Actividades económicas</h2>
+          <rs-doc-table size="lg" tableLabel="Actividades económicas" [columns]="activityColumns" [rows]="activityRows()" [totals]="activityTotals()" data-testid="activities-table" />
+        </section>
+        <section class="group" aria-labelledby="legends-title">
+          <h2 id="legends-title" class="title">Leyendas de la factura</h2>
+          <rs-doc-table size="lg" tableLabel="Leyendas de la factura" [columns]="legendColumns" [rows]="legendRows()" [totals]="legendTotals()" data-testid="legends-table" />
+        </section>
+      }
+
+      <section class="group" aria-labelledby="catalogs-title">
+      <h2 id="catalogs-title" class="title">Todos los catálogos del SIN</h2>
+      <rs-doc-table size="lg" tableLabel="Catálogos del SIN" [columns]="summaryColumns" [rows]="summaryRows()">
+        <ng-template rsDocCell="view" let-row>
+          <button rsButton variant="secondary" type="button" size="sm" [attr.data-testid]="'catalog-' + row.id" (click)="view(row.id)">Ver registros</button>
+        </ng-template>
+      </rs-doc-table>
+      </section>
+
+      @if (selected()) {
+        <section class="detail" [attr.aria-label]="'Registros de ' + selectedName()" data-testid="catalog-entries">
+          <h2 class="title">{{ selectedName() }}</h2>
+          <rs-filter-bar-products
+            inline
+            searchPlaceholder="Buscar por código o descripción"
+            searchLabel="Buscar en el catálogo"
+            clearLabel="Limpiar"
+            [clearDisabled]="search() === ''"
+            [search]="search()"
+            (searchChange)="setSearch($event)"
+            (cleared)="setSearch('')"
+          />
+          @if (entriesLoading()) {
+            <rs-skeleton shape="rect" width="100%" height="var(--space-24)" />
+          } @else if (entryRows().length === 0) {
+            <section class="state">
+              <rs-empty-state-illustrated illustration="no-results" heading="No hay registros" description="Prueba con otra búsqueda o sincroniza de nuevo." [showAction]="false" />
+            </section>
+          } @else {
+            <rs-doc-table size="md" [tableLabel]="selectedName()" [columns]="entryColumns" [rows]="entryRows()" />
+            @if (pageCount() > 1) {
+              <div class="footer">
+                <rs-pagination [page]="page()" [pageCount]="pageCount()" label="Paginación del catálogo" previousLabel="Anterior" nextLabel="Siguiente" (pageChange)="setPage($event)" />
+              </div>
+            }
+          }
+        </section>
+      }
+
+      @if (s.synced) {
+        <section *rsCan="'invoicing.settings.manage'" class="card" aria-labelledby="activity-title">
+          <h2 id="activity-title" class="title">Actividad económica</h2>
+          <rs-field label="Actividad principal" forId="main-activity" hint="Es la actividad de la que sale la leyenda de cada factura.">
+            <rs-select inputId="main-activity" ariaLabel="Actividad principal" placeholder="Elige la actividad" [options]="activities()" [value]="activityCode()" (valueChange)="activityCode.set($any($event))" />
+          </rs-field>
+          <rs-field label="Producto por defecto" forId="default-product" hint="Se usa en un producto sin código SIN mientras no sea obligatorio homologar.">
+            <rs-select inputId="default-product" ariaLabel="Producto por defecto" placeholder="Sin producto por defecto" [options]="products()" [value]="defaultProductCode()" (valueChange)="defaultProductCode.set($any($event))" />
+          </rs-field>
+          @if (activityError(); as message) {
+            <rs-note type="danger" title="No pudimos guardar la actividad" data-testid="activity-error">{{ message }}</rs-note>
+          }
+          <div class="actions">
+            <button rsButton variant="primary" type="button" data-testid="activity-save" [disabled]="!activityCode() || savingActivity()" [loading]="savingActivity()" (click)="saveActivity()">Guardar actividad</button>
+          </div>
+        </section>
+      }
+    }
+  }
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

@@ -4,7 +4,7 @@ import { PrismaService } from '../common/prisma.service';
 import { PrismaSiatStore } from './prisma-siat-store';
 
 /** One company setting, with its default; the worker has no tenant client, so it filters by company itself. */
-export async function readSetting<K extends CompanySettingKey>(prisma: PrismaService, companyId: string, key: K): Promise<CompanySettings[K]> {
+export async function readSetting<K extends CompanySettingKey>(prisma: Pick<PrismaService, 'companySetting'>, companyId: string, key: K): Promise<CompanySettings[K]> {
   const row = await prisma.companySetting.findFirst({ where: { companyId, key }, select: { value: true } });
   return settingOrDefault(key, row?.value);
 }

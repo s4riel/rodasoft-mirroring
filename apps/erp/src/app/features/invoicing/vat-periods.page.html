@@ -1,0 +1,62 @@
+<rs-page-header
+  title="Períodos del libro IVA"
+  description="Cada mes tiene un libro de ventas y uno de compras. Al cerrarlo ya no se modifican sus registros."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  @if (state() === 'ready') {
+    <div rsActions class="header-actions">
+      <button *rsCan="'invoicing.vat-books.close'" rsButton variant="primary" type="button" data-testid="periods-close" [disabled]="!closable()" (click)="closeOldest()">Cerrar período</button>
+    </div>
+  }
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando los períodos">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver los períodos IVA" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los períodos" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (data()) {
+      <section class="kpis" aria-label="Resumen de períodos" data-testid="periods-kpis">
+        <rs-kpi-card variant="stat" label="Período actual" [value]="currentText()" />
+        <rs-kpi-card variant="stat" label="Estado" [value]="currentStatusText()" />
+        <rs-kpi-card variant="stat" label="Último cierre" [value]="lastClosedText()" />
+        <rs-kpi-card variant="stat" label="Presentados al SIN" [value]="filedText()" />
+      </section>
+
+      <rs-doc-table size="lg" tableLabel="Períodos IVA" [columns]="columns" [rows]="rows()" [totals]="totals()">
+        <ng-template rsDocCell="actions" let-row>
+          @if (itemOf(row.id); as item) {
+            <rs-row-action [label]="'Acciones de ' + label(item.period)" [items]="menuFor(item)" (selected)="act(item, $event)" />
+          }
+        </ng-template>
+        <div slot="footer" class="footer">
+          <span class="range">{{ rangeText() }}</span>
+          <rs-pagination [(page)]="page" [pageCount]="pageCount()" label="Paginación de períodos" previousLabel="Anterior" nextLabel="Siguiente" [showLabels]="true" />
+        </div>
+      </rs-doc-table>
+    }
+  }
+}
+
+<rs-vat-period-close-dialog [(open)]="closeOpen" [period]="closing()" (closed)="changed()" />
+<rs-vat-period-reopen-dialog [(open)]="reopenOpen" [period]="reopening()" (reopened)="changed()" />
+
+<rs-toast-outlet closeLabel="Cerrar" />

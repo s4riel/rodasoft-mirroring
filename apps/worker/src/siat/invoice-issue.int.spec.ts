@@ -81,6 +81,9 @@ describe('InvoiceIssueService (integration, real Postgres)', () => {
     const where = { companyId };
     await prisma.auditLog.deleteMany({ where });
     await prisma.invoiceDocument.deleteMany({ where });
+    await prisma.siatCatalogEntry.deleteMany({ where });
+    await prisma.companySetting.deleteMany({ where });
+    await prisma.siatSettings.deleteMany({ where });
     await prisma.invoice.deleteMany({ where });
     await prisma.saleItem.deleteMany({ where });
     await prisma.sale.deleteMany({ where });
@@ -180,5 +183,63 @@ describe('InvoiceIssueService (integration, real Postgres)', () => {
     const recovered = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
     expect(recovered).toMatchObject({ status: 'VALID', cuf: accepted.cuf, number: accepted.number });
     expect(recovered.issuedAt?.getTime()).toBe(accepted.issuedAt?.getTime());
+  });
+
+  describe('fiscal configuration (HU-FAC-25, HU-FAC-26)', () => {
+    afterEach(async () => {
+      await prisma.siatCatalogEntry.deleteMany({ where: { companyId } });
+      await prisma.companySetting.deleteMany({ where: { companyId } });
+      await prisma.siatSettings.deleteMany({ where: { companyId } });
+      await prisma.product.update({ where: { id: productId }, data: { sinProductCode: null, sinActivityCode: null, sinUnitCode: null } });
+    });
+
+    it('prints a legend of the synced catalogue for the main activity, fixes it and the activity, and carries the SIN codes', async () => {
+      await prisma.siatSettings.create({ data: { companyId, mainActivityCode: '465900' } });
+      await prisma.siatCatalogEntry.create({ data: { companyId, catalog: 'LEGEND', code: '1', activityCode: '465900', description: 'Ley N° 453: leyenda sincronizada', syncedAt: new Date() } });
+      await prisma.product.update({ where: { id: productId }, data: { sinProductCode: '84821', sinActivityCode: '465900', sinUnitCode: 58 } });
+      const invoice = await seedInvoice();
+      expect(await issue(invoice.id)).toBe('ACCEPTED');
+      const saved = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id }, include: { document: true } });
+      expect(saved).toMatchObject({ legend: 'Ley N° 453: leyenda sincronizada', activityCode: '465900' });
+      expect(saved.document?.signedXml).toContain('<leyenda>Ley N° 453: leyenda sincronizada</leyenda>');
+      expect(saved.document?.signedXml).toContain('<codigoProductoSin>84821</codigoProductoSin>');
+      expect(saved.document?.signedXml).toContain('<unidadMedida>58</unidadMedida>');
+    });
+
+    it('keeps the legend it printed even when the catalogue changes before a second attempt', async () => {
+      await prisma.siatSettings.create({ data: { companyId, mainActivityCode: '465900' } });
+      await prisma.siatCatalogEntry.create({ data: { companyId, catalog: 'LEGEND', code: '1', activityCode: '465900', description: 'Primera leyenda', syncedAt: new Date() } });
+      const invoice = await seedInvoice();
+      mode = 'OFFLINE';
+      expect(await issue(invoice.id)).toBe('UNAVAILABLE');
+      await prisma.siatCatalogEntry.updateMany({ where: { companyId }, data: { description: 'Otra leyenda' } });
+      mode = 'ONLINE';
+      expect(await issue(invoice.id, true)).toBe('ACCEPTED');
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).legend).toBe('Primera leyenda');
+    });
+
+    it('with homologation required, a product without SIN code leaves the invoice PENDING with PRODUCT_NOT_HOMOLOGATED', async () => {
+      await prisma.companySetting.create({ data: { companyId, key: 'invoicing.requireHomologation', value: true } });
+      const invoice = await seedInvoice();
+      expect(await issue(invoice.id)).toBe('UNAVAILABLE');
+      expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).toMatchObject({ status: 'PENDING', lastError: 'PRODUCT_NOT_HOMOLOGATED', number: null, cuf: null });
+      await prisma.product.update({ where: { id: productId }, data: { sinProductCode: '84821' } });
+      expect(await issue(invoice.id)).toBe('ACCEPTED');
+    });
+
+    it('without the requirement the invoice goes with the company default code', async () => {
+      await prisma.siatSettings.create({ data: { companyId, defaultProductCode: '99100' } });
+      const invoice = await seedInvoice();
+      expect(await issue(invoice.id)).toBe('ACCEPTED');
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id }, include: { document: true } })).document?.signedXml).toContain('<codigoProductoSin>99100</codigoProductoSin>');
+    });
+
+    it('does not issue through a deactivated point of sale', async () => {
+      const invoice = await seedInvoice();
+      await prisma.siatPointOfSale.update({ where: { id: pointOfSaleId }, data: { status: 'INACTIVE' } });
+      expect(await issue(invoice.id)).toBe('UNAVAILABLE');
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).lastError).toBe('POINT_OF_SALE_MISSING');
+      await prisma.siatPointOfSale.update({ where: { id: pointOfSaleId }, data: { status: 'ACTIVE' } });
+    });
   });
 });

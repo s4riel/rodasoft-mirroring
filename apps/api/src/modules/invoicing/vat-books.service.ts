@@ -21,6 +21,7 @@ import type { AppClsStore } from '../../common/cls';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../../common/settings/settings.service';
 import { SiatGatewayFactory } from '../../common/siat/siat-gateway.factory';
+import { VatPeriodGuard, vatPeriodErrors } from '../../common/siat/vat-period.guard';
 import { dayStart, nextDayStart } from '../inventory/business-days';
 import { invoicingErrors } from './invoicing.errors';
 
@@ -61,9 +62,10 @@ export class VatBooksService {
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
     private readonly gateways: SiatGatewayFactory,
+    private readonly periods: VatPeriodGuard,
   ) {}
 
-  async sales(query: { period: string; branchId?: string }, now = new Date()): Promise<SalesBookResponse> {
+  async sales(query: { period: string; branchId?: string }): Promise<SalesBookResponse> {
     const range = this.range(query.period);
     const branch = query.branchId ? { branchId: query.branchId } : {};
     const [invoices, notes, header] = await Promise.all([
@@ -75,7 +77,7 @@ export class VatBooksService {
         where: { ...branch, status: 'VALID', issuedAt: range, number: { not: null }, cuf: { not: null } },
         select: { id: true, issuedAt: true, number: true, cuf: true, customerDocumentNumber: true, customerTaxName: true, total: true, vatAdjusted: true },
       }),
-      this.header(query.period, now),
+      this.header(query.period),
     ]);
 
     const rows: SalesBookRow[] = [
@@ -114,11 +116,11 @@ export class VatBooksService {
     return { ...header, rows, totals: salesBookTotals(rows) };
   }
 
-  async purchases(query: { period: string }, now = new Date()): Promise<PurchasesBookResponse> {
+  async purchases(query: { period: string }): Promise<PurchasesBookResponse> {
     this.range(query.period);
     const [entries, header] = await Promise.all([
       this.prisma.tenant.purchaseBookEntry.findMany({ where: { period: query.period }, orderBy: [{ date: 'desc' }, { id: 'desc' }], select: PURCHASE_SELECT }),
-      this.header(query.period, now),
+      this.header(query.period),
     ]);
     const rows = entries.map(toPurchaseRow);
     return { ...header, rows, totals: purchaseBookTotals(rows) };
@@ -130,8 +132,11 @@ export class VatBooksService {
    */
   async verifyPurchaseNit(entryId: string, input: { supplierNit?: string } = {}): Promise<PurchaseNitVerification> {
     const companyId = this.cls.get('companyId') ?? '';
-    const entry = await this.prisma.tenant.purchaseBookEntry.findFirst({ where: { id: entryId }, select: PURCHASE_SELECT });
-    if (!entry) throw invoicingErrors.purchaseEntryNotFound();
+    const found = await this.prisma.tenant.purchaseBookEntry.findFirst({ where: { id: entryId }, select: { ...PURCHASE_SELECT, period: true } });
+    if (!found) throw invoicingErrors.purchaseEntryNotFound();
+    const { period, ...entry } = found;
+    // a closed period no longer changes: refuse before asking the SIN (the transaction checks again under the period lock)
+    if (await this.periods.isClosed(companyId, period)) throw vatPeriodErrors.closed(period);
     const nit = normalizeNit(input.supplierNit?.trim() || entry.supplierNit);
     if (!isNitFormatValid(nit)) throw invoicingErrors.invalidBookQuery('supplierNit', 'NIT_INVALID');
 
@@ -145,6 +150,7 @@ export class VatBooksService {
     }
 
     const updated = await this.prisma.tenant.$transaction(async (tx) => {
+      await this.periods.assertOpen(tx, companyId, period);
       await tx.$queryRaw`SELECT id FROM purchase_book_entries WHERE id = ${entryId}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
       const message = result.messages.map((m) => m.description).join('; ') || null;
       // read again under the lock: a valid entry is never demoted by a later negative answer (its credit would vanish from the book)
@@ -177,9 +183,14 @@ export class VatBooksService {
     return { gte: dayStart(days.firstDay), lt: nextDayStart(days.lastDay) };
   }
 
-  private async header(period: string, now: Date) {
-    const [format, exportFormats] = await Promise.all([this.settings.get('invoicing.vatBookFormat'), this.settings.get('invoicing.vatBookExportFormats')]);
-    return { period, draft: isDraftPeriod(period, now), format, exportFormats };
+  private async header(period: string) {
+    const companyId = this.cls.get('companyId') ?? '';
+    const [format, exportFormats, status] = await Promise.all([
+      this.settings.get('invoicing.vatBookFormat'),
+      this.settings.get('invoicing.vatBookExportFormats'),
+      this.periods.statusOf(this.prisma.tenant, companyId, period),
+    ]);
+    return { period, draft: isDraftPeriod(status), format, exportFormats };
   }
 }
 

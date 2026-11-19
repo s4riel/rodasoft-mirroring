@@ -1,0 +1,27 @@
+<rs-modal [(open)]="open" variant="form" size="default" [heading]="'Reabrir ' + name()" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">Mientras el período esté abierto sus libros pueden cambiar de nuevo. Queda registrado quién lo reabrió y por qué.</p>
+
+    <rs-field label="Motivo" forId="reopen-reason" [error]="reasonError()" required>
+      <textarea
+        rsTextarea
+        id="reopen-reason"
+        rows="3"
+        [maxLength]="max"
+        [invalid]="!!reasonError()"
+        [value]="reason()"
+        (input)="reason.set($any($event.target).value)"
+        (blur)="touched.set(true)"
+      ></textarea>
+    </rs-field>
+
+    @if (saveError(); as message) {
+      <rs-note type="danger" title="No pudimos reabrir el período" data-testid="reopen-error">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="reopen-confirm" [disabled]="saving()" [loading]="saving()" (click)="confirm()">Reabrir período</button>
+  </div>
+</rs-modal>

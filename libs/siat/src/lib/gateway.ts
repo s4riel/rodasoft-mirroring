@@ -80,6 +80,29 @@ export interface SiatCuis {
   expiresAt: Date;
 }
 
+/** The SIN parametric tables the ERP syncs (`sincronizar*`), by the name the ERP stores them under. */
+export const SIAT_CATALOG_NAMES = ['ACTIVITY', 'LEGEND', 'PRODUCT_SERVICE', 'UNIT_OF_MEASURE', 'CANCELLATION_REASON', 'CREDIT_NOTE_REASON', 'POINT_OF_SALE_TYPE'] as const;
+export type SiatCatalogName = (typeof SIAT_CATALOG_NAMES)[number];
+
+export interface SiatCatalogRow {
+  code: string;
+  description: string;
+  /** The economic activity a legend or a product belongs to; absent for the tables that have none. */
+  activityCode?: string;
+}
+
+export type SiatCatalogs = Record<SiatCatalogName, SiatCatalogRow[]>;
+
+/** What is asked to register a new point of sale in the SIN. */
+export interface SiatPointOfSaleRegistration {
+  branchCode: number;
+  name: string;
+  /** SIN point-of-sale type (catalogue `POINT_OF_SALE_TYPE`). */
+  typeCode: number;
+  /** Codes the company already holds for this branch: the SIN never hands one out twice. */
+  knownCodes: readonly number[];
+}
+
 /**
  * The link to the SIAT. Every method except `verifyCommunication` throws `SiatUnavailableError` when the SIAT does not answer,
  * and returns the SIN's own verdict (accepted, rejected, refused) otherwise. Issuing and cancelling run against this port; the
@@ -95,4 +118,10 @@ export interface SiatGateway {
   sendCreditNote(note: SiatCreditNoteSubmission): Promise<SiatSendResult>;
   requestCufd(pointOfSale: PointOfSaleRef): Promise<SiatCufd>;
   requestCuis(pointOfSale: PointOfSaleRef): Promise<SiatCuis>;
+  /** Registers a point of sale in the SIN and returns the code it assigned (HU-FAC-24). Asking twice for the same branch and name returns the same code. */
+  registerPointOfSale(registration: SiatPointOfSaleRegistration): Promise<{ code: number }>;
+  /** Closes a point of sale in the SIN (HU-FAC-24). */
+  closePointOfSale(pointOfSale: PointOfSaleRef): Promise<void>;
+  /** Reads the parametric tables of the SIN (HU-FAC-25). */
+  syncCatalogs(pointOfSale: PointOfSaleRef): Promise<SiatCatalogs>;
 }

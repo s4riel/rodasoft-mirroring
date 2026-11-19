@@ -14,6 +14,13 @@ import { OutboxService } from '../../../common/outbox/outbox.service';
 import type { PrismaService } from '../../../common/prisma/prisma.service';
 import { tenantExtension } from '../../../common/prisma/tenant.extension';
 import { SettingsService } from '../../../common/settings/settings.service';
+import { VatPeriodGuard } from '../../../common/siat/vat-period.guard';
+import { VatPeriodsService } from '../../invoicing/vat-periods.service';
+import { FiscalSettingsService } from '../../invoicing/fiscal-settings.service';
+import { HomologationService } from '../../invoicing/homologation.service';
+import { PointsOfSaleService } from '../../invoicing/points-of-sale.service';
+import { SiatCatalogsService } from '../../invoicing/siat-catalogs.service';
+import { SecretsService } from '../../../common/security/secrets.service';
 import { EquivalencesService } from '../../inventory/equivalences.service';
 import { ProductsService } from '../../inventory/products.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
@@ -129,7 +136,7 @@ export function createPosFixture(prefix: string) {
     const outbox = new OutboxService(prisma, cls);
     const scopedMembership = opts.operableBranchIds ? ({ ...(membership as object), operableBranchIds: async () => opts.operableBranchIds } as never) : membership;
     const visibility = new SaleVisibilityService(cls, membership);
-    const cancellations = new SaleCancellationService(prisma, cls, settings, audit, outbox, visibility, membership, new StockMovementService(cls, settings), new SiatGatewayFactory(prisma, settings, cls));
+    const cancellations = new SaleCancellationService(prisma, cls, settings, audit, outbox, visibility, membership, new StockMovementService(cls, settings), new SiatGatewayFactory(prisma, settings, cls), new VatPeriodGuard(prisma));
     const checkout = new PosCheckoutService(prisma, cls, shifts, settings, customers);
     const payment = new PosPaymentService(prisma, cls, shifts, settings, audit, outbox, new StockMovementService(cls, settings), checkout, providers);
     const reservations = new StockReservationService(cls, settings);
@@ -139,17 +146,23 @@ export function createPosFixture(prefix: string) {
     const cashSummary = new CashShiftSummaryService(prisma, cls, settings, membership, storage);
     const gateways = new SiatGatewayFactory(prisma, settings, cls);
     const invoiceIssuing = new InvoiceIssuingService(prisma, cls, audit, outbox, settings, gateways);
-    const vatBooks = new VatBooksService(prisma, cls, audit, settings, gateways);
+    const catalogs = new SiatCatalogsService(prisma, cls, audit, gateways);
+    const vatBooks = new VatBooksService(prisma, cls, audit, settings, gateways, new VatPeriodGuard(prisma));
     return {
-      creditNoteQueries: new CreditNoteQueriesService(prisma, visibility, membership, cls, new InvoicePdfService(), settings),
-      creditNotes: new CreditNotesService(prisma, cls, audit, outbox, settings, visibility),
+      creditNoteQueries: new CreditNoteQueriesService(prisma, visibility, membership, cls, new InvoicePdfService(), settings, catalogs),
+      creditNotes: new CreditNotesService(prisma, cls, audit, outbox, settings, visibility, catalogs),
       siatSystemStatus: new SiatSystemStatusService(prisma, cls, audit, settings, gateways),
       vatBooks,
+      catalogs,
+      fiscalSettings: new FiscalSettingsService(prisma, cls, audit, new SecretsService({ get: () => process.env['SECRETS_KEY'] ?? Buffer.alloc(32, 7).toString('base64') } as never), settings),
+      pointsOfSale: new PointsOfSaleService(prisma, cls, audit, gateways),
+      homologation: new HomologationService(prisma, cls, audit),
+      vatPeriods: new VatPeriodsService(prisma, cls, audit, new VatPeriodGuard(prisma), membership),
       vatBookExport: new VatBookExportService(prisma, cls, vatBooks, audit),
       invoiceQueries: new InvoiceQueriesService(prisma, visibility, membership, cls),
       invoiceDocuments: new InvoiceDocumentsService(prisma, cls, visibility, new InvoicePdfService(), audit, outbox),
       invoiceIssuing,
-      invoiceCancellations: new InvoiceCancellationsService(prisma, visibility, cancellations),
+      invoiceCancellations: new InvoiceCancellationsService(prisma, visibility, cancellations, catalogs),
       nitException: new InvoiceNitExceptionService(prisma, cls, audit, outbox, settings, invoiceIssuing),
       shifts,
       cashSummary,
@@ -349,6 +362,9 @@ export function createPosFixture(prefix: string) {
     await base.salesOrder.deleteMany({ where: { companyId: { in: companies } } });
     await base.quote.deleteMany({ where: { companyId: { in: companies } } });
     await base.purchaseBookEntry.deleteMany({ where: { companyId: { in: companies } } });
+    await base.vatPeriod.deleteMany({ where: { companyId: { in: companies } } });
+    await base.siatCatalogEntry.deleteMany({ where: { companyId: { in: companies } } });
+    await base.siatCatalogSync.deleteMany({ where: { companyId: { in: companies } } });
     await base.creditNoteDocument.deleteMany({ where: { companyId: { in: companies } } });
     await base.creditNote.deleteMany({ where: { companyId: { in: companies } } });
     await base.saleReturn.deleteMany({ where: { companyId: { in: companies } } });
@@ -370,6 +386,8 @@ export function createPosFixture(prefix: string) {
     await base.stockLevel.deleteMany({ where: { companyId: { in: companies } } });
     await base.product.deleteMany({ where: { companyId: { in: companies } } });
     await base.companySetting.deleteMany({ where: { companyId: { in: companies } } });
+    // the worker's health check may have written the SIAT settings of a test company meanwhile
+    await base.siatSettings.deleteMany({ where: { companyId: { in: companies } } });
     await base.outboxEvent.deleteMany({ where: { companyId: { in: companies } } });
     await base.auditLog.deleteMany({ where: { companyId: { in: companies } } });
     await base.membership.deleteMany({ where: { companyId: { in: companies } } });

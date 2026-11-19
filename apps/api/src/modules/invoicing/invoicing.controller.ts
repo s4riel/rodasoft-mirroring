@@ -1,22 +1,41 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Res, StreamableFile, ValidationError, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res, StreamableFile, UploadedFile, UseInterceptors, ValidationError, ValidationPipe } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type {
+  CatalogEntriesResponse,
+  CatalogSummary,
   CreditableInvoice,
   CreditNoteDetail,
   CreditNoteListResponse,
+  FiscalSettingsSummary,
+  HomologationImportPreview,
+  HomologationImportResult,
+  HomologationResponse,
+  HomologationRow,
   InvoiceBulkResult,
   InvoiceCancellationsResponse,
   InvoiceDetail,
   InvoiceListResponse,
   InvoicingStatus,
+  PointOfSaleListItem,
+  PointOfSaleListResponse,
   PurchasesBookResponse,
   SalesBookResponse,
   SiatConnectionStatus,
   SiatPointOfSaleStatus,
   SiatSystemStatus,
+  VatPeriodBlockers,
+  VatPeriodRow,
+  VatPeriodsResponse,
 } from '@rodasoft/domain';
 import { RequirePermissions } from '../access/require-permissions.decorator';
+import type { ListUploadFile } from '../inventory/list-file';
+import { UploadLimitInterceptor } from '../inventory/uploads.controller';
+import { FiscalSettingsService, SIGNATURE_MAX_BYTES, type SignatureUpload } from './fiscal-settings.service';
+import { HomologationService } from './homologation.service';
+import { PointsOfSaleService } from './points-of-sale.service';
+import { SiatCatalogsService, type SiatReason } from './siat-catalogs.service';
 import { CreditNoteQueriesService } from './credit-note-queries.service';
 import { CreditNotesService } from './credit-notes.service';
 import { InvoiceCancellationsService } from './invoice-cancellations.service';
@@ -25,15 +44,24 @@ import { InvoiceIssuingService } from './invoice-issuing.service';
 import { InvoiceNitExceptionService } from './invoice-nit-exception.service';
 import { InvoiceQueriesService } from './invoice-queries.service';
 import {
+  CatalogEntriesQueryDto,
   CreateCreditNoteDto,
+  CreatePointOfSaleDto,
   DeliverInvoiceDto,
   DownloadInvoicesDto,
+  EnableProductionDto,
+  HomologateProductDto,
+  HomologationQueryDto,
   InvoiceCancellationRequestDto,
   IssueInvoicesDto,
   ListCreditNotesQueryDto,
   ListInvoicesQueryDto,
   NitExceptionDecisionDto,
   NitExceptionRequestDto,
+  ReopenVatPeriodDto,
+  SaveActivityDto,
+  SaveCredentialsDto,
+  SaveSignatureDto,
   UpdateInvoiceCustomerDto,
   VatBookExportQueryDto,
   VatBookQueryDto,
@@ -43,6 +71,7 @@ import { invoicingErrors } from './invoicing.errors';
 import { SiatSystemStatusService } from './siat-system-status.service';
 import { VatBookExportService } from './vat-book-export.service';
 import { type PurchaseNitVerification, VatBooksService } from './vat-books.service';
+import { VatPeriodsService } from './vat-periods.service';
 
 const validation = new ValidationPipe({
   transform: true,
@@ -60,6 +89,14 @@ const invoiceIdPipe = new ParseUUIDPipe({ exceptionFactory: () => invoicingError
 const noteIdPipe = new ParseUUIDPipe({ exceptionFactory: () => invoicingErrors.noteNotFound() });
 const pointOfSaleIdPipe = new ParseUUIDPipe({ exceptionFactory: () => invoicingErrors.pointOfSaleNotFound() });
 const purchaseEntryIdPipe = new ParseUUIDPipe({ exceptionFactory: () => invoicingErrors.purchaseEntryNotFound() });
+const productIdPipe = new ParseUUIDPipe({ exceptionFactory: () => invoicingErrors.productNotFound() });
+/** Largest homologation file: 2 000 rows of three short cells fit in a fraction of it. */
+const IMPORT_FILE_MAX_BYTES = 2 * 1024 * 1024;
+
+const requireFile = (file: ListUploadFile | undefined): ListUploadFile => {
+  if (!file) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field: 'file', code: 'FILE_REQUIRED' }] });
+  return file;
+};
 
 /** SIAT invoicing: the list, the detail and issuing by hand (HU-FAC-01…04, HU-FAC-07). */
 @ApiTags('invoicing')
@@ -77,6 +114,11 @@ export class InvoicingController {
     private readonly systemStatus: SiatSystemStatusService,
     private readonly vatBooks: VatBooksService,
     private readonly vatBookExport: VatBookExportService,
+    private readonly vatPeriods: VatPeriodsService,
+    private readonly fiscal: FiscalSettingsService,
+    private readonly pointsOfSale: PointsOfSaleService,
+    private readonly catalogs: SiatCatalogsService,
+    private readonly homologation: HomologationService,
   ) {}
 
   @Get('status')
@@ -312,6 +354,163 @@ export class InvoicingController {
     res.setHeader('X-Vat-Book-Draft', String(file.draft));
     res.setHeader('Access-Control-Expose-Headers', 'X-Vat-Book-Draft, Content-Disposition');
     return this.file(res, file);
+  }
+
+  // ── Closing VAT periods (HU-FAC-21) ──
+
+  @Get('vat-periods')
+  @RequirePermissions('invoicing.vat-books.view')
+  periods(): Promise<VatPeriodsResponse> {
+    return this.vatPeriods.list();
+  }
+
+  @Get('vat-periods/:period/blockers')
+  @RequirePermissions('invoicing.vat-books.view')
+  periodBlockers(@Param('period') period: string): Promise<VatPeriodBlockers> {
+    return this.vatPeriods.blockers(period);
+  }
+
+  @Post('vat-periods/:period/close')
+  @HttpCode(200)
+  @RequirePermissions('invoicing.vat-books.close')
+  closePeriod(@Param('period') period: string): Promise<VatPeriodRow> {
+    return this.vatPeriods.close(period);
+  }
+
+  @Post('vat-periods/:period/file')
+  @HttpCode(200)
+  @RequirePermissions('invoicing.vat-books.close')
+  filePeriod(@Param('period') period: string): Promise<VatPeriodRow> {
+    return this.vatPeriods.file(period);
+  }
+
+  @Post('vat-periods/:period/reopen')
+  @HttpCode(200)
+  @RequirePermissions('invoicing.vat-books.close')
+  reopenPeriod(@Param('period') period: string, @Body(validation) dto: ReopenVatPeriodDto): Promise<VatPeriodRow> {
+    return this.vatPeriods.reopen(period, dto.reason);
+  }
+
+  // ── Fiscal configuration (HU-FAC-22…27) ──
+
+  @Get('fiscal-settings')
+  @RequirePermissions('invoicing.settings.manage')
+  fiscalSettings(): Promise<FiscalSettingsSummary> {
+    return this.fiscal.summary();
+  }
+
+  /** The digital signature: a `.p12` file and its password, read and stored encrypted. */
+  @Put('fiscal-settings/signature')
+  @ApiConsumes('multipart/form-data')
+  @RequirePermissions('invoicing.settings.manage')
+  @UseInterceptors(UploadLimitInterceptor, FileInterceptor('file', { limits: { fileSize: SIGNATURE_MAX_BYTES, files: 1 } }))
+  saveSignature(@UploadedFile() file: SignatureUpload | undefined, @Body(validation) dto: SaveSignatureDto): Promise<FiscalSettingsSummary['signature']> {
+    if (!file) throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Invalid request', details: [{ field: 'file', code: 'FILE_REQUIRED' }] });
+    return this.fiscal.saveSignature(file, dto.password);
+  }
+
+  @Put('fiscal-settings/credentials')
+  @RequirePermissions('invoicing.settings.manage')
+  saveCredentials(@Body(validation) dto: SaveCredentialsDto): Promise<FiscalSettingsSummary['credentials']> {
+    return this.fiscal.saveCredentials(dto);
+  }
+
+  @Put('fiscal-settings/activity')
+  @RequirePermissions('invoicing.settings.manage')
+  saveActivity(@Body(validation) dto: SaveActivityDto): Promise<FiscalSettingsSummary['activity']> {
+    return this.fiscal.saveActivity(dto);
+  }
+
+  @Post('fiscal-settings/production')
+  @HttpCode(200)
+  @RequirePermissions('invoicing.production.enable')
+  enableProduction(@Body(validation) dto: EnableProductionDto): Promise<{ environment: 'PRODUCTION'; productionEnabledAt: string }> {
+    return this.fiscal.enableProduction(dto.confirmation);
+  }
+
+  @Get('points-of-sale')
+  @RequirePermissions('invoicing.settings.manage')
+  listPointsOfSale(): Promise<PointOfSaleListResponse> {
+    return this.pointsOfSale.list();
+  }
+
+  @Post('points-of-sale')
+  @RequirePermissions('invoicing.settings.manage')
+  createPointOfSale(@Body(validation) dto: CreatePointOfSaleDto): Promise<PointOfSaleListItem> {
+    return this.pointsOfSale.create(dto);
+  }
+
+  @Post('points-of-sale/:id/deactivate')
+  @HttpCode(200)
+  @RequirePermissions('invoicing.settings.manage')
+  deactivatePointOfSale(@Param('id', pointOfSaleIdPipe) id: string): Promise<PointOfSaleListItem> {
+    return this.pointsOfSale.deactivate(id);
+  }
+
+  @Get('catalogs')
+  @RequirePermissions('invoicing.invoices.view')
+  catalogSummary(): Promise<CatalogSummary> {
+    return this.catalogs.summary();
+  }
+
+  @Post('catalogs/sync')
+  @HttpCode(200)
+  @RequirePermissions('invoicing.settings.manage')
+  syncCatalogs(): Promise<CatalogSummary> {
+    return this.catalogs.sync();
+  }
+
+  @Get('catalogs/:catalog')
+  @RequirePermissions('invoicing.invoices.view')
+  catalogEntries(@Param('catalog') catalog: string, @Query(validation) query: CatalogEntriesQueryDto): Promise<CatalogEntriesResponse> {
+    return this.catalogs.entries(catalog, query);
+  }
+
+  /** The reasons the cancellation and credit-note dialogs offer. */
+  @Get('reasons')
+  @RequirePermissions('invoicing.invoices.view')
+  reasons(): Promise<{ cancellation: SiatReason[]; creditNote: SiatReason[] }> {
+    return this.catalogs.reasons();
+  }
+
+  @Get('homologation')
+  @RequirePermissions('invoicing.settings.manage')
+  homologationList(@Query(validation) query: HomologationQueryDto): Promise<HomologationResponse> {
+    return this.homologation.list(query);
+  }
+
+  @Get('homologation/template')
+  @RequirePermissions('invoicing.settings.manage')
+  async homologationTemplate(@Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    return this.file(res, {
+      content: await this.homologation.template(),
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: 'plantilla-homologacion.xlsx',
+    });
+  }
+
+  @Put('homologation/products/:id')
+  @RequirePermissions('invoicing.settings.manage')
+  homologateProduct(@Param('id', productIdPipe) id: string, @Body(validation) dto: HomologateProductDto): Promise<HomologationRow> {
+    return this.homologation.update(id, dto);
+  }
+
+  @Post('homologation/import/preview')
+  @HttpCode(200)
+  @ApiConsumes('multipart/form-data')
+  @RequirePermissions('invoicing.settings.manage')
+  @UseInterceptors(UploadLimitInterceptor, FileInterceptor('file', { limits: { fileSize: IMPORT_FILE_MAX_BYTES, files: 1 } }))
+  homologationPreview(@UploadedFile() file: ListUploadFile | undefined): Promise<HomologationImportPreview> {
+    return this.homologation.preview(requireFile(file));
+  }
+
+  @Post('homologation/import')
+  @HttpCode(200)
+  @ApiConsumes('multipart/form-data')
+  @RequirePermissions('invoicing.settings.manage')
+  @UseInterceptors(UploadLimitInterceptor, FileInterceptor('file', { limits: { fileSize: IMPORT_FILE_MAX_BYTES, files: 1 } }))
+  homologationImport(@UploadedFile() file: ListUploadFile | undefined): Promise<HomologationImportResult> {
+    return this.homologation.apply(requireFile(file));
   }
 
   private file(res: Response, file: InvoiceFile): StreamableFile {

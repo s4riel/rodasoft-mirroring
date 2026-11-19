@@ -1,0 +1,27 @@
+.content {
+  display: grid;
+  gap: var(--space-4);
+}
+.description {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.heading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--body-md-size);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

@@ -116,4 +116,30 @@ describe('SimulatedSiatGateway', () => {
       await expect(gateway.requestCuis(point)).rejects.toBeInstanceOf(SiatUnavailableError);
     });
   });
+
+  describe('points of sale and catalogues (HU-FAC-24, HU-FAC-25)', () => {
+    const registration = (name: string, knownCodes: number[] = []) => ({ branchCode: 0, name, typeCode: 5, knownCodes });
+
+    it('hands out consecutive codes per branch above the ones the company already holds', async () => {
+      expect(await gateway.registerPointOfSale(registration('Caja 1', [0, 1]))).toEqual({ code: 2 });
+      expect(await gateway.registerPointOfSale(registration('Caja 2', [0, 1]))).toEqual({ code: 3 });
+      expect(await gateway.registerPointOfSale({ ...registration('Caja 1'), branchCode: 1 })).toEqual({ code: 1 });
+    });
+
+    it('registering the same branch and name again returns the same code', async () => {
+      const first = await gateway.registerPointOfSale(registration('Caja 1'));
+      expect(await gateway.registerPointOfSale(registration(' caja 1 '))).toEqual(first);
+    });
+
+    it('syncs the catalogues and closes a point of sale, but not while offline', async () => {
+      const catalogs = await gateway.syncCatalogs({ branchCode: 0, pointOfSaleCode: 0 });
+      expect(catalogs.ACTIVITY.length).toBeGreaterThan(0);
+      expect(catalogs.CANCELLATION_REASON.map((row) => row.code)).toEqual(['1', '2', '3', '4']);
+      await expect(gateway.closePointOfSale({ branchCode: 0, pointOfSaleCode: 1 })).resolves.toBeUndefined();
+      mode = 'OFFLINE';
+      await expect(gateway.registerPointOfSale(registration('Caja 9'))).rejects.toBeInstanceOf(SiatUnavailableError);
+      await expect(gateway.syncCatalogs({ branchCode: 0, pointOfSaleCode: 0 })).rejects.toBeInstanceOf(SiatUnavailableError);
+      await expect(gateway.closePointOfSale({ branchCode: 0, pointOfSaleCode: 1 })).rejects.toBeInstanceOf(SiatUnavailableError);
+    });
+  });
 });

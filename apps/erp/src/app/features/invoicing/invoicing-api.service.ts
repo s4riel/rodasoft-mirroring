@@ -1,11 +1,21 @@
 import { HttpClient, HttpParams, type HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
+  CatalogEntriesResponse,
+  CatalogSummary,
+  CreatePointOfSaleInput,
   CreateCreditNoteInput,
   CreditableInvoice,
   CreditNoteDetail,
   CreditNoteListQuery,
   CreditNoteListResponse,
+  FiscalSettingsSummary,
+  HomologationImportPreview,
+  HomologationImportResult,
+  HomologationListQuery,
+  HomologationResponse,
+  HomologationRow,
+  HomologationUpdateInput,
   InvoiceBulkResult,
   InvoiceCancellationsResponse,
   InvoiceDeliveryChannel,
@@ -13,14 +23,21 @@ import type {
   InvoiceListQuery,
   InvoiceListResponse,
   InvoicingStatus,
+  PointOfSaleListItem,
+  PointOfSaleListResponse,
   PurchaseBookRow,
   PurchasesBookResponse,
   SalesBookResponse,
+  SaveActivityInput,
+  SaveCredentialsInput,
   SiatConnectionStatus,
   SiatPointOfSaleStatus,
   SiatSystemStatus,
   VatBook,
   VatBookExportFormat,
+  VatPeriodBlockers,
+  VatPeriodRow,
+  VatPeriodsResponse,
 } from '@rodasoft/domain';
 import type { Observable } from 'rxjs';
 
@@ -200,5 +217,105 @@ export class InvoicingApi {
   /** The book as a file; `X-Vat-Book-Draft` says whether the period is still open. */
   exportBook(book: VatBook, period: string, format: VatBookExportFormat): Observable<HttpResponse<Blob>> {
     return this.http.get(`${BASE}/vat-books/export`, { params: toParams({ book, period, format }), responseType: 'blob', observe: 'response' });
+  }
+
+  // ── Closing VAT periods (HU-FAC-21) ──
+
+  periods(): Observable<VatPeriodsResponse> {
+    return this.http.get<VatPeriodsResponse>(`${BASE}/vat-periods`);
+  }
+
+  periodBlockers(period: string): Observable<VatPeriodBlockers> {
+    return this.http.get<VatPeriodBlockers>(`${BASE}/vat-periods/${period}/blockers`);
+  }
+
+  closePeriod(period: string): Observable<VatPeriodRow> {
+    return this.http.post<VatPeriodRow>(`${BASE}/vat-periods/${period}/close`, {});
+  }
+
+  filePeriod(period: string): Observable<VatPeriodRow> {
+    return this.http.post<VatPeriodRow>(`${BASE}/vat-periods/${period}/file`, {});
+  }
+
+  reopenPeriod(period: string, reason: string): Observable<VatPeriodRow> {
+    return this.http.post<VatPeriodRow>(`${BASE}/vat-periods/${period}/reopen`, { reason });
+  }
+
+  // ── Fiscal configuration (HU-FAC-22…27) ──
+
+  fiscalSettings(): Observable<FiscalSettingsSummary> {
+    return this.http.get<FiscalSettingsSummary>(`${BASE}/fiscal-settings`);
+  }
+
+  saveSignature(file: File, password: string): Observable<FiscalSettingsSummary['signature']> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    body.append('password', password);
+    return this.http.put<FiscalSettingsSummary['signature']>(`${BASE}/fiscal-settings/signature`, body);
+  }
+
+  saveCredentials(input: SaveCredentialsInput): Observable<FiscalSettingsSummary['credentials']> {
+    return this.http.put<FiscalSettingsSummary['credentials']>(`${BASE}/fiscal-settings/credentials`, input);
+  }
+
+  saveActivity(input: SaveActivityInput): Observable<FiscalSettingsSummary['activity']> {
+    return this.http.put<FiscalSettingsSummary['activity']>(`${BASE}/fiscal-settings/activity`, input);
+  }
+
+  enableProduction(confirmation: string): Observable<{ environment: 'PRODUCTION'; productionEnabledAt: string }> {
+    return this.http.post<{ environment: 'PRODUCTION'; productionEnabledAt: string }>(`${BASE}/fiscal-settings/production`, { confirmation });
+  }
+
+  pointsOfSale(): Observable<PointOfSaleListResponse> {
+    return this.http.get<PointOfSaleListResponse>(`${BASE}/points-of-sale`);
+  }
+
+  createPointOfSale(input: CreatePointOfSaleInput): Observable<PointOfSaleListItem> {
+    return this.http.post<PointOfSaleListItem>(`${BASE}/points-of-sale`, input);
+  }
+
+  deactivatePointOfSale(id: string): Observable<PointOfSaleListItem> {
+    return this.http.post<PointOfSaleListItem>(`${BASE}/points-of-sale/${id}/deactivate`, {});
+  }
+
+  catalogSummary(): Observable<CatalogSummary> {
+    return this.http.get<CatalogSummary>(`${BASE}/catalogs`);
+  }
+
+  catalogEntries(catalog: string, query: { q?: string; page?: number; pageSize?: number }): Observable<CatalogEntriesResponse> {
+    return this.http.get<CatalogEntriesResponse>(`${BASE}/catalogs/${catalog}`, { params: toParams(query) });
+  }
+
+  syncCatalogs(): Observable<CatalogSummary> {
+    return this.http.post<CatalogSummary>(`${BASE}/catalogs/sync`, {});
+  }
+
+  /** The reasons of the cancellation and credit-note dialogs, from the synced catalogue. */
+  reasons(): Observable<{ cancellation: { code: number; description: string }[]; creditNote: { code: number; description: string }[] }> {
+    return this.http.get<{ cancellation: { code: number; description: string }[]; creditNote: { code: number; description: string }[] }>(`${BASE}/reasons`);
+  }
+
+  homologation(query: HomologationListQuery): Observable<HomologationResponse> {
+    return this.http.get<HomologationResponse>(`${BASE}/homologation`, { params: toParams(query) });
+  }
+
+  homologateProduct(id: string, input: HomologationUpdateInput): Observable<HomologationRow> {
+    return this.http.put<HomologationRow>(`${BASE}/homologation/products/${id}`, input);
+  }
+
+  homologationTemplate(): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${BASE}/homologation/template`, { responseType: 'blob', observe: 'response' });
+  }
+
+  previewHomologationImport(file: File): Observable<HomologationImportPreview> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return this.http.post<HomologationImportPreview>(`${BASE}/homologation/import/preview`, body);
+  }
+
+  importHomologation(file: File): Observable<HomologationImportResult> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return this.http.post<HomologationImportResult>(`${BASE}/homologation/import`, body);
   }
 }

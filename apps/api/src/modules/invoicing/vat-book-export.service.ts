@@ -40,7 +40,7 @@ interface Sheet {
 /**
  * The file of a VAT book (HU-FAC-20): the sales or the purchases book of a period as XLSX or CSV, with the columns of the SIN's
  * "Libro de Compras y Ventas". PROVISIONAL: the column layout must be confirmed with the accountant (`invoicing.vatBookFormat`).
- * A period whose month has not ended is a draft: the file says "BORRADOR" in its title and in its name. Money is written as
+ * A period that is not closed yet (HU-FAC-21) is a draft: the file says "BORRADOR" in its title and in its name. Money is written as
  * decimal text, never as a float.
  */
 @Injectable()

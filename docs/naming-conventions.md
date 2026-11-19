@@ -37,6 +37,11 @@ Official Bolivian/SIAT terms stay as they are because they are proper nouns, not
 | invitado por | `invitedBy` | |
 | descuento máximo | `maxDiscount` | |
 | transferencia / factura | transfer / invoice | |
+| proveedor / orden de compra / recepción | supplier / purchase order / goods receipt | `Supplier`, `PurchaseOrder`, `GoodsReceipt` |
+| expediente de importación / prorrateo / costo final | import file / cost apportionment / final unit cost | `ImportFile`, `ImportCost`, `apportionmentBasis`, `finalUnitCost` |
+| factura de compra / crédito fiscal / cuentas por pagar | purchase invoice / VAT credit / accounts payable | `PurchaseInvoice`, `vatCredit`, payables |
+| pago a proveedor / programado / pagado | supplier payment / scheduled / paid | `SupplierPayment` (`SCHEDULED`, `PAID`), `SupplierPaymentAllocation` |
+| tipo de cambio | exchange rate | `exchangeRate` |
 | compras / ventas / facturación / inventario / contabilidad / tienda / reportes / configuración | purchasing / sales / invoicing / inventory / accounting / store / reports / settings | module names, permission prefixes, routes, folders |
 | inicio | home | |
 

@@ -9,6 +9,10 @@ export interface InvoiceXmlLine {
   /** Decimal strings, 2 places. */
   unitPrice: string;
   subtotal: string;
+  /** SIN product code, activity and unit of the product (homologation, HU-FAC-26); absent when the product has none. */
+  sinProductCode?: string | null;
+  sinActivityCode?: string | null;
+  sinUnitCode?: number | null;
 }
 
 export interface InvoiceXmlInput {
@@ -23,10 +27,21 @@ export interface InvoiceXmlInput {
   total: string;
   lines: readonly InvoiceXmlLine[];
   legend: string;
+  /** SIN economic activity of the invoice (header). */
+  activityCode?: string | null;
 }
 
 export const escapeXml = (value: string): string =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+/** The SIN tags of a line: activity, product and unit, only the ones the product carries. */
+export function sinLineTags(line: { sinProductCode?: string | null; sinActivityCode?: string | null; sinUnitCode?: number | null }): string {
+  return (
+    (line.sinActivityCode ? `<actividadEconomica>${escapeXml(line.sinActivityCode)}</actividadEconomica>` : '') +
+    (line.sinProductCode ? `<codigoProductoSin>${escapeXml(line.sinProductCode)}</codigoProductoSin>` : '') +
+    (line.sinUnitCode != null ? `<unidadMedida>${line.sinUnitCode}</unidadMedida>` : '')
+  );
+}
 
 /**
  * Provisional XML of a purchase-sale invoice (sector 1). The tags follow the shape of the SIN specification but have NOT been
@@ -36,7 +51,7 @@ export function buildInvoiceXml(input: InvoiceXmlInput): string {
   const detail = input.lines
     .map(
       (line) =>
-        `  <detalle><codigoProducto>${escapeXml(line.code)}</codigoProducto><descripcion>${escapeXml(line.description)}</descripcion>` +
+        `  <detalle>${sinLineTags(line)}<codigoProducto>${escapeXml(line.code)}</codigoProducto><descripcion>${escapeXml(line.description)}</descripcion>` +
         `<cantidad>${line.quantity}</cantidad><precioUnitario>${line.unitPrice}</precioUnitario><subTotal>${line.subtotal}</subTotal></detalle>`,
     )
     .join('\n');
@@ -57,6 +72,7 @@ export function buildInvoiceXml(input: InvoiceXmlInput): string {
     `    <numeroDocumento>${escapeXml(input.customer.documentNumber)}</numeroDocumento>`,
     input.customer.complement ? `    <complemento>${escapeXml(input.customer.complement)}</complemento>` : '',
     `    <montoTotal>${input.total}</montoTotal>`,
+    input.activityCode ? `    <actividadEconomica>${escapeXml(input.activityCode)}</actividadEconomica>` : '',
     `    <leyenda>${escapeXml(input.legend)}</leyenda>`,
     '  </cabecera>',
     detail,

@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { type InvoiceCancellationItem, type InvoiceCancellationsResponse, type InvoiceStatus, SIAT_CANCELLATION_REASONS } from '@rodasoft/domain';
+import { type InvoiceCancellationItem, type InvoiceCancellationsResponse, type InvoiceStatus } from '@rodasoft/domain';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { cancellationErrors } from '../sales/sales/sale-cancellation.errors';
 import { SaleCancellationService } from '../sales/sales/sale-cancellation.service';
 import { SaleVisibilityService } from '../sales/sales/sale-visibility.service';
 import type { InvoiceCancellationRequestDto } from './invoicing.dto';
 import { invoicingErrors } from './invoicing.errors';
+import { SiatCatalogsService } from './siat-catalogs.service';
 
 /**
  * Cancelling a valid invoice (HU-FAC-09, HU-FAC-10). Asking from an invoice is the same flow as asking from its sale (HU-VEN-14),
@@ -18,6 +19,7 @@ export class InvoiceCancellationsService {
     private readonly prisma: PrismaService,
     private readonly visibility: SaleVisibilityService,
     private readonly sales: SaleCancellationService,
+    private readonly catalogs: SiatCatalogsService,
   ) {}
 
   async request(invoiceId: string, dto: InvoiceCancellationRequestDto): Promise<{ saleId: string; status: string }> {
@@ -26,7 +28,7 @@ export class InvoiceCancellationsService {
     if (!invoice) throw invoicingErrors.notFound();
     // only an invoice the SIAT accepted is cancelled from here; the others are voided with their sale
     if (invoice.status !== 'VALID') throw cancellationErrors.invoiceNotCancellable(invoice.status);
-    if (!SIAT_CANCELLATION_REASONS.some((reason) => reason.code === dto.reasonCode)) throw invoicingErrors.invalidReasonCode();
+    if (!(await this.catalogs.cancellationReasons()).some((reason) => reason.code === dto.reasonCode)) throw invoicingErrors.invalidReasonCode();
     return this.sales.request(invoice.saleId, { reason: `SIN_${dto.reasonCode}`, comment: dto.comment });
   }
 

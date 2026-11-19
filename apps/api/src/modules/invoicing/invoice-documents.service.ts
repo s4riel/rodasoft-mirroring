@@ -161,7 +161,7 @@ export class InvoiceDocumentsService {
       customerDocument: data.customerDocument,
       lines: data.lines,
       total: data.total,
-      legend: INVOICE_LEGEND_DEFAULT,
+      legend: data.legend,
       verificationUrl: data.verificationUrl,
     });
   }
@@ -200,6 +200,7 @@ export class InvoiceDocumentsService {
       lines: invoice.sale.items.map((item) => ({ description: item.product.name, quantity: item.quantity, unitPrice: item.unitPrice.toFixed(2), total: item.lineTotal.toFixed(2) })),
       total: invoice.total.toFixed(2),
       xml: invoice.document.signedXml,
+      legend: invoice.legend ?? INVOICE_LEGEND_DEFAULT,
       verificationUrl: siatQrUrl({ environment, nit: invoice.company.nit, cuf: invoice.cuf, number: invoice.number }),
     };
   }
@@ -219,6 +220,7 @@ interface LoadedInvoice {
   lines: { description: string; quantity: number; unitPrice: string; total: string }[];
   total: string;
   xml: string;
+  legend: string;
   verificationUrl: string;
 }
 

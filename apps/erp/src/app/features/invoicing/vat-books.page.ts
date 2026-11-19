@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
@@ -117,6 +117,8 @@ export class VatBooksPage {
   protected readonly loaded = signal<BookData | null>(null);
   protected readonly search = signal('');
   protected readonly exportOpen = signal(false);
+  /** Closed or filed periods, read when the export dialog opens: the dialog marks any other as a draft. */
+  protected readonly closedPeriods = signal<readonly string[]>([]);
 
   protected readonly sales = computed(() => (this.loaded()?.book === 'SALES' ? (this.loaded()?.data as SalesBookResponse) : null));
   protected readonly purchases = computed(() => (this.loaded()?.book === 'PURCHASES' ? (this.loaded()?.data as PurchasesBookResponse) : null));
@@ -189,6 +191,14 @@ export class VatBooksPage {
   protected readonly firstObserved = computed(() => this.purchases()?.rows.find((r) => r.status === 'OBSERVED') ?? null);
   protected readonly isEmpty = computed(() => this.state() === 'ready' && (this.loaded()?.data.rows.length ?? 0) === 0);
   protected readonly noResults = computed(() => this.state() === 'ready' && !this.isEmpty() && this.rows().length === 0);
+
+  private readonly loadClosed = effect(() => {
+    if (!this.exportOpen()) return;
+    this.api
+      .periods()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: (response) => this.closedPeriods.set(response.items.filter((item) => item.status !== 'OPEN').map((item) => item.period)), error: () => undefined });
+  });
 
   private readonly request = computed(() => ({ book: this.book(), period: this.period(), branchId: this.branchId() ?? undefined }));
 
@@ -270,6 +280,10 @@ export class VatBooksPage {
   /** Opens the purchase (FS-38), where its NIT is verified. */
   protected openEntry(entry: PurchaseBookRow) {
     void this.router.navigate(['/invoicing/books/purchases', entry.id], { queryParams: { period: this.period() } });
+  }
+
+  protected openPeriods() {
+    void this.router.navigate(['/invoicing/books/periods']);
   }
 
   private navigate(queryParams: Record<string, string | null>) {

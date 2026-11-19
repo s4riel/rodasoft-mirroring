@@ -6,10 +6,11 @@ import { redisProvider, RedisLifecycle, REDIS } from './redis/redis.provider';
 import { SecretsService } from './security/secrets.service';
 import { SettingsService } from './settings/settings.service';
 import { SiatGatewayFactory } from './siat/siat-gateway.factory';
+import { VatPeriodGuard } from './siat/vat-period.guard';
 
 @Global()
 @Module({
-  providers: [PrismaService, redisProvider, RedisLifecycle, SecretsService, AuditService, OutboxService, SettingsService, SiatGatewayFactory],
-  exports: [PrismaService, REDIS, SecretsService, AuditService, OutboxService, SettingsService, SiatGatewayFactory],
+  providers: [PrismaService, redisProvider, RedisLifecycle, SecretsService, AuditService, OutboxService, SettingsService, SiatGatewayFactory, VatPeriodGuard],
+  exports: [PrismaService, REDIS, SecretsService, AuditService, OutboxService, SettingsService, SiatGatewayFactory, VatPeriodGuard],
 })
 export class CommonModule {}

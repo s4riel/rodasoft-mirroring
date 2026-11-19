@@ -8,7 +8,7 @@ import { laPazToday } from './kardex';
 import type { Permission } from './permissions';
 import { Decimal } from './money';
 import { IdentityDocumentType } from './nit';
-import { type CreditNoteStatus, creditNoteMachine, type InvoiceStatus, invoiceMachine } from './state-machine';
+import { type CreditNoteStatus, creditNoteMachine, type InvoiceStatus, invoiceMachine, type VatPeriodStatus } from './state-machine';
 
 export const INVOICE_PAGE_SIZE_DEFAULT = 20;
 export const INVOICE_PAGE_SIZE_MAX = 100;
@@ -92,9 +92,12 @@ export function isStuckSending(lastAttemptAt: Date | null, now: Date, timeoutMin
   return now.getTime() - lastAttemptAt.getTime() >= timeoutMinutes * 60_000;
 }
 
+/** The Bolivian VAT rate, in percent. */
+export const VAT_RATE_PERCENT = '13';
+
 /** The VAT tax credit of an invoice total: 13 %, half up to cents, with `Decimal`. */
 export function fiscalDebit(total: Decimal | string): Decimal {
-  return Decimal.of(typeof total === 'string' ? total : total.toString()).percent('13');
+  return Decimal.of(typeof total === 'string' ? total : total.toString()).percent(VAT_RATE_PERCENT);
 }
 
 // ── Cancelling in the SIAT (HU-FAC-09, HU-FAC-10) ──
@@ -639,6 +642,10 @@ export interface SiatSystemStatus {
   cufd: CodeHealth;
   lastSyncedAt: string | null;
   warnHours: number;
+  /** Health of the digital signature and of the SIAT token against `invoicing.signatureWarnDays` (`OK` when none is stored). */
+  signatureHealth: CodeHealth;
+  tokenHealth: CodeHealth;
+  signatureWarnDays: number;
   /** Invoices and notes that still wait for a manual issue. */
   notIssued: number;
   branches: SiatBranchStatus[];
@@ -670,9 +677,9 @@ export function currentVatBookPeriod(now: Date): string {
   return laPazToday(now).slice(0, 7);
 }
 
-/** A period is a draft while its La Paz month has not ended (closing a period is HU-FAC-21). */
-export function isDraftPeriod(period: string, now: Date): boolean {
-  return period >= currentVatBookPeriod(now);
+/** A period is a draft until it is closed (HU-FAC-21): its books can still change while it is `OPEN`. */
+export function isDraftPeriod(status: VatPeriodStatus): boolean {
+  return status === 'OPEN';
 }
 
 export type SalesBookRowKind = 'INVOICE' | 'CREDIT_NOTE';
@@ -796,7 +803,7 @@ export function purchaseBookTotals(rows: readonly PurchaseBookRow[]): PurchaseBo
 /** `GET invoicing/vat-books/sales|purchases`. */
 export interface VatBookResponse<Row, Totals> {
   period: string;
-  /** The month has not ended: the book can still change. */
+  /** The period is not closed yet: the book can still change. */
   draft: boolean;
   format: VatBookFormat;
   exportFormats: VatBookExportFormat[];
@@ -806,7 +813,7 @@ export interface VatBookResponse<Row, Totals> {
 export type SalesBookResponse = VatBookResponse<SalesBookRow, SalesBookTotals>;
 export type PurchasesBookResponse = VatBookResponse<PurchaseBookRow, PurchaseBookTotals>;
 
-/** The name of an exported book: `libro-ventas-2026-11.xlsx`, with `-BORRADOR` while the period is open. */
+/** The name of an exported book: `libro-ventas-2026-11.xlsx`, with `-BORRADOR` while the period is not closed. */
 export function vatBookFileName(book: VatBook, period: string, format: VatBookExportFormat, draft: boolean): string {
   return `libro-${book === 'SALES' ? 'ventas' : 'compras'}-${period}${draft ? '-BORRADOR' : ''}.${format.toLowerCase()}`;
 }

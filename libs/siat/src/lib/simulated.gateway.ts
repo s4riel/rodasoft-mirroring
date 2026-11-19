@@ -4,12 +4,15 @@ import {
   type SiatCufd,
   type SiatCuis,
   type SiatGateway,
+  type SiatCatalogs,
   type SiatInvoiceStatusResult,
   type SiatInvoiceSubmission,
   type SiatNitResult,
+  type SiatPointOfSaleRegistration,
   type SiatSendResult,
   SiatUnavailableError,
 } from './gateway';
+import { SIMULATED_CATALOGS } from './simulated-catalogs';
 import type { PointOfSaleRef } from './types';
 
 export type SimulatorMode = 'ONLINE' | 'OFFLINE';
@@ -20,11 +23,17 @@ export interface SimulatedSiatStore {
   remember(cuf: string, receptionCode: string): Promise<void>;
   isCancelled(cuf: string): Promise<boolean>;
   markCancelled(cuf: string): Promise<void>;
+  /**
+   * The code the simulated SIN gives a point of sale: the same for the same branch and name, otherwise the next one above every
+   * code of the branch (`knownCodes` are the ones the caller already holds). Two concurrent calls never get the same code.
+   */
+  registerPointOfSale(branchCode: number, name: string, knownCodes: readonly number[]): Promise<number>;
 }
 
 export class InMemorySiatStore implements SimulatedSiatStore {
   private readonly receptions = new Map<string, string>();
   private readonly cancelled = new Set<string>();
+  private readonly pointsOfSale = new Map<string, number>();
 
   async accepted(cuf: string) {
     return this.receptions.get(cuf) ?? null;
@@ -37,6 +46,15 @@ export class InMemorySiatStore implements SimulatedSiatStore {
   }
   async markCancelled(cuf: string) {
     this.cancelled.add(cuf);
+  }
+  async registerPointOfSale(branchCode: number, name: string, knownCodes: readonly number[]) {
+    const key = `${branchCode}:${name.trim().toLowerCase()}`;
+    const known = this.pointsOfSale.get(key);
+    if (known !== undefined) return known;
+    const inBranch = [...this.pointsOfSale].filter(([k]) => k.startsWith(`${branchCode}:`)).map(([, code]) => code);
+    const code = Math.max(0, ...knownCodes, ...inBranch) + 1;
+    this.pointsOfSale.set(key, code);
+    return code;
   }
 }
 
@@ -142,5 +160,20 @@ export class SimulatedSiatGateway implements SiatGateway {
       code: `SIMCUIS-${pointOfSale.branchCode}-${pointOfSale.pointOfSaleCode}`,
       expiresAt: new Date(this.clock().getTime() + SIMULATED_CUIS_DAYS * 86_400_000),
     };
+  }
+
+  /** Hands out consecutive codes per branch; registering the same branch and name again is not an error and returns the same code. */
+  async registerPointOfSale(registration: SiatPointOfSaleRegistration): Promise<{ code: number }> {
+    await this.requireOnline();
+    return { code: await this.store.registerPointOfSale(registration.branchCode, registration.name, registration.knownCodes) };
+  }
+
+  async closePointOfSale(_pointOfSale: PointOfSaleRef): Promise<void> {
+    await this.requireOnline();
+  }
+
+  async syncCatalogs(_pointOfSale: PointOfSaleRef): Promise<SiatCatalogs> {
+    await this.requireOnline();
+    return SIMULATED_CATALOGS;
   }
 }

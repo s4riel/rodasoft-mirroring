@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { type CreditNoteStatus, creditNoteMachine, Decimal, INVOICE_LEGEND_DEFAULT } from '@rodasoft/domain';
+import { lacksHomologation, readFiscalData, sinLineOf } from './fiscal-data';
 import { buildCuf, buildSignedCreditNoteXml, EmissionType, InvoiceDocumentType, ModalityCode, SectorDocumentType, SiatUnavailableError } from '@rodasoft/siat';
 import type { SiatGateway, SiatSendResult } from '@rodasoft/siat';
 import { PrismaService } from '../common/prisma.service';
-import { SiatGatewayNotAvailableError, siatGatewayFor } from './siat-gateway';
+import { readSetting, SiatGatewayNotAvailableError, siatGatewayFor } from './siat-gateway';
 
 export interface CreditNoteIssueInput {
   creditNoteId: string;
@@ -22,9 +23,9 @@ type CallResult = SiatSendResult | { status: 'UNAVAILABLE'; error: string };
 const noteInclude = {
   company: { select: { nit: true, legalName: true } },
   branch: { select: { code: true } },
-  pointOfSale: { select: { id: true, code: true, cufdControlCode: true } },
-  invoice: { select: { status: true, number: true, cuf: true, issuedAt: true, total: true, nitException: true, customerComplement: true } },
-  items: { orderBy: { id: 'asc' }, select: { description: true, quantity: true, unitPrice: true, amount: true, saleItem: { select: { product: { select: { sku: true } } } } } },
+  pointOfSale: { select: { id: true, code: true, cufdControlCode: true, status: true } },
+  invoice: { select: { status: true, number: true, cuf: true, issuedAt: true, total: true, nitException: true, customerComplement: true, legend: true, activityCode: true } },
+  items: { orderBy: { id: 'asc' }, select: { description: true, quantity: true, unitPrice: true, amount: true, saleItem: { select: { product: { select: { sku: true, sinProductCode: true, sinActivityCode: true, sinUnitCode: true } } } } } },
 } satisfies Prisma.CreditNoteInclude;
 
 /**
@@ -101,7 +102,16 @@ export class CreditNoteIssueService {
 
       const { invoice, pointOfSale } = note;
       const invoiceValid = invoice.status === 'VALID' && invoice.cuf !== null && invoice.number !== null && invoice.issuedAt !== null;
-      const blocker = !pointOfSale ? 'POINT_OF_SALE_MISSING' : !invoiceValid ? 'INVOICE_NOT_VALID' : null;
+      // like the invoice: with homologation required, every product of the note needs its SIN code
+      const requireHomologation = await readSetting(tx, input.companyId, 'invoicing.requireHomologation');
+      const blocker =
+        !pointOfSale || pointOfSale.status !== 'ACTIVE'
+          ? 'POINT_OF_SALE_MISSING'
+          : !invoiceValid
+            ? 'INVOICE_NOT_VALID'
+            : requireHomologation && lacksHomologation(note.items.map((item) => item.saleItem.product))
+              ? 'PRODUCT_NOT_HOMOLOGATED'
+              : null;
       if (blocker || !pointOfSale || !invoice.cuf || invoice.number === null || !invoice.issuedAt) {
         // nothing can be sent: stay (or go back to) PENDING and say why
         const next = status === 'SENDING' ? creditNoteMachine.next('SENDING', 'unavailable') : status;
@@ -134,6 +144,7 @@ export class CreditNoteIssueService {
         complement: invoice.customerComplement,
       };
       const total = Decimal.of(note.total.toString()).toString();
+      const fiscal = await readFiscalData(tx, input.companyId);
       // unsigned until the worker can read the company's certificate, like the invoice XML
       const xml = buildSignedCreditNoteXml(
         {
@@ -152,13 +163,15 @@ export class CreditNoteIssueService {
           reasonCode: note.reasonCode,
           total,
           vatAdjusted: note.vatAdjusted.toFixed(2),
-          legend: INVOICE_LEGEND_DEFAULT,
+          // the note prints the legend its invoice was issued with
+          legend: invoice.legend ?? INVOICE_LEGEND_DEFAULT,
           lines: note.items.map((item) => ({
             code: item.saleItem.product.sku,
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice.toFixed(2),
             amount: item.amount.toFixed(2),
+            ...sinLineOf(item.saleItem.product, fiscal),
           })),
         },
         null,

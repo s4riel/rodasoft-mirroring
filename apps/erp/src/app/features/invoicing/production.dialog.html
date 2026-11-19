@@ -1,0 +1,28 @@
+<rs-modal [(open)]="open" variant="form" size="medium" heading="Pasar a producción" closeLabel="Cerrar">
+  <div class="content">
+    @if (!readiness().ready) {
+      <rs-note type="warning" title="Todavía no se puede pasar a producción" data-testid="production-missing">
+        <ul class="list">
+          @for (text of missing(); track text) {
+            <li>{{ text }}</li>
+          }
+        </ul>
+      </rs-note>
+    } @else {
+      <rs-note type="danger" title="Esta acción no se puede deshacer" data-testid="production-warning">
+        Desde ahora las facturas tendrán validez fiscal y no habrá forma de volver al entorno de pruebas desde el ERP.
+      </rs-note>
+      <rs-field label="Para confirmar, escribe PRODUCCIÓN" forId="production-word" [hint]="'Escribe ' + word + ' tal como está, en mayúsculas.'">
+        <input rsInput id="production-word" autocomplete="off" [value]="typed()" (input)="typed.set($any($event.target).value)" />
+      </rs-field>
+    }
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos pasar a producción" data-testid="production-error">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="production-confirm" [disabled]="!canConfirm()" [loading]="saving()" (click)="confirm()">Pasar a producción</button>
+  </div>
+</rs-modal>

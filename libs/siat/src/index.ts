@@ -5,6 +5,7 @@ export * from './lib/xml-signer';
 export * from './lib/codes.client';
 export * from './lib/gateway';
 export * from './lib/simulated.gateway';
+export * from './lib/simulated-catalogs';
 export * from './lib/invoice-xml';
 export * from './lib/credit-note-xml';
 export * from './lib/qr-url';

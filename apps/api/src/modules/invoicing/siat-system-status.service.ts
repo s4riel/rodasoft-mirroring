@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   type CodeHealth,
   codeHealth,
+  expiryHealth,
   laPazToday,
   type SiatBranchStatus,
   type SiatConnectionStatus,
@@ -50,17 +51,21 @@ export class SiatSystemStatusService {
   async status(now = new Date()): Promise<SiatSystemStatus> {
     const companyId = this.cls.get('companyId') ?? '';
     const today = laPazToday(now);
-    const [settings, warnHours, branches, issued, invoicesPending, notesPending] = await Promise.all([
-      this.prisma.siatSettings.findUnique({ where: { companyId }, select: { connectionStatus: true, connectionCheckedAt: true, environment: true, modality: true } }),
+    const [settings, warnHours, warnDays, branches, issued, invoicesPending, notesPending] = await Promise.all([
+      this.prisma.siatSettings.findUnique({
+        where: { companyId },
+        select: { connectionStatus: true, connectionCheckedAt: true, environment: true, modality: true, signatureExpiresAt: true, tokenExpiresAt: true },
+      }),
       this.settings.get('invoicing.cufdWarnHours'),
+      this.settings.get('invoicing.signatureWarnDays'),
       this.prisma.tenant.branch.findMany({
-        where: { pointsOfSale: { some: {} } },
+        where: { pointsOfSale: { some: { status: 'ACTIVE' } } },
         orderBy: { code: 'asc' },
         select: {
           id: true,
           code: true,
           name: true,
-          pointsOfSale: { orderBy: { code: 'asc' }, select: { id: true, code: true, name: true, cuis: true, cuisExpiresAt: true, cufd: true, cufdExpiresAt: true, lastSyncedAt: true } },
+          pointsOfSale: { where: { status: 'ACTIVE' }, orderBy: { code: 'asc' }, select: { id: true, code: true, name: true, cuis: true, cuisExpiresAt: true, cufd: true, cufdExpiresAt: true, lastSyncedAt: true } },
         },
       }),
       this.prisma.tenant.invoice.groupBy({
@@ -90,6 +95,9 @@ export class SiatSystemStatusService {
       cufd: health((point) => point.cufd.health),
       lastSyncedAt: latest(branches.flatMap((branch) => branch.pointsOfSale.map((point) => point.lastSyncedAt)))?.toISOString() ?? null,
       warnHours,
+      signatureHealth: settings?.signatureExpiresAt ? expiryHealth(settings.signatureExpiresAt, now, warnDays) : 'OK',
+      tokenHealth: settings?.tokenExpiresAt ? expiryHealth(settings.tokenExpiresAt, now, warnDays) : 'OK',
+      signatureWarnDays: warnDays,
       notIssued: invoicesPending + notesPending,
       branches: branchStatuses,
     };

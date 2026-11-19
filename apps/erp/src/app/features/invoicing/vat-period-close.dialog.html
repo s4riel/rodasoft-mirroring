@@ -1,0 +1,63 @@
+<rs-modal [(open)]="open" variant="form" size="medium" [heading]="heading()" closeLabel="Cerrar">
+  <div class="content">
+    @if (loading()) {
+      <div role="status" aria-busy="true" aria-label="Revisando el período">
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      </div>
+    } @else if (loadError(); as message) {
+      <rs-note type="danger" title="No pudimos revisar el período" data-testid="close-load-error">{{ message }}</rs-note>
+    } @else if (blockers(); as b) {
+      @if (errorText(); as text) {
+        <rs-note type="warning" title="Todavía no se puede cerrar" data-testid="close-error">{{ text }}</rs-note>
+      }
+      @if (requestsText(); as text) {
+        <rs-note type="info" title="Solicitudes de anulación pendientes" data-testid="close-requests">{{ text }}</rs-note>
+      }
+      @if (lines().length > 0) {
+        <rs-note type="warning" title="Hay pendientes en el período" data-testid="close-blockers">
+          <ul class="list">
+            @for (line of lines(); track line) {
+              <li>{{ line }}</li>
+            }
+          </ul>
+        </rs-note>
+        @if (b.documents.length > 0) {
+          <section class="items" aria-label="Documentos pendientes" data-testid="close-documents">
+            <h3 class="heading">Documentos</h3>
+            <ul class="list">
+              @for (doc of b.documents; track doc.id) {
+                <li>{{ doc.kind === 'CREDIT_NOTE' ? 'Nota' : 'Factura' }} · {{ doc.customerName }} · {{ formatBs(doc.total) }}</li>
+              }
+            </ul>
+          </section>
+        }
+        @if (b.purchases.length > 0) {
+          <section class="items" aria-label="Compras observadas" data-testid="close-purchases">
+            <h3 class="heading">Compras observadas</h3>
+            <ul class="list">
+              @for (purchase of b.purchases; track purchase.id) {
+                <li>{{ purchase.supplierName }} · N.º {{ purchase.invoiceNumber }} · {{ formatBs(purchase.total) }}</li>
+              }
+            </ul>
+          </section>
+        }
+      } @else if (!errorText()) {
+        <p class="description" data-testid="close-ready">
+          No hay documentos sin emitir ni compras observadas. Al cerrar, los libros de {{ name() }} quedan fijos y sus facturas ya no se pueden anular: se corrigen con una nota de crédito.
+        </p>
+      }
+    }
+    @if (saveError(); as message) {
+      <rs-note type="danger" title="No pudimos cerrar el período" data-testid="close-save-error">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Volver</button>
+    @if (hasPending()) {
+      <a rsButton variant="primary" routerLink="/invoicing/invoices" data-testid="close-see-pending" (click)="open.set(false)">Ver pendientes</a>
+    } @else {
+      <button rsButton variant="primary" type="button" data-testid="close-confirm" [disabled]="!canClose() || saving()" [loading]="saving()" (click)="confirm()">Cerrar período</button>
+    }
+  </div>
+</rs-modal>

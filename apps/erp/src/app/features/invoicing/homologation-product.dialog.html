@@ -1,0 +1,22 @@
+<rs-modal [(open)]="open" variant="form" size="default" [heading]="'Código SIN de ' + (product()?.sku ?? '')" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">{{ product()?.name }}</p>
+
+    <rs-field label="Código del producto en el SIN" forId="sin-code" hint="Tal como aparece en el catálogo sincronizado." [error]="codeError()" required>
+      <input rsInput id="sin-code" autocomplete="off" inputmode="numeric" [invalid]="!!codeError()" [value]="code()" (input)="code.set($any($event.target).value)" />
+    </rs-field>
+
+    <rs-field label="Unidad de medida" forId="sin-unit">
+      <rs-select inputId="sin-unit" ariaLabel="Unidad de medida" placeholder="Sin unidad" [options]="unitOptions()" [value]="unit()" (valueChange)="unit.set($any($event))" />
+    </rs-field>
+
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos guardar el código" data-testid="homologation-error">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="homologation-save" [disabled]="saving()" [loading]="saving()" (click)="save()">Guardar</button>
+  </div>
+</rs-modal>

@@ -37,12 +37,12 @@ export class InvoiceCancellationDialog {
 
   protected readonly options = CANCELLATION_REASON_OPTIONS;
   /** The four SIN reasons the chips map to (kept for the form tests and the approver's inbox). */
-  protected readonly reasons = SIAT_CANCELLATION_REASONS;
+  protected readonly reasons = signal<readonly { code: number; description: string }[]>(SIAT_CANCELLATION_REASONS);
   protected readonly commentMax = CANCELLATION_COMMENT_MAX;
   protected readonly reason = signal<string | null>(null);
   /** The SIN code the chosen reason goes to the SIAT with. */
   protected readonly reasonCode = computed(() => (this.reason() ? siatCancellationReasonCode(this.reason() as string) : null));
-  protected readonly sinReasonLabel = computed(() => SIAT_CANCELLATION_REASONS.find((r) => r.code === this.reasonCode())?.description ?? '');
+  protected readonly sinReasonLabel = computed(() => this.reasons().find((r) => r.code === this.reasonCode())?.description ?? '');
   protected readonly summary = computed(() => [this.saleNumber() ? `Venta ${this.saleNumber()}` : null, this.total() ? formatBs(this.total()) : null].filter(Boolean).join(' · '));
   protected readonly comment = signal('');
   protected readonly touched = signal(false);
@@ -57,6 +57,11 @@ export class InvoiceCancellationDialog {
     effect(() => {
       if (!this.open()) return;
       untracked(() => {
+        // the reasons come from the synced SIN catalogue; the built-in four stay until it answers
+        this.api
+          .reasons()
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({ next: (response) => this.reasons.set(response.cancellation), error: () => undefined });
         this.reason.set(null);
         this.comment.set('');
         this.touched.set(false);
