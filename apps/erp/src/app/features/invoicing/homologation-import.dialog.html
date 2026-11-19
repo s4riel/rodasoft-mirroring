@@ -1,0 +1,47 @@
+<rs-modal [(open)]="open" variant="form" size="medium" heading="Importar códigos SIN desde Excel" closeLabel="Cerrar">
+  <div class="content">
+    <p class="description">
+      El archivo lleva tres columnas: SKU, CODIGO_SIN y UNIDAD (opcional). Se revisa antes de guardar y, si una fila tiene un error, no se importa nada.
+    </p>
+    <div>
+      <button rsButton variant="secondary" type="button" data-testid="homologation-template" (click)="template()">Descargar plantilla</button>
+    </div>
+
+    @if (!file()) {
+      <rs-file-dropzone
+        title="Arrastra el archivo Excel o CSV"
+        formats=".xlsx / .csv"
+        formatsLabel="Formatos"
+        limit="Hasta 2 000 filas"
+        buttonLabel="Elegir archivo"
+        accept=".xlsx,.csv"
+        (filesSelected)="pick($event)"
+      />
+    } @else {
+      <rs-file-item [name]="file()?.name ?? ''" [detail]="checking() ? 'Revisando…' : ''" [status]="checking() ? 'uploading' : 'done'" removeLabel="Quitar archivo" (removed)="removeFile()" />
+    }
+
+    @if (preview(); as p) {
+      @if (p.withErrors === 0) {
+        <rs-note type="success" title="El archivo está listo" data-testid="import-ok">{{ p.valid }} {{ p.valid === 1 ? 'fila lista' : 'filas listas' }} para importar.</rs-note>
+      } @else {
+        <rs-note type="danger" [title]="p.withErrors + (p.withErrors === 1 ? ' fila con errores' : ' filas con errores')" data-testid="import-errors">
+          Corrige el archivo y vuelve a elegirlo. No se importó nada.
+          <ul class="list">
+            @for (row of errorRows(); track row.line) {
+              <li>Fila {{ row.line }} · {{ row.sku || 'sin SKU' }}: {{ row.text }}</li>
+            }
+          </ul>
+        </rs-note>
+      }
+    }
+    @if (error(); as message) {
+      <rs-note type="danger" title="No pudimos importar el archivo" data-testid="import-error">{{ message }}</rs-note>
+    }
+  </div>
+
+  <div slot="footer" class="footer">
+    <button rsButton variant="secondary" type="button" [disabled]="saving()" (click)="open.set(false)">Cancelar</button>
+    <button rsButton variant="primary" type="button" data-testid="import-apply" [disabled]="!canApply()" [loading]="saving()" (click)="apply()">Importar</button>
+  </div>
+</rs-modal>

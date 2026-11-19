@@ -16,7 +16,6 @@ import {
   INVOICE_PAGE_SIZE_DEFAULT,
   INVOICE_PAGE_SIZE_MAX,
   type InvoiceStatus,
-  SIAT_CREDIT_NOTE_REASONS,
   vatBookPeriod,
 } from '@rodasoft/domain';
 import { EnvironmentCode, siatQrUrl } from '@rodasoft/siat';
@@ -33,6 +32,7 @@ import { describeAudit } from './invoice-queries.service';
 import { InvoicePdfService, type PdfDocumentTexts } from './invoice-pdf.service';
 import type { ListCreditNotesQueryDto } from './invoicing.dto';
 import { invoicingErrors } from './invoicing.errors';
+import { SiatCatalogsService } from './siat-catalogs.service';
 
 const LIST_SELECT = {
   id: true,
@@ -64,6 +64,7 @@ export class CreditNoteQueriesService {
     private readonly cls: ClsService<AppClsStore>,
     private readonly pdf: InvoicePdfService,
     private readonly settings: SettingsService,
+    private readonly catalogs: SiatCatalogsService,
   ) {}
 
   /** Notes of the sales the caller may see (the same rule as the invoices). */
@@ -215,7 +216,7 @@ export class CreditNoteQueriesService {
       customerName: invoice.customerTaxName,
       total: invoice.total.toFixed(2),
       credited: lines.reduce((acc, line) => acc.add(Decimal.of(line.creditedAmount)), Decimal.zero()).toString(),
-      reasons: [...SIAT_CREDIT_NOTE_REASONS],
+      reasons: await this.catalogs.creditNoteReasons(),
       lines: lines.map((line) => {
         const left = creditableOf(line);
         const item = products.get(line.saleItemId);
@@ -248,7 +249,7 @@ export class CreditNoteQueriesService {
       customerDocument: data.customerDocument,
       lines: data.lines,
       total: data.total,
-      legend: INVOICE_LEGEND_DEFAULT,
+      legend: data.legend,
       verificationUrl: data.verificationUrl,
       document: data.texts,
     });
@@ -270,7 +271,7 @@ export class CreditNoteQueriesService {
         company: { select: { legalName: true, nit: true } },
         branch: { select: { name: true } },
         pointOfSale: { select: { code: true, name: true } },
-        invoice: { select: { number: true } },
+        invoice: { select: { number: true, legend: true } },
         items: { orderBy: { id: 'asc' }, select: { description: true, quantity: true, unitPrice: true, amount: true } },
       },
     });
@@ -278,7 +279,7 @@ export class CreditNoteQueriesService {
     if (note.status !== 'VALID' || note.number === null || !note.cuf || !note.issuedAt || !note.document) throw invoicingErrors.noteNotIssued();
     const settings = await this.prisma.siatSettings.findUnique({ where: { companyId: note.companyId }, select: { environment: true } });
     const environment = settings?.environment === 'PRODUCTION' ? EnvironmentCode.Production : EnvironmentCode.Test;
-    const reason = SIAT_CREDIT_NOTE_REASONS.find((r) => r.code === note.reasonCode)?.description ?? '';
+    const reason = (await this.catalogs.creditNoteReasons()).find((r) => r.code === note.reasonCode)?.description ?? '';
     const texts: PdfDocumentTexts = {
       name: 'Nota de crédito-débito',
       title: 'NOTA DE CRÉDITO-DÉBITO',
@@ -301,6 +302,7 @@ export class CreditNoteQueriesService {
       lines: note.items.map((item) => ({ description: item.description, quantity: item.quantity, unitPrice: item.unitPrice.toFixed(2), total: item.amount.toFixed(2) })),
       total: note.total.toFixed(2),
       xml: note.document.signedXml,
+      legend: note.invoice.legend ?? INVOICE_LEGEND_DEFAULT,
       verificationUrl: siatQrUrl({ environment, nit: note.company.nit, cuf: note.cuf, number: note.number }),
       texts,
     };

@@ -31,4 +31,21 @@ describe('buildInvoiceXml', () => {
     expect(xml).toContain('Rodamiento &quot;6205&quot;');
     expect(xml).not.toContain('<complemento>');
   });
+
+  it('carries the SIN activity, product and unit when the product has them', () => {
+    const xml = buildInvoiceXml({
+      ...input,
+      activityCode: '465900',
+      lines: [{ ...input.lines[0], sinProductCode: '84821', sinActivityCode: '465900', sinUnitCode: 58 }],
+    });
+    expect(xml).toContain('<actividadEconomica>465900</actividadEconomica>');
+    expect(xml).toContain('<codigoProductoSin>84821</codigoProductoSin>');
+    expect(xml).toContain('<unidadMedida>58</unidadMedida>');
+  });
+
+  it('leaves the SIN tags out for a product without them', () => {
+    const xml = buildInvoiceXml(input);
+    expect(xml).not.toContain('codigoProductoSin');
+    expect(xml).not.toContain('actividadEconomica');
+  });
 });

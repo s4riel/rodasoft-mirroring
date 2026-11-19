@@ -195,6 +195,20 @@ describe('CreditNoteIssueService (integration, real Postgres)', () => {
     expect(await noteRow(note.id)).toMatchObject({ status: 'PENDING', lastError: 'POINT_OF_SALE_MISSING', number: null });
   });
 
+  it('with homologation required, a note of a product without SIN code stays PENDING with PRODUCT_NOT_HOMOLOGATED', async () => {
+    const { note } = await seedNote();
+    await prisma.companySetting.create({ data: { companyId, key: 'invoicing.requireHomologation', value: true } });
+    try {
+      expect(await issue(note.id)).toBe('UNAVAILABLE');
+      expect(await noteRow(note.id)).toMatchObject({ status: 'PENDING', lastError: 'PRODUCT_NOT_HOMOLOGATED', number: null, cuf: null });
+      await prisma.product.update({ where: { id: productId }, data: { sinProductCode: '84821' } });
+      expect(await issue(note.id)).toBe('ACCEPTED');
+    } finally {
+      await prisma.product.update({ where: { id: productId }, data: { sinProductCode: null } });
+      await prisma.companySetting.deleteMany({ where: { companyId, key: 'invoicing.requireHomologation' } });
+    }
+  });
+
   it('concurrent first sends on one point of sale take consecutive numbers, with no gap or duplicate', async () => {
     const seeded = [];
     for (let i = 0; i < 6; i++) seeded.push(await seedNote());

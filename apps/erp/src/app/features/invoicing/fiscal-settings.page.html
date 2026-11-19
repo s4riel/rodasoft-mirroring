@@ -1,0 +1,73 @@
+<rs-page-header
+  title="Configuración fiscal"
+  description="Lo que necesita cada empresa para emitir facturas en el SIAT. La firma y las credenciales no se comparten entre empresas."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+/>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando la configuración fiscal">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver la configuración fiscal" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar la configuración fiscal" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (data(); as d) {
+      <section class="kpis" aria-label="Resumen fiscal" data-testid="fiscal-kpis">
+        <rs-kpi-card variant="stat" label="Ambiente" [value]="environmentText()" />
+        <rs-kpi-card variant="stat" label="Firma digital" [value]="signatureText()" [trend]="d.signature.health === 'OK' ? 'neutral' : 'negative'" />
+        <rs-kpi-card variant="stat" label="Credenciales SIAT" [value]="credentialsText()" [trend]="d.credentials.tokenHealth === 'OK' ? 'neutral' : 'negative'" />
+        <rs-kpi-card variant="stat" label="Catálogos del SIN" [value]="catalogsText()" />
+      </section>
+
+      <rs-doc-table size="lg" tableLabel="Estado de la configuración fiscal" [columns]="columns" [rows]="rows()" [totals]="totals()">
+        <ng-template rsDocCell="link" let-row>
+          <a rsLink [routerLink]="linkOf(row.id)" [attr.aria-label]="'Abrir ' + titleOf(row.id)" [attr.data-testid]="'section-' + row.id">Abrir</a>
+        </ng-template>
+        <div slot="footer" class="footer">
+          <span class="range">{{ rows().length }} de {{ rows().length }} secciones</span>
+        </div>
+      </rs-doc-table>
+
+      @for (text of expiring(); track text) {
+        <rs-note type="warning" title="Atención" data-testid="expiry-note">{{ text }} Cárgala de nuevo en credenciales antes de que se corte la facturación.</rs-note>
+      }
+
+      @if (isProduction()) {
+        <rs-note type="success" title="Facturando en producción" data-testid="production-note">Tu empresa ya factura en el entorno de producción del SIAT.</rs-note>
+      } @else if (d.production.ready) {
+        <rs-note type="info" title="Todo listo para pasar a producción" data-testid="test-note">Después de pasar, las facturas tendrán validez fiscal. Mientras tanto siguen siendo de prueba.</rs-note>
+      } @else {
+        <rs-note type="warning" title="No se puede pasar a producción todavía" data-testid="test-note">{{ productionMissing().join('. ') }}.</rs-note>
+      }
+
+      <div class="actions">
+        <a rsButton variant="secondary" routerLink="/invoicing/settings/catalogs" data-testid="sync-catalogs-link">Sincronizar catálogos</a>
+        @if (!isProduction()) {
+          <button *rsCan="'invoicing.production.enable'" rsButton variant="primary" type="button" data-testid="production-open" [disabled]="!d.production.ready" (click)="productionOpen.set(true)">Pasar a producción</button>
+        }
+      </div>
+    }
+  }
+}
+
+@if (data(); as d) {
+  <rs-production-dialog [(open)]="productionOpen" [readiness]="d.production" (switched)="switched()" />
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

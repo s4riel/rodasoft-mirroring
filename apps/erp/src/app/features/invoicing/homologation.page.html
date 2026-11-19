@@ -1,0 +1,90 @@
+<rs-page-header
+  title="Homologación de productos"
+  description="Cada producto necesita el código del catálogo del SIN para salir en una factura. Asígnalos uno por uno o importa un Excel."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button rsButton variant="primary" type="button" data-testid="homologation-import" [disabled]="state() !== 'ready' || !data()?.catalogsSynced" (click)="importOpen.set(true)">Importar desde Excel</button>
+  </div>
+</rs-page-header>
+
+@switch (state()) {
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para homologar productos" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los productos" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="reload()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (data(); as d) {
+      @if (!d.catalogsSynced) {
+        <rs-note type="warning" title="Primero sincroniza los catálogos" data-testid="homologation-not-synced">Sin los catálogos del SIN no se pueden validar los códigos. Sincronízalos en la página de catálogos.</rs-note>
+      }
+      <section class="kpis" aria-label="Progreso de homologación" data-testid="homologation-kpis">
+        <rs-kpi-card variant="stat" label="Homologados" [value]="d.progress.done + ' de ' + d.progress.total" />
+        <rs-kpi-card variant="stat" label="Sin código del SIN" [value]="'' + d.progress.pending" [trend]="d.progress.pending > 0 ? 'negative' : 'neutral'" />
+        <rs-kpi-card variant="stat" label="Sin unidad de medida" [value]="'' + d.withoutUnit" [trend]="d.withoutUnit > 0 ? 'negative' : 'neutral'" />
+        <rs-kpi-card variant="stat" label="Última sincronización" [value]="syncedText()" />
+      </section>
+    }
+
+    <rs-filter-bar-products
+      inline
+      searchPlaceholder="Buscar por SKU, código o producto"
+      searchLabel="Buscar productos"
+      clearLabel="Limpiar"
+      [clearDisabled]="!filtered()"
+      [search]="search()"
+      (searchChange)="setSearch($event)"
+      (cleared)="clearAll()"
+    >
+      <div rsFilters class="filters">
+        <rs-select placeholder="Estado" ariaLabel="Estado de homologación" [options]="statusOptions" [value]="status()" (valueChange)="setStatus($event)" />
+      </div>
+    </rs-filter-bar-products>
+
+    @if (state() === 'loading') {
+      <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando los productos">
+        @for (i of skeletonRows; track i) {
+          <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+        }
+      </section>
+    } @else if (isEmpty()) {
+      <section class="state">
+        <rs-empty-state-illustrated illustration="no-results" [heading]="filtered() ? 'No encontramos productos' : 'No hay productos activos'" [description]="filtered() ? 'Prueba con otra búsqueda o limpia los filtros.' : 'Los productos activos aparecen aquí para homologarlos.'">
+          @if (filtered()) {
+            <button rsButton variant="secondary" type="button" (click)="clearAll()">Limpiar filtros</button>
+          }
+        </rs-empty-state-illustrated>
+      </section>
+    } @else {
+      <rs-doc-table size="lg" tableLabel="Productos y su código SIN" [columns]="columns" [rows]="rows()">
+        <ng-template rsDocCell="actions" let-row>
+          @if (rowOf(row.id); as product) {
+            <rs-row-action [label]="'Acciones de ' + product.sku" [items]="menuFor(product)" (selected)="edit(product)" />
+          }
+        </ng-template>
+      </rs-doc-table>
+      @if (pageCount() > 1) {
+        <div class="footer">
+          <rs-pagination [(page)]="page" [pageCount]="pageCount()" label="Paginación de productos" previousLabel="Anterior" nextLabel="Siguiente" />
+        </div>
+      }
+    }
+  }
+}
+
+<rs-homologation-import-dialog [(open)]="importOpen" (imported)="reload()" />
+@if (data(); as d) {
+  <rs-homologation-product-dialog [(open)]="editOpen" [product]="editing()" [units]="d.units" (saved)="reload()" />
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

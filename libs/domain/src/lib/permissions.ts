@@ -58,6 +58,7 @@ export const PERMISSIONS = {
   'invoicing.settings.manage': 'Firma, credenciales, puntos de venta y homologación',
   'invoicing.vat-books.view': 'Ver libros IVA',
   'invoicing.vat-books.close': 'Cerrar períodos',
+  'invoicing.production.enable': 'Pasar a producción',
 
   // Purchasing
   'purchasing.suppliers.manage': 'Gestionar proveedores',
@@ -123,7 +124,7 @@ export const DEFAULT_ROLES: Record<string, { name: string; permissions: Permissi
   accountant: {
     name: 'Contador',
     permissions: [
-      ...byPrefix('accounting.', 'invoicing.'),
+      ...byPrefix('accounting.', 'invoicing.').filter((p) => p !== 'invoicing.production.enable'),
       'purchasing.invoices.record',
       'purchasing.payments.manage',
       'sales.cash-register.review',

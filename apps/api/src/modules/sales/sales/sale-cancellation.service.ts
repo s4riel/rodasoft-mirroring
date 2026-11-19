@@ -35,6 +35,7 @@ import { OutboxService } from '../../../common/outbox/outbox.service';
 import { PrismaService, type TenantTransaction } from '../../../common/prisma/prisma.service';
 import { SettingsService } from '../../../common/settings/settings.service';
 import { SiatGatewayFactory } from '../../../common/siat/siat-gateway.factory';
+import { VatPeriodGuard } from '../../../common/siat/vat-period.guard';
 import { MembershipService } from '../../access/membership.service';
 import { StockMovementService } from '../../inventory/stock-movement.service';
 import { posErrors } from '../pos/pos.errors';
@@ -96,6 +97,7 @@ export class SaleCancellationService {
     private readonly membership: MembershipService,
     private readonly stock: StockMovementService,
     private readonly gateways: SiatGatewayFactory,
+    private readonly periods: VatPeriodGuard,
   ) {}
 
   /** `COMPLETED → CANCELLATION_PENDING`, with a pending request that carries the reason and the cashier's comment. */
@@ -111,6 +113,7 @@ export class SaleCancellationService {
       const locked = await this.lockSale(tx, saleId, companyId);
       const { origin } = await tx.sale.findFirstOrThrow({ where: { id: saleId }, select: { origin: true } });
       if (origin === 'ORDER') throw cancellationErrors.fromOrder();
+      await this.requireInvoicePeriodOpen(tx, saleId, companyId);
       // the sale is locked: a return cannot be registered meanwhile, so the stock is never returned twice (HU-VEN-21)
       const returns = await tx.saleReturn.count({ where: { saleId, status: { not: 'REJECTED' } } });
       if (returns > 0) throw returnErrors.hasReturns();
@@ -429,6 +432,8 @@ export class SaleCancellationService {
       const invoice = await tx.invoice.findUniqueOrThrow({ where: { saleId }, select: { id: true, status: true, cuf: true } });
       if (invoice.status !== 'VALID' && invoice.status !== 'CANCELLATION_PENDING') return null;
       if (!invoice.cuf) throw cancellationErrors.invoiceNotCancellable(invoice.status);
+      // an invoice of a closed VAT period is corrected with a credit note, not cancelled (HU-FAC-21); closing waits for this transaction
+      await this.requireInvoicePeriodOpen(tx, saleId, companyId);
       // what the local commit will need is checked before the SIAT is touched: once it cancels, only a re-approval can finish
       await this.requireLocalCommitPossible(tx, saleId);
       // the reason of the request decides the SIN code; anything the table does not know goes as the generic "badly issued"
@@ -470,6 +475,16 @@ export class SaleCancellationService {
       throw err;
     }
     return { reasonCode: start.reasonCode };
+  }
+
+  /**
+   * HU-FAC-21 · An invoice the SIAT holds as valid belongs to the VAT period it was issued in; once that period is closed it can no
+   * longer be cancelled. Takes the period lock, so a close and this check never interleave.
+   */
+  private async requireInvoicePeriodOpen(tx: TenantTransaction, saleId: string, companyId: string): Promise<void> {
+    const invoice = await tx.invoice.findFirst({ where: { saleId, status: { in: ['VALID', 'CANCELLATION_PENDING'] }, issuedAt: { not: null } }, select: { issuedAt: true } });
+    if (!invoice?.issuedAt) return;
+    await this.periods.assertOpen(tx, companyId, this.periods.periodOf(invoice.issuedAt));
   }
 
   /** The refund has an open shift to leave from and the warehouse can take the stock back: the two refusals of the local commit. */

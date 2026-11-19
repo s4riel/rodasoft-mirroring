@@ -1,6 +1,6 @@
 <rs-modal [(open)]="open" variant="form" size="default" heading="Exportar libro" closeLabel="Cerrar">
   <div class="content">
-    <p class="description">Se exportan todas las columnas del formato del SIN. Un período abierto se exporta como borrador.</p>
+    <p class="description">Se exportan todas las columnas del formato del SIN. Un período que todavía no está cerrado se exporta como borrador.</p>
 
     <rs-field label="Libro" forId="export-book" hint="Ventas o compras.">
       <rs-select inputId="export-book" leadingIcon="document" ariaLabel="Libro" [options]="bookOptions" [value]="chosenBook()" (valueChange)="chosenBook.set($any($event))" />

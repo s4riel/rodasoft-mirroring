@@ -62,6 +62,24 @@ When the client answers, update this table and the Sheet, and change the default
 | — | Layout of the VAT books and export formats | FAC-18, FAC-20 | `invoicing.vatBookFormat` = `SIN_LCV` (the SIN "Libro de Compras y Ventas" columns, to confirm with the accountant) and `invoicing.vatBookExportFormats` = `['XLSX', 'CSV']` |
 | — | Warning before a CUIS/CUFD expires | FAC-13 | `invoicing.cufdWarnHours` = `6` |
 
-The credit note reasons (`SIAT_CREDIT_NOTE_REASONS`) are provisional until the SIN catalogue is synced (HU-FAC-25). A VAT book period is a draft until its La Paz month ends; closing a period is HU-FAC-21.
+| 29 | Who delivers and renews the signature and the SIAT credentials | FAC-23 | Management uploads them in the ERP (Configuración fiscal); warning `invoicing.signatureWarnDays` = `30` |
+| 30 | How SIN codes are assigned and who homologates | FAC-26 | Per product, by hand or Excel, by whoever holds `invoicing.settings.manage`; `invoicing.requireHomologation` = `false` (a product without code uses the default code) |
+| 31 | Modality and document sectors | FAC-22 | `SiatSettings.modality` (unchanged) and `invoicing.documentSectors` = `[1, 24]` |
+| — | Closing a VAT period | FAC-21 | **Answered 16 Nov (planning):** a closed period locks its books and its cancellations (an invoice of it is corrected with a credit note); states `OPEN → CLOSED → FILED`; a closed period can be reopened with a reason (audited), a filed one cannot |
+
+The credit note and cancellation reasons come from the synced SIN catalogue once a company has synced it (HU-FAC-25); until then the built-in lists are used. A VAT book period is a draft until it is closed (HU-FAC-21).
 
 Cancellation never moves stock or cash without the SIAT: if it is offline or refuses, the approval is blocked and the request stays pending.
+
+## Purchasing (HU-COM)
+
+Same rule: parameterize in the per-company settings table with the default below. Questions added to the Sheet on 19 Nov 2026 from the "PENDIENTE (cliente)" note of CO-00 and the gaps of the design.
+
+| No. | Question | Stories | Default value meanwhile |
+| --- | -------- | ------- | ----------------------- |
+| 55 | How import expenses are apportioned (FOB value, weight or quantity) and to which products (all or only received) | COM-04, COM-17 | `purchasing.apportionmentBasis` = `FOB_VALUE` and `purchasing.apportionmentScope` = `ALL_PRODUCTS`, both editable per file as in CO-16 |
+| 56 | From what amount a purchase order needs Management approval | COM-02, COM-11 | `purchasing.approvalThreshold` = `0.00` Bs: every order is approved, with `purchasing.orders.approve` |
+| 57 | Is partial receipt allowed; how are excess and damaged goods recorded | COM-03, COM-14 | Partial receipt allowed (`purchasing.allowPartialReceipt` = `true`); a shortfall becomes a pending `SHORTAGE` adjustment; excess is refused (received ≤ ordered) until designed |
+| 58 | Exchange-rate source (fixed 6,96, daily BCB or manual) and who updates it | COM-02, COM-04, COM-20 | `purchasing.exchangeRateSource` = `MANUAL` with `purchasing.defaultExchangeRate` = `6.96`; each document stores its own rate |
+| 59 | Partial payments and several documents in one payment | COM-06 | Both allowed (`purchasing.allowPartialPayments` = `true`), through payment allocations |
+| 60 | Days before the due date that make a document "Por vencer" | COM-20 | `purchasing.dueSoonDays` = `7` |

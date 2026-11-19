@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Decimal, INVOICE_LEGEND_DEFAULT, invoiceMachine } from '@rodasoft/domain';
+import { Decimal, invoiceMachine } from '@rodasoft/domain';
+import { chooseLegend, lacksHomologation, readFiscalData, sinLineOf } from './fiscal-data';
 import { buildCuf, buildSignedInvoiceXml, EmissionType, InvoiceDocumentType, ModalityCode, SectorDocumentType, SiatUnavailableError } from '@rodasoft/siat';
 import type { SiatGateway, SiatSendResult } from '@rodasoft/siat';
 import { PrismaService } from '../common/prisma.service';
-import { SiatGatewayNotAvailableError, siatGatewayFor } from './siat-gateway';
+import { readSetting, SiatGatewayNotAvailableError, siatGatewayFor } from './siat-gateway';
 
 export interface InvoiceIssueInput {
   invoiceId: string;
@@ -21,8 +22,15 @@ type Tx = Prisma.TransactionClient;
 const invoiceInclude = {
   company: { select: { nit: true, legalName: true } },
   branch: { select: { code: true } },
-  pointOfSale: { select: { id: true, code: true, cufdControlCode: true } },
-  sale: { select: { items: { orderBy: { sortOrder: 'asc' }, select: { quantity: true, unitPrice: true, lineTotal: true, product: { select: { sku: true, name: true } } } } } },
+  pointOfSale: { select: { id: true, code: true, cufdControlCode: true, status: true } },
+  sale: {
+    select: {
+      items: {
+        orderBy: { sortOrder: 'asc' },
+        select: { quantity: true, unitPrice: true, lineTotal: true, product: { select: { sku: true, name: true, sinProductCode: true, sinActivityCode: true, sinUnitCode: true } } },
+      },
+    },
+  },
 } satisfies Prisma.InvoiceInclude;
 
 /**
@@ -92,11 +100,19 @@ export class InvoiceIssueService {
       if (invoice.status !== 'PENDING' && !resumes) return 'SKIPPED' as const;
       const now = new Date();
 
-      if (!invoice.pointOfSale) {
-        // nothing can be numbered without a point of sale: stay (or go back to) PENDING and say why
+      // nothing can be numbered without an active point of sale, and (when the company requires it) every product needs its SIN code:
+      // stay (or go back to) PENDING and say why
+      const requireHomologation = await readSetting(tx, input.companyId, 'invoicing.requireHomologation');
+      const blocker =
+        !invoice.pointOfSale || invoice.pointOfSale.status !== 'ACTIVE'
+          ? 'POINT_OF_SALE_MISSING'
+          : requireHomologation && lacksHomologation(invoice.sale.items.map((item) => item.product))
+            ? 'PRODUCT_NOT_HOMOLOGATED'
+            : null;
+      if (blocker || !invoice.pointOfSale) {
         const next = invoice.status === 'SENDING' ? invoiceMachine.next('SENDING', 'unavailable') : invoice.status;
-        await tx.invoice.update({ where: { id: invoice.id }, data: { status: next, lastAttemptAt: now, lastError: 'POINT_OF_SALE_MISSING' } });
-        await this.audit(tx, input, 'invoicing.invoice.unavailable', { status: invoice.status }, { status: next, error: 'POINT_OF_SALE_MISSING' });
+        await tx.invoice.update({ where: { id: invoice.id }, data: { status: next, lastAttemptAt: now, lastError: blocker } });
+        await this.audit(tx, input, 'invoicing.invoice.unavailable', { status: invoice.status }, { status: next, error: blocker });
         return 'UNAVAILABLE' as const;
       }
 
@@ -124,6 +140,10 @@ export class InvoiceIssueService {
         complement: invoice.customerComplement,
       };
       const total = Decimal.of(invoice.total.toString()).toString();
+      // the legend and the activity are fixed at the first send, so a reprint never changes
+      const fiscal = await readFiscalData(tx, input.companyId);
+      const activityCode = invoice.activityCode ?? fiscal.mainActivityCode;
+      const legend = invoice.legend ?? (await chooseLegend(tx, input.companyId, activityCode));
       // signed once the worker can read the company's certificate (SecretsService); until then the XML goes unsigned
       const xml = buildSignedInvoiceXml(
         {
@@ -136,20 +156,22 @@ export class InvoiceIssueService {
           issuedAt,
           customer,
           total,
-          legend: INVOICE_LEGEND_DEFAULT,
+          legend,
+          activityCode,
           lines: invoice.sale.items.map((item) => ({
             code: item.product.sku,
             description: item.product.name,
             quantity: item.quantity,
             unitPrice: item.unitPrice.toString(),
             subtotal: item.lineTotal.toString(),
+            ...sinLineOf(item.product, fiscal),
           })),
         },
         null,
       );
       await tx.invoice.update({
         where: { id: invoice.id },
-        data: { status: sending, number, cuf, issuedAt, lastAttemptAt: now, lastError: null },
+        data: { status: sending, number, cuf, issuedAt, lastAttemptAt: now, lastError: null, legend, activityCode },
       });
       await this.audit(tx, input, 'invoicing.invoice.issue', { status: invoice.status }, { status: sending, number, cuf });
       return {

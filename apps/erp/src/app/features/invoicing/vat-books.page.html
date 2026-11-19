@@ -1,5 +1,6 @@
 <rs-page-header [title]="title()" [description]="description()" type="list" [breadcrumbs]="breadcrumbs()" breadcrumbLabel="Ruta de navegación">
   <div rsActions class="header-actions">
+    <button rsButton variant="secondary" type="button" data-testid="book-periods" (click)="openPeriods()">Ver períodos</button>
     <button rsButton variant="primary" type="button" data-testid="book-export" [disabled]="state() !== 'ready'" (click)="exportOpen.set(true)">Exportar libro</button>
   </div>
 </rs-page-header>
@@ -11,7 +12,7 @@
 } @else {
   @if (draft()) {
     <rs-note type="warning" [title]="'Período abierto: ' + periodName()" data-testid="book-draft-note">
-      El mes todavía no terminó, así que el libro puede cambiar. Lo que exportes ahora sale como borrador.
+      El período todavía no está cerrado, así que el libro puede cambiar. Lo que exportes ahora sale como borrador.
     </rs-note>
   }
   @if (firstObserved(); as observed) {
@@ -101,6 +102,6 @@
   }
 }
 
-<rs-vat-book-export-dialog [(open)]="exportOpen" [book]="book()" [period]="period()" [periods]="exportPeriods" [formats]="formats()" />
+<rs-vat-book-export-dialog [(open)]="exportOpen" [book]="book()" [period]="period()" [periods]="exportPeriods" [formats]="formats()" [closedPeriods]="closedPeriods()" />
 
 <rs-toast-outlet closeLabel="Cerrar" />

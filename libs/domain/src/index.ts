@@ -39,3 +39,5 @@ export * from './lib/cash-register';
 export * from './lib/pricing';
 export * from './lib/approvals';
 export * from './lib/invoicing';
+export * from './lib/vat-period';
+export * from './lib/fiscal-settings';

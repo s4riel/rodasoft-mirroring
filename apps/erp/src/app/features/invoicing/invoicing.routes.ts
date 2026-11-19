@@ -6,7 +6,7 @@ const tab = (key: string): InvoicingTab => INVOICING_TABS.find((t) => t.key === 
 
 /**
  * `/invoicing`: the sub-navigation with the invoice list and detail, the credit notes (HU-FAC-11, 12), the SIAT system status
- * (HU-FAC-13) and the VAT books (HU-FAC-18…20). There is no contingency tab (client rule).
+ * (HU-FAC-13), the VAT books and their periods (HU-FAC-18…21) and the fiscal configuration (HU-FAC-22…27). There is no contingency tab (client rule).
  */
 export const INVOICING_ROUTES: Route[] = [
   {
@@ -21,7 +21,14 @@ export const INVOICING_ROUTES: Route[] = [
       { path: 'notes/:id', canActivate: [requiresInvoicingTab(tab('notes'))], title: 'Nota de crédito · ERP', loadComponent: () => import('./credit-note-detail.page').then((m) => m.CreditNoteDetailPage) },
       { path: 'status', canActivate: [requiresInvoicingTab(tab('status'))], title: 'Estado del sistema SIAT · ERP', loadComponent: () => import('./siat-status.page').then((m) => m.SiatStatusPage) },
       { path: 'books/purchases/:id', canActivate: [requiresInvoicingTab(tab('books'))], title: 'Compra · ERP', loadComponent: () => import('./purchase-entry.page').then((m) => m.PurchaseEntryPage) },
+      { path: 'books/periods', canActivate: [requiresInvoicingTab(tab('books'))], title: 'Períodos IVA · ERP', loadComponent: () => import('./vat-periods.page').then((m) => m.VatPeriodsPage) },
       { path: 'books', canActivate: [requiresInvoicingTab(tab('books'))], title: 'Libros IVA · ERP', loadComponent: () => import('./vat-books.page').then((m) => m.VatBooksPage) },
+      // every `settings/*` page needs `invoicing.settings.manage` (the guard of the tab), so its buttons carry no `*rsCan` of their own
+      { path: 'settings', canActivate: [requiresInvoicingTab(tab('settings'))], title: 'Configuración fiscal · ERP', loadComponent: () => import('./fiscal-settings.page').then((m) => m.FiscalSettingsPage) },
+      { path: 'settings/credentials', canActivate: [requiresInvoicingTab(tab('settings'))], title: 'Credenciales · ERP', loadComponent: () => import('./fiscal-credentials.page').then((m) => m.FiscalCredentialsPage) },
+      { path: 'settings/points-of-sale', canActivate: [requiresInvoicingTab(tab('settings'))], title: 'Puntos de venta · ERP', loadComponent: () => import('./points-of-sale.page').then((m) => m.PointsOfSalePage) },
+      { path: 'settings/catalogs', canActivate: [requiresInvoicingTab(tab('settings'))], title: 'Catálogos del SIN · ERP', loadComponent: () => import('./fiscal-catalogs.page').then((m) => m.FiscalCatalogsPage) },
+      { path: 'settings/homologation', canActivate: [requiresInvoicingTab(tab('settings'))], title: 'Homologación · ERP', loadComponent: () => import('./homologation.page').then((m) => m.HomologationPage) },
     ],
   },
 ];

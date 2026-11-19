@@ -94,6 +94,12 @@ export interface CompanySettings {
   'invoicing.vatBookFormat': VatBookFormat;
   /** File formats offered when exporting a VAT book (HU-FAC-20). */
   'invoicing.vatBookExportFormats': VatBookExportFormat[];
+  /** Days before the digital signature or the SIAT token expires in which the ERP warns about it (HU-FAC-23). */
+  'invoicing.signatureWarnDays': number;
+  /** Whether an invoice with a product without SIN code waits (`PRODUCT_NOT_HOMOLOGATED`) instead of using the default code (HU-FAC-26). */
+  'invoicing.requireHomologation': boolean;
+  /** SIN document sectors the company invoices (decision #31): 1 = purchase-sale, 24 = credit and debit note. */
+  'invoicing.documentSectors': number[];
 }
 
 export type CompanySettingKey = keyof CompanySettings;
@@ -131,6 +137,9 @@ export const COMPANY_SETTING_DEFAULTS: Readonly<CompanySettings> = {
   'invoicing.cufdWarnHours': 6,
   'invoicing.vatBookFormat': 'SIN_LCV',
   'invoicing.vatBookExportFormats': ['XLSX', 'CSV'],
+  'invoicing.signatureWarnDays': 30,
+  'invoicing.requireHomologation': false,
+  'invoicing.documentSectors': [1, 24],
 };
 
 /** Money thresholds are decimal strings, never JSON numbers (CLAUDE.md: money is never `number`). */

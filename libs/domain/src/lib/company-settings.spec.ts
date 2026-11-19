@@ -124,3 +124,23 @@ describe('invoicing settings of the notes and the VAT books (HU-FAC-12, 13, 18, 
     }
   });
 });
+
+describe('invoicing settings of the fiscal configuration (HU-FAC-23, 26)', () => {
+  it('warns 30 days before the signature expires', () => {
+    expect(settingOrDefault('invoicing.signatureWarnDays', undefined)).toBe(30);
+    expect(settingOrDefault('invoicing.signatureWarnDays', 15)).toBe(15);
+    expect(settingOrDefault('invoicing.signatureWarnDays', 0)).toBe(30);
+  });
+
+  it('does not require homologation until a company turns it on', () => {
+    expect(settingOrDefault('invoicing.requireHomologation', undefined)).toBe(false);
+    expect(settingOrDefault('invoicing.requireHomologation', true)).toBe(true);
+    expect(settingOrDefault('invoicing.requireHomologation', 'yes')).toBe(false);
+  });
+
+  it('invoices the purchase-sale and the note sectors by default', () => {
+    expect(settingOrDefault('invoicing.documentSectors', undefined)).toEqual([1, 24]);
+    expect(settingOrDefault('invoicing.documentSectors', [24, 1, 1])).toEqual([1, 24]);
+    expect(settingOrDefault('invoicing.documentSectors', [])).toEqual([1, 24]);
+  });
+});

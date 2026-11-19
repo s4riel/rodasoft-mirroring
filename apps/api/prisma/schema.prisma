@@ -118,6 +118,9 @@ model Company {
   approvalRequests      ApprovalRequest[]
   documentSequences     DocumentSequence[]
   simulatedSiatRecords  SimulatedSiatRecord[]
+  vatPeriods            VatPeriod[]
+  siatCatalogEntries    SiatCatalogEntry[]
+  siatCatalogSyncs      SiatCatalogSync[]
 
   @@map("companies")
 }
@@ -344,6 +347,14 @@ model SiatSettings {
   signaturePasswordEncrypted String?              @map("signature_password_encrypted")
   signatureExpiresAt         DateTime?            @map("signature_expires_at") @db.Timestamptz(3)
   signatureHolder            String?              @map("signature_holder")
+  signatureFileName          String?              @map("signature_file_name")
+  signatureUploadedAt        DateTime?            @map("signature_uploaded_at") @db.Timestamptz(3)
+  /// SIN economic activity printed on the invoices (a code of the synced ACTIVITY catalogue, HU-FAC-26)
+  mainActivityCode           String?              @map("main_activity_code")
+  /// SIN product code used for a product that has none while homologation is not required (HU-FAC-26)
+  defaultProductCode         String?              @map("default_product_code")
+  productionEnabledAt        DateTime?            @map("production_enabled_at") @db.Timestamptz(3)
+  productionEnabledById      String?              @map("production_enabled_by_id") @db.Uuid
   connectionStatus           SiatConnectionStatus @default(UNKNOWN) @map("connection_status")
   connectionCheckedAt        DateTime?            @map("connection_checked_at") @db.Timestamptz(3)
   connectionChangedAt        DateTime?            @map("connection_changed_at") @db.Timestamptz(3)
@@ -367,6 +378,11 @@ model SiatPointOfSale {
   cufdAddress     String?   @map("cufd_address")
   cufdExpiresAt   DateTime? @map("cufd_expires_at") @db.Timestamptz(3)
   lastSyncedAt    DateTime? @map("last_synced_at") @db.Timestamptz(3)
+  /// a deactivated point of sale keeps its history but issues nothing (HU-FAC-24)
+  status          RecordStatus @default(ACTIVE)
+  /// SIN point-of-sale type (catalogue POINT_OF_SALE_TYPE)
+  typeCode        Int?      @map("type_code")
+  deactivatedAt   DateTime? @map("deactivated_at") @db.Timestamptz(3)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -502,6 +518,10 @@ model Product {
   /// set while the product is INACTIVE (HU-INV-09); cleared on reactivation
   deactivatedAt    DateTime?     @map("deactivated_at") @db.Timestamptz(3)
   deactivatedById  String?       @map("deactivated_by_id") @db.Uuid
+  /// SIN product/service code (catalogue PRODUCT_SERVICE), its economic activity and unit of measure; null = not homologated (HU-FAC-26)
+  sinProductCode   String?       @map("sin_product_code")
+  sinActivityCode  String?       @map("sin_activity_code")
+  sinUnitCode      Int?          @map("sin_unit_code")
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -533,6 +553,7 @@ model Product {
   @@index([companyId, categoryId])
   @@index([companyId, countryId])
   @@index([companyId, createdAt(sort: Desc), id])
+  @@index([companyId, sinProductCode])
   @@map("products")
 }
 
@@ -1388,6 +1409,9 @@ model Invoice {
   nitException           Boolean       @default(false) @map("nit_exception")
   cancellationReasonCode Int?          @map("cancellation_reason_code")
   cancelledAt            DateTime?     @map("cancelled_at") @db.Timestamptz(3)
+  /// the legend and the SIN activity printed on the invoice, fixed at the first send so a reprint never changes (HU-FAC-25)
+  legend                 String?
+  activityCode           String?       @map("activity_code")
   createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -1751,6 +1775,86 @@ model PurchaseBookEntry {
 
   @@index([companyId, period])
   @@map("purchase_book_entries")
+}
+
+/// State of a VAT period (HU-FAC-21). A month without a row is OPEN.
+enum VatPeriodStatus {
+  OPEN
+  CLOSED
+  FILED
+}
+
+/// One La Paz month of the VAT books (HU-FAC-21). Closing freezes its books and its cancellations and keeps a snapshot of the totals.
+/// The migration adds CHECK (period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$').
+model VatPeriod {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
+  /// `YYYY-MM`
+  period         String
+  status         VatPeriodStatus @default(OPEN)
+  closedAt       DateTime?       @map("closed_at") @db.Timestamptz(3)
+  closedById     String?         @map("closed_by_id") @db.Uuid
+  filedAt        DateTime?       @map("filed_at") @db.Timestamptz(3)
+  filedById      String?         @map("filed_by_id") @db.Uuid
+  reopenedAt     DateTime?       @map("reopened_at") @db.Timestamptz(3)
+  reopenedById   String?         @map("reopened_by_id") @db.Uuid
+  reopenReason   String?         @map("reopen_reason")
+  /// snapshot taken at the close; null while the period is open
+  salesTotal     Decimal?        @map("sales_total") @db.Decimal(14, 2)
+  fiscalDebit    Decimal?        @map("fiscal_debit") @db.Decimal(14, 2)
+  purchasesTotal Decimal?        @map("purchases_total") @db.Decimal(14, 2)
+  vatCredit      Decimal?        @map("vat_credit") @db.Decimal(14, 2)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, period])
+  @@map("vat_periods")
+}
+
+/// The SIN parametric tables the ERP syncs (HU-FAC-25).
+enum SiatCatalog {
+  ACTIVITY
+  LEGEND
+  PRODUCT_SERVICE
+  UNIT_OF_MEASURE
+  CANCELLATION_REASON
+  CREDIT_NOTE_REASON
+  POINT_OF_SALE_TYPE
+}
+
+/// A row of a SIN catalogue. A sync replaces the rows; one that disappeared from the SIN stays as inactive. `activityCode` is "" when the
+/// row does not belong to an activity (a legend or a product does).
+model SiatCatalogEntry {
+  id           String      @id @default(uuid(7)) @db.Uuid
+  companyId    String      @map("company_id") @db.Uuid
+  catalog      SiatCatalog
+  code         String
+  description  String
+  activityCode String      @default("") @map("activity_code")
+  active       Boolean     @default(true)
+  syncedAt     DateTime    @map("synced_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, catalog, activityCode, code])
+  @@index([companyId, catalog])
+  @@map("siat_catalog_entries")
+}
+
+/// When each catalogue was last synced.
+model SiatCatalogSync {
+  id         String      @id @default(uuid(7)) @db.Uuid
+  companyId  String      @map("company_id") @db.Uuid
+  catalog    SiatCatalog
+  syncedAt   DateTime    @map("synced_at") @db.Timestamptz(3)
+  entryCount Int         @map("entry_count")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, catalog])
+  @@map("siat_catalog_syncs")
 }
 
 /// Where a price change came from: the Precios screen, the inventory product form, the Excel import or a bulk update (HU-VEN-27).

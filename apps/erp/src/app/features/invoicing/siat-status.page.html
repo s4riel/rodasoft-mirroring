@@ -38,6 +38,18 @@
         }
       </rs-note>
 
+      @if (d.signatureHealth !== 'OK' || d.tokenHealth !== 'OK') {
+        <rs-note type="warning" title="Credenciales por vencer" data-testid="siat-credentials-expiry">
+          @if (d.signatureHealth !== 'OK') {
+            La firma digital {{ d.signatureHealth === 'EXPIRED' ? 'está vencida' : 'vence en menos de ' + d.signatureWarnDays + ' días' }}.
+          }
+          @if (d.tokenHealth !== 'OK') {
+            El token del SIAT {{ d.tokenHealth === 'EXPIRED' ? 'está vencido' : 'vence en menos de ' + d.signatureWarnDays + ' días' }}.
+          }
+          Cárgalos de nuevo en la configuración fiscal.
+        </rs-note>
+      }
+
       <section class="kpis" aria-label="Resumen del SIAT" data-testid="siat-kpis">
         <rs-kpi-card variant="stat" label="Conexión" [value]="connectionText()" [note]="checkedText()" [trend]="online() ? 'positive' : offline() ? 'negative' : 'neutral'" />
         <rs-kpi-card variant="stat" label="CUIS" [value]="cuisText()" [trend]="d.cuis === 'OK' ? 'neutral' : 'negative'" />

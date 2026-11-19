@@ -18,6 +18,13 @@
 - **Decisions:** new row 52 "Real list of categories and subcategories (currently examples) and which technical fields each one requires" (HU-INV-01, HU-INV-06); the brand-logos row also depends on them.
 - Links of the other epics (Common base, Sales, Invoicing, Web) were copied as-is from v1 and not re-verified.
 
+## Changes (Compras epic, 19 Nov 2026)
+
+- The 6 placeholder stories HU-COM-01…06 were rewritten from the Figma design (page `11 Compras`) and HU-COM-07…20 were added right after them: 20 stories, all "Diseñado", Wave 2. Repo copy: [`backlog/purchasing.md`](backlog/purchasing.md); design notes: [`purchasing/design-notes.md`](purchasing/design-notes.md).
+- Config row 10, "Enlace 9", points to the prototype page `14 Prototipo · Compras` (172:5587); prototype links start at "Índice · Compras" (172:13725). Design links use "Enlace 2".
+- Pantallas: 26 rows CO-01…CO-24, CO-03b, CO-04b. Decisiones: #55–60 (apportionment, approval amount, partial receipt, exchange rate, partial payments, "Por vencer" threshold).
+- Summary after the change: 167 stories, 128 designed, 39 to be designed.
+
 ## Contents (v2)
 
 - 154 stories in 12 epics as of 3 Nov 2026 (Summary total), of which 7 are withdrawn (Inventory: HU-INV-14, 15, 19, 20, 23, 25, 26). 109 designed and 45 to be designed.

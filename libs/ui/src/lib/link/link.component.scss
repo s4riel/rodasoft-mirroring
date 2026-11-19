@@ -1,0 +1,21 @@
+:host {
+  color: var(--text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--label-md-size);
+  line-height: var(--label-md-line-height);
+  font-weight: var(--label-md-weight);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+  cursor: pointer;
+}
+:host(:hover) {
+  text-decoration-thickness: var(--stroke-focus);
+}
+:host(:active) {
+  color: var(--text-muted);
+}
+:host(:focus-visible) {
+  outline: var(--stroke-focus) solid var(--focus-control);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius-sm);
+}

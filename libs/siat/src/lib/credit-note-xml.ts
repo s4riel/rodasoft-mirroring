@@ -1,6 +1,6 @@
 import { formatXmlDate } from './cuf';
 import type { InvoiceCustomer } from './gateway';
-import { escapeXml } from './invoice-xml';
+import { escapeXml, sinLineTags } from './invoice-xml';
 import { type DigitalSignature, signXml } from './xml-signer';
 
 export interface CreditNoteXmlLine {
@@ -11,6 +11,9 @@ export interface CreditNoteXmlLine {
   /** Decimal strings, 2 places. */
   unitPrice: string;
   amount: string;
+  sinProductCode?: string | null;
+  sinActivityCode?: string | null;
+  sinUnitCode?: number | null;
 }
 
 export interface CreditNoteXmlInput {
@@ -43,7 +46,7 @@ export function buildCreditNoteXml(input: CreditNoteXmlInput): string {
   const detail = input.lines
     .map(
       (line) =>
-        `  <detalle><codigoProducto>${escapeXml(line.code)}</codigoProducto><descripcion>${escapeXml(line.description)}</descripcion>` +
+        `  <detalle>${sinLineTags(line)}<codigoProducto>${escapeXml(line.code)}</codigoProducto><descripcion>${escapeXml(line.description)}</descripcion>` +
         `<cantidad>${line.quantity}</cantidad><precioUnitario>${line.unitPrice}</precioUnitario><subTotal>${line.amount}</subTotal>` +
         '<codigoDetalleTransaccion>2</codigoDetalleTransaccion></detalle>',
     )

@@ -192,7 +192,7 @@ export class InvoiceQueriesService {
       pendingNitException: pendingException > 0,
       modality: settings?.modality ?? null,
       pointOfSale: invoice.pointOfSale ? `${invoice.pointOfSale.code} · ${invoice.pointOfSale.name}` : null,
-      legend: INVOICE_LEGEND_DEFAULT,
+      legend: invoice.legend ?? INVOICE_LEGEND_DEFAULT,
       verificationUrl:
         invoice.cuf && invoice.number !== null ? siatQrUrl({ environment, nit: invoice.company.nit, cuf: invoice.cuf, number: invoice.number }) : null,
       branchName: invoice.branch.name,

@@ -1,0 +1,16 @@
+.content {
+  display: grid;
+  gap: var(--space-4);
+}
+.list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-1);
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

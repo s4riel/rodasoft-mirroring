@@ -32,6 +32,7 @@ describe('SIAT status and VAT books (integration, real Postgres)', () => {
     const where = { companyId: state.companyId };
     await state.base.companySetting.deleteMany({ where: { ...where, key: { startsWith: 'invoicing.' } } });
     await state.base.purchaseBookEntry.deleteMany({ where });
+    await state.base.vatPeriod.deleteMany({ where });
     await state.base.creditNote.deleteMany({ where });
     await state.base.invoiceDocument.deleteMany({ where });
     await state.base.invoice.deleteMany({ where });
@@ -229,6 +230,7 @@ describe('SIAT status and VAT books (integration, real Postgres)', () => {
 
   describe('export (HU-FAC-20)', () => {
     it('an open period is a draft in the title and the file name; a closed one is not', async () => {
+      await state.base.vatPeriod.create({ data: { companyId: state.companyId, period: pastPeriod, status: 'CLOSED', closedAt: new Date(), salesTotal: '0.00', fiscalDebit: '0.00', purchasesTotal: '500.00', vatCredit: '65.00' } });
       await state.base.purchaseBookEntry.create({
         data: { companyId: state.companyId, period: pastPeriod, date: new Date('2025-03-10T00:00:00Z'), supplierNit: '1020304050', supplierName: '=HYPERLINK("x")', authorizationCode: 'A', invoiceNumber: '7', total: '500.00', vatCredit: '65.00', status: 'VALID', source: 'SEED' },
       });

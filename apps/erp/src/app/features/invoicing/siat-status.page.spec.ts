@@ -19,6 +19,9 @@ const status = (over: Partial<SiatSystemStatus> = {}): SiatSystemStatus => ({
   cufd: 'OK',
   lastSyncedAt: '2026-11-16T14:52:00.000Z',
   warnHours: 6,
+  signatureHealth: 'OK',
+  tokenHealth: 'OK',
+  signatureWarnDays: 30,
   notIssued: 0,
   branches: [
     {

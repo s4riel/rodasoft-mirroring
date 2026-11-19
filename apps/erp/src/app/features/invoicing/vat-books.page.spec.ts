@@ -143,6 +143,9 @@ describe('VatBooksPage (FS-08, FS-10, FS-38, FS-39)', () => {
     request(SALES).flush(sales());
     await settle(h);
     root(h).querySelector<HTMLButtonElement>('[data-testid="book-export"]')?.click();
+    // the dialog marks as final only the periods that are closed
+    await settle(h);
+    http.expectOne('/api/v1/invoicing/vat-periods').flush({ items: [], kpis: { current: period, lastClosed: null, filed: 0, total: 1 } });
     await settle(h);
     expect(root(h).querySelector('[data-testid="export-file-name"]')?.textContent).toBe(`libro-ventas-${period}-BORRADOR.xlsx`);
     root(h).querySelector<HTMLButtonElement>('[data-testid="export-confirm"]')?.click();

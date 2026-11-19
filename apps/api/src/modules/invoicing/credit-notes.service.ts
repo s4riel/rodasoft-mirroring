@@ -9,7 +9,6 @@ import {
   creditNoteVat,
   Decimal,
   type InvoiceStatus,
-  isCreditNoteReasonCode,
   isInvoiceCreditable,
   isStuckSending,
   proRata,
@@ -24,6 +23,7 @@ import { SettingsService } from '../../common/settings/settings.service';
 import { SaleVisibilityService } from '../sales/sales/sale-visibility.service';
 import { creditableLines } from './creditable-lines';
 import { invoicingErrors } from './invoicing.errors';
+import { SiatCatalogsService } from './siat-catalogs.service';
 
 const asTx = (tx: TenantTransaction) => tx as unknown as Prisma.TransactionClient;
 const money = (value: Prisma.Decimal) => Decimal.of(value.toFixed(2));
@@ -46,11 +46,12 @@ export class CreditNotesService {
     private readonly outbox: OutboxService,
     private readonly settings: SettingsService,
     private readonly visibility: SaleVisibilityService,
+    private readonly catalogs: SiatCatalogsService,
   ) {}
 
   /** A price-adjustment note of a valid invoice: money credited on its lines, no pieces coming back, no return. */
   async createPriceAdjustment(invoiceId: string, input: CreateCreditNoteInput): Promise<{ id: string }> {
-    if (!isCreditNoteReasonCode(input.reasonCode)) throw invoicingErrors.invalidNote([{ field: 'reasonCode', error: 'REASON_INVALID' }]);
+    if (!(await this.catalogs.creditNoteReasons()).some((reason) => reason.code === input.reasonCode)) throw invoicingErrors.invalidNote([{ field: 'reasonCode', error: 'REASON_INVALID' }]);
     const companyId = this.cls.get('companyId') ?? '';
     const scope = await this.visibility.resolve();
 

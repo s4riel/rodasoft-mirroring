@@ -14,6 +14,7 @@ import { hash } from 'argon2';
 import { seedAdminMembership, seedCompany, seedPermissions, type SeedCompany } from './seed-base';
 import { seedCatalog } from './seed-catalog';
 import { seedPurchaseBook } from './seed-purchase-book';
+import { seedSiatFiscal } from './seed-siat-fiscal';
 import { seedStaging } from './seed-staging';
 
 const prisma = new PrismaClient();
@@ -60,6 +61,8 @@ async function main() {
     if (c.slug === 'rodalaser') await seedCatalog(prisma, company.id, Number(process.env.SEED_BULK_PRODUCTS ?? 0));
     // demo purchases for the purchases book until the purchasing module writes it (HU-FAC-19)
     if (c.slug === 'rodalaser') await seedPurchaseBook(prisma, company.id);
+    // demo fiscal configuration: synced catalogues, SIN codes on the products and one closed VAT period (HU-FAC-21…27)
+    if (c.slug === 'rodalaser') await seedSiatFiscal(prisma, company.id);
     await seedAdminMembership(prisma, company, admin);
   }
 

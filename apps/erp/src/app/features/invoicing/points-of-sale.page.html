@@ -1,0 +1,89 @@
+<rs-page-header
+  title="Puntos de venta SIAT"
+  description="Cada sucursal factura con su propio punto de venta y su CUIS."
+  type="list"
+  [breadcrumbs]="breadcrumbs"
+  breadcrumbLabel="Ruta de navegación"
+>
+  <div rsActions class="header-actions">
+    <button rsButton variant="primary" type="button" data-testid="pos-new" [disabled]="state() !== 'ready'" (click)="dialogOpen.set(true)">Nuevo punto de venta</button>
+  </div>
+</rs-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <section class="skeleton" role="status" aria-busy="true" aria-label="Cargando los puntos de venta">
+      @for (i of skeletonRows; track i) {
+        <rs-skeleton shape="rect" width="100%" height="var(--space-12)" />
+      }
+    </section>
+  }
+  @case ('forbidden') {
+    <section class="state" role="status">
+      <rs-empty-state-illustrated illustration="no-access" heading="No tienes permiso para ver los puntos de venta" description="Pide acceso al administrador de tu empresa." [showAction]="false" />
+    </section>
+  }
+  @case ('error') {
+    <section class="state" role="alert">
+      <rs-empty-state-illustrated illustration="error" heading="No pudimos cargar los puntos de venta" [description]="errorMessage()">
+        <button rsButton variant="secondary" type="button" (click)="load()">Reintentar</button>
+      </rs-empty-state-illustrated>
+    </section>
+  }
+  @default {
+    @if (data(); as d) {
+      <section class="kpis" aria-label="Resumen de puntos de venta" data-testid="pos-kpis">
+        <rs-kpi-card variant="stat" label="Puntos de venta" [value]="'' + d.kpis.total" />
+        <rs-kpi-card variant="stat" label="Activos" [value]="'' + d.kpis.active" />
+        <rs-kpi-card variant="stat" label="Con CUIS vigente" [value]="'' + (d.kpis.active - d.kpis.withoutCuis)" />
+        <rs-kpi-card variant="stat" label="Dados de baja" [value]="'' + (d.kpis.total - d.kpis.active)" />
+      </section>
+
+      @if (d.kpis.withoutCuis > 0) {
+        <rs-note type="warning" title="Hay puntos de venta sin CUIS vigente">Renueva sus códigos desde el <a rsLink routerLink="/invoicing/status">estado del sistema</a> para poder facturar con ellos.</rs-note>
+      }
+
+      <rs-filter-bar-products
+        inline
+        searchPlaceholder="Buscar por sucursal, punto o caja"
+        searchLabel="Buscar puntos de venta"
+        clearLabel="Limpiar"
+        [clearDisabled]="search() === ''"
+        [search]="search()"
+        (searchChange)="search.set($event)"
+        (cleared)="clearSearch()"
+      />
+
+      @if (isEmpty()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="Todavía no hay puntos de venta" description="Registra el primero para poder facturar." [showAction]="false" />
+        </section>
+      } @else if (noResults()) {
+        <section class="state">
+          <rs-empty-state-illustrated illustration="no-results" heading="No encontramos puntos de venta" description="Prueba con otra sucursal o nombre.">
+            <button rsButton variant="secondary" type="button" (click)="clearSearch()">Limpiar búsqueda</button>
+          </rs-empty-state-illustrated>
+        </section>
+      } @else {
+        <rs-doc-table size="lg" tableLabel="Puntos de venta" [columns]="columns" [rows]="rows()" [totals]="totals()">
+          <ng-template rsDocCell="actions" let-row>
+            @if (pointOf(row.id); as point) {
+              @if (menuFor(point).length > 0) {
+                <rs-row-action [label]="'Acciones de ' + point.name" [items]="menuFor(point)" (selected)="deactivate(point)" />
+              }
+            }
+          </ng-template>
+          <div slot="footer" class="footer">
+            <span class="range">{{ rows().length }} de {{ d.items.length }} {{ d.items.length === 1 ? 'punto de venta' : 'puntos de venta' }}</span>
+          </div>
+        </rs-doc-table>
+      }
+    }
+  }
+}
+
+@if (data(); as d) {
+  <rs-point-of-sale-dialog [(open)]="dialogOpen" [types]="d.types" (created)="load()" />
+}
+
+<rs-toast-outlet closeLabel="Cerrar" />

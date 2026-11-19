@@ -138,6 +138,19 @@ export const creditNoteMachine = createMachine<CreditNoteStatus, CreditNoteEvent
   CANCELLED: {},
 });
 
+// ── VAT periods (HU-FAC-21) ──
+
+/** A VAT period is open while it can change, closed when its books are final and filed once the tax was declared. A month without a record is `OPEN`. */
+export type VatPeriodStatus = 'OPEN' | 'CLOSED' | 'FILED';
+export type VatPeriodEvent = 'close' | 'file' | 'reopen';
+
+/** `OPEN → CLOSED → FILED`; a closed period can be reopened (with a reason, audited), a filed one is final. */
+export const vatPeriodMachine = createMachine<VatPeriodStatus, VatPeriodEvent>({
+  OPEN: { close: 'CLOSED' },
+  CLOSED: { file: 'FILED', reopen: 'OPEN' },
+  FILED: {},
+});
+
 // ── Sales and POS (HU-VEN-00, docs/sales/design-notes.md) ──
 
 /** A shift is closed by the cashier and then reviewed: approved, or observed when the count needs a follow-up. */

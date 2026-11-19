@@ -17,6 +17,7 @@ export const INVOICING_TABS: readonly InvoicingTab[] = [
   { key: 'notes', label: 'Notas de crédito', path: 'notes', permissions: ['invoicing.invoices.view'] },
   { key: 'status', label: 'Estado del sistema', path: 'status', permissions: ['invoicing.invoices.view'] },
   { key: 'books', label: 'Libros IVA', path: 'books', permissions: ['invoicing.vat-books.view'] },
+  { key: 'settings', label: 'Configuración fiscal', path: 'settings', permissions: ['invoicing.settings.manage'] },
 ];
 
 export const canSeeInvoicingTab = (tab: InvoicingTab, can: (permission: string) => boolean): boolean => tab.permissions.some(can);
